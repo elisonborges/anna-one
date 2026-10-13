@@ -67,3 +67,12 @@
 .app-v03 .license-tag{display:block;margin:7px auto 0;padding:3px 5px;background:#e8edf4;color:#475b72;border-radius:6px;font-size:9px;max-width:120px}
 .app-v03 .fav-toggle[hidden]{display:none}
 @media(max-width:650px){.app-v03 .demo-toolbar{flex-direction:column;align-items:stretch}.app-v03 .demo-toolbar label{min-width:0}}
+
+/* v0.5.1 — seletor de instituição no cabeçalho */
+.app-v03 .header-profile{margin-left:auto;flex:0 1 230px;min-width:165px}
+.app-v03 .header-profile label{display:flex;flex-direction:column;gap:3px;color:#cfe2fa;font-size:10px;font-weight:650}
+.app-v03 .header-profile select{width:100%;padding:8px 10px;border:1px solid #5277a5;border-radius:9px;background:#f8fbff;color:#173a62;font-size:12px;min-height:35px}
+.app-v03 .dash-user{flex-shrink:0}
+@media(max-width:1050px){.app-v03 .header-profile{flex-basis:190px}.app-v03 .dash-user>span:last-child{display:none}}
+@media(max-width:800px){.app-v03 .header-profile{flex-basis:185px;min-width:155px}}
+@media(max-width:520px){.app-v03 .header-profile{order:2;flex:1 1 165px;min-width:135px;margin-left:0}.app-v03 .dash-user{order:1}.app-v03 .dash-search{order:3}}

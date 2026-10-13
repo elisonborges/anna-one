@@ -116,3 +116,14 @@
 .app-v03 .admin-demo-table th{background:#f3f7fc;color:#21476d}
 .app-v03 .admin-demo-foot{font-size:11px;color:#536d84;margin-top:14px;line-height:1.6}
 @media(max-width:650px){.app-v03 .admin-demo{padding:13px}.app-v03 .admin-demo-stats{grid-template-columns:1fr}}
+
+/* v0.8.1 — navegação administrativa como tela independente */
+.app-v03 .dash-main.show-admin>.dash-banner,
+.app-v03 .dash-main.show-admin>.access-summary,
+.app-v03 .dash-main.show-admin>.modules-intro,
+.app-v03 .dash-main.show-admin>.demo-view-tabs,
+.app-v03 .dash-main.show-admin>.dash-filter-status,
+.app-v03 .dash-main.show-admin>.dash-sections{display:none!important}
+.app-v03 .dash-main:not(.show-admin)>.admin-demo{display:none!important}
+.app-v03 .dash-main.show-admin>.admin-demo{display:block!important;margin-top:0;min-height:calc(100vh - 150px)}
+.app-v03 .dash-main.show-admin>.note{margin-top:14px}

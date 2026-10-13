@@ -54,3 +54,16 @@
 .app-v03 .dash-filter-status[hidden]{display:none}
 .app-v03 .dash-group{scroll-margin-top:85px}
 .app-v03 .dash-foot [data-view]{cursor:pointer}
+
+/* AnnA One v0.5: licencas demonstrativas */
+.app-v03 .demo-toolbar{display:flex;justify-content:space-between;align-items:center;gap:16px;margin:12px 0 9px;padding:15px 18px;background:#fff;border:1px solid #dce8f6;border-radius:14px}
+.app-v03 .demo-toolbar strong{font-size:16px;color:#123d70}.app-v03 .demo-toolbar p{margin:5px 0 0;font-size:11px;color:#54708f}
+.app-v03 .demo-toolbar label{font-size:11px;font-weight:700;color:#385575;display:flex;flex-direction:column;gap:5px;min-width:225px}
+.app-v03 .demo-toolbar select{padding:10px 12px;border:1px solid #bcd2eb;border-radius:9px;background:#f8fbff;color:#14395e;font-size:12px}
+.app-v03 .demo-view-tabs{display:flex;gap:7px;margin-bottom:9px}
+.app-v03 .demo-view-tabs button{border:1px solid #cbdcf0;border-radius:10px;padding:10px 16px;background:#fff;color:#164371;font-weight:700;cursor:pointer}
+.app-v03 .demo-view-tabs button.selected{background:#0b62c7;border-color:#0b62c7;color:#fff}
+.app-v03 .dash-tile.demo-unlicensed{opacity:.62}
+.app-v03 .license-tag{display:block;margin:7px auto 0;padding:3px 5px;background:#e8edf4;color:#475b72;border-radius:6px;font-size:9px;max-width:120px}
+.app-v03 .fav-toggle[hidden]{display:none}
+@media(max-width:650px){.app-v03 .demo-toolbar{flex-direction:column;align-items:stretch}.app-v03 .demo-toolbar label{min-width:0}}

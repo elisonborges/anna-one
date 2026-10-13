@@ -45,3 +45,12 @@
 @media(max-width:1180px){.app-v03 .dash-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.app-v03 .dash-foot{grid-template-columns:repeat(2,minmax(0,1fr))}.app-v03 .banner-motto{font-size:19px}}
 @media(max-width:800px){.app-v03{grid-template-columns:1fr}.app-v03 .sidebar{min-height:0;padding:8px}.app-v03 .sidebar>.brand{display:none}.app-v03 .sidebar nav{flex-direction:row;overflow-x:auto}.app-v03 .dash-top{min-height:64px}.app-v03 .dash-mobile-brand{display:flex;align-items:center;gap:5px;font-size:17px;font-weight:800;white-space:nowrap}.app-v03 .dash-mobile-brand img{width:29px}.app-v03 .dash-mobile-brand span{color:#2e9cff}.app-v03 .dash-user>span:last-child{display:none}.app-v03 .dash-search{width:55%}.app-v03 .dash-sections{grid-template-columns:1fr}.app-v03 .dash-sections.is-filtering{grid-template-columns:1fr}}
 @media(max-width:520px){.app-v03 .dash-top{gap:8px;padding:8px}.app-v03 .dash-search{width:100%;order:3}.app-v03 .dash-user{margin-left:auto}.app-v03 .dash-banner{min-height:155px}.app-v03 .banner-symbol{width:52px}.app-v03 .dash-banner .welcome{font-size:16px}.app-v03 .dash-banner h1{font-size:26px}.app-v03 .dash-banner p{font-size:9px}.app-v03 .banner-motto{display:none}.app-v03 .dash-foot{grid-template-columns:1fr 1fr}.app-v03 .dash-foot>a,.app-v03 .dash-foot>span{font-size:11px}}
+
+/* AnnA One v0.4: favoritos e navegação */
+.app-v03 .dash-tile{position:relative;transition:transform .15s,box-shadow .15s}
+.app-v03 .fav-toggle{position:absolute;right:6px;top:5px;border:0;border-radius:8px;background:#ffffffb5;color:#d29b00;font-size:20px;line-height:1;padding:3px 5px;cursor:pointer;z-index:1}
+.app-v03 .fav-toggle:hover,.app-v03 .fav-toggle:focus-visible{background:#fff1b9;outline:2px solid #d7a72d}
+.app-v03 .dash-filter-status{padding:12px 16px;margin:12px 0 0;border-radius:12px;background:#e6f1ff;color:#153c75;font-size:13px;font-weight:650}
+.app-v03 .dash-filter-status[hidden]{display:none}
+.app-v03 .dash-group{scroll-margin-top:85px}
+.app-v03 .dash-foot [data-view]{cursor:pointer}

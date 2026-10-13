@@ -76,3 +76,15 @@
 @media(max-width:1050px){.app-v03 .header-profile{flex-basis:190px}.app-v03 .dash-user>span:last-child{display:none}}
 @media(max-width:800px){.app-v03 .header-profile{flex-basis:185px;min-width:155px}}
 @media(max-width:520px){.app-v03 .header-profile{order:2;flex:1 1 165px;min-width:135px;margin-left:0}.app-v03 .dash-user{order:1}.app-v03 .dash-search{order:3}}
+
+/* AnnA One v0.6 — disponibilidade real e clareza dos cards */
+.app-v03 .modules-intro{margin:8px 2px 9px;color:#526e8a;font-size:11px}
+.app-v03 .dash-tile{display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
+.app-v03 .dash-tile .symbol{display:grid;place-items:center;width:46px;height:46px;margin:2px auto 0;background:#eef5ff;border:1px solid #dbe9fc;border-radius:14px;font-size:26px}
+.app-v03 .dash-tile .module-state{margin-top:auto;padding:5px 7px;border-radius:7px;font-size:9px;font-weight:750;line-height:1.2}
+.app-v03 .dash-tile .state-available{background:#dff7e9;color:#136a39}
+.app-v03 .dash-tile .state-planned{background:#edf1f6;color:#5c6c7c}
+.app-v03 .dash-tile[data-status="available"]{border:1px solid #b1e6c4}
+.app-v03 .dash-tile[data-status="available"] a{display:inline-block;margin:7px 0}
+.app-v03 .dash-tile[data-status="planned"]{border:1px solid #e5ebf3}
+.app-v03 .dash-tile.demo-unlicensed .module-state{opacity:.8}

@@ -98,3 +98,21 @@
 .app-v03 .access-summary{padding:10px 14px;background:#e9f2fc;border:1px solid #d6e6f8;border-radius:11px;color:#1c487a;font-size:12px;font-weight:650;margin:10px 0}
 @media(max-width:1200px){.app-v03 .dash-top{flex-wrap:wrap}.app-v03 .header-role{flex:1 1 175px}.app-v03 .header-profile{flex:1 1 175px}.app-v03 .dash-search{flex:1 1 220px}}
 @media(max-width:520px){.app-v03 .header-role{order:2;flex:1 1 160px}.app-v03 .header-profile{order:2;flex:1 1 160px}.app-v03 .dash-search{order:3;flex:1 1 100%}}
+
+/* v0.8 — gestão institucional demonstrativa */
+.app-v03 .admin-demo[hidden],.app-v03 #admin-nav[hidden]{display:none!important}
+.app-v03 .admin-demo{margin:20px 0;padding:20px;background:#fff;border:1px solid #dce7f3;border-radius:17px;box-shadow:0 6px 24px rgba(20,57,100,.05)}
+.app-v03 .admin-demo-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.app-v03 .admin-demo-head h2{font-size:20px;color:#163d68;margin:0 0 5px}
+.app-v03 .admin-demo-head p{font-size:12px;color:#62768b;margin:0}
+.app-v03 .admin-demo-pill{padding:7px 11px;border-radius:100px;background:#edf3fa;color:#355d83;font-size:11px;font-weight:700}
+.app-v03 .admin-demo-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0}
+.app-v03 .admin-demo-stats>div{padding:15px;background:#f1f6fc;border-radius:12px}
+.app-v03 .admin-demo-stats strong{display:block;color:#14548c;font-size:25px}
+.app-v03 .admin-demo-stats small{color:#58728b;font-size:11px}
+.app-v03 .admin-demo-table-wrap{overflow-x:auto}
+.app-v03 .admin-demo-table{width:100%;border-collapse:collapse;font-size:12px;text-align:left}
+.app-v03 .admin-demo-table th,.app-v03 .admin-demo-table td{padding:12px;border-bottom:1px solid #e5ecf4;color:#35516d}
+.app-v03 .admin-demo-table th{background:#f3f7fc;color:#21476d}
+.app-v03 .admin-demo-foot{font-size:11px;color:#536d84;margin-top:14px;line-height:1.6}
+@media(max-width:650px){.app-v03 .admin-demo{padding:13px}.app-v03 .admin-demo-stats{grid-template-columns:1fr}}

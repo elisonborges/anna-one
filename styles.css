@@ -5,3 +5,12 @@
 @media(max-width:1050px){.top .nav{gap:10px}.hero-inner{grid-template-columns:47% 53%}.hero-brand>img{width:62px;height:70px}.hero h1{font-size:46px}.hero h2{font-size:21px}.compact-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:800px){.hero-inner{grid-template-columns:1fr;padding-right:4.5%}.hero-inner>div:first-child{padding-right:0}.hero-photo{min-height:290px;border-radius:18px;margin-bottom:22px}.hero-photo-image{background-image:linear-gradient(90deg,#e8f6ff25,#e8f6ff00),url("https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=1200&q=85")}.hero-photo-overlay{font-size:22px}.compact-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:520px){.hero-brand>img{width:56px;height:65px}.hero h1{font-size:43px}.hero h2{font-size:19px}.hero-photo{min-height:220px}.hero-photo-overlay{font-size:17px}.compact-grid{grid-template-columns:1fr}.compact-grid .module{min-height:96px}.top .nav{gap:16px}}
+
+/* Créditos institucionais e proteção autoral */
+.footer .wrap{display:flex;align-items:center;justify-content:space-between;gap:22px;flex-wrap:wrap}
+.footer .brand{flex-shrink:0}.footer .brand-name small{color:#24426d;opacity:1;font-size:10px;letter-spacing:.2px;font-weight:700}
+.footer-credits{display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;flex:1 1 380px;color:#12305d;font-size:12px;line-height:1.45}
+.footer-credits .footer-slogan{font-size:13px;letter-spacing:1.4px;color:#0b57bb}
+.footer-credits small{color:#536781;font-size:10px}
+.footer a#contato{white-space:nowrap}
+@media(max-width:700px){.footer .wrap{justify-content:center;text-align:center}.footer-credits{order:3;flex-basis:100%}.footer .brand-name small{font-size:9px}}

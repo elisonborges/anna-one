@@ -26,6 +26,9 @@ function render(){
  const q=search.value.trim().toLocaleLowerCase('pt-BR'),licensed=profiles[profile.value],roleModules=allowedByRole[role.value];let visible=0;
  const authorized=licensed.filter(name=>!roleModules||roleModules.includes(name));
  document.getElementById('access-summary').textContent='Perfil: '+role.options[role.selectedIndex].text+' · '+profile.options[profile.selectedIndex].text+' · '+authorized.length+' módulo(s) autorizado(s)';
+ adminPanel.hidden=!['admin','platform'].includes(role.value);
+ adminNav.hidden=adminPanel.hidden;
+ document.getElementById('admin-modules').textContent=authorized.length;
  document.querySelectorAll('.dash-group').forEach(group=>{
   let count=0;
   group.querySelectorAll('.dash-tile').forEach(tile=>{

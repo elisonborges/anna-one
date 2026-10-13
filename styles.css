@@ -88,3 +88,13 @@
 .app-v03 .dash-tile[data-status="available"] a{display:inline-block;margin:7px 0}
 .app-v03 .dash-tile[data-status="planned"]{border:1px solid #e5ebf3}
 .app-v03 .dash-tile.demo-unlicensed .module-state{opacity:.8}
+
+/* v0.7 - seletor de perfis demonstrativos */
+.app-v03 .header-role{flex:0 1 205px;min-width:165px}
+.app-v03 .header-role label{display:flex;flex-direction:column;gap:3px;color:#cfe2fa;font-size:10px;font-weight:650}
+.app-v03 .header-role select{width:100%;padding:8px 10px;border:1px solid #5277a5;border-radius:9px;background:#f8fbff;color:#173a62;font-size:12px;min-height:35px}
+.app-v03 .dash-search{flex:1 1 180px;min-width:140px;width:auto}
+.app-v03 .header-profile{margin-left:0}
+.app-v03 .access-summary{padding:10px 14px;background:#e9f2fc;border:1px solid #d6e6f8;border-radius:11px;color:#1c487a;font-size:12px;font-weight:650;margin:10px 0}
+@media(max-width:1200px){.app-v03 .dash-top{flex-wrap:wrap}.app-v03 .header-role{flex:1 1 175px}.app-v03 .header-profile{flex:1 1 175px}.app-v03 .dash-search{flex:1 1 220px}}
+@media(max-width:520px){.app-v03 .header-role{order:2;flex:1 1 160px}.app-v03 .header-profile{order:2;flex:1 1 160px}.app-v03 .dash-search{order:3;flex:1 1 100%}}

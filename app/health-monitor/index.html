@@ -159,7 +159,7 @@ window.addEventListener('load',async function(){
   const csvCell=value=>'"'+String(value??'').replace(/"/g,'""')+'"';
   const lines=[['Data UTC','Serviço','Evento','Tipo','Status'].map(csvCell).join(';')];
   filtered.forEach(n=>lines.push([n.created_at,n.service_code==='anna_one'?'AnnA One':'Projetos Escolares',n.event==='failure'?'Falha':'Recuperação',n.simulation?'Simulação':'Real',n.status==='accepted'?'Aceito pelo Resend':n.status==='rejected'?'Rejeitado':'Erro de conexão'].map(csvCell).join(';')));
-  const blob=new Blob(['\\uFEFF'.replace('\\uFEFF','\uFEFF')+lines.join('\\r\\n'.replace('\\r\\n','\r\n'))],{type:'text/csv;charset=utf-8'});
+  const blob=new Blob(['\uFEFF'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='anna-notificacoes-'+period+'d.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
  });
  $('export-csv').addEventListener('click',()=>{

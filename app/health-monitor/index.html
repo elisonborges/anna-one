@@ -1,44 +1,83 @@
 <!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Health Monitor | AnnA One</title><link rel="icon" href="../../assets/anna-symbol.svg" type="image/svg+xml">
+<title>Health Monitor v0.6 | AnnA One</title>
 <style>
-:root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#173253;background:#f3f7fc}*{box-sizing:border-box}body{margin:0}.top{background:#0c2646;color:white;padding:18px 5%;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}.top a{color:white;text-decoration:none}.brand{display:flex;align-items:center;gap:12px;font-weight:800;font-size:21px}.brand img{width:38px;height:38px}.back{border:1px solid #91accb;border-radius:9px;padding:9px 14px}main{max-width:1100px;margin:auto;padding:32px 20px}.heading{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}h1{margin:0 0 8px;font-size:clamp(24px,4vw,34px)}.muted{color:#60738c;line-height:1.5}.pill{display:inline-block;border-radius:30px;padding:8px 13px;background:#e8eff9;color:#244d83;font-size:13px;font-weight:700}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:26px 0}.card{background:white;border:1px solid #dce5f0;border-radius:16px;padding:22px;box-shadow:0 4px 18px #0b30520a}.card h2{margin:0 0 8px;font-size:19px}.state{font-weight:700;color:#64748b}.empty{text-align:center;padding:38px 24px}.empty .symbol{font-size:42px}.actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:20px}.btn{display:inline-block;border-radius:10px;padding:12px 16px;text-decoration:none;background:#1168d5;color:white;font-weight:700}.btn.secondary{background:#e7f0ff;color:#1352a0}.notice{background:#fff8e9;border:1px solid #ead7a9;border-radius:12px;padding:15px 18px;line-height:1.6}footer{text-align:center;color:#657b95;padding:24px;font-size:12px}@media(max-width:650px){.grid{grid-template-columns:1fr}main{padding:22px 14px}}
-input{padding:10px;margin:8px;border:1px solid #bccfe4;border-radius:8px}button{padding:10px 15px;border:0;border-radius:8px;background:#145bb2;color:#fff;cursor:pointer}#auth-form{display:flex;gap:8px;align-items:end;flex-wrap:wrap}#auth-form[hidden],#protected[hidden],#signout[hidden]{display:none}</style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script></head><body>
-<header class="top"><a class="brand" href="../../"><img src="../../assets/anna-symbol.svg" alt="">AnnA One <span style="font-weight:400">/ Health Monitor</span></a><a class="back" href="../">← Voltar ao painel</a></header>
-<main><div class="heading"><div><h1>🩺 Health Monitor</h1><p class="muted">Acompanhamento dos serviços e projetos do ecossistema AnnA One.</p></div><span class="pill">Integração segura em preparação</span></div>
-<section class="card" id="access"><h2>🔐 Acesso administrativo</h2><p class="muted" id="auth-message">Verificando sua sessão...</p><form id="auth-form" hidden><label>E-mail <input name="email" type="email" required autocomplete="username"></label><label>Senha <input name="password" type="password" required autocomplete="current-password"></label><button type="submit">Entrar</button></form><button id="signout" type="button" hidden>Sair</button></section><div id="protected" hidden><div class="grid"><section class="card"><h2>AnnA One</h2><p class="state">Status: aguardando conexão autenticada</p><p class="muted">O último resultado privado ainda não está conectado a esta página.</p></section><section class="card"><h2>Projetos Escolares (LabPC)</h2><p class="state">Status: aguardando conexão autenticada</p><p class="muted">Os relatórios permanecem protegidos no repositório privado.</p></section></div>
-<section class="card empty"><div class="symbol">📊</div><h2>Dashboard integrado</h2><p class="muted">A estrutura visual está pronta. O carregamento de indicadores, gráficos e histórico será habilitado após configurar autenticação real e uma fonte de dados protegida.</p><div class="actions"><a class="btn" href="https://github.com/elisonborges/annaone-health-monitor/actions" target="_blank" rel="noopener noreferrer">Consultar relatórios no GitHub ↗</a><a class="btn secondary" href="../">Voltar aos módulos</a></div></section>
-</div><p class="notice"><strong>Segurança:</strong> esta página não apresenta dados privados nem utiliza chaves de acesso no navegador. A seleção de perfil do painel demonstrativo não concede acesso administrativo. Para consultar os relatórios no GitHub, entre com a conta autorizada.</p></main>
-<footer>© 2026 AnnA One · Tecnologia e Educação Juntas · Prof. Elison Borges</footer>
-
+:root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#153454;background:#f2f6fb}*{box-sizing:border-box}body{margin:0}button,input{font:inherit}button{cursor:pointer}header{background:#102d50;color:#fff;padding:12px max(16px,calc((100vw - 1220px)/2));display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}header a{color:#fff;text-decoration:none}.brand{font-size:19px;font-weight:800}.back{font-size:13px;border:1px solid #718cab;padding:8px 12px;border-radius:9px}main{max-width:1252px;padding:18px 16px 30px;margin:auto}h1{font-size:clamp(22px,3vw,28px);margin:0}h2{font-size:16px;margin:0}p{margin:5px 0}.muted{color:#637993;font-size:13px;line-height:1.5}.heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}.pill{background:#e4edf8;border-radius:30px;padding:6px 10px;font-size:12px;font-weight:700;color:#275482}.card{background:white;border:1px solid #dce6f1;border-radius:13px;padding:16px;box-shadow:0 3px 14px #15345407}.auth{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;padding:12px 16px}.auth h2{margin-bottom:3px}.auth form{display:flex;gap:8px;flex-wrap:wrap;align-items:end;width:100%}.auth label{font-size:12px;font-weight:650;display:grid;gap:4px}.auth input{padding:9px;border:1px solid #b8cce1;border-radius:8px;max-width:230px}.btn{border:0;background:#165eb4;color:white;border-radius:9px;padding:9px 13px;font-weight:700;font-size:13px}.btn.light{background:#e8f0fa;color:#22578b}.toolbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px}.filters{display:flex;gap:4px;background:#e7edf6;padding:4px;border-radius:10px}.filters button{background:transparent;border:0;border-radius:7px;padding:7px 12px;color:#526e8d;font-weight:700;font-size:12px}.filters button.active{background:white;color:#144f92;box-shadow:0 1px 5px #14365720}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.service{padding:16px 18px}.service-top{display:flex;justify-content:space-between;align-items:center;gap:10px}.state{font-size:12px;font-weight:800;border-radius:30px;padding:5px 10px;background:#eef2f7;color:#64748b}.state.good{background:#e7f7ed;color:#117449}.state.bad{background:#ffe9e9;color:#ae2832}.state.warn{background:#fff3dd;color:#925c00}.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:13px 0 8px}.metric{border-left:1px solid #e1e9f1;padding-left:12px}.metric:first-child{border:0;padding-left:0}.metric strong{display:block;font-size:clamp(18px,2.4vw,25px);letter-spacing:-.5px;white-space:nowrap}.metric small{font-size:11px;color:#73859a}.chart-card{margin-top:12px}.chart-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:12px}.legend{display:flex;gap:13px;font-size:12px;color:#5d748d;flex-wrap:wrap}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}.blue{background:#2372cf}.teal{background:#159b92}.chart-wrap{width:100%;height:190px;overflow:hidden}.chart-wrap svg{width:100%;height:100%}.table-wrap{overflow:auto}.table{width:100%;border-collapse:collapse;text-align:left;font-size:12px}.table th,.table td{padding:9px 12px;border-bottom:1px solid #e9eef5;white-space:nowrap}.table th{color:#61778f;font-weight:700;background:#f7f9fc}.history{margin-top:12px;padding:14px 0 4px}.history .chart-head{padding:0 16px}.history .muted{padding:0 16px}.notice{margin-top:12px;color:#657a90;font-size:12px;text-align:center}.empty{display:grid;place-items:center;color:#6b8197;height:100%;text-align:center;font-size:13px}.hidden,[hidden]{display:none!important}footer{text-align:center;color:#73869b;font-size:11px;padding:0 10px 18px}@media(max-width:720px){main{padding:14px 10px}.grid{grid-template-columns:1fr}.metrics{gap:6px}.service{padding:14px}.metric{padding-left:8px}.auth form{display:grid;grid-template-columns:1fr}.auth input{max-width:none;width:100%}.chart-wrap{height:165px}.toolbar{align-items:flex-start}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script></head>
+<body><header><a class="brand" href="../../">✦ AnnA One <span style="font-weight:400">/ Health Monitor</span></a><a class="back" href="../">← Voltar ao portal</a></header>
+<main>
+<div class="heading"><div><h1>🩺 Health Monitor <span class="pill">v0.6</span></h1><p class="muted">Monitoramento de serviços · indicadores e histórico</p></div><span class="pill" id="update-label">Aguardando conexão</span></div>
+<section class="card auth"><div><h2>🔐 Acesso administrativo</h2><p class="muted" id="auth-message" role="status">Verificando sessão...</p></div><button class="btn light" id="signout" hidden>Sair</button><form id="auth-form" hidden><label>E-mail<input type="email" name="email" autocomplete="username" required></label><label>Senha<input type="password" name="password" autocomplete="current-password" required></label><button class="btn" type="submit">Entrar</button></form></section>
+<div id="protected" hidden>
+<div class="toolbar"><div class="filters" role="group" aria-label="Período do histórico"><button data-period="1" class="active" type="button">24 horas</button><button data-period="7" type="button">7 dias</button><button data-period="30" type="button">30 dias</button></div><button class="btn light" id="refresh" type="button">↻ Atualizar</button></div>
+<div class="grid">
+<section class="card service" data-service="anna_one"><div class="service-top"><h2>AnnA One</h2><span class="state">Aguardando</span></div><div class="metrics"><div class="metric"><strong data-field="uptime">—</strong><small>Sucesso no período</small></div><div class="metric"><strong data-field="latency">—</strong><small>Resposta média</small></div><div class="metric"><strong data-field="checks">—</strong><small>Verificações</small></div></div><p class="muted" data-field="last">Sem verificações</p></section>
+<section class="card service" data-service="projetos_escolares"><div class="service-top"><h2>Projetos Escolares (LabPC)</h2><span class="state">Aguardando</span></div><div class="metrics"><div class="metric"><strong data-field="uptime">—</strong><small>Sucesso no período</small></div><div class="metric"><strong data-field="latency">—</strong><small>Resposta média</small></div><div class="metric"><strong data-field="checks">—</strong><small>Verificações</small></div></div><p class="muted" data-field="last">Sem verificações</p></section>
+</div>
+<section class="card chart-card"><div class="chart-head"><h2>Tempo de resposta</h2><div class="legend"><span><i class="dot blue"></i>AnnA One</span><span><i class="dot teal"></i>Projetos Escolares</span></div></div><div class="chart-wrap" id="chart"><div class="empty">Aguardando histórico...</div></div></section>
+<section class="card history"><div class="chart-head"><h2>Histórico de verificações</h2><span class="pill" id="history-count">0 registros</span></div><div class="table-wrap"><table class="table"><thead><tr><th>Data e hora</th><th>Projeto</th><th>Status</th><th>Resposta</th></tr></thead><tbody id="history-body"></tbody></table></div><p class="muted" id="history-note"></p></section>
+<p class="notice">Atualização automática a cada 60 segundos · As verificações são executadas pelo GitHub Actions aproximadamente a cada 6 horas. A porcentagem representa somente as amostras disponíveis no período.</p>
+</div>
+</main><footer>© 2026 AnnA One · Prof. Elison Borges</footer>
 <script>
-window.addEventListener('load', async function(){
- const msg=document.getElementById('auth-message'),form=document.getElementById('auth-form'),signout=document.getElementById('signout'),protectedArea=document.getElementById('protected');
- if(!window.supabase){msg.textContent='Biblioteca de autenticação indisponível. Atualize a página.';return;}
+window.addEventListener('load',async function(){
+ const $=id=>document.getElementById(id),msg=$('auth-message'),form=$('auth-form'),signout=$('signout'),protectedArea=$('protected');
+ if(!window.supabase){msg.textContent='Não foi possível carregar a autenticação. Atualize a página.';return;}
  const client=window.supabase.createClient('https://tnvghprwltbziivlxeod.supabase.co','sb_publishable_yI9_7tD4RwGrjolPjiq9vg_oSGpxxFR');
- async function render(){
-   protectedArea.hidden=true;form.hidden=true;signout.hidden=true;
-   const {data:{user},error}=await client.auth.getUser();
-   if(error||!user){msg.textContent='Entre com sua conta AnnA One.';form.hidden=false;return;}
-   signout.hidden=false;
-   const {data:admins,error:roleError}=await client.from('platform_admins').select('user_id').eq('user_id',user.id).limit(1);
-   if(roleError||!admins||admins.length===0){msg.textContent='Acesso restrito ao administrador geral.';return;}
-   msg.textContent='Administrador autenticado: '+(user.email||'conta autorizada');
-   const {data, error:readError}=await client.from('health_monitor_checks').select('service_code,checked_at,healthy,latency_ms').order('checked_at',{ascending:false}).limit(500);
-   if(readError){msg.textContent='Não foi possível consultar o histórico protegido.';return;}
-   protectedArea.hidden=false;
-   const cards=protectedArea.querySelectorAll('.grid .card');
-   [['anna_one',cards[0]],['projetos_escolares',cards[1]]].forEach(([code,card])=>{
-     const rows=(data||[]).filter(r=>r.service_code===code),last=rows[0],state=card.querySelector('.state'),detail=card.querySelector('.muted');
-     if(!last){state.textContent='Aguardando primeira verificação';detail.textContent='Nenhum resultado registrado.';return;}
-     state.textContent=last.healthy?'● Operacional':'● Falha detectada';
-     state.style.color=last.healthy?'#16805a':'#b72d39';
-     const percent=(100*rows.filter(r=>r.healthy).length/rows.length).toFixed(1);
-     detail.textContent='Última verificação: '+new Date(last.checked_at).toLocaleString('pt-BR')+' · '+(last.latency_ms??'—')+' ms · Sucesso: '+percent+'% em '+rows.length+' verificações recentes.';
-   });
+ let period=1,rows=[],authorized=false,requestInFlight=false;
+ const fmt=n=>new Intl.NumberFormat('pt-BR').format(n),date=t=>new Date(t).toLocaleString('pt-BR');
+ const text=(parent,selector,value)=>{parent.querySelector(selector).textContent=value};
+ function drawChart(data){
+  const target=$('chart');target.replaceChildren();const valid=data.filter(x=>x.latency_ms!==null&&Number.isFinite(x.latency_ms)).sort((a,b)=>new Date(a.checked_at)-new Date(b.checked_at));
+  if(!valid.length){const d=document.createElement('div');d.className='empty';d.textContent='Ainda não há medições neste período.';target.append(d);return;}
+  const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');svg.setAttribute('viewBox','0 0 940 190');svg.setAttribute('role','img');svg.setAttribute('aria-label','Gráfico de latência dos dois projetos em milissegundos');
+  const add=(tag,attrs,parent=svg)=>{const e=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,String(v)));parent.append(e);return e;};
+  const left=50,right=915,top=15,bottom=155,low=Math.min(...valid.map(r=>new Date(r.checked_at).getTime())),high=Math.max(...valid.map(r=>new Date(r.checked_at).getTime())),max=Math.max(100,...valid.map(r=>r.latency_ms))*1.15;
+  for(let i=0;i<=4;i++){const y=bottom-(bottom-top)*i/4;add('line',{x1:left,y1:y,x2:right,y2:y,stroke:'#e4ecf5'});const label=add('text',{x:43,y:y+4,'text-anchor':'end',fill:'#7890a9','font-size':11});label.textContent=fmt(Math.round(max*i/4));}
+  const x=r=>high===low?(left+right)/2:left+(new Date(r.checked_at).getTime()-low)/(high-low)*(right-left),y=r=>bottom-r.latency_ms/max*(bottom-top);
+  for(const [code,color] of [['anna_one','#2372cf'],['projetos_escolares','#159b92']]){const points=valid.filter(r=>r.service_code===code);if(points.length>1)add('polyline',{points:points.map(r=>x(r)+','+y(r)).join(' '),fill:'none',stroke:color,'stroke-width':2.5,'stroke-linejoin':'round'});points.forEach(r=>{const dot=add('circle',{cx:x(r),cy:y(r),r:4,fill:color});const title=add('title',{},dot);title.textContent=date(r.checked_at)+' · '+fmt(r.latency_ms)+' ms';});}
+  const unit=add('text',{x:6,y:12,fill:'#7388a0','font-size':11});unit.textContent='ms';
+  const xLabel=add('text',{x:(left+right)/2,y:182,'text-anchor':'middle',fill:'#7388a0','font-size':11});xLabel.textContent=high===low?date(valid[0].checked_at):date(valid[0].checked_at)+'  —  '+date(valid[valid.length-1].checked_at);
+  target.append(svg);
  }
- form.addEventListener('submit',async e=>{e.preventDefault();msg.textContent='Autenticando...';const fields=new FormData(form);const {error}=await client.auth.signInWithPassword({email:fields.get('email'),password:fields.get('password')});if(error){msg.textContent='E-mail ou senha inválidos.';return;}form.reset();await render();});
- signout.addEventListener('click',async()=>{await client.auth.signOut();await render();});
- await render();
+ function render(){
+  const cutoff=Date.now()-period*86400000,filtered=rows.filter(r=>new Date(r.checked_at).getTime()>=cutoff);
+  for(const code of ['anna_one','projetos_escolares']){
+   const card=document.querySelector('[data-service="'+code+'"]'),all=rows.filter(r=>r.service_code===code),data=filtered.filter(r=>r.service_code===code),last=all[0],state=card.querySelector('.state');
+   state.className='state';
+   if(!last){state.textContent='Sem dados';state.classList.add('warn');}
+   else if(Date.now()-new Date(last.checked_at).getTime()>8*3600000){state.textContent='Dados desatualizados';state.classList.add('warn');}
+   else {state.textContent=last.healthy?'● Operacional':'● Falha detectada';state.classList.add(last.healthy?'good':'bad');}
+   text(card,'[data-field="checks"]',fmt(data.length));
+   text(card,'[data-field="uptime"]',data.length?(100*data.filter(r=>r.healthy).length/data.length).toFixed(1).replace('.',',')+'%':'—');
+   const latencies=data.map(r=>r.latency_ms).filter(Number.isFinite);
+   text(card,'[data-field="latency"]',latencies.length?fmt(Math.round(latencies.reduce((a,b)=>a+b,0)/latencies.length))+' ms':'—');
+   text(card,'[data-field="last"]',last?'Última verificação: '+date(last.checked_at)+' · '+(last.latency_ms===null?'—':fmt(last.latency_ms)+' ms'):'Nenhuma verificação registrada');
+  }
+  drawChart(filtered);
+  const body=$('history-body');body.replaceChildren();filtered.slice(0,100).forEach(r=>{const tr=document.createElement('tr');[date(r.checked_at),r.service_code==='anna_one'?'AnnA One':'Projetos Escolares',r.healthy?'Operacional':'Falha',r.latency_ms===null?'—':fmt(r.latency_ms)+' ms'].forEach(v=>{const td=document.createElement('td');td.textContent=v;tr.append(td);});body.append(tr);});
+  $('history-count').textContent=fmt(filtered.length)+' registros';$('history-note').textContent=filtered.length>100?'Exibindo os 100 registros mais recentes do período.':'';if(!filtered.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=4;td.textContent='Nenhuma verificação disponível no período selecionado.';tr.append(td);body.append(tr);}
+ }
+ async function load(){
+  if(!authorized||requestInFlight)return;requestInFlight=true;$('update-label').textContent='Atualizando...';
+  try{const {data,error}=await client.from('health_monitor_checks').select('service_code,checked_at,healthy,latency_ms').order('checked_at',{ascending:false}).limit(3000);if(error)throw error;rows=data||[];render();$('update-label').textContent='Atualizado às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
+  catch(e){$('update-label').textContent='Falha na atualização';msg.textContent='Erro ao consultar dados protegidos. Verifique as permissões.';}
+  finally{requestInFlight=false;}
+ }
+ async function auth(){
+  protectedArea.hidden=true;form.hidden=true;signout.hidden=true;authorized=false;rows=[];
+  const {data:{user},error}=await client.auth.getUser();
+  if(error||!user){msg.textContent='Entre com sua conta AnnA One.';form.hidden=false;return;}
+  signout.hidden=false;
+  const {data:admins,error:roleError}=await client.from('platform_admins').select('user_id').eq('user_id',user.id).limit(1);
+  if(roleError||!admins?.length){msg.textContent='Acesso restrito ao administrador geral.';return;}
+  authorized=true;protectedArea.hidden=false;msg.textContent='Administrador autenticado: '+(user.email||'conta autorizada');await load();
+ }
+ form.addEventListener('submit',async e=>{e.preventDefault();msg.textContent='Autenticando...';const fd=new FormData(form),{error}=await client.auth.signInWithPassword({email:fd.get('email'),password:fd.get('password')});if(error){msg.textContent='Não foi possível entrar. Confira e-mail e senha.';return;}form.reset();await auth();});
+ signout.addEventListener('click',async()=>{await client.auth.signOut();await auth();});
+ document.querySelectorAll('[data-period]').forEach(b=>b.addEventListener('click',()=>{period=Number(b.dataset.period);document.querySelectorAll('[data-period]').forEach(x=>x.classList.toggle('active',x===b));render();}));
+ $('refresh').addEventListener('click',load);setInterval(()=>{if(authorized&&!document.hidden)load();},60000);
+ await auth();
 });
 </script></body></html>

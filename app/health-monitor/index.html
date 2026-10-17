@@ -7,7 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script></head>
 <body><header><a class="brand" href="../../">✦ AnnA One <span style="font-weight:400">/ Health Monitor</span></a><a class="back" href="../">← Voltar ao portal</a></header>
 <main>
-<div class="heading"><div><h1>🩺 Health Monitor <span class="pill">v1.1</span></h1><p class="muted">Monitoramento de serviços · indicadores e histórico</p></div><div class="heading-summary" id="executive-summary" aria-label="Resumo executivo do monitoramento">
+<div class="heading"><div><h1>🩺 Health Monitor <span class="pill">v1.1</span></h1><p class="muted">Monitoramento de serviços · indicadores e histórico</p></div><div class="heading-summary" id="executive-summary" hidden aria-label="Resumo executivo do monitoramento">
 <div class="summary-item"><strong id="summary-online">—</strong><small>Serviços online</small></div>
 <div class="summary-item"><strong id="summary-availability">—</strong><small>Disponibilidade</small></div>
 <div class="summary-item"><strong id="summary-incidents">—</strong><small>Falhas no período</small></div>
@@ -19,7 +19,7 @@
 <section class="incident-bar" id="incident-bar" role="status" aria-live="polite"><span id="incident-symbol">◉</span><div><strong id="incident-title">Verificando serviços...</strong><span id="incident-detail">Aguardando resultados.</span></div></section>
 <div class="grid">
 <section class="card service" data-service="anna_one"><div class="service-top"><h2>AnnA One</h2><span class="state">Aguardando</span></div><div class="metrics"><div class="metric"><strong data-field="uptime">—</strong><small>Sucesso no período</small></div><div class="metric"><strong data-field="latency">—</strong><small>Resposta média</small></div><div class="metric"><strong data-field="checks">—</strong><small>Verificações</small></div></div><p class="muted" data-field="last">Sem verificações</p><p class="diagnostic" data-field="diagnostic">Nenhum incidente identificado.</p><p class="latency-guide" data-field="latency-guide"></p></section>
-<section class="card service" data-service="projetos_escolares"><div class="service-top"><h2>Projetos Escolares (LabPC)</h2><span class="state">Aguardando</span></div><div class="metrics"><div class="metric"><strong data-field="uptime">—</strong><small>Sucesso no período</small></div><div class="metric"><strong data-field="latency">—</strong><small>Resposta média</small></div><div class="metric"><strong data-field="checks">—</strong><small>Verificações</small></div></div><p class="muted" data-field="last">Sem verificações</p><p class="diagnostic" data-field="diagnostic">Nenhum incidente identificado.</p></section>
+<section class="card service" data-service="projetos_escolares"><div class="service-top"><h2>Projetos Escolares (LabPC)</h2><span class="state">Aguardando</span></div><div class="metrics"><div class="metric"><strong data-field="uptime">—</strong><small>Sucesso no período</small></div><div class="metric"><strong data-field="latency">—</strong><small>Resposta média</small></div><div class="metric"><strong data-field="checks">—</strong><small>Verificações</small></div></div><p class="muted" data-field="last">Sem verificações</p><p class="diagnostic" data-field="diagnostic">Nenhum incidente identificado.</p><p class="latency-guide" data-field="latency-guide"></p></section>
 </div>
 <section class="card chart-card"><div class="chart-head"><h2>Tempo de resposta</h2><div class="legend"><span><i class="dot blue"></i>AnnA One</span><span><i class="dot teal"></i>Projetos Escolares</span></div></div><div class="chart-wrap" id="chart"><div class="empty">Aguardando histórico...</div></div></section>
 <section class="card incident-history"><div class="chart-head"><h2>Gestão de incidentes <span class="pill">v1.0</span></h2><span class="pill" id="incident-history-count">0 incidentes</span></div><p class="muted">Incidentes inferidos das verificações disponíveis. A duração é aproximada e não representa o tempo exato de indisponibilidade.</p><div class="table-wrap"><table class="table"><thead><tr><th>Serviço</th><th>Primeira falha observada</th><th>Recuperação observada</th><th>Intervalo observado</th><th>Situação</th></tr></thead><tbody id="incident-history-body"></tbody></table></div><p class="muted" id="incident-history-note"></p></section>
@@ -194,17 +194,17 @@ window.addEventListener('load',async function(){
    const audit=await client.from('health_monitor_notifications').select('created_at,service_code,event,simulation,status').order('created_at',{ascending:false}).limit(1000);
    notificationError=Boolean(audit.error);notifications=audit.error?[]:(audit.data||[]);
    render();$('update-label').textContent='Atualizado às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
-  catch(e){$('update-label').textContent='Falha na atualização';msg.textContent='Erro ao consultar dados protegidos. Verifique as permissões.';}
+  catch(e){$('update-label').textContent='Falha na atualização';msg.textContent='Falha ao carregar o painel. Os dados podem estar incompletos; tente atualizar.';console.error('Health Monitor render/load error:',e);}
   finally{requestInFlight=false;}
  }
  async function auth(){
-  protectedArea.hidden=true;form.hidden=true;signout.hidden=true;authorized=false;rows=[];notifications=[];
+  protectedArea.hidden=true;$('executive-summary').hidden=true;form.hidden=true;signout.hidden=true;authorized=false;rows=[];notifications=[];
   const {data:{user},error}=await client.auth.getUser();
   if(error||!user){msg.textContent='Entre com sua conta AnnA One.';form.hidden=false;return;}
   signout.hidden=false;
   const {data:admins,error:roleError}=await client.from('platform_admins').select('user_id').eq('user_id',user.id).limit(1);
   if(roleError||!admins?.length){msg.textContent='Acesso restrito ao administrador geral.';return;}
-  authorized=true;protectedArea.hidden=false;msg.textContent='Administrador autenticado: '+(user.email||'conta autorizada');await load();
+  authorized=true;protectedArea.hidden=false;$('executive-summary').hidden=false;msg.textContent='Administrador autenticado: '+(user.email||'conta autorizada');await load();
  }
  form.addEventListener('submit',async e=>{e.preventDefault();msg.textContent='Autenticando...';const fd=new FormData(form),{error}=await client.auth.signInWithPassword({email:fd.get('email'),password:fd.get('password')});if(error){msg.textContent='Não foi possível entrar. Confira e-mail e senha.';return;}form.reset();await auth();});
  signout.addEventListener('click',async()=>{await client.auth.signOut();await auth();});

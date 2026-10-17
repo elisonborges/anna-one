@@ -12,7 +12,7 @@ input{padding:10px;margin:8px;border:1px solid #bccfe4;border-radius:8px}button{
 <footer>© 2026 AnnA One · Tecnologia e Educação Juntas · Prof. Elison Borges</footer>
 
 <script>
-(async function(){
+window.addEventListener('load', async function(){
  const msg=document.getElementById('auth-message'),form=document.getElementById('auth-form'),signout=document.getElementById('signout'),protectedArea=document.getElementById('protected');
  if(!window.supabase){msg.textContent='Biblioteca de autenticação indisponível. Atualize a página.';return;}
  const client=window.supabase.createClient('https://tnvghprwltbziivlxeod.supabase.co','sb_publishable_yI9_7tD4RwGrjolPjiq9vg_oSGpxxFR');
@@ -40,5 +40,5 @@ input{padding:10px;margin:8px;border:1px solid #bccfe4;border-radius:8px}button{
  form.addEventListener('submit',async e=>{e.preventDefault();msg.textContent='Autenticando...';const fields=new FormData(form);const {error}=await client.auth.signInWithPassword({email:fields.get('email'),password:fields.get('password')});if(error){msg.textContent='E-mail ou senha inválidos.';return;}form.reset();await render();});
  signout.addEventListener('click',async()=>{await client.auth.signOut();await render();});
  await render();
-})();
+});
 </script></body></html>

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer">
+<title>AnnA One | Login Neon Experimental v0.2</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:#12395d;background:#eef4fb}*{box-sizing:border-box}body{margin:0;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 12px 8px}main{width:min(100%,440px);background:#fff;border-radius:17px;padding:20px 24px 16px;box-shadow:0 10px 28px #12395d15}.brand{display:flex;align-items:center;gap:12px;margin-bottom:10px}.brand img{width:48px;height:48px;object-fit:contain;flex-shrink:0}.brand strong{font-size:25px;color:#103b64}.brand small{display:block;font-size:9px;font-weight:750;letter-spacing:.8px;color:#32618a}h1{font-size:19px;margin:8px 0 10px}h2{font-size:17px}.note{background:#eaf3ff;border-radius:8px;padding:9px 11px;font-size:12px;line-height:1.35;margin:0 0 11px}label{display:block;margin:10px 0 5px;font-weight:700;font-size:13px}input,button{font:inherit;width:100%;padding:10px;border-radius:8px}input{border:1px solid #aac1da;min-height:41px}button{border:0;background:#1968b6;color:white;cursor:pointer;margin-top:14px;font-weight:650;min-height:41px}button:disabled{opacity:.55;cursor:wait}.secondary{background:#eaf3ff;color:#174e80}.status{min-height:0;white-space:pre-wrap;font-size:12px;line-height:1.35;margin:9px 0}.status:empty{display:none}footer{text-align:center;padding:11px 8px 0;font-size:10px;color:#315473;line-height:1.55}a{color:#155d9f}section[hidden]{display:none}section p{margin:10px 0}main>p:last-of-type{margin:9px 0 0;font-size:12px}@media(max-height:650px){body{justify-content:flex-start}main{padding:15px 20px 12px}.brand img{width:40px;height:40px}.brand{margin-bottom:6px}h1{margin:5px 0 8px}label{margin-top:8px}footer{padding-top:7px}}@media(max-width:360px){main{padding:16px}.brand strong{font-size:22px}.brand small{font-size:8px}}
+</style>
+</head>
+<body>
+<main>
+<div class="brand"><img src="https://elisonborges.github.io/anna-one/assets/anna-symbol.svg" alt="Símbolo oficial da AnnA One"><div><strong>AnnA One</strong><small>TECNOLOGIA E EDUCAÇÃO JUNTAS</small></div></div>
+<h1>Primeiro login — Neon Auth</h1>
+<p class="note">Teste de autenticação. Apenas contas cadastradas podem entrar; o acesso administrativo continua bloqueado.</p>
+<section id="login"><form id="loginForm"><label for="email">E-mail cadastrado</label><input id="email" type="email" autocomplete="username" required><label for="password">Senha</label><input id="password" type="password" autocomplete="current-password" required><button id="loginBtn">Entrar com Neon Auth</button></form><p><a href="./primeiro-acesso-experimental.html">Esqueci minha senha</a></p></section>
+<section id="signedIn" hidden><h2>Sessão autenticada</h2><p id="identity"></p><p class="note">O acesso administrativo da AnnA One depende de verificações adicionais no servidor. A função admin do Better Auth, isoladamente, não concede acesso à plataforma.</p><button id="logout" class="secondary">Sair</button></section>
+<p id="status" class="status" role="status" aria-live="polite"></p>
+<p><a href="../">← Voltar à AnnA One</a></p>
+</main>
+<footer><div>© 2026 AnnA One. Todos os direitos reservados.</div><div>Desenvolvido por Prof. Elison Borges · Projeto e desenvolvimento original.</div></footer>
+<script>
+'use strict';
+const BASE='https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth';
+const $=id=>document.getElementById(id), message=t=>$('status').textContent=t;
+async function api(path,options={}){
+  const response=await fetch(BASE+path,{credentials:'include',...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});
+  let result=null;try{result=await response.json()}catch{}
+  if(!response.ok)throw new Error('A solicitação não foi concluída (HTTP '+response.status+').');
+  return result;
+}
+function display(user){$('signedIn').hidden=!user;$('login').hidden=!!user;$('identity').textContent=user?'Conta: '+(user.email||'identidade autenticada')+(user.emailVerified?' · E-mail verificado':' · Verificação de e-mail pendente'):'';}
+async function refresh(){const session=await api('/get-session',{method:'GET'});display(session?.user||null);return session;}
+$('loginForm').addEventListener('submit',async e=>{e.preventDefault();const btn=$('loginBtn');btn.disabled=true;message('Autenticando...');try{await api('/sign-in/email',{method:'POST',body:JSON.stringify({email:$('email').value.trim(),password:$('password').value})});$('password').value='';const session=await refresh();message(session?.user?'Login confirmado pela Neon Auth.':'Resposta recebida, mas a sessão não foi confirmada. Verifique os cookies e a configuração de origem autorizada.')}catch(err){message('Não foi possível autenticar. Verifique as credenciais, a verificação de e-mail e a origem autorizada. '+err.message)}finally{btn.disabled=false}});
+$('logout').addEventListener('click',async()=>{try{await api('/sign-out',{method:'POST',body:'{}'});display(null);message('Sessão encerrada.')}catch(err){message('Não foi possível encerrar a sessão: '+err.message)}});
+if(location.protocol==='file:'){message('Prévia local: o login real exige hospedagem em origem autorizada.');$('loginBtn').disabled=true}else{refresh().catch(()=>{display(null);message('Sem sessão ativa. Se ocorrer erro de conexão, confirme as origens autorizadas na Neon Auth.')})}
+</script>
+</body></html>

@@ -33,7 +33,7 @@ const adminNav=document.getElementById('admin-nav');
 const search=document.getElementById('module-search');
 let view='all',catalog=false;
 const mainPanel=document.querySelector('.dash-main');
-function showArea(){const adminMode=view==='admin'&&['admin','platform'].includes(role.value);mainPanel.classList.toggle('show-admin',adminMode);adminPanel.hidden=!adminMode;adminNav.hidden=!['admin','platform'].includes(role.value);document.querySelectorAll('.sidebar nav a').forEach(a=>a.classList.toggle('active',adminMode?a===adminNav:a.getAttribute('href')==='./'));if(adminMode)adminPanel.scrollIntoView({block:'start',behavior:'instant'});}
+function showArea(){const adminMode=view==='admin'&&['admin','platform'].includes(role.value);mainPanel.classList.toggle('show-admin',adminMode);adminPanel.hidden=!adminMode;adminNav.hidden=!['admin','platform'].includes(role.value);if(adminMode){document.querySelectorAll('.sidebar nav a').forEach(a=>a.classList.toggle('active',a===adminNav));}if(adminMode)adminPanel.scrollIntoView({block:'start',behavior:'instant'});}
 function updateFavorites(){tiles.forEach(tile=>{const button=tile.querySelector('.fav-toggle');const yes=favorites.includes(tile.dataset.module);button.textContent=yes?'★':'☆';button.setAttribute('aria-pressed',String(yes));button.setAttribute('aria-label',(yes?'Remover ':'Adicionar ')+tile.dataset.module+(yes?' dos':' aos')+' favoritos')})}
 function render(){
  const q=search.value.trim().toLocaleLowerCase('pt-BR'),licensed=profiles[profile.value],roleModules=allowedByRole[role.value];let visible=0;
@@ -74,8 +74,11 @@ document.querySelectorAll('[data-view]').forEach(link=>link.addEventListener('cl
  if(v==='admin'){view='admin';catalog=false}
  else if(v==='favorites'){view='favorites';catalog=false}
  else if(v==='catalog'){view='all';catalog=true}
+ else if(v==='section'){view='all';catalog=true}
  else{view='all';catalog=false}
  search.value='';render();
+ if(v==='section'){const target=document.getElementById(link.getAttribute('href').slice(1));if(target&&!target.hidden)target.scrollIntoView({block:'start',behavior:'smooth'});}
+ document.querySelectorAll('.sidebar nav a[data-view]').forEach(a=>a.classList.toggle('active',a===link));
 }));
 profile.addEventListener('change',()=>{view='all';catalog=false;search.value='';render()});
 search.addEventListener('input',render);

@@ -36,7 +36,7 @@ if(key==="health-monitor"){
   const row=document.createElement("div");row.className="health-status-row";const name=document.createElement("strong");name.textContent=label;
   const state=document.createElement("span");state.className="health-status-value";const light=document.createElement("span");light.className="health-light gray";light.setAttribute("aria-hidden","true");const status=document.createElement("span");status.textContent="Acesso restrito";state.append(light,status);row.append(name,state);grid.append(row);entries[code]={light,status};
  }
- (async()=>{
+ window.addEventListener("DOMContentLoaded",async()=>{
   try{
    if(!window.supabase?.createClient)throw Error("Biblioteca indisponível");
    const client=window.supabase.createClient("https://tnvghprwltbziivlxeod.supabase.co","sb_publishable_yI9_7tD4RwGrjolPjiq9vg_oSGpxxFR");
@@ -55,6 +55,6 @@ if(key==="health-monitor"){
    }
    note.textContent=good+" operacionais · "+bad+" com falha · "+waiting+" aguardando dados. Atualizado a partir das verificações disponíveis.";
   }catch(err){note.textContent="Não foi possível consultar os status. Acesse o Health Monitor para verificar.";}
- })();
+ });
 }
 </script></body></html>

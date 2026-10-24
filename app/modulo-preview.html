@@ -26,4 +26,5 @@ document.documentElement.style.setProperty("--accent",palettes[key]?.[0]||"#075d
 document.getElementById("services").innerHTML=m.services.map(([name,desc])=>'<div class="service"><span class="service-icon" aria-hidden="true">'+(serviceIcons[name]||'🧩')+'</span><strong>'+name+'</strong><span>'+desc+'</span></div>').join("");
 document.getElementById("use").textContent=m.use;
 const actions=document.getElementById("actions");if(m.url){const a=document.createElement("a");a.href=m.url;a.textContent=key==="agenda"?"Acessar Agenda ↗":"Acessar portal ↗";if(m.url.startsWith("http")){a.target="_blank";a.rel="noopener noreferrer"}actions.appendChild(a)}const status=document.createElement("span");status.className="module-label";status.style.alignSelf="center";status.textContent=m.status;actions.appendChild(status);
-if(key==="health-monitor")document.getElementById("health-summary").hidden=false;\n</script></body></html>
+if(key==="health-monitor")document.getElementById("health-summary").hidden=false;
+</script></body></html>

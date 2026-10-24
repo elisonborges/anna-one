@@ -23,7 +23,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script></head>
 <body><header><a class="brand" href="../../">✦ AnnA One <span style="font-weight:400">/ Health Monitor</span></a><a class="back" href="../">← Voltar ao portal</a></header>
 <main>
-<div class="heading"><div><h1>🩺 Health Monitor <span class="pill">v1.4</span></h1><p class="muted">Monitoramento de serviços · indicadores e histórico</p></div><div class="heading-summary" id="executive-summary" hidden aria-label="Resumo executivo do monitoramento">
+<div class="heading"><div><h1>🩺 Health Monitor <span class="pill">v1.6</span></h1><p class="muted">Monitoramento de serviços · indicadores e histórico</p></div><div class="heading-summary" id="executive-summary" hidden aria-label="Resumo executivo do monitoramento">
 <div class="summary-item"><strong id="summary-online">—</strong><small>Serviços online</small></div>
 <div class="summary-item"><strong id="summary-availability">—</strong><small>Disponibilidade</small></div>
 <div class="summary-item"><strong id="summary-incidents">—</strong><small>Falhas no período</small></div>
@@ -47,9 +47,11 @@
 <div class="grid">
 <section class="card service" data-service="anna_one"><div class="service-top"><h2>AnnA One</h2><span class="state">Aguardando</span></div><div class="metrics"><div class="metric"><strong data-field="uptime">—</strong><small>Sucesso no período</small></div><div class="metric"><strong data-field="latency">—</strong><small>Resposta média</small></div><div class="metric"><strong data-field="checks">—</strong><small>Verificações</small></div></div><p class="muted" data-field="last">Sem verificações</p><p class="diagnostic" data-field="diagnostic">Nenhum incidente identificado.</p><p class="latency-guide" data-field="latency-guide"></p></section>
 <section class="card service" data-service="projetos_escolares"><div class="service-top"><h2>Projetos Escolares (LabPC)</h2><span class="state">Aguardando</span></div><div class="metrics"><div class="metric"><strong data-field="uptime">—</strong><small>Sucesso no período</small></div><div class="metric"><strong data-field="latency">—</strong><small>Resposta média</small></div><div class="metric"><strong data-field="checks">—</strong><small>Verificações</small></div></div><p class="muted" data-field="last">Sem verificações</p><p class="diagnostic" data-field="diagnostic">Nenhum incidente identificado.</p><p class="latency-guide" data-field="latency-guide"></p></section>
+<section class="card service" data-service="agenda_educacional"><div class="service-top"><h2>Agenda Educacional</h2><span class="state">Aguardando</span></div><div class="metrics"><div class="metric"><strong data-field="uptime">—</strong><small>Sucesso no período</small></div><div class="metric"><strong data-field="latency">—</strong><small>Resposta média</small></div><div class="metric"><strong data-field="checks">—</strong><small>Verificações</small></div></div><p class="muted" data-field="last">Sem verificações</p><p class="diagnostic" data-field="diagnostic">Nenhum incidente identificado.</p><p class="latency-guide" data-field="latency-guide"></p></section>
+<section class="card service" data-service="neon_agenda"><div class="service-top"><h2>Neon Agenda</h2><span class="state">Aguardando</span></div><div class="metrics"><div class="metric"><strong data-field="uptime">—</strong><small>Sucesso no período</small></div><div class="metric"><strong data-field="latency">—</strong><small>Resposta média</small></div><div class="metric"><strong data-field="checks">—</strong><small>Verificações</small></div></div><p class="muted" data-field="last">Sem verificações</p><p class="diagnostic" data-field="diagnostic">Nenhum incidente identificado.</p><p class="latency-guide" data-field="latency-guide"></p></section>
 </div>
-<section class="card chart-card"><div class="chart-head"><h2>Tempo de resposta</h2><div class="legend"><span><i class="dot blue"></i>AnnA One</span><span><i class="dot teal"></i>Projetos Escolares</span></div></div><div class="chart-wrap" id="chart"><div class="empty">Aguardando histórico...</div></div></section>
-<section class="card incident-history"><div class="chart-head"><h2>Gestão de incidentes <span class="pill">v1.4</span></h2><span class="pill" id="incident-history-count">0 incidentes</span></div><p class="muted">Incidentes inferidos das verificações disponíveis. A duração é aproximada e não representa o tempo exato de indisponibilidade.</p><div class="notification-controls"><label for="incident-service" class="muted">Serviço</label><select id="incident-service"><option value="all">Todos</option><option value="anna_one">AnnA One</option><option value="projetos_escolares">Projetos Escolares</option></select><label for="incident-state" class="muted">Situação</label><select id="incident-state"><option value="all">Todas</option><option value="open">Em andamento</option><option value="closed">Recuperados</option></select><button class="btn light" id="export-incidents" type="button">↓ Exportar CSV</button><button class="btn light" id="print-report" type="button">▤ Relatório / PDF</button></div><div class="table-wrap"><table class="table"><thead><tr><th>Serviço</th><th>Primeira falha observada</th><th>Recuperação observada</th><th>Intervalo observado</th><th>Situação</th></tr></thead><tbody id="incident-history-body"></tbody></table></div><p class="muted" id="incident-history-note"></p><div class="diagnostic-detail" id="incident-detail-panel" hidden><div class="chart-head"><h3 id="incident-detail-title">Detalhes do incidente</h3><button class="btn light" id="close-incident-detail" type="button">Fechar</button></div><p id="incident-detail-summary"></p><div class="table-wrap"><table class="table"><thead><tr><th>Verificação</th><th>Resultado</th><th>Latência</th></tr></thead><tbody id="incident-detail-checks"></tbody></table></div></div></section>
+<section class="card chart-card"><div class="chart-head"><h2>Tempo de resposta</h2><div class="legend"><span><i class="dot blue"></i>AnnA One</span><span><i class="dot teal"></i>Projetos Escolares</span><span><i class="dot" style="background:#c18721"></i>Agenda Educacional</span><span><i class="dot" style="background:#8955bd"></i>Neon Agenda</span></div></div><div class="chart-wrap" id="chart"><div class="empty">Aguardando histórico...</div></div></section>
+<section class="card incident-history"><div class="chart-head"><h2>Gestão de incidentes <span class="pill">v1.4</span></h2><span class="pill" id="incident-history-count">0 incidentes</span></div><p class="muted">Incidentes inferidos das verificações disponíveis. A duração é aproximada e não representa o tempo exato de indisponibilidade.</p><div class="notification-controls"><label for="incident-service" class="muted">Serviço</label><select id="incident-service"><option value="all">Todos</option><option value="anna_one">AnnA One</option><option value="projetos_escolares">Projetos Escolares</option><option value="agenda_educacional">Agenda Educacional</option><option value="neon_agenda">Neon Agenda</option></select><label for="incident-state" class="muted">Situação</label><select id="incident-state"><option value="all">Todas</option><option value="open">Em andamento</option><option value="closed">Recuperados</option></select><button class="btn light" id="export-incidents" type="button">↓ Exportar CSV</button><button class="btn light" id="print-report" type="button">▤ Relatório / PDF</button></div><div class="table-wrap"><table class="table"><thead><tr><th>Serviço</th><th>Primeira falha observada</th><th>Recuperação observada</th><th>Intervalo observado</th><th>Situação</th></tr></thead><tbody id="incident-history-body"></tbody></table></div><p class="muted" id="incident-history-note"></p><div class="diagnostic-detail" id="incident-detail-panel" hidden><div class="chart-head"><h3 id="incident-detail-title">Detalhes do incidente</h3><button class="btn light" id="close-incident-detail" type="button">Fechar</button></div><p id="incident-detail-summary"></p><div class="table-wrap"><table class="table"><thead><tr><th>Verificação</th><th>Resultado</th><th>Latência</th></tr></thead><tbody id="incident-detail-checks"></tbody></table></div></div></section>
 <section class="card timeline"><div class="chart-head"><h2>🕒 Linha do tempo dos eventos <span class="pill">v1.4</span></h2><span class="pill" id="timeline-count">0 eventos</span></div><p class="muted">Eventos observados nas verificações e registros preventivos, limitados ao período selecionado. Não representam necessariamente a duração exata de uma falha.</p><div class="timeline-items" id="timeline-items"></div></section>
 <section class="card history"><div class="chart-head"><h2>Histórico de notificações <span class="pill">v1.0</span></h2><span class="pill" id="notification-count">0 notificações</span></div><p class="muted" style="padding:0 16px">Registros a partir da ativação deste recurso. “Aceito” significa que o Resend aceitou a solicitação, não que a entrega foi confirmada.</p><div class="notification-controls">
 <label for="notification-service" class="muted">Serviço</label><select id="notification-service"><option value="all">Todos</option><option value="anna_one">AnnA One</option><option value="projetos_escolares">Projetos Escolares</option></select>
@@ -74,19 +76,19 @@ window.addEventListener('load',async function(){
  function drawChart(data){
   const target=$('chart');target.replaceChildren();const valid=data.filter(x=>x.latency_ms!==null&&Number.isFinite(x.latency_ms)).sort((a,b)=>new Date(a.checked_at)-new Date(b.checked_at));
   if(!valid.length){const d=document.createElement('div');d.className='empty';d.textContent='Ainda não há medições neste período.';target.append(d);return;}
-  const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');svg.setAttribute('viewBox','0 0 940 190');svg.setAttribute('role','img');svg.setAttribute('aria-label','Gráfico de latência dos dois projetos em milissegundos');
+  const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');svg.setAttribute('viewBox','0 0 940 190');svg.setAttribute('role','img');svg.setAttribute('aria-label','Gráfico de latência dos quatro serviços em milissegundos');
   const add=(tag,attrs,parent=svg)=>{const e=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,String(v)));parent.append(e);return e;};
   const left=50,right=915,top=15,bottom=155,low=Math.min(...valid.map(r=>new Date(r.checked_at).getTime())),high=Math.max(...valid.map(r=>new Date(r.checked_at).getTime())),max=Math.max(100,...valid.map(r=>r.latency_ms))*1.15;
   for(let i=0;i<=4;i++){const y=bottom-(bottom-top)*i/4;add('line',{x1:left,y1:y,x2:right,y2:y,stroke:'#e4ecf5'});const label=add('text',{x:43,y:y+4,'text-anchor':'end',fill:'#7890a9','font-size':11});label.textContent=fmt(Math.round(max*i/4));}
   const x=r=>high===low?(left+right)/2:left+(new Date(r.checked_at).getTime()-low)/(high-low)*(right-left),y=r=>bottom-r.latency_ms/max*(bottom-top);
-  for(const [code,color] of [['anna_one','#2372cf'],['projetos_escolares','#159b92']]){const points=valid.filter(r=>r.service_code===code);if(points.length>1)add('polyline',{points:points.map(r=>x(r)+','+y(r)).join(' '),fill:'none',stroke:color,'stroke-width':2.5,'stroke-linejoin':'round'});points.forEach(r=>{const dot=add('circle',{cx:x(r),cy:y(r),r:4,fill:color});const title=add('title',{},dot);title.textContent=date(r.checked_at)+' · '+fmt(r.latency_ms)+' ms';});}
+  for(const [code,color] of [['anna_one','#2372cf'],['projetos_escolares','#159b92'],['agenda_educacional','#c18721'],['neon_agenda','#8955bd']]){const points=valid.filter(r=>r.service_code===code);if(points.length>1)add('polyline',{points:points.map(r=>x(r)+','+y(r)).join(' '),fill:'none',stroke:color,'stroke-width':2.5,'stroke-linejoin':'round'});points.forEach(r=>{const dot=add('circle',{cx:x(r),cy:y(r),r:4,fill:color});const title=add('title',{},dot);title.textContent=date(r.checked_at)+' · '+fmt(r.latency_ms)+' ms';});}
   const unit=add('text',{x:6,y:12,fill:'#7388a0','font-size':11});unit.textContent='ms';
   const xLabel=add('text',{x:(left+right)/2,y:182,'text-anchor':'middle',fill:'#7388a0','font-size':11});xLabel.textContent=high===low?date(valid[0].checked_at):date(valid[0].checked_at)+'  —  '+date(valid[valid.length-1].checked_at);
   target.append(svg);
  }
  function incidentRecords(){
   const incidents=[];
-  for(const code of ['anna_one','projetos_escolares']){
+  for(const code of ['anna_one','projetos_escolares','agenda_educacional','neon_agenda']){
    const sequence=rows.filter(r=>r.service_code===code).slice().reverse();
    let opened=null;
    for(const r of sequence){
@@ -108,7 +110,7 @@ window.addEventListener('load',async function(){
  }
  function showIncidentDetail(i){
   const panel=$('incident-detail-panel');panel.hidden=false;
-  const label=i.code==='anna_one'?'AnnA One':'Projetos Escolares';
+  const code=i.code;const label=({anna_one:'AnnA One',projetos_escolares:'Projetos Escolares',agenda_educacional:'Agenda Educacional',neon_agenda:'Neon Agenda'}[code]||code);
   $('incident-detail-title').textContent='Incidente — '+label;
   $('incident-detail-summary').textContent='Primeira falha observada: '+date(i.start)+'. '+(i.end?'Recuperação observada: '+date(i.end)+'.':'Sem recuperação observada até a última verificação disponível.')+' Intervalo: '+incidentInterval(i.start,i.end)+'.';
   const checks=rows.filter(r=>r.service_code===i.code&&new Date(r.checked_at)>=new Date(i.start)&&(!i.end||new Date(r.checked_at)<=new Date(i.end))).slice().reverse();
@@ -143,7 +145,7 @@ window.addEventListener('load',async function(){
   const selected=incidentRecords(),body=$('incident-history-body');body.replaceChildren();
   selected.slice(0,50).forEach(i=>{
    const tr=document.createElement('tr');
-   const values=[i.code==='anna_one'?'AnnA One':'Projetos Escolares',date(i.start),i.end?date(i.end):'—',incidentInterval(i.start,i.end),i.open?'Em andamento':'Recuperado'];
+   const values=[({anna_one:'AnnA One',projetos_escolares:'Projetos Escolares',agenda_educacional:'Agenda Educacional',neon_agenda:'Neon Agenda'}[i.code]||i.code),date(i.start),i.end?date(i.end):'—',incidentInterval(i.start,i.end),i.open?'Em andamento':'Recuperado'];
    values.forEach((v,index)=>{const td=document.createElement('td');if(index===0){const btn=document.createElement('button');btn.type='button';btn.className='incident-select';btn.textContent=v;btn.addEventListener('click',()=>showIncidentDetail(i));td.append(btn);}else td.textContent=v;if(index===4)td.className='incident-status '+(i.open?'open':'closed');tr.append(td);});body.append(tr);
   });
   if(!selected.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=5;td.textContent='Nenhum incidente corresponde aos filtros selecionados.';tr.append(td);body.append(tr);}
@@ -190,7 +192,7 @@ window.addEventListener('load',async function(){
   const body=$('preventive-body');body.replaceChildren();
   items.slice(0,100).forEach(r=>{
    const tr=document.createElement('tr');
-   [date(r.checked_at),r.service_code==='anna_one'?'AnnA One':'Projetos Escolares',
+   [date(r.checked_at),({anna_one:'AnnA One',projetos_escolares:'Projetos Escolares',agenda_educacional:'Agenda Educacional',neon_agenda:'Neon Agenda'}[r.service_code]||r.service_code),
     r.event==='slow_warning'?'🟡 Atenção: lentidão persistente':'🟢 Desempenho normalizado',
     'Observação (sem e-mail)'].forEach(v=>{const td=document.createElement('td');td.textContent=v;tr.append(td);});
    body.append(tr);
@@ -201,11 +203,11 @@ window.addEventListener('load',async function(){
  }
  function renderSummary(filtered){
   const now=Date.now();
-  const latest=['anna_one','projetos_escolares'].map(code=>rows.find(r=>r.service_code===code));
+  const latest=['anna_one','projetos_escolares','agenda_educacional','neon_agenda'].map(code=>rows.find(r=>r.service_code===code));
   const fresh=latest.filter(r=>r&&now-new Date(r.checked_at).getTime()<=8*3600000);
   const online=fresh.filter(r=>r.healthy).length;
   const hasFailure=latest.some(r=>r&&!r.healthy);
-  const hasStale=fresh.length<2;
+  const hasStale=fresh.length<4;
   const hasSlow=fresh.some(r=>r.healthy&&latencyAssessment(r.service_code).slow);
   const setIndicator=(id,value,level,description)=>{
    const valueEl=$(id),card=valueEl.closest('.summary-item');
@@ -215,8 +217,8 @@ window.addEventListener('load',async function(){
    card.title=description;
    card.setAttribute('aria-label',description);
   };
-  setIndicator('summary-online',online+'/2',hasFailure?'critical':hasStale||hasSlow?'attention':'ok',
-   hasFailure?'Crítico: última verificação com falha':hasStale?'Atenção: resultados ausentes ou desatualizados':hasSlow?'Atenção: pelo menos um serviço apresenta lentidão':'Normal: os dois serviços estão operacionais');
+  setIndicator('summary-online',online+'/4',hasFailure?'critical':hasStale||hasSlow?'attention':'ok',
+   hasFailure?'Crítico: última verificação com falha':hasStale?'Atenção: resultados ausentes ou desatualizados':hasSlow?'Atenção: pelo menos um serviço apresenta lentidão':'Normal: os quatro serviços estão operacionais');
   const success=filtered.filter(r=>r.healthy).length;
   const availability=filtered.length?100*success/filtered.length:null;
   setIndicator('summary-availability',availability===null?'—':availability.toFixed(1).replace('.',',')+'%',
@@ -258,7 +260,7 @@ window.addEventListener('load',async function(){
    else diag.textContent=all.length?'Nenhuma falha nas '+fmt(all.length)+' verificações armazenadas.':'Histórico ainda não disponível.';
   }
   const bar=$('incident-bar'),title=$('incident-title'),detail=$('incident-detail'),symbol=$('incident-symbol');
-  const services=['anna_one','projetos_escolares'].map(code=>rows.find(r=>r.service_code===code));
+  const services=['anna_one','projetos_escolares','agenda_educacional','neon_agenda'].map(code=>rows.find(r=>r.service_code===code));
   const failed=services.filter(r=>r&&!r.healthy),missing=services.filter(r=>!r),stale=services.filter(r=>r&&Date.now()-new Date(r.checked_at).getTime()>8*3600000);
   bar.className='incident-bar';
   if(failed.length){bar.classList.add('critical');symbol.textContent='⚠';title.textContent=failed.length+' serviço(s) com falha na última verificação';detail.textContent='Confira os cartões e o histórico para identificar o projeto afetado.';}

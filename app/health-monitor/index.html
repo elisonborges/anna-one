@@ -376,10 +376,10 @@ window.addEventListener('load',async function(){
      const dbTables=dbLatest.reduce((sum,x)=>sum+Number(x.public_tables),0);
      const dbRows=dbLatest.reduce((sum,x)=>sum+Number(x.estimated_public_rows),0);
      const dbFresh=dbLatest.length===2&&dbLatest.every(x=>Date.now()-new Date(x.checked_at).getTime()<8*3600000);
-     const jobs=(workflowMetrics||[]).filter(x=>new Date(x.time).getTime()>=cutoff);
-     const jobsOk=jobs.filter(x=>x.conclusion==='success').length,jobsFail=jobs.filter(x=>x.conclusion==='failure').length;
-     const jobDurations=jobs.filter(x=>Number.isFinite(x.durationMs)).map(x=>x.durationMs);
-     const avgJob=jobDurations.length?Math.round(jobDurations.reduce((a,b)=>a+b,0)/jobDurations.length/1000):null;
+     const processing=workflowMetrics;
+     const jobs=processing?Array.from({length:processing.total_runs},(_,i)=>i):[];
+     const jobsOk=processing?processing.success_runs:0,jobsFail=processing?processing.failed_runs:0;
+     const avgJob=processing&&processing.average_duration_seconds!==null?Number(processing.average_duration_seconds):null;
      const categoryData=[
        {name:'Aplicações',codes:['anna_one','projetos_escolares','central_labpc','agenda_educacional']},
        {name:'Autenticação',codes:['supabase_auth_labpc']},
@@ -387,7 +387,7 @@ window.addEventListener('load',async function(){
        {name:'Banco de dados · Supabase',codes:[],custom:databaseMetricsError?'Consulta indisponível':dbLatest.length? (dbBytes/1048576).toFixed(2)+' MiB · '+dbTables+' tabelas · '+dbRows+' registros estimados':'Aguardando coleta v3.0',detail:dbLatest.length?(dbFresh?'Coleta recente':'Última coleta histórica')+' · '+dbLatest.length+'/2 bancos · '+date(dbLatest[0].checked_at):'Aguardando métricas agregadas dos dois bancos'},
        {name:'E-mails · Resend',codes:[],custom:resendMetricsError?'Falha na leitura das métricas':resendFresh?resendSnapshot.sent+' enviados · '+resendSnapshot.delivered+' entregues · '+resendBad+' falhas/rejeições':'Aguardando coleta Resend recente',fraction:resendFresh&&resendSnapshot.sent?Math.min(1,resendSnapshot.delivered/resendSnapshot.sent):null,detail:resendFresh?'Resend API · '+resendSnapshot.complained+' reclamações · '+date(resendSnapshot.checked_at):'Requer RESEND_METRICS_API_KEY no GitHub Actions'},
        {name:'Armazenamento',codes:[],custom:storageMetricsError?'Falha ao consultar métricas':storageMetrics?'LabPC: '+storageMetrics.object_count+' arquivos · '+storageMetrics.bucket_count+' buckets':'Aguardando primeira coleta segura',detail:storageMetrics?'Volume armazenado: '+(storageMetrics.total_bytes/1048576).toFixed(2)+' MiB · '+date(storageMetrics.checked_at):'Coleta depende do segredo LABPC_STORAGE_SERVICE_ROLE_KEY no GitHub Actions'},
-       {name:'Processamento',codes:[],custom:workflowMetricsError?'GitHub API indisponível':jobs.length?jobsOk+' sucesso · '+jobsFail+' falhas · '+jobs.length+' execuções':'Nenhuma execução encontrada no período',fraction:jobs.length?jobsOk/jobs.length:null,detail:avgJob===null?'GitHub Actions · duração não disponível':'Duração média: '+avgJob+' segundos · últimas 100 execuções concluídas'}
+       {name:'Processamento',codes:[],custom:workflowMetricsError?'Consulta indisponível':jobs.length?jobsOk+' sucesso · '+jobsFail+' falhas · '+jobs.length+' execuções':'Aguardando primeira coleta',fraction:jobs.length?jobsOk/jobs.length:null,detail:avgJob===null?'GitHub Actions · duração não disponível':'Duração média: '+avgJob+' segundos · últimas 100 execuções concluídas'}
      ];
      const categoryRoot=doc.getElementById('wall-categories');categoryRoot.replaceChildren();
      for(const group of categoryData){
@@ -595,11 +595,9 @@ window.addEventListener('load',async function(){
    databaseMetricsError=Boolean(db.error);databaseMetrics=db.error?[]:(db.data||[]);
    const storage=await client.from('health_monitor_storage_metrics').select('checked_at,source,bucket_count,object_count,total_bytes,status').eq('source','labpc_projetos_escolares').order('checked_at',{ascending:false}).limit(1);
    storageMetricsError=Boolean(storage.error);storageMetrics=storage.error?null:(storage.data?.[0]||null);
-   // GitHub Actions: execuções reais do workflow público, sem credenciais no navegador.
-   try{const response=await fetch('https://api.github.com/repos/elisonborges/annaone-health-monitor/actions/workflows/health.yml/runs?per_page=100',{headers:{'Accept':'application/vnd.github+json'}});
-     if(!response.ok)throw Error('GitHub API HTTP '+response.status);
-     const body=await response.json();workflowMetrics=(body.workflow_runs||[]).filter(x=>x.status==='completed').map(x=>({time:x.created_at,conclusion:x.conclusion,durationMs:x.run_started_at&&x.updated_at?Math.max(0,new Date(x.updated_at)-new Date(x.run_started_at)):null}));workflowMetricsError=false;
-   }catch(e){workflowMetrics=null;workflowMetricsError=true;console.warn('Métricas GitHub indisponíveis',e);}
+   const processingResult=await client.from('health_monitor_processing_metrics').select('checked_at,total_runs,success_runs,failed_runs,other_runs,average_duration_seconds').order('checked_at',{ascending:false}).limit(1);
+   workflowMetricsError=Boolean(processingResult.error);
+   workflowMetrics=processingResult.error?null:(processingResult.data?.[0]||null);
    const preventive=await client.from('health_monitor_preventive_events').select('service_code,event,checked_at,mode').order('checked_at',{ascending:false}).limit(1000);
    preventiveError=Boolean(preventive.error);preventiveEvents=preventive.error?[]:(preventive.data||[]);
    const last=rows[0]?.checked_at;const stamp=$('last-collection');stamp.textContent=last?'Última coleta: '+date(last):'Última coleta: sem registros';stamp.title='Horário da verificação mais recente armazenada no Supabase';

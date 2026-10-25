@@ -85,11 +85,14 @@ footer{font-size:13px;color:#526981}
 .monitor-tab-panel[hidden]{display:none!important}
 .monitor-tab-panel>.card,.monitor-tab-panel>.grid,.monitor-tab-panel>.incident-bar{margin-bottom:14px}
 @media(max-width:620px){.monitor-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.monitor-tab{padding:10px 6px;font-size:13px}}
+
+/* Gestão à vista: gráficos CSS alimentados pelas amostras existentes */
+.vm-panel{padding:20px!important}.vm-heading h2{margin:0 0 5px}.vm-heading p{margin:0 0 18px;color:#58728c;font-size:13px}.vm-overview{display:grid;grid-template-columns:190px 1fr;gap:22px;align-items:center;margin-bottom:20px}.vm-donut{width:180px;height:180px;border-radius:50%;display:grid;place-items:center}.vm-donut-center{width:126px;height:126px;border-radius:50%;background:white;display:flex;flex-direction:column;align-items:center;justify-content:center}.vm-donut-center strong{font-size:32px;color:#173c62}.vm-donut-center small{font-size:12px;color:#52708c}.vm-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.vm-stat{padding:12px;background:#f1f6fc;border-radius:10px;border-left:4px solid #7495b8;display:flex;flex-direction:column}.vm-stat strong{font-size:23px}.vm-stat span{font-size:12px;color:#506b83}.vm-stat.ok{border-color:#159b75}.vm-stat.fail{border-color:#c93845}.vm-stat.unknown{border-color:#e5b44b}.vm-panel h3{font-size:15px;margin:12px 0}.vm-bars{display:grid;gap:12px}.vm-line{display:grid;grid-template-columns:minmax(130px,210px) 1fr 100px;gap:10px;align-items:center;font-size:12px}.vm-line strong{text-align:right;font-size:12px}.vm-track{height:13px;background:#e8edf3;border-radius:20px;overflow:hidden}.vm-fill{height:100%;background:#159b75;border-radius:20px}.vm-fill.vm-alert{background:#d9a33d}@media(max-width:650px){.vm-overview{grid-template-columns:1fr;justify-items:center}.vm-stats{width:100%}.vm-line{grid-template-columns:1fr 85px}.vm-track{grid-column:1;grid-row:2}.vm-line strong{grid-column:2;grid-row:2}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script></head>
 <body><header class="anna-module-header"><a class="brand anna-module-brand" href="../../" aria-label="AnnA One - página inicial"><img src="../../assets/anna-symbol.svg" alt="" width="43" height="43"><span class="anna-brand-copy"><strong>AnnA <span>One</span></strong><small>TECNOLOGIA E EDUCAÇÃO JUNTAS</small></span></a><nav aria-label="Navegação"><a class="back" href="../">← Voltar ao portal</a></nav></header>
 <main>
-<div class="heading"><div><h1>🩺 Health Monitor <span class="pill">v2.0</span></h1><p class="muted">Monitoramento de serviços · indicadores e histórico</p></div><div class="heading-summary" id="executive-summary" hidden aria-label="Resumo executivo do monitoramento">
+<div class="heading"><div><h1>🩺 Health Monitor <span class="pill">v2.1</span></h1><p class="muted">Monitoramento de serviços · indicadores e histórico</p></div><div class="heading-summary" id="executive-summary" hidden aria-label="Resumo executivo do monitoramento">
 <div class="summary-item"><strong id="summary-online">—</strong><small>Serviços online</small></div>
 <div class="summary-item"><strong id="summary-availability">—</strong><small>Disponibilidade</small></div>
 <div class="summary-item"><strong id="summary-incidents">—</strong><small>Falhas no período</small></div>
@@ -302,6 +305,35 @@ window.addEventListener('load',async function(){
    notificationError?'Atenção: histórico de notificações indisponível':errors?'Atenção: '+errors+' notificações com erro':'Notificações registradas no período: '+audit.length);
  }
 
+ function renderVisualManagement(filtered){
+  const root=$('visual-management');if(!root)return;root.replaceChildren();
+  const services=[['anna_one','AnnA One — Portal'],['projetos_escolares','LabPC — Projetos Escolares'],['central_labpc','Central LabPC'],['agenda_educacional','Agenda Educacional'],['neon_agenda','Banco Neon']];
+  const latest=services.map(([code,name])=>({code,name,last:rows.find(r=>r.service_code===code)}));
+  const fresh=latest.filter(x=>x.last&&Date.now()-new Date(x.last.checked_at).getTime()<=8*3600000);
+  const ok=fresh.filter(x=>x.last.healthy).length,fail=fresh.length-ok,unknown=services.length-fresh.length;
+  const count=filtered.length,passed=filtered.filter(r=>r.healthy).length,pct=count?Math.round(100*passed/count):null;
+  const heading=document.createElement('div');heading.className='vm-heading';
+  const title=document.createElement('h2');title.textContent='Gestão à vista';const subtitle=document.createElement('p');subtitle.textContent='Indicadores baseados nas verificações registradas; não representam disponibilidade contínua.';heading.append(title,subtitle);root.append(heading);
+  const overview=document.createElement('div');overview.className='vm-overview';
+  const donut=document.createElement('div');donut.className='vm-donut';donut.style.background='conic-gradient(#159b75 0 '+(ok/5*100)+'%, #c93845 '+(ok/5*100)+'% '+((ok+fail)/5*100)+'%, #e5b44b '+((ok+fail)/5*100)+'% 100%)';
+  const center=document.createElement('div');center.className='vm-donut-center';const value=document.createElement('strong');value.textContent=ok+'/5';const desc=document.createElement('small');desc.textContent='operacionais';center.append(value,desc);donut.append(center);
+  const stats=document.createElement('div');stats.className='vm-stats';
+  for(const [label,value,cls] of [['Operacionais',ok,'ok'],['Com falha',fail,'fail'],['Sem dados atuais',unknown,'unknown'],['Sucesso das amostras',pct===null?'—':pct+'%','neutral']]){
+    const item=document.createElement('div');item.className='vm-stat '+cls;const n=document.createElement('strong');n.textContent=value;const t=document.createElement('span');t.textContent=label;item.append(n,t);stats.append(item);
+  }
+  overview.append(donut,stats);root.append(overview);
+  const heading2=document.createElement('h3');heading2.textContent='Sucesso por serviço no período';root.append(heading2);
+  const bars=document.createElement('div');bars.className='vm-bars';
+  for(const {code,name} of latest){
+    const sample=filtered.filter(r=>r.service_code===code),good=sample.filter(r=>r.healthy).length,percent=sample.length?100*good/sample.length:null;
+    const line=document.createElement('div');line.className='vm-line';
+    const label=document.createElement('span');label.textContent=name;const track=document.createElement('div');track.className='vm-track';
+    const fill=document.createElement('div');fill.className='vm-fill';fill.style.width=(percent??0)+'%';if(percent!==null&&percent<100)fill.classList.add('vm-alert');track.append(fill);
+    const number=document.createElement('strong');number.textContent=percent===null?'Sem dados':percent.toFixed(0)+'% ('+sample.length+')';
+    line.append(label,track,number);bars.append(line);
+  }
+  root.append(bars);
+ }
  function renderTraffic(){
   const names={anna_one:'AnnA One — Portal',projetos_escolares:'LabPC — Projetos Escolares',agenda_educacional:'Agenda Educacional — Aplicação',neon_agenda:'Banco de Dados — Neon',central_labpc:'Central LabPC'};
   const container=$('traffic-list');container.replaceChildren();let good=0,bad=0,waiting=0;
@@ -340,7 +372,7 @@ window.addEventListener('load',async function(){
  }
  function render(){
   const cutoff=Date.now()-period*86400000,filtered=rows.filter(r=>new Date(r.checked_at).getTime()>=cutoff);
-  for(const code of ['anna_one','projetos_escolares','agenda_educacional','neon_agenda']){
+  for(const code of ['anna_one','projetos_escolares','agenda_educacional','neon_agenda','central_labpc']){
    const card=document.querySelector('[data-service="'+code+'"]'),all=rows.filter(r=>r.service_code===code),data=filtered.filter(r=>r.service_code===code),last=all[0],state=card.querySelector('.state');
    state.className='state';
    if(!last){state.textContent='Sem dados';state.classList.add('warn');}
@@ -375,6 +407,7 @@ window.addEventListener('load',async function(){
   drawChart(filtered);
   renderSummary(filtered);
   renderTraffic();
+  renderVisualManagement(filtered);
   renderInfrastructure();
   renderIncidents();
   renderTimeline();
@@ -461,7 +494,8 @@ window.addEventListener('load',async function(){
  const toolbar=protectedRoot.querySelector('.toolbar');toolbar.after(tabNav);
  for(const [key] of tabNames)protectedRoot.append(panels[key]);
  const move=(selector,key)=>{const el=protectedRoot.querySelector(selector);if(el)panels[key].append(el);};
- move('#traffic-board','geral');move('#incident-bar','geral');move('.ops-panel','geral');
+ move('#traffic-board','geral');
+ const visual=document.createElement('section');visual.id='visual-management';visual.className='card vm-panel';panels.geral.prepend(visual);move('#incident-bar','geral');move('.ops-panel','geral');
  move('.grid','servicos');move('#v15-diagnostics','servicos');
  move('#infra-panel','infra');
  move('.incident-history','incidentes');move('.timeline','incidentes');

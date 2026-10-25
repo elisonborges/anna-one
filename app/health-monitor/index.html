@@ -415,9 +415,6 @@ window.addEventListener('load',async function(){
      donutRoot.append(legend);
      const metricRoot=doc.getElementById('wall-metric-charts');metricRoot.replaceChildren();
      const metricGroups=[
-       {title:'Aplicações',items:[['Operacionais',latest.filter(x=>['anna_one','projetos_escolares','central_labpc','agenda_educacional'].includes(x.code)&&x.last&&x.last.healthy&&Date.now()-new Date(x.last.checked_at).getTime()<=8*3600000).length,4]]},
-       {title:'Autenticação',items:[['Operacionais',latest.filter(x=>x.code==='supabase_auth_labpc'&&x.last&&x.last.healthy&&Date.now()-new Date(x.last.checked_at).getTime()<=8*3600000).length,1]]},
-       {title:'Banco de dados · Neon',items:[['Operacionais',latest.filter(x=>x.code==='neon_agenda'&&x.last&&x.last.healthy&&Date.now()-new Date(x.last.checked_at).getTime()<=8*3600000).length,1]]},
        {title:'Banco de dados · Supabase',items:dbLatest.map(x=>[x.source==='labpc_projetos_escolares'?'Projetos Escolares (MiB)':'Health Monitor (MiB)',Number((Number(x.database_bytes)/1048576).toFixed(2)),null]).concat([['Tabelas públicas',dbTables,null],['Registros estimados',dbRows,null]])},
        {title:'E-mails · Resend',items:resendFresh?[['Enviados',resendSnapshot.sent,null],['Entregues',resendSnapshot.delivered,null],['Falhas/rejeições',resendBad,null],['Reclamações',resendSnapshot.complained,null]]:[]},
        {title:'Armazenamento',items:storageMetrics?[['Arquivos',storageMetrics.object_count,null],['Buckets',storageMetrics.bucket_count,null],['Volume (MiB)',Number((storageMetrics.total_bytes/1048576).toFixed(2)),null]]:[]},

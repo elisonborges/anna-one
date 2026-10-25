@@ -92,7 +92,7 @@ footer{font-size:13px;color:#526981}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script></head>
 <body><header class="anna-module-header"><a class="brand anna-module-brand" href="../../" aria-label="AnnA One - página inicial"><img src="../../assets/anna-symbol.svg" alt="" width="43" height="43"><span class="anna-brand-copy"><strong>AnnA <span>One</span></strong><small>TECNOLOGIA E EDUCAÇÃO JUNTAS</small></span></a><nav aria-label="Navegação"><a class="back" href="../">← Voltar ao portal</a></nav></header>
 <main>
-<div class="heading"><div><h1>🩺 Health Monitor <span class="pill">v2.3</span></h1><p class="muted">Monitoramento de serviços · indicadores e histórico</p></div><div class="heading-summary" id="executive-summary" hidden aria-label="Resumo executivo do monitoramento">
+<div class="heading"><div><h1>🩺 Health Monitor <span class="pill">v2.4</span></h1><p class="muted">Monitoramento de serviços · indicadores e histórico</p></div><div class="heading-summary" id="executive-summary" hidden aria-label="Resumo executivo do monitoramento">
 <div class="summary-item"><strong id="summary-online">—</strong><small>Serviços online</small></div>
 <div class="summary-item"><strong id="summary-availability">—</strong><small>Disponibilidade</small></div>
 <div class="summary-item"><strong id="summary-incidents">—</strong><small>Falhas no período</small></div>
@@ -333,11 +333,14 @@ window.addEventListener('load',async function(){
      .fill{height:100%;background:#32c994;border-radius:12px}.fill.warn{background:#e7b651}
      .barrow{display:grid;grid-template-columns:minmax(140px,190px) 1fr 100px;gap:12px;align-items:center;margin:16px 0;font-size:14px}
      .muted{color:#a9c2db}.foot{padding:0 32px 25px;color:#a9c2db;font-size:12px}
+.wall-clock{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums}.wall-alert{border-left:8px solid #35ce98;background:#153e40;padding:16px;border-radius:10px;font-weight:800;font-size:22px}.wall-alert.danger{background:#59212c;border-color:#ff808a}.wall-alert.warning{background:#54441c;border-color:#eec46a}#wall-trend{overflow-x:auto}#wall-trend svg{width:100%;min-width:450px;height:240px}
      @media(max-width:1050px){.layout{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}}
      @media(max-width:650px){header{padding:20px;flex-direction:column;align-items:start}main{padding:18px}.service{grid-template-columns:1fr auto}.service .muted{grid-column:1/-1}.barrow{grid-template-columns:1fr 70px}.barrow .bar{grid-column:1;grid-row:2}.barrow strong{grid-column:2;grid-row:2}}
-     </style></head><body><header><div><h1>AnnA One <span class="green">●</span> Gestão à Vista</h1><div class="sub">Health Monitor · Painel executivo · Dados do Supabase</div></div><div class="actions"><span id="clock" class="sub"></span><button id="fullscreen" type="button">⛶ Tela cheia</button><button id="close" type="button">Fechar</button></div></header><main id="telao-root"><div class="kpis" id="telao-kpis"></div><div class="layout"><section class="panel"><h2>Situação dos serviços</h2><div id="telao-services"></div></section><section class="panel"><h2>Disponibilidade nas amostras</h2><div id="telao-bars"></div></section></div><section class="panel"><h2>Leitura operacional</h2><p id="telao-status" class="muted"></p><p id="telao-collected" class="muted"></p></section></main><div class="foot">Atualização do painel principal a cada 60 segundos · Coletas agendadas a cada 5 minutos · Esta janela depende da sessão autenticada no painel principal.</div></body></html>`);
+     </style></head><body><header><div><h1>AnnA One <span class="green">●</span> Gestão à Vista</h1><div class="sub">Health Monitor · Painel executivo · Dados do Supabase</div></div><div class="actions"><span id="wall-clock" class="wall-clock"></span><span id="clock" class="sub"></span><button id="fullscreen" type="button">⛶ Tela cheia</button><button id="close" type="button">Fechar</button></div></header><main id="telao-root"><div id="wall-alert" class="wall-alert" role="status"></div><div class="kpis" id="telao-kpis"></div><div class="layout"><section class="panel"><h2>Situação dos serviços</h2><div id="telao-services"></div></section><section class="panel"><h2>Disponibilidade nas amostras</h2><div id="telao-bars"></div></section></div><section class="panel"><h2>Tendência de latência</h2><p class="sub">Média das verificações por faixa de tempo (ms)</p><div id="wall-trend"></div></section><section class="panel"><h2>Leitura operacional</h2><p id="telao-status" class="muted"></p><p id="telao-collected" class="muted"></p></section></main><div class="foot">Atualização do painel principal a cada 60 segundos · Coletas agendadas a cada 5 minutos · Esta janela depende da sessão autenticada no painel principal.</div></body></html>`);
      popup.document.close();
      popup.document.getElementById('close').addEventListener('click',()=>popup.close());
+     const tick=()=>{if(!popup.closed){const el=popup.document.getElementById('wall-clock');if(el)el.textContent=new Date().toLocaleTimeString('pt-BR');}};
+     tick();const timer=setInterval(()=>{if(popup.closed)clearInterval(timer);else tick();},1000);
      popup.document.getElementById('fullscreen').addEventListener('click',()=>{const el=popup.document.documentElement;if(!popup.document.fullscreenElement)el.requestFullscreen?.();else popup.document.exitFullscreen?.();});
    }
    popup.focus();renderTelao();
@@ -354,6 +357,8 @@ window.addEventListener('load',async function(){
      for(const [label,value,color] of [['Operacionais',ok+'/5','green'],['Falhas atuais',fail,'red'],['Sem coleta recente',missing,'yellow'],['Sucesso nas amostras',percentage===null?'—':percentage.toFixed(1)+'%','green']]){
        const el=doc.createElement('div');el.className='kpi';const v=doc.createElement('strong');v.className=color;v.textContent=value;const l=doc.createElement('span');l.textContent=label;el.append(v,l);kpis.append(el);
      }
+     const banner=doc.getElementById('wall-alert');banner.className='wall-alert'+(fail?' danger':missing?' warning':'');
+     banner.textContent=fail?'● FALHA DETECTADA — '+latest.filter(x=>x.last&&!x.last.healthy&&Date.now()-new Date(x.last.checked_at).getTime()<=8*3600000).map(x=>x.name).join(', '):missing?'◷ ATENÇÃO — '+missing+' serviço(s) sem coleta recente':'● OPERAÇÃO NORMAL — todos os serviços com coleta recente';
      const services=doc.getElementById('telao-services'),bars=doc.getElementById('telao-bars');services.replaceChildren();bars.replaceChildren();
      for(const {code,name,last} of latest){
        const recent=last&&Date.now()-new Date(last.checked_at).getTime()<=8*3600000;
@@ -367,6 +372,14 @@ window.addEventListener('load',async function(){
        const row=doc.createElement('div');row.className='barrow';const label=doc.createElement('span');label.textContent=name;
        const track=doc.createElement('div');track.className='bar';const fill=doc.createElement('div');fill.className='fill'+(rate!==null&&rate<100?' warn':'');fill.style.width=(rate??0)+'%';track.append(fill);
        const value=doc.createElement('strong');value.textContent=rate===null?'Sem dados':rate.toFixed(0)+'%';row.append(label,track,value);bars.append(row);
+     }
+     const trend=doc.getElementById('wall-trend');trend.replaceChildren();const buckets=new Map();
+     for(const x of filtered){if(!Number.isFinite(x.latency_ms)||x.latency_ms<0)continue;const t=new Date(x.checked_at).getTime();if(!Number.isFinite(t))continue;const step=period===1?3600000:period===7?21600000:86400000;const key=Math.floor(t/step)*step;const b=buckets.get(key)||{sum:0,count:0};b.sum+=x.latency_ms;b.count++;buckets.set(key,b);}
+     const pts=[...buckets].sort((a,b)=>a[0]-b[0]).slice(-40).map(([t,v])=>({t,y:v.sum/v.count}));
+     if(pts.length<2){trend.textContent='Aguardando medições em pelo menos duas faixas de tempo.';}
+     else{const ns='http://www.w3.org/2000/svg',svg=doc.createElementNS(ns,'svg');svg.setAttribute('viewBox','0 0 900 240');svg.setAttribute('role','img');svg.setAttribute('aria-label','Tendência da latência média');const max=Math.max(1,...pts.map(p=>p.y))*1.15;
+       for(let i=0;i<=4;i++){const y=195-i*43,g=doc.createElementNS(ns,'line');for(const [k,v] of Object.entries({x1:48,x2:890,y1:y,y2:y,stroke:'#3c5872','stroke-dasharray':'4 6'}))g.setAttribute(k,v);svg.append(g);const t=doc.createElementNS(ns,'text');t.setAttribute('x','3');t.setAttribute('y',String(y+4));t.setAttribute('fill','#b8cee1');t.textContent=Math.round(max*i/4)+' ms';svg.append(t);}
+       const line=doc.createElementNS(ns,'polyline');line.setAttribute('points',pts.map((p,i)=>(48+i*840/(pts.length-1))+','+(195-p.y/max*172)).join(' '));line.setAttribute('fill','none');line.setAttribute('stroke','#4de1b8');line.setAttribute('stroke-width','4');svg.append(line);trend.append(svg);
      }
      doc.getElementById('telao-status').textContent=fail?'Atenção: há serviços com falha na última coleta.':missing?'Atenção: existem serviços sem dados recentes.':'Todos os serviços possuem última coleta operacional.';
      const newest=rows[0]?.checked_at;doc.getElementById('telao-collected').textContent='Última coleta registrada: '+(newest?date(newest):'sem registros')+' · Período dos gráficos: '+period+' dia(s).';

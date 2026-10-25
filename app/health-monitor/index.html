@@ -92,7 +92,7 @@ footer{font-size:13px;color:#526981}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script></head>
 <body><header class="anna-module-header"><a class="brand anna-module-brand" href="../../" aria-label="AnnA One - página inicial"><img src="../../assets/anna-symbol.svg" alt="" width="43" height="43"><span class="anna-brand-copy"><strong>AnnA <span>One</span></strong><small>TECNOLOGIA E EDUCAÇÃO JUNTAS</small></span></a><nav aria-label="Navegação"><a class="back" href="../">← Voltar ao portal</a></nav></header>
 <main>
-<div class="heading"><div><h1>🩺 Health Monitor <span class="pill">v2.5</span></h1><p class="muted">Monitoramento de serviços · indicadores e histórico</p></div><div class="heading-summary" id="executive-summary" hidden aria-label="Resumo executivo do monitoramento">
+<div class="heading"><div><h1>🩺 Health Monitor <span class="pill">v2.6</span></h1><p class="muted">Monitoramento de serviços · indicadores e histórico</p></div><div class="heading-summary" id="executive-summary" hidden aria-label="Resumo executivo do monitoramento">
 <div class="summary-item"><strong id="summary-online">—</strong><small>Serviços online</small></div>
 <div class="summary-item"><strong id="summary-availability">—</strong><small>Disponibilidade</small></div>
 <div class="summary-item"><strong id="summary-incidents">—</strong><small>Falhas no período</small></div>
@@ -335,9 +335,12 @@ window.addEventListener('load',async function(){
      .barrow{display:grid;grid-template-columns:minmax(140px,190px) 1fr 100px;gap:12px;align-items:center;margin:16px 0;font-size:14px}
      .muted{color:#a9c2db}.foot{padding:0 32px 25px;color:#a9c2db;font-size:12px}
 .wall-clock{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums}.wall-alert{border-left:8px solid #35ce98;background:#153e40;padding:16px;border-radius:10px;font-weight:800;font-size:22px}.wall-alert.danger{background:#59212c;border-color:#ff808a}.wall-alert.warning{background:#54441c;border-color:#eec46a}#wall-trend{overflow-x:auto}#wall-trend svg{width:100%;min-width:450px;height:240px}
+.wall-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:22px}.category-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.category{background:#0c213a;border:1px solid #305271;border-radius:12px;padding:13px;min-width:0}.category h3{font-size:15px;margin:0 0 9px}.category p{margin:6px 0;color:#b5ccdf;font-size:13px}.category .bar{height:11px}.donut-layout{display:flex;align-items:center;gap:18px;flex-wrap:wrap}.donut{height:155px;width:155px;border-radius:50%;display:grid;place-items:center;flex-shrink:0}.donut-center{height:100px;width:100px;border-radius:50%;background:#122c49;display:grid;place-items:center;text-align:center;font-weight:800;font-size:25px}.legend{display:grid;gap:10px;font-size:14px}.dot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:8px}.category .state{float:right}.wall-grid .panel{min-width:0}
+     @media(max-width:1050px){.wall-grid{grid-template-columns:1fr}}
+     @media(max-width:650px){.category-grid{grid-template-columns:1fr}}
      @media(max-width:1050px){.layout{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}}
      @media(max-width:650px){header{padding:20px;flex-direction:column;align-items:start}main{padding:18px}.service{grid-template-columns:1fr auto}.service .muted{grid-column:1/-1}.barrow{grid-template-columns:1fr 70px}.barrow .bar{grid-column:1;grid-row:2}.barrow strong{grid-column:2;grid-row:2}}
-     </style></head><body><header><div><h1>AnnA One <span class="green">●</span> Gestão à Vista</h1><div class="sub">Health Monitor · Painel executivo · Dados do Supabase</div></div><div class="actions"><span id="wall-clock" class="wall-clock"></span><span id="clock" class="sub"></span><button id="fullscreen" type="button">⛶ Tela cheia</button><button id="close" type="button">Fechar</button></div></header><main id="telao-root"><div id="wall-alert" class="wall-alert" role="status"></div><div class="kpis" id="telao-kpis"></div><div class="layout"><section class="panel"><h2>Situação dos serviços</h2><div id="telao-services"></div></section><section class="panel"><h2>Disponibilidade nas amostras</h2><div id="telao-bars"></div></section></div><section class="panel"><h2>Tendência de latência</h2><p class="sub">Média das verificações por faixa de tempo (ms)</p><div id="wall-trend"></div></section><section class="panel"><h2>Leitura operacional</h2><p id="telao-status" class="muted"></p><p id="telao-collected" class="muted"></p></section></main><div class="foot">Atualização do painel principal a cada 60 segundos · Coletas agendadas a cada 5 minutos · Esta janela depende da sessão autenticada no painel principal.</div></body></html>`);
+     </style></head><body><header><div><h1>AnnA One <span class="green">●</span> Gestão à Vista</h1><div class="sub">Health Monitor · Painel executivo · Dados do Supabase</div></div><div class="actions"><span id="wall-clock" class="wall-clock"></span><span id="clock" class="sub"></span><button id="fullscreen" type="button">⛶ Tela cheia</button><button id="close" type="button">Fechar</button></div></header><main id="telao-root"><div id="wall-alert" class="wall-alert" role="status"></div><div class="kpis" id="telao-kpis"></div><div class="wall-grid"><section class="panel"><h2>Saúde por categoria</h2><div id="wall-categories" class="category-grid"></div></section><section class="panel"><h2>Distribuição do status</h2><div id="wall-donut" class="donut-layout"></div></section></div><div class="layout"><section class="panel"><h2>Situação dos serviços</h2><div id="telao-services"></div></section><section class="panel"><h2>Disponibilidade nas amostras</h2><div id="telao-bars"></div></section></div><section class="panel"><h2>Tendência de latência</h2><p class="sub">Média das verificações por faixa de tempo (ms)</p><div id="wall-trend"></div></section><section class="panel"><h2>Leitura operacional</h2><p id="telao-status" class="muted"></p><p id="telao-collected" class="muted"></p></section></main><div class="foot">Atualização do painel principal a cada 60 segundos · Coletas agendadas a cada 5 minutos · Esta janela depende da sessão autenticada no painel principal.</div></body></html>`);
      popup.document.close();
      popup.document.getElementById('close').addEventListener('click',()=>popup.close());
      const tick=()=>{if(!popup.closed){const el=popup.document.getElementById('wall-clock');if(el)el.textContent=new Date().toLocaleTimeString('pt-BR');}};
@@ -360,6 +363,37 @@ window.addEventListener('load',async function(){
      }
      const banner=doc.getElementById('wall-alert');banner.className='wall-alert'+(fail?' danger':missing?' warning':'');
      banner.textContent=fail?'● FALHA DETECTADA — '+latest.filter(x=>x.last&&!x.last.healthy&&Date.now()-new Date(x.last.checked_at).getTime()<=8*3600000).map(x=>x.name).join(', '):missing?'◷ ATENÇÃO — '+missing+' serviço(s) sem coleta recente':'● OPERAÇÃO NORMAL — todos os serviços com coleta recente';
+     const categoryData=[
+       {name:'Aplicações',codes:['anna_one','projetos_escolares','central_labpc','agenda_educacional']},
+       {name:'Autenticação',codes:['supabase_auth_labpc']},
+       {name:'Banco de dados',codes:['neon_agenda']},
+       {name:'E-mails',codes:[]},
+       {name:'Armazenamento',codes:[]},
+       {name:'Processamento',codes:[]}
+     ];
+     const categoryRoot=doc.getElementById('wall-categories');categoryRoot.replaceChildren();
+     for(const group of categoryData){
+       const el=doc.createElement('div');el.className='category';
+       const title=doc.createElement('h3');title.textContent=group.name;el.append(title);
+       const relevant=latest.filter(x=>group.codes.includes(x.code));
+       const current=relevant.filter(x=>x.last&&Date.now()-new Date(x.last.checked_at).getTime()<=8*3600000);
+       const healthy=current.filter(x=>x.last.healthy).length;
+       const text=doc.createElement('p');
+       text.textContent=!group.codes.length?'Monitoramento específico ainda não configurado':healthy+'/'+group.codes.length+' operacionais · '+(relevant.length-current.length)+' sem dados recentes';
+       el.append(text);
+       if(group.codes.length){const track=doc.createElement('div');track.className='bar';const fill=doc.createElement('div');fill.className='fill';fill.style.width=(healthy/group.codes.length*100)+'%';track.append(fill);el.append(track);}
+       categoryRoot.append(el);
+     }
+     const donutRoot=doc.getElementById('wall-donut');donutRoot.replaceChildren();
+     const donut=doc.createElement('div');donut.className='donut';const total=latest.length;
+     const pOk=ok/total*100,pFail=fail/total*100;
+     donut.style.background='conic-gradient(#36cf9c 0% '+pOk+'%,#f47d88 '+pOk+'% '+(pOk+pFail)+'%,#f2c86d '+(pOk+pFail)+'% 100%)';
+     const center=doc.createElement('div');center.className='donut-center';center.textContent=ok+'/'+total;donut.append(center);donutRoot.append(donut);
+     const legend=doc.createElement('div');legend.className='legend';
+     for(const [name,value,color] of [['Operacionais',ok,'#36cf9c'],['Falhas',fail,'#f47d88'],['Sem dados recentes',missing,'#f2c86d']]){
+       const item=doc.createElement('div'),dot=doc.createElement('span');dot.className='dot';dot.style.background=color;item.append(dot,doc.createTextNode(name+': '+value));legend.append(item);
+     }
+     donutRoot.append(legend);
      const services=doc.getElementById('telao-services'),bars=doc.getElementById('telao-bars');services.replaceChildren();bars.replaceChildren();
      for(const {code,name,last} of latest){
        const recent=last&&Date.now()-new Date(last.checked_at).getTime()<=8*3600000;

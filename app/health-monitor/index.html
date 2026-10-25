@@ -340,7 +340,7 @@ window.addEventListener('load',async function(){
      @media(max-width:650px){.category-grid{grid-template-columns:1fr}}
      @media(max-width:1050px){.layout{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}}
      @media(max-width:650px){header{padding:20px;flex-direction:column;align-items:start}main{padding:18px}.service{grid-template-columns:1fr auto}.service .muted{grid-column:1/-1}.barrow{grid-template-columns:1fr 70px}.barrow .bar{grid-column:1;grid-row:2}.barrow strong{grid-column:2;grid-row:2}}
-     </style></head><body><header><div><h1>AnnA One <span class="green">●</span> Gestão à Vista</h1><div class="sub">Health Monitor · Painel executivo · Dados do Supabase</div></div><div class="actions"><span id="wall-clock" class="wall-clock"></span><span id="clock" class="sub"></span><button id="fullscreen" type="button">⛶ Tela cheia</button><button id="close" type="button">Fechar</button></div></header><main id="telao-root"><div id="wall-alert" class="wall-alert" role="status"></div><div class="kpis" id="telao-kpis"></div><div class="wall-grid"><section class="panel"><h2>Saúde por categoria</h2><div id="wall-categories" class="category-grid"></div></section><section class="panel"><h2>Distribuição do status</h2><div id="wall-donut" class="donut-layout"></div></section></div><div class="layout"><section class="panel"><h2>Situação dos serviços</h2><div id="telao-services"></div></section><section class="panel"><h2>Disponibilidade nas amostras</h2><div id="telao-bars"></div></section></div><section class="panel"><h2>Tendência de latência</h2><p class="sub">Média das verificações por faixa de tempo (ms)</p><div id="wall-trend"></div></section><section class="panel"><h2>Leitura operacional</h2><p id="telao-status" class="muted"></p><p id="telao-collected" class="muted"></p></section></main><div class="foot">Atualização do painel principal a cada 60 segundos · Coletas agendadas a cada 5 minutos · Esta janela depende da sessão autenticada no painel principal.</div></body></html>`);
+     </style></head><body><header><div><h1>AnnA One <span class="green">●</span> Gestão à Vista</h1><div class="sub">Health Monitor · Painel executivo · Dados do Supabase</div></div><div class="actions"><span id="wall-clock" class="wall-clock"></span><span id="clock" class="sub"></span><button id="fullscreen" type="button">⛶ Tela cheia</button><button id="close" type="button">Fechar</button></div></header><main id="telao-root"><div id="wall-alert" class="wall-alert" role="status"></div><div class="kpis" id="telao-kpis"></div><div class="wall-grid"><section class="panel"><h2>Saúde por categoria</h2><div id="wall-categories" class="category-grid"></div></section><section class="panel"><h2>Distribuição do status</h2><div id="wall-donut" class="donut-layout"></div><h2 style="margin-top:24px">Gráficos das medições</h2><div id="wall-metric-charts" class="metric-charts"></div></section></div><div class="layout"><section class="panel"><h2>Situação dos serviços</h2><div id="telao-services"></div></section><section class="panel"><h2>Disponibilidade nas amostras</h2><div id="telao-bars"></div></section></div><section class="panel"><h2>Tendência de latência</h2><p class="sub">Média das verificações por faixa de tempo (ms)</p><div id="wall-trend"></div></section><section class="panel"><h2>Leitura operacional</h2><p id="telao-status" class="muted"></p><p id="telao-collected" class="muted"></p></section></main><div class="foot">Atualização do painel principal a cada 60 segundos · Coletas agendadas a cada 5 minutos · Esta janela depende da sessão autenticada no painel principal.</div></body></html>`);
      popup.document.close();
      popup.document.getElementById('close').addEventListener('click',()=>popup.close());
      const tick=()=>{if(!popup.closed){const el=popup.document.getElementById('wall-clock');if(el)el.textContent=new Date().toLocaleTimeString('pt-BR');}};
@@ -384,7 +384,7 @@ window.addEventListener('load',async function(){
        {name:'Aplicações',codes:['anna_one','projetos_escolares','central_labpc','agenda_educacional']},
        {name:'Autenticação',codes:['supabase_auth_labpc']},
        {name:'Banco de dados · Neon',codes:['neon_agenda']},
-       {name:'Banco de dados · Supabase',codes:[],custom:databaseMetricsError?'Consulta indisponível':dbLatest.length? (dbBytes/1048576).toFixed(2)+' MiB · '+dbTables+' tabelas · '+dbRows+' registros estimados':'Aguardando coleta v3.0',detail:dbLatest.length?(dbFresh?'Coleta recente':'Última coleta histórica')+' · '+dbLatest.length+'/2 bancos · '+date(dbLatest[0].checked_at):'Coletor requer SUPABASE_MANAGEMENT_TOKEN; registros são estimativas PostgreSQL'},
+       {name:'Banco de dados · Supabase',codes:[],custom:databaseMetricsError?'Consulta indisponível':dbLatest.length? (dbBytes/1048576).toFixed(2)+' MiB · '+dbTables+' tabelas · '+dbRows+' registros estimados':'Aguardando coleta v3.0',detail:dbLatest.length?(dbFresh?'Coleta recente':'Última coleta histórica')+' · '+dbLatest.length+'/2 bancos · '+date(dbLatest[0].checked_at):'Aguardando métricas agregadas dos dois bancos'},
        {name:'E-mails · Resend',codes:[],custom:resendMetricsError?'Falha na leitura das métricas':resendFresh?resendSnapshot.sent+' enviados · '+resendSnapshot.delivered+' entregues · '+resendBad+' falhas/rejeições':'Aguardando coleta Resend recente',fraction:resendFresh&&resendSnapshot.sent?Math.min(1,resendSnapshot.delivered/resendSnapshot.sent):null,detail:resendFresh?'Resend API · '+resendSnapshot.complained+' reclamações · '+date(resendSnapshot.checked_at):'Requer RESEND_METRICS_API_KEY no GitHub Actions'},
        {name:'Armazenamento',codes:[],custom:storageMetricsError?'Falha ao consultar métricas':storageMetrics?'LabPC: '+storageMetrics.object_count+' arquivos · '+storageMetrics.bucket_count+' buckets':'Aguardando primeira coleta segura',detail:storageMetrics?'Volume armazenado: '+(storageMetrics.total_bytes/1048576).toFixed(2)+' MiB · '+date(storageMetrics.checked_at):'Coleta depende do segredo LABPC_STORAGE_SERVICE_ROLE_KEY no GitHub Actions'},
        {name:'Processamento',codes:[],custom:workflowMetricsError?'GitHub API indisponível':jobs.length?jobsOk+' sucesso · '+jobsFail+' falhas · '+jobs.length+' execuções':'Nenhuma execução encontrada no período',fraction:jobs.length?jobsOk/jobs.length:null,detail:avgJob===null?'GitHub Actions · duração não disponível':'Duração média: '+avgJob+' segundos · últimas 100 execuções concluídas'}
@@ -413,6 +413,35 @@ window.addEventListener('load',async function(){
        const item=doc.createElement('div'),dot=doc.createElement('span');dot.className='dot';dot.style.background=color;item.append(dot,doc.createTextNode(name+': '+value));legend.append(item);
      }
      donutRoot.append(legend);
+     const metricRoot=doc.getElementById('wall-metric-charts');metricRoot.replaceChildren();
+     const metricGroups=[
+       {title:'Aplicações',items:[['Operacionais',latest.filter(x=>['anna_one','projetos_escolares','central_labpc','agenda_educacional'].includes(x.code)&&x.last&&x.last.healthy&&Date.now()-new Date(x.last.checked_at).getTime()<=8*3600000).length,4]]},
+       {title:'Autenticação',items:[['Operacionais',latest.filter(x=>x.code==='supabase_auth_labpc'&&x.last&&x.last.healthy&&Date.now()-new Date(x.last.checked_at).getTime()<=8*3600000).length,1]]},
+       {title:'Banco de dados · Neon',items:[['Operacionais',latest.filter(x=>x.code==='neon_agenda'&&x.last&&x.last.healthy&&Date.now()-new Date(x.last.checked_at).getTime()<=8*3600000).length,1]]},
+       {title:'Banco de dados · Supabase',items:dbLatest.map(x=>[x.source==='labpc_projetos_escolares'?'Projetos Escolares (MiB)':'Health Monitor (MiB)',Number((Number(x.database_bytes)/1048576).toFixed(2)),null]).concat([['Tabelas públicas',dbTables,null],['Registros estimados',dbRows,null]])},
+       {title:'E-mails · Resend',items:resendFresh?[['Enviados',resendSnapshot.sent,null],['Entregues',resendSnapshot.delivered,null],['Falhas/rejeições',resendBad,null],['Reclamações',resendSnapshot.complained,null]]:[]},
+       {title:'Armazenamento',items:storageMetrics?[['Arquivos',storageMetrics.object_count,null],['Buckets',storageMetrics.bucket_count,null],['Volume (MiB)',Number((storageMetrics.total_bytes/1048576).toFixed(2)),null]]:[]},
+       {title:'Processamento',items:jobs.length?[['Execuções',jobs.length,null],['Sucessos',jobsOk,null],['Falhas',jobsFail,null],...(avgJob===null?[]:[['Duração média (s)',avgJob,null]])]:[]}
+     ];
+     for(const group of metricGroups){
+       const section=doc.createElement('div');section.style.cssText='margin:12px 0 18px';
+       const heading=doc.createElement('strong');heading.textContent=group.title;section.append(heading);
+       if(!group.items.length){const empty=doc.createElement('p');empty.className='muted';empty.textContent='Sem medições disponíveis';section.append(empty);}
+       const scale=Math.max(1,...group.items.map(x=>Number(x[1])||0));
+       for(const [name,value,denominator] of group.items){
+         const row=doc.createElement('div');row.style.cssText='margin-top:9px';
+         const caption=doc.createElement('div');caption.style.cssText='display:flex;justify-content:space-between;gap:10px;font-size:12px;margin-bottom:4px';
+         const label=doc.createElement('span');label.textContent=name;
+         const number=doc.createElement('strong');number.textContent=new Intl.NumberFormat('pt-BR',{maximumFractionDigits:2}).format(value)+(denominator!==null?' / '+denominator:'');
+         caption.append(label,number);row.append(caption);
+         const track=doc.createElement('div');track.className='bar';track.style.height='9px';
+         const fill=doc.createElement('div');fill.className='fill';
+         fill.style.width=(100*Math.max(0,Number(value))/(denominator||scale))+'%';
+         if(/Falhas|rejeições|Reclamações/.test(name))fill.style.background='#f47d88';
+         track.append(fill);row.append(track);section.append(row);
+       }
+       metricRoot.append(section);
+     }
      const services=doc.getElementById('telao-services'),bars=doc.getElementById('telao-bars');services.replaceChildren();bars.replaceChildren();
      for(const {code,name,last} of latest){
        const recent=last&&Date.now()-new Date(last.checked_at).getTime()<=8*3600000;

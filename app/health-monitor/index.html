@@ -489,6 +489,19 @@ window.addEventListener('load',async function(){
     const item=document.createElement('div');item.className='vm-stat '+cls;const n=document.createElement('strong');n.textContent=value;const t=document.createElement('span');t.textContent=label;item.append(n,t);stats.append(item);
   }
   overview.append(donut,stats);root.append(overview);
+  // Processamento: resumo da última coleta do GitHub Actions no Supabase.
+  const processingCard=document.createElement('section');processingCard.className='card';processingCard.setAttribute('aria-label','Processamento GitHub Actions');processingCard.style.marginBottom='16px';
+  const processingTitle=document.createElement('h3');processingTitle.textContent='Processamento · GitHub Actions';processingCard.append(processingTitle);
+  const processingInfo=document.createElement('p');processingInfo.className='muted';processingInfo.textContent=workflowMetricsError?'Consulta de processamento indisponível':workflowMetrics?'Últimas '+workflowMetrics.total_runs+' execuções concluídas · coleta: '+date(workflowMetrics.checked_at):'Aguardando primeira coleta';processingCard.append(processingInfo);
+  if(workflowMetrics&&!workflowMetricsError){
+    const metrics=document.createElement('div');metrics.className='vm-stats';
+    const duration=workflowMetrics.average_duration_seconds;
+    for(const [label,val,cls] of [['Execuções',workflowMetrics.total_runs,'neutral'],['Sucessos',workflowMetrics.success_runs,'ok'],['Falhas',workflowMetrics.failed_runs,'fail'],['Duração média',duration===null?'—':Number(duration).toLocaleString('pt-BR',{maximumFractionDigits:1})+' s','neutral']]){
+      const item=document.createElement('div');item.className='vm-stat '+cls;const n=document.createElement('strong');n.textContent=val;const t=document.createElement('span');t.textContent=label;item.append(n,t);metrics.append(item);
+    }
+    processingCard.append(metrics);
+  }
+  root.append(processingCard);
   const heading2=document.createElement('h3');heading2.textContent='Sucesso por serviço no período';root.append(heading2);
   const bars=document.createElement('div');bars.className='vm-bars';
   for(const {code,name} of latest){

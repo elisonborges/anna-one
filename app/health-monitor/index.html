@@ -92,7 +92,7 @@ footer{font-size:13px;color:#526981}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script></head>
 <body><header class="anna-module-header"><a class="brand anna-module-brand" href="../../" aria-label="AnnA One - página inicial"><img src="../../assets/anna-symbol.svg" alt="" width="43" height="43"><span class="anna-brand-copy"><strong>AnnA <span>One</span></strong><small>TECNOLOGIA E EDUCAÇÃO JUNTAS</small></span></a><nav aria-label="Navegação"><a class="back" href="../">← Voltar ao portal</a></nav></header>
 <main>
-<div class="heading"><div><h1>🩺 Health Monitor <span class="pill">v2.6</span></h1><p class="muted">Monitoramento de serviços · indicadores e histórico</p></div><div class="heading-summary" id="executive-summary" hidden aria-label="Resumo executivo do monitoramento">
+<div class="heading"><div><h1>🩺 Health Monitor <span class="pill">v2.7</span></h1><p class="muted">Monitoramento de serviços · indicadores e histórico</p></div><div class="heading-summary" id="executive-summary" hidden aria-label="Resumo executivo do monitoramento">
 <div class="summary-item"><strong id="summary-online">—</strong><small>Serviços online</small></div>
 <div class="summary-item"><strong id="summary-availability">—</strong><small>Disponibilidade</small></div>
 <div class="summary-item"><strong id="summary-incidents">—</strong><small>Falhas no período</small></div>
@@ -143,7 +143,7 @@ window.addEventListener('load',async function(){
  const $=id=>document.getElementById(id),msg=$('auth-message'),form=$('auth-form'),signout=$('signout'),protectedArea=$('protected');
  if(!window.supabase){msg.textContent='Não foi possível carregar a autenticação. Atualize a página.';return;}
  document.getElementById('auth-destination').append(document.getElementById('auth-panel'));const client=window.supabase.createClient('https://tnvghprwltbziivlxeod.supabase.co','sb_publishable_yI9_7tD4RwGrjolPjiq9vg_oSGpxxFR');
- let period=1,rows=[],notifications=[],preventiveEvents=[],notificationError=false,preventiveError=false,authorized=false,requestInFlight=false;
+ let workflowMetrics=null,workflowMetricsError=false,period=1,rows=[],notifications=[],preventiveEvents=[],notificationError=false,preventiveError=false,authorized=false,requestInFlight=false;
  const fmt=n=>new Intl.NumberFormat('pt-BR').format(n),date=t=>new Date(t).toLocaleString('pt-BR');
  const text=(parent,selector,value)=>{parent.querySelector(selector).textContent=value};
  function drawChart(data){
@@ -363,13 +363,20 @@ window.addEventListener('load',async function(){
      }
      const banner=doc.getElementById('wall-alert');banner.className='wall-alert'+(fail?' danger':missing?' warning':'');
      banner.textContent=fail?'● FALHA DETECTADA — '+latest.filter(x=>x.last&&!x.last.healthy&&Date.now()-new Date(x.last.checked_at).getTime()<=8*3600000).map(x=>x.name).join(', '):missing?'◷ ATENÇÃO — '+missing+' serviço(s) sem coleta recente':'● OPERAÇÃO NORMAL — todos os serviços com coleta recente';
+     const emailRows=notifications.filter(x=>!x.simulation&&new Date(x.created_at).getTime()>=cutoff);
+     const emailSent=emailRows.filter(x=>['sent','accepted','delivered','success'].includes(String(x.status).toLowerCase())).length;
+     const emailFailed=emailRows.filter(x=>['failed','error','rejected'].includes(String(x.status).toLowerCase())).length;
+     const jobs=(workflowMetrics||[]).filter(x=>new Date(x.time).getTime()>=cutoff);
+     const jobsOk=jobs.filter(x=>x.conclusion==='success').length,jobsFail=jobs.filter(x=>x.conclusion==='failure').length;
+     const jobDurations=jobs.filter(x=>Number.isFinite(x.durationMs)).map(x=>x.durationMs);
+     const avgJob=jobDurations.length?Math.round(jobDurations.reduce((a,b)=>a+b,0)/jobDurations.length/1000):null;
      const categoryData=[
        {name:'Aplicações',codes:['anna_one','projetos_escolares','central_labpc','agenda_educacional']},
        {name:'Autenticação',codes:['supabase_auth_labpc']},
        {name:'Banco de dados',codes:['neon_agenda']},
-       {name:'E-mails',codes:[]},
-       {name:'Armazenamento',codes:[]},
-       {name:'Processamento',codes:[]}
+       {name:'E-mails',codes:[],custom:notificationError?'Consulta indisponível':emailRows.length?emailSent+' aceitos · '+emailFailed+' falhas · '+emailRows.length+' registros':'Nenhum envio registrado no período',fraction:emailRows.length?emailSent/emailRows.length:null,detail:'Eventos de alerta registrados; não comprova entrega na caixa postal'},
+       {name:'Armazenamento',codes:[],custom:'Medição não conectada',detail:'Uso e capacidade do Supabase Storage exigem coleta administrativa segura'},
+       {name:'Processamento',codes:[],custom:workflowMetricsError?'GitHub API indisponível':jobs.length?jobsOk+' sucesso · '+jobsFail+' falhas · '+jobs.length+' execuções':'Nenhuma execução encontrada no período',fraction:jobs.length?jobsOk/jobs.length:null,detail:avgJob===null?'GitHub Actions · duração não disponível':'Duração média: '+avgJob+' segundos · últimas 100 execuções concluídas'}
      ];
      const categoryRoot=doc.getElementById('wall-categories');categoryRoot.replaceChildren();
      for(const group of categoryData){
@@ -379,9 +386,10 @@ window.addEventListener('load',async function(){
        const current=relevant.filter(x=>x.last&&Date.now()-new Date(x.last.checked_at).getTime()<=8*3600000);
        const healthy=current.filter(x=>x.last.healthy).length;
        const text=doc.createElement('p');
-       text.textContent=!group.codes.length?'Monitoramento específico ainda não configurado':healthy+'/'+group.codes.length+' operacionais · '+(relevant.length-current.length)+' sem dados recentes';
+       text.textContent=group.custom??(healthy+'/'+group.codes.length+' operacionais · '+(relevant.length-current.length)+' sem dados recentes');
        el.append(text);
-       if(group.codes.length){const track=doc.createElement('div');track.className='bar';const fill=doc.createElement('div');fill.className='fill';fill.style.width=(healthy/group.codes.length*100)+'%';track.append(fill);el.append(track);}
+       if(group.detail){const detail=doc.createElement('p');detail.textContent=group.detail;el.append(detail);}
+       if(group.codes.length||group.fraction!==undefined&&group.fraction!==null){const track=doc.createElement('div');track.className='bar';const fill=doc.createElement('div');fill.className='fill';fill.style.width=((group.fraction??(healthy/group.codes.length))*100)+'%';track.append(fill);el.append(track);}
        categoryRoot.append(el);
      }
      const donutRoot=doc.getElementById('wall-donut');donutRoot.replaceChildren();
@@ -538,6 +546,11 @@ window.addEventListener('load',async function(){
   try{const {data,error}=await client.from('health_monitor_checks').select('service_code,checked_at,healthy,latency_ms').order('checked_at',{ascending:false}).limit(3000);if(error)throw error;rows=data||[];
    const audit=await client.from('health_monitor_notifications').select('created_at,service_code,event,simulation,status').order('created_at',{ascending:false}).limit(1000);
    notificationError=Boolean(audit.error);notifications=audit.error?[]:(audit.data||[]);
+   // GitHub Actions: execuções reais do workflow público, sem credenciais no navegador.
+   try{const response=await fetch('https://api.github.com/repos/elisonborges/annaone-health-monitor/actions/workflows/health.yml/runs?per_page=100',{headers:{'Accept':'application/vnd.github+json'}});
+     if(!response.ok)throw Error('GitHub API HTTP '+response.status);
+     const body=await response.json();workflowMetrics=(body.workflow_runs||[]).filter(x=>x.status==='completed').map(x=>({time:x.created_at,conclusion:x.conclusion,durationMs:x.run_started_at&&x.updated_at?Math.max(0,new Date(x.updated_at)-new Date(x.run_started_at)):null}));workflowMetricsError=false;
+   }catch(e){workflowMetrics=null;workflowMetricsError=true;console.warn('Métricas GitHub indisponíveis',e);}
    const preventive=await client.from('health_monitor_preventive_events').select('service_code,event,checked_at,mode').order('checked_at',{ascending:false}).limit(1000);
    preventiveError=Boolean(preventive.error);preventiveEvents=preventive.error?[]:(preventive.data||[]);
    const last=rows[0]?.checked_at;const stamp=$('last-collection');stamp.textContent=last?'Última coleta: '+date(last):'Última coleta: sem registros';stamp.title='Horário da verificação mais recente armazenada no Supabase';

@@ -76,11 +76,20 @@ footer{font-size:13px;color:#526981}
 
 /* Infraestrutura — somente leitura e identidade AnnA One */
 .infra-panel{margin-bottom:12px;border-top:4px solid #0b65c4}.infra-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}.infra-heading h2{font-size:19px;color:#0757b3}.infra-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.infra-item{border:1px solid #d9e6f4;border-radius:10px;background:#f5f9fe;padding:14px;min-width:0}.infra-title{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}.infra-title strong{font-size:15px}.infra-state{font-size:13px;font-weight:750;background:#e8edf4;color:#526981;border-radius:20px;padding:4px 9px}.infra-state.ok{background:#e7f7ed;color:#117449}.infra-state.bad{background:#ffe9e9;color:#ae2832}.infra-state.warn{background:#fff3dd;color:#925c00}.infra-item p{font-size:14px;color:#284b70;line-height:1.55;margin:10px 0 7px}.infra-item small{font-size:13px;color:#637993;line-height:1.5;display:block}@media(max-width:900px){.infra-grid{grid-template-columns:1fr}}
+
+/* Navegação v2.0: mantém componentes e lógica originais */
+.monitor-tabs{display:flex;flex-wrap:wrap;gap:7px;margin:14px 0 16px;border-bottom:1px solid #d8e4f0;padding-bottom:10px}
+.monitor-tab{border:1px solid #cbdbea;background:#fff;color:#17426e;border-radius:9px;padding:10px 15px;font:inherit;font-weight:700;cursor:pointer}
+.monitor-tab:hover,.monitor-tab:focus-visible{background:#edf5ff}
+.monitor-tab.active{background:#0b65c4;color:#fff;border-color:#0b65c4}
+.monitor-tab-panel[hidden]{display:none!important}
+.monitor-tab-panel>.card,.monitor-tab-panel>.grid,.monitor-tab-panel>.incident-bar{margin-bottom:14px}
+@media(max-width:620px){.monitor-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.monitor-tab{padding:10px 6px;font-size:13px}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script></head>
 <body><header class="anna-module-header"><a class="brand anna-module-brand" href="../../" aria-label="AnnA One - página inicial"><img src="../../assets/anna-symbol.svg" alt="" width="43" height="43"><span class="anna-brand-copy"><strong>AnnA <span>One</span></strong><small>TECNOLOGIA E EDUCAÇÃO JUNTAS</small></span></a><nav aria-label="Navegação"><a class="back" href="../">← Voltar ao portal</a></nav></header>
 <main>
-<div class="heading"><div><h1>🩺 Health Monitor <span class="pill">v1.9</span></h1><p class="muted">Monitoramento de serviços · indicadores e histórico</p></div><div class="heading-summary" id="executive-summary" hidden aria-label="Resumo executivo do monitoramento">
+<div class="heading"><div><h1>🩺 Health Monitor <span class="pill">v2.0</span></h1><p class="muted">Monitoramento de serviços · indicadores e histórico</p></div><div class="heading-summary" id="executive-summary" hidden aria-label="Resumo executivo do monitoramento">
 <div class="summary-item"><strong id="summary-online">—</strong><small>Serviços online</small></div>
 <div class="summary-item"><strong id="summary-availability">—</strong><small>Disponibilidade</small></div>
 <div class="summary-item"><strong id="summary-incidents">—</strong><small>Falhas no período</small></div>
@@ -440,8 +449,37 @@ window.addEventListener('load',async function(){
   const objectUrl=URL.createObjectURL(blob),a=document.createElement('a');a.href=objectUrl;a.download='anna-health-monitor-'+period+'d.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(objectUrl),1000);
  });
  const protectedRoot=$('protected');
- Array.from(protectedRoot.children).forEach(child=>{if(!child.classList.contains('toolbar')&&child.id!=='traffic-board'&&child.id!=='infra-panel')child.classList.add('diagnostic-section');});
- $('toggle-diagnostics').addEventListener('click',()=>{const expanded=protectedRoot.classList.toggle('show-diagnostics');$('toggle-diagnostics').setAttribute('aria-expanded',String(expanded));$('toggle-diagnostics').textContent=expanded?'Ocultar diagnóstico ▴':'Ver diagnóstico completo ▾';});
+ // Navegacao por abas: apenas reorganiza os nos existentes, sem recriar dados ou controles.
+ const tabNames=[['geral','Visão geral'],['servicos','Serviços'],['infra','Infraestrutura'],['incidentes','Incidentes'],['historico','Histórico']];
+ const tabNav=document.createElement('nav');tabNav.className='monitor-tabs';tabNav.setAttribute('aria-label','Áreas do Health Monitor');
+ const panels={};
+ for(const [key,label] of tabNames){
+   const btn=document.createElement('button');btn.type='button';btn.className='monitor-tab';btn.textContent=label;btn.dataset.tab=key;btn.setAttribute('aria-controls','monitor-tab-'+key);
+   tabNav.append(btn);
+   const panel=document.createElement('div');panel.id='monitor-tab-'+key;panel.className='monitor-tab-panel';panel.setAttribute('role','region');panel.setAttribute('aria-label',label);panels[key]=panel;
+ }
+ const toolbar=protectedRoot.querySelector('.toolbar');toolbar.after(tabNav);
+ for(const [key] of tabNames)protectedRoot.append(panels[key]);
+ const move=(selector,key)=>{const el=protectedRoot.querySelector(selector);if(el)panels[key].append(el);};
+ move('#traffic-board','geral');move('#incident-bar','geral');move('.ops-panel','geral');
+ move('.grid','servicos');move('#v15-diagnostics','servicos');
+ move('#infra-panel','infra');
+ move('.incident-history','incidentes');move('.timeline','incidentes');
+ move('.chart-card','historico');move('.history:not(#preventive-history)','historico');
+ move('#preventive-history','historico');
+ // O histórico de notificações e de verificações compartilha a classe history.
+ Array.from(protectedRoot.children).filter(el=>el.classList.contains('history')).forEach(el=>panels.historico.append(el));
+ move('.notice','historico');
+ function selectTab(key){
+   if(!panels[key])key='geral';
+   for(const [id] of tabNames){panels[id].hidden=id!==key;const btn=tabNav.querySelector('[data-tab="'+id+'"]');btn.classList.toggle('active',id===key);btn.setAttribute('aria-current',id===key?'page':'false');}
+   try{history.replaceState(null,'','#'+key);}catch(_){}
+ }
+ tabNav.addEventListener('click',event=>{const btn=event.target.closest('[data-tab]');if(btn)selectTab(btn.dataset.tab);});
+ const details=$('toggle-diagnostics');
+ details.textContent='Ver serviços e diagnóstico →';
+ details.addEventListener('click',()=>selectTab('servicos'));
+ selectTab((location.hash||'').slice(1));
  $('refresh').addEventListener('click',load);setInterval(()=>{if(authorized&&!document.hidden)load();},60000);
  await auth();
 });

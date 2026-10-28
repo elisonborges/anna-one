@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0c2646"><title>AnnA One | Administração Geral</title><link rel="icon" href="../assets/anna-symbol.svg" type="image/svg+xml">
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#193552;background:#edf3fa}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;flex-direction:column}header{background:#102d50;color:white;padding:16px max(20px,calc((100vw - 1150px)/2));display:flex;justify-content:space-between;align-items:center;gap:12px}header strong{font-size:21px}a{color:inherit}header a{font-size:13px}main{width:min(1150px,calc(100% - 32px));margin:22px auto;flex:1}h1{font-size:25px;margin:0 0 4px}p{margin:0;color:#62748a}.intro{margin-bottom:18px}.status{margin:14px 0;padding:12px;border-radius:9px;background:#e1eefa;color:#17446e;font-size:13px}.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.card{background:white;border:1px solid #d8e3ef;border-radius:13px;padding:19px;min-height:145px;box-shadow:0 2px 8px #163a6010}.card h2{font-size:17px;margin:0 0 10px}.card p{font-size:13px;line-height:1.5}.card span{display:inline-block;margin-top:14px;font-size:12px;color:#28639b}.summary{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap}.summary div{background:white;border:1px solid #d8e3ef;border-radius:10px;padding:12px 18px;min-width:160px}.summary strong{display:block;font-size:23px}.summary small{color:#66778a}footer{text-align:center;color:#65778d;font-size:11px;line-height:1.7;padding:15px;border-top:1px solid #d7e3ef}@media(max-width:760px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:500px){.cards{grid-template-columns:1fr}header{flex-wrap:wrap}.summary div{flex:1}}
+</style></head><body><header><strong>AnnA One · Administração Geral</strong><a href="./home-preview.html">← Voltar ao painel</a></header><main><div class="intro"><h1>Central administrativa</h1><p>Gestão da plataforma, instituições, usuários e módulos.</p></div><div class="status" id="auth-status" role="status">Verificando sessão e permissões…</div><div class="summary" id="summary" hidden><div><strong id="institution-count">—</strong><small>Instituições</small></div><div><strong id="module-count">—</strong><small>Módulos cadastrados</small></div><div><strong id="license-count">—</strong><small>Liberações</small></div></div><section class="cards" id="admin-content" hidden><div class="card"><h2>🏫 Instituições</h2><p>Cadastro, situação e administração das escolas.</p><span>Consulta inicial disponível</span></div><div class="card"><h2>👥 Usuários</h2><p>Convites, vínculos institucionais e bloqueio de acessos.</p><span>Próxima etapa</span></div><div class="card"><h2>🧩 Catálogo de módulos</h2><p>Produtos AnnA One e seus estados de publicação.</p><span>Consulta inicial disponível</span></div><div class="card"><h2>🔑 Liberação de módulos</h2><p>Ativar módulos por instituição com controle central.</p><span>Consulta inicial disponível</span></div><div class="card"><h2>🛡️ Perfis e permissões</h2><p>Administradores gerais e responsáveis institucionais.</p><span>Próxima etapa</span></div><div class="card"><h2>📋 Auditoria</h2><p>Histórico de ações administrativas.</p><span>Planejado</span></div></section></main><footer>© 2026 AnnA One. Todos os direitos reservados.<div>Desenvolvido por Prof. Elison Borges · Projeto e desenvolvimento original.</div><div>Versão demonstrativa · Reprodução ou distribuição não autorizada sujeita à legislação aplicável.</div></footer>
+<script type="module">
+const status=document.getElementById('auth-status');
+try{
+ const sdk=await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');
+ const auth=sdk.createAuthClient('https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth');
+ const result=await auth.getSession();const user=result?.data?.user||result?.data?.session?.user;const token=result?.data?.session?.token;
+ if(!user||!token)throw new Error('Sessão não autenticada. Entre pelo login da AnnA One.');
+ const base='https://ep-spring-snow-b6mci3yx.apirest.c-2.sa-east-1.aws.neon.tech/neondb/rest/v1/';
+ const headers={Authorization:'Bearer '+token,Accept:'application/json'};
+ const load=async path=>{const response=await fetch(base+path,{headers});if(!response.ok)throw new Error('Consulta indisponível (HTTP '+response.status+')');const rows=await response.json();if(!Array.isArray(rows))throw new Error('Resposta inválida');return rows};
+ const admins=await load('platform_admins?select=user_id&limit=100');
+ if(!admins.some(a=>a.user_id===user.id))throw new Error('Acesso restrito a administradores gerais.');
+ status.textContent='Administrador geral autenticado: '+(user.name||user.email)+'. Consultas somente leitura.';
+ document.getElementById('admin-content').hidden=false;
+ try{
+ const [institutions,modules,licenses]=await Promise.all([load('institutions?select=id&limit=1000'),load('modules?select=id&limit=1000'),load('institution_modules?select=module_id&limit=1000')]);
+ document.getElementById('institution-count').textContent=institutions.length;
+ document.getElementById('module-count').textContent=modules.length;
+ document.getElementById('license-count').textContent=licenses.length;
+ document.getElementById('summary').hidden=false;
+ }catch(error){status.textContent+=' Algumas contagens não puderam ser consultadas.';console.warn(error.message)}
+}catch(error){status.textContent=error.message||'Não foi possível verificar o acesso.';console.warn('Admin AnnA:',error)}
+</script></body></html>

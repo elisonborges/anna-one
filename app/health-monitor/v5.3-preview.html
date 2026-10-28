@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Health Monitor v5.3 — Protótipo de gestão</title>
+<style>
+:root{font:16px system-ui,sans-serif;color:#e9f0fa;background:#0b1728}*{box-sizing:border-box}
+body{margin:0;max-width:1200px;padding:30px;margin-inline:auto}header{display:flex;justify-content:space-between;gap:20px;align-items:center;flex-wrap:wrap}
+h1{margin:.2em 0}p{color:#b3c5db}.badge{border:1px solid #6589ad;border-radius:999px;padding:7px 12px}
+main{display:grid;grid-template-columns:240px 1fr;gap:20px;margin-top:24px}.panel{background:#132940;border:1px solid #34516f;border-radius:16px;padding:20px}
+nav button{display:block;width:100%;text-align:left;margin:7px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+article{padding:16px;border:1px solid #41617f;border-radius:12px;background:#19334e}
+button,input,select{font:inherit;padding:10px;border-radius:9px;border:1px solid #58799a;background:#213f5e;color:#fff}button{cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #8dd7ff}label{display:block;margin:12px 0}input,select{width:100%}
+small{color:#a9c1d8}.status{color:#92e5b2}#formPanel[hidden],section[hidden]{display:none}
+@media(max-width:680px){main{grid-template-columns:1fr}body{padding:15px}}
+</style></head><body>
+<header><div><small>AnnA One / Health Monitor</small><h1>Gestão de monitores</h1><p>Protótipo v5.3 — dados ilustrativos, sem conexão ou gravação no Supabase.</p></div><span class="badge">Ambiente de desenvolvimento</span></header>
+<main><nav class="panel" aria-label="Navegação">
+<button type="button" data-view="monitors" aria-pressed="true">Meus monitores</button>
+<button type="button" data-view="dashboards" aria-pressed="false">Meus dashboards</button>
+<button type="button" data-view="shared" aria-pressed="false">Infraestrutura AnnA One</button>
+</nav><div>
+<section class="panel" id="monitors"><h2>Meus monitores</h2><p>Monitores pertencem à organização selecionada. Nenhum endpoint será consultado neste protótipo.</p>
+<button id="new" type="button">+ Adicionar monitor (simulação)</button>
+<div id="formPanel" hidden><form id="monitorForm"><label>Nome<input id="monitorName" maxlength="160" minlength="2" required placeholder="Ex.: Portal da empresa"></label>
+<label>URL HTTPS pública<input id="monitorUrl" type="url" pattern="https://.*" required placeholder="https://exemplo.com/health"></label>
+<button type="submit">Adicionar à prévia</button><button id="cancel" type="button">Cancelar</button></form></div>
+<div id="monitorList" class="grid" style="margin-top:18px"></div></section>
+<section class="panel" id="dashboards" hidden><h2>Meus dashboards</h2><p>Prévia da futura organização de painéis por cliente.</p><div class="grid"><article><strong>Visão geral</strong><p>Monitores privados e indicadores autorizados.</p><small>Layout personalizável em etapa futura</small></article></div></section>
+<section class="panel" id="shared" hidden><h2>Infraestrutura AnnA One</h2><p>Somente estados sanitizados e autorizados; sem acesso a métricas internas ou credenciais.</p><div class="grid"><article><strong>Disponibilidade compartilhada</strong><p>Integração pendente</p><small>Não são dados reais</small></article></div></section>
+</div></main>
+<script>
+'use strict';
+const monitors=[{name:'Portal da organização (exemplo)',url:'https://exemplo.com/health'}];
+const list=document.getElementById('monitorList');
+function render(){list.replaceChildren();for(const m of monitors){const card=document.createElement('article'),title=document.createElement('strong'),url=document.createElement('p'),status=document.createElement('small');title.textContent=m.name;url.textContent=m.url;status.textContent='Inativo · exemplo, sem verificações';card.append(title,url,status);list.append(card);}}
+document.querySelectorAll('[data-view]').forEach(button=>button.addEventListener('click',()=>{for(const el of document.querySelectorAll('main section'))el.hidden=el.id!==button.dataset.view;for(const b of document.querySelectorAll('[data-view]'))b.setAttribute('aria-pressed',String(b===button));}));
+document.getElementById('new').addEventListener('click',()=>{document.getElementById('formPanel').hidden=false;document.getElementById('monitorName').focus();});
+document.getElementById('cancel').addEventListener('click',()=>document.getElementById('formPanel').hidden=true);
+document.getElementById('monitorForm').addEventListener('submit',event=>{event.preventDefault();const name=document.getElementById('monitorName').value.trim(),url=document.getElementById('monitorUrl').value.trim();if(name.length<2||!url.startsWith('https://'))return;monitors.push({name,url});render();event.target.reset();document.getElementById('formPanel').hidden=true;});
+render();
+</script></body></html>

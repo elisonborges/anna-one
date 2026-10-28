@@ -36,7 +36,7 @@ const mainPanel=document.querySelector('.dash-main');
 function showArea(){const adminMode=view==='admin'&&['admin','platform'].includes(role.value);mainPanel.classList.toggle('show-admin',adminMode);adminPanel.hidden=!adminMode;adminNav.hidden=!['admin','platform'].includes(role.value);if(adminMode){document.querySelectorAll('.sidebar nav a').forEach(a=>{a.classList.toggle('active',a===adminNav);if(a===adminNav)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});}if(adminMode)adminPanel.scrollIntoView({block:'start',behavior:'instant'});}
 function updateFavorites(){tiles.forEach(tile=>{const button=tile.querySelector('.fav-toggle');const yes=favorites.includes(tile.dataset.module);button.textContent=yes?'★':'☆';button.setAttribute('aria-pressed',String(yes));button.setAttribute('aria-label',(yes?'Remover ':'Adicionar ')+tile.dataset.module+(yes?' dos':' aos')+' favoritos')})}
 function render(){
- document.getElementById('demo-user-role').textContent=role.options[role.selectedIndex].text;
+ document.getElementById('session-user-detail').textContent=(document.getElementById('session-user-name').dataset.authenticated==='true'?'Conta conectada · ':'Perfil demonstrativo: ')+role.options[role.selectedIndex].text;
  const q=search.value.trim().toLocaleLowerCase('pt-BR'),licensed=profiles[profile.value],roleModules=allowedByRole[role.value];let visible=0;
  const authorized=licensed.filter(name=>!roleModules||roleModules.includes(name));
  document.getElementById('access-summary').textContent='Perfil: '+role.options[role.selectedIndex].text+' · '+profile.options[profile.selectedIndex].text+' · '+authorized.length+' módulo(s) autorizado(s)';
@@ -93,6 +93,6 @@ try{
  const auth=sdk.createAuthClient('https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth');
  const result=await auth.getSession();
  const user=result?.data?.user||result?.data?.session?.user;
- nameEl.textContent=user?(user.name||user.email||'Usuário autenticado'):'Visitante';detailEl.textContent=user?'Conta conectada · Perfil demonstrativo':'Não conectado · Perfil demonstrativo';
+ nameEl.textContent=user?(user.name||user.email||'Usuário autenticado'):'Visitante';nameEl.dataset.authenticated=user?'true':'false';detailEl.textContent=(user?'Conta conectada · ':'Perfil demonstrativo: ')+document.getElementById('demo-role').selectedOptions[0].text;
 }catch(e){nameEl.textContent='Visitante';detailEl.textContent='Sessão não verificada · Perfil demonstrativo'}
 </script></body></html>

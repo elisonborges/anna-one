@@ -88,6 +88,9 @@ footer{font-size:13px;color:#526981}
 
 /* Gestão à vista: gráficos CSS alimentados pelas amostras existentes */
 .vm-panel{padding:20px!important}.vm-heading h2{margin:0 0 5px}.vm-heading p{margin:0 0 18px;color:#58728c;font-size:13px}.vm-overview{display:grid;grid-template-columns:190px 1fr;gap:22px;align-items:center;margin-bottom:20px}.vm-donut{width:180px;height:180px;border-radius:50%;display:grid;place-items:center}.vm-donut-center{width:126px;height:126px;border-radius:50%;background:white;display:flex;flex-direction:column;align-items:center;justify-content:center}.vm-donut-center strong{font-size:32px;color:#173c62}.vm-donut-center small{font-size:12px;color:#52708c}.vm-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.vm-stat{padding:12px;background:#f1f6fc;border-radius:10px;border-left:4px solid #7495b8;display:flex;flex-direction:column}.vm-stat strong{font-size:23px}.vm-stat span{font-size:12px;color:#506b83}.vm-stat.ok{border-color:#159b75}.vm-stat.fail{border-color:#c93845}.vm-stat.unknown{border-color:#e5b44b}.vm-panel h3{font-size:15px;margin:12px 0}.vm-bars{display:grid;gap:12px}.vm-line{display:grid;grid-template-columns:minmax(130px,210px) 1fr 100px;gap:10px;align-items:center;font-size:12px}.vm-line strong{text-align:right;font-size:12px}.vm-track{height:13px;background:#e8edf3;border-radius:20px;overflow:hidden}.vm-fill{height:100%;background:#159b75;border-radius:20px}.vm-fill.vm-alert{background:#d9a33d}@media(max-width:650px){.vm-overview{grid-template-columns:1fr;justify-items:center}.vm-stats{width:100%}.vm-line{grid-template-columns:1fr 85px}.vm-track{grid-column:1;grid-row:2}.vm-line strong{grid-column:2;grid-row:2}}
+
+/* Central de alertas: estados derivados das verificações existentes */
+.hm-alert-center{margin:0 0 16px;padding:16px}.hm-alert-center h3{margin:0 0 6px}.hm-alert-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0}.hm-alert-count{padding:10px;border-radius:9px;background:#f2f5f9;display:flex;flex-direction:column}.hm-alert-count strong{font-size:22px}.hm-alert-count span{font-size:11px}.hm-alert-count.critical{background:#ffe9e9;color:#9f2932}.hm-alert-count.warning{background:#fff5df;color:#855b13}.hm-alert-count.unknown{background:#edf1f6;color:#536477}.hm-alert-count.ok{background:#e7f7ed;color:#145f3e}.hm-alert-list{display:grid;gap:7px}.hm-alert-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid #dce6f1;border-left:4px solid #9aaabc;border-radius:8px}.hm-alert-row.critical{border-left-color:#c93845}.hm-alert-row.warning{border-left-color:#e5b44b}.hm-alert-row.ok{border-left-color:#159b75}.hm-alert-row strong,.hm-alert-row small{display:block}.hm-alert-row small{color:#637993;margin-top:3px}.hm-alert-state{font-size:12px;font-weight:700;white-space:nowrap}@media(max-width:620px){.hm-alert-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.hm-alert-row{align-items:flex-start;flex-direction:column}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" defer></script></head>
 <body><header class="anna-module-header"><a class="brand anna-module-brand" href="../../" aria-label="AnnA One - página inicial"><img src="../../assets/anna-symbol.svg" alt="" width="43" height="43"><span class="anna-brand-copy"><strong>AnnA <span>One</span></strong><small>TECNOLOGIA E EDUCAÇÃO JUNTAS</small></span></a><nav aria-label="Navegação"><a class="back" href="../">← Voltar ao portal</a></nav></header>
@@ -502,6 +505,38 @@ window.addEventListener('load',async function(){
     processingCard.append(metrics);
   }
   root.append(processingCard);
+  // Central de alertas inspirada em conceitos de severidade do Zabbix.
+  // Exibe somente estados observados; não cria incidentes persistentes.
+  const alertNames=[['anna_one','AnnA One — Portal'],['projetos_escolares','LabPC — Projetos Escolares'],['central_labpc','Central LabPC'],['supabase_auth_labpc','Supabase Auth — LabPC'],['agenda_educacional','Agenda Educacional'],['neon_agenda','Banco Neon']];
+  const alerts=alertNames.map(([code,name])=>{
+    const last=rows.find(r=>r.service_code===code);
+    if(!last)return {name,level:'unknown',label:'Sem dados',detail:'Nenhuma verificação registrada'};
+    const age=Date.now()-new Date(last.checked_at).getTime();
+    if(!Number.isFinite(age)||age>8*3600000)return {name,level:'unknown',label:'Dados desatualizados',detail:'Última verificação: '+date(last.checked_at)};
+    if(!last.healthy)return {name,level:'critical',label:'Falha',detail:'Falha detectada em '+date(last.checked_at)};
+    const latency=latencyAssessment(code);
+    if(latency.ready&&latency.slow)return {name,level:'warning',label:'Atenção: lentidão',detail:'Latência acima da referência histórica · '+date(last.checked_at)};
+    return {name,level:'ok',label:'Normal',detail:'Verificado em '+date(last.checked_at)};
+  });
+  const alertPanel=document.createElement('section');alertPanel.className='card hm-alert-center';
+  const alertHeading=document.createElement('h3');alertHeading.textContent='Central de alertas';alertPanel.append(alertHeading);
+  const alertNote=document.createElement('p');alertNote.className='muted';alertNote.textContent='Situação atual das últimas verificações; não representa monitoramento contínuo nem substitui o histórico de incidentes.';alertPanel.append(alertNote);
+  const alertSummary=document.createElement('div');alertSummary.className='hm-alert-summary';
+  for(const [level,label] of [['critical','Falhas'],['warning','Atenção'],['unknown','Sem dados atuais'],['ok','Normais']]){
+    const stat=document.createElement('div');stat.className='hm-alert-count '+level;
+    const n=document.createElement('strong');n.textContent=alerts.filter(a=>a.level===level).length;
+    const caption=document.createElement('span');caption.textContent=label;stat.append(n,caption);alertSummary.append(stat);
+  }
+  alertPanel.append(alertSummary);
+  const alertList=document.createElement('div');alertList.className='hm-alert-list';
+  const priority={critical:0,warning:1,unknown:2,ok:3};
+  for(const alert of alerts.sort((a,b)=>priority[a.level]-priority[b.level])){
+    const line=document.createElement('div');line.className='hm-alert-row '+alert.level;
+    const info=document.createElement('div');const name=document.createElement('strong');name.textContent=alert.name;
+    const detail=document.createElement('small');detail.textContent=alert.detail;info.append(name,detail);
+    const state=document.createElement('span');state.className='hm-alert-state';state.textContent=alert.label;line.append(info,state);alertList.append(line);
+  }
+  alertPanel.append(alertList);root.append(alertPanel);
   const heading2=document.createElement('h3');heading2.textContent='Sucesso por serviço no período';root.append(heading2);
   const bars=document.createElement('div');bars.className='vm-bars';
   for(const {code,name} of latest){

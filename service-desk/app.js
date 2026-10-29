@@ -36,7 +36,7 @@ function showTicket(id) {
   const ticket = tickets.find(t => t.id === id);
   if (!ticket) return;
   const timeline = ticket.events.map(event => `<div class="event"><strong>${escapeHtml(event.title)}</strong><p>${escapeHtml(event.note)}</p><small>Evento demonstrativo</small></div>`).join('');
-  $('detail-content').innerHTML = `<h2 class="detail-title">#${ticket.id.toString().padStart(4,'0')} · ${escapeHtml(ticket.title)}</h2><div class="detail-meta"><span class="pill ${statusClass(ticket.status)}">${escapeHtml(ticket.status)}</span><span>${escapeHtml(ticket.category)}</span><span>Prioridade: ${escapeHtml(ticket.priority)}</span></div><div class="detail-description">${escapeHtml(ticket.description)}</div><h2>Histórico do chamado</h2><div class="timeline">${timeline}</div>${role === 'tecnico' ? `<div class="technician"><label for="next-status">Atualizar status (somente simulação)</label><select id="next-status"><option>Aberto</option><option>Em andamento</option><option>Pendente</option><option>Resolvido</option></select><button id="save-status" class="primary">Salvar status</button></div>` : ''}`;
+  $('detail-content').innerHTML = `<h2 class="detail-title">#${ticket.id.toString().padStart(4,'0')} · ${escapeHtml(ticket.title)}</h2><div class="detail-meta"><span class="pill ${statusClass(ticket.status)}">${escapeHtml(ticket.status)}</span><span>${escapeHtml(ticket.category)}${ticket.subcategory ? ' · ' + escapeHtml(ticket.subcategory) : ''}</span><span>Prioridade: ${escapeHtml(ticket.priority)}</span></div><div class="detail-description">${escapeHtml(ticket.description)}</div><h2>Histórico do chamado</h2><div class="timeline">${timeline}</div>${role === 'tecnico' ? `<div class="technician"><label for="next-status">Atualizar status (somente simulação)</label><select id="next-status"><option>Aberto</option><option>Em andamento</option><option>Pendente</option><option>Resolvido</option></select><button id="save-status" class="primary">Salvar status</button></div>` : ''}`;
   if (role === 'tecnico') {
     $('next-status').value = ticket.status;
     $('save-status').addEventListener('click', () => {
@@ -57,14 +57,32 @@ $('new-top').addEventListener('click', () => show('novo'));
 $('back').addEventListener('click', () => show('chamados'));
 $('status-filter').addEventListener('change', renderLists);
 $('role').addEventListener('change', event => { role = event.target.value; if (!$('detalhe').hidden && selectedId !== null) showTicket(selectedId); });
+const ticketSubcategories = {
+  'Hardware': ['Computador', 'Notebook', 'Monitor', 'Teclado', 'Mouse', 'Impressora', 'Projetor'],
+  'Software': ['Sistema operacional', 'Aplicativos', 'Instalação', 'Atualização', 'Licenciamento'],
+  'Rede e Internet': ['Wi-Fi', 'Cabeamento', 'Internet', 'Roteador', 'Switch'],
+  'Sistemas': ['Acesso', 'Login e senha', 'Erro no sistema', 'Permissões'],
+  'Periféricos': ['Scanner', 'Webcam', 'Áudio', 'Outros dispositivos'],
+  'Outros': ['Manutenção', 'Solicitação geral', 'Outros']
+};
+function updateTicketSubcategories() {
+  const select = $('ticket-subcategory');
+  const options = ticketSubcategories[$('ticket-category').value] || [];
+  select.replaceChildren(new Option(options.length ? 'Selecione a subcategoria' : 'Selecione primeiro a categoria', ''));
+  for (const option of options) select.add(new Option(option, option));
+  select.disabled = options.length === 0;
+}
+$('ticket-category').addEventListener('change', updateTicketSubcategories);
+updateTicketSubcategories();
 $('new-form').addEventListener('submit', event => {
   event.preventDefault();
   const form = event.currentTarget;
   if (!form.reportValidity()) return;
   const data = new FormData(form);
   const id = Math.max(0, ...tickets.map(t => t.id)) + 1;
-  tickets.unshift({ id, title: String(data.get('title')).trim(), category: String(data.get('category')), priority: String(data.get('priority')), description: String(data.get('description')).trim(), status: 'Aberto', events: [{ title: 'Chamado registrado', note: 'Criado neste protótipo offline, sem envio ao servidor.' }] });
+  tickets.unshift({ id, title: String(data.get('title')).trim(), category: String(data.get('category')), subcategory: String(data.get('subcategory')), priority: String(data.get('priority')), description: String(data.get('description')).trim(), status: 'Aberto', events: [{ title: 'Chamado registrado', note: 'Criado neste protótipo offline, sem envio ao servidor.' }] });
   form.reset();
+  updateTicketSubcategories();
   showTicket(id);
 });
 // Fictional aggregates are deliberately isolated from live tickets and API credentials.

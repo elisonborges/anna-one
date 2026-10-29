@@ -42,9 +42,25 @@ function renderLists() {
         '<tr><td><button class="ticket-link" data-ticket="' + ticket.id + '">#' + String(ticket.id).padStart(4, '0') + '</button></td><td>' + escapeHtml(ticket.title) + '</td><td>' + escapeHtml(ticket.category) + '</td><td>' + escapeHtml(ticket.priority) + '</td><td><span class="pill ' + statusClass(ticket.status) + '">' + escapeHtml(ticket.status) + '</span></td></tr>'
       ).join('')
     : '<tr><td colspan="5" class="empty">Nenhum chamado recente.</td></tr>';
-  const filter = $('status-filter').value;
-  const filtered = tickets.filter(t => filter === 'todos' || t.status === filter);
-  $('ticket-list').innerHTML = filtered.length ? filtered.map(ticketHtml).join('') : '<div class="empty">Nenhum chamado encontrado.</div>';
+  const categorySelect = $('category-filter');
+  const selectedCategory = categorySelect.value;
+  const categoriesAvailable = [...new Set(tickets.map(t => t.category))].sort((a,b) => a.localeCompare(b, 'pt-BR'));
+  categorySelect.replaceChildren(new Option('Todas', 'todos'));
+  for (const category of categoriesAvailable) categorySelect.add(new Option(category, category));
+  categorySelect.value = categoriesAvailable.includes(selectedCategory) ? selectedCategory : 'todos';
+  const query = $('ticket-search').value.trim().toLocaleLowerCase('pt-BR');
+  const status = $('status-filter').value;
+  const priority = $('priority-filter').value;
+  const filtered = tickets.filter(t =>
+    (status === 'todos' || t.status === status) &&
+    (priority === 'todos' || t.priority === priority) &&
+    (categorySelect.value === 'todos' || t.category === categorySelect.value) &&
+    (!query || String(t.id).includes(query.replace(/^#/, '')) || t.title.toLocaleLowerCase('pt-BR').includes(query))
+  );
+  $('ticket-result-count').textContent = filtered.length + (filtered.length === 1 ? ' chamado encontrado' : ' chamados encontrados');
+  $('ticket-list').innerHTML = filtered.length ? filtered.map(t =>
+    '<tr><td>#' + String(t.id).padStart(4, '0') + '</td><td>' + escapeHtml(t.title) + '</td><td>' + escapeHtml(t.category) + '</td><td>' + escapeHtml(t.subcategory || '—') + '</td><td>' + escapeHtml(t.priority) + '</td><td><span class="pill ' + statusClass(t.status) + '">' + escapeHtml(t.status) + '</span></td><td>' + escapeHtml(t.assignee || 'Não atribuído') + '</td><td><button class="ticket-link" data-ticket="' + t.id + '">Visualizar</button></td></tr>'
+  ).join('') : '<tr><td colspan="8" class="empty">Nenhum chamado encontrado.</td></tr>';
 }
 function showTicket(id) {
   selectedId = id;
@@ -70,7 +86,8 @@ document.addEventListener('click', event => {
 });
 $('new-top').addEventListener('click', () => show('novo'));
 $('back').addEventListener('click', () => show('chamados'));
-$('status-filter').addEventListener('change', renderLists);
+for (const id of ['status-filter', 'priority-filter', 'category-filter']) $(id).addEventListener('change', renderLists);
+$('ticket-search').addEventListener('input', renderLists);
 $('role').addEventListener('change', event => { role = event.target.value; if (!$('detalhe').hidden && selectedId !== null) showTicket(selectedId); });
 const ticketSubcategories = {
   'Hardware': ['Computador', 'Notebook', 'Monitor', 'Teclado', 'Mouse', 'Impressora', 'Projetor'],

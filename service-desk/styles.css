@@ -29,3 +29,15 @@
 .ticket-link{background:none;border:0;color:#087bdf;font-weight:700;padding:3px;text-decoration:underline}
 .ticket-link:hover{color:#064f92}
 @media(max-width:1100px){.overview-grid{grid-template-columns:1fr}}
+
+/* Cores semânticas dos indicadores da Visão geral — v0.4.1 */
+#inicio .stats .stat{border-width:1px;border-left-width:5px;box-shadow:0 8px 22px #182a5010}
+#inicio .stats .stat:nth-child(1){background:#edf5ff;border-color:#c4ddff;border-left-color:#2479d2}
+#inicio .stats .stat:nth-child(1) strong{color:#1556a3}
+#inicio .stats .stat:nth-child(2){background:#fff4e5;border-color:#f6d6a9;border-left-color:#db850e}
+#inicio .stats .stat:nth-child(2) strong{color:#995900}
+#inicio .stats .stat:nth-child(3){background:#fff0f1;border-color:#f6cbd0;border-left-color:#d64a59}
+#inicio .stats .stat:nth-child(3) strong{color:#a92f40}
+#inicio .stats .stat:nth-child(4){background:#eaf8f0;border-color:#bde6cc;border-left-color:#23955c}
+#inicio .stats .stat:nth-child(4) strong{color:#176e43}
+#inicio .stats .stat span,#inicio .stats .stat small{color:#48576c}

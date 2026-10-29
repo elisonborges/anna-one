@@ -21,3 +21,6 @@ A interface atual utiliza Neon Auth no navegador. Não é seguro confiar em `use
 - Rotas sensíveis retornam 503 por padrão.
 - Nenhuma mudança no frontend, banco ou domínio de produção.
 - O arquivo SQL em `docs/sql/` é **exemplo**, não migração validada; requer adaptação ao esquema real e autorização antes de executar.
+
+
+<!-- Cloudflare Builds: novo commit para disparar implantação da branch de testes; sem alterar permissões ou dados. -->

@@ -14,7 +14,7 @@ function parsePart(value) {
   return JSON.parse(new TextDecoder().decode(decodeBase64Url(value)));
 }
 export async function verifyBearer(request, env) {
-  if (!env.AUTH_ISSUER || !env.AUTH_AUDIENCE || !env.AUTH_JWKS_URL) {
+  if (!env.AUTH_ISSUER || !env.AUTH_JWKS_URL) {
     throw new Error("Autenticação não configurada");
   }
   const jwksUrl = new URL(env.AUTH_JWKS_URL);
@@ -30,8 +30,9 @@ export async function verifyBearer(request, env) {
       header.crit || header.jwk || header.jku) invalid();
   const aud = typeof claims.aud === "string" ? [claims.aud] : claims.aud;
   const now = Math.floor(Date.now() / 1000);
-  if (claims.iss !== env.AUTH_ISSUER || !Array.isArray(aud) ||
-      !aud.includes(env.AUTH_AUDIENCE) || typeof claims.sub !== "string" ||
+  if (claims.iss !== env.AUTH_ISSUER ||
+      (env.AUTH_AUDIENCE && (!Array.isArray(aud) || !aud.includes(env.AUTH_AUDIENCE))) ||
+      typeof claims.sub !== "string" ||
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(claims.sub) ||
       !Number.isInteger(claims.exp) || claims.exp <= now ||
       !Number.isInteger(claims.iat) || claims.iat > now + 30 ||

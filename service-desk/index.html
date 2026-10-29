@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#101b38" />
-  <title>AnnA Service Desk — Homologação v0.3.0</title>
-  <link rel="stylesheet" href="styles.css?v=0.3.0" />
-  <script type="module" src="app.js?v=0.3.0"></script>
+  <title>AnnA Service Desk — Homologação v0.3.1</title>
+  <link rel="stylesheet" href="styles.css?v=0.3.1" />
+  <script type="module" src="app.js?v=0.3.1"></script>
 <style>.catalog-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:18px}.catalog-grid .panel{min-width:0}.catalog-grid form{display:grid;gap:14px;margin:18px 0}.catalog-grid label{display:grid;gap:6px}.catalog-grid input,.catalog-grid select{width:100%;max-width:100%}@media(max-width:800px){.catalog-grid{grid-template-columns:1fr}}</style></head>
 <body>
   <div class="shell">
@@ -19,10 +19,10 @@
         <button class="nav-item" data-view="dashboards">Dashboards</button>
         <button class="nav-item" data-view="catalogo">Contratos e prestadores</button>
       </nav>
-      <div class="side-foot">Homologação visual · v0.3.0<br />Dados fictícios em memória</div>
+      <div class="side-foot">Homologação visual · v0.3.1<br />Dados fictícios em memória</div>
     </aside>
     <main class="main">
-      <header class="topbar"><div><div class="eyebrow">CENTRAL DE ATENDIMENTO</div><h1 id="page-title">Visão geral</h1></div><div class="top-actions"><label for="role">Visualizar como</label><select id="role"><option value="solicitante">Solicitante</option><option value="tecnico">Técnico (simulação)</option></select><button id="new-top" class="primary">+ Novo chamado</button></div></header>
+      <header class="topbar"><div><div class="eyebrow">CENTRAL DE ATENDIMENTO · <span class="portal-version">VERSÃO 0.3.1</span></div><h1 id="page-title">Visão geral</h1></div><div class="top-actions"><label for="role">Visualizar como</label><select id="role"><option value="solicitante">Solicitante</option><option value="tecnico">Técnico (simulação)</option></select><button id="new-top" class="primary">+ Novo chamado</button></div></header>
       <div class="notice" role="status"><strong>Ambiente demonstrativo.</strong> Nenhuma informação é enviada ao Neon. Alterações são temporárias e desaparecem ao atualizar a página.</div>
       <section id="inicio" class="view"><div class="stats"><article class="stat"><span>Meus chamados</span><strong id="total">0</strong><small>Registros fictícios</small></article><article class="stat"><span>Em andamento</span><strong id="andamento">0</strong><small>Acompanhamento</small></article><article class="stat"><span>Pendentes</span><strong id="pendentes">0</strong><small>Aguardando ação</small></article><article class="stat"><span>Resolvidos</span><strong id="resolvidos">0</strong><small>Histórico</small></article></div><div class="panel"><div class="panel-head"><div><h2>Chamados recentes</h2><p>Acompanhe solicitações e atualizações.</p></div><button data-view="chamados" class="secondary">Ver todos</button></div><div id="recent-list" class="ticket-list"></div></div></section>
       <section id="chamados" class="view" hidden><div class="panel"><div class="panel-head"><div><h2>Lista de chamados</h2><p>Selecione um chamado para consultar o histórico.</p></div><label class="filter">Status <select id="status-filter"><option value="todos">Todos</option><option value="Aberto">Aberto</option><option value="Em andamento">Em andamento</option><option value="Pendente">Pendente</option><option value="Resolvido">Resolvido</option></select></label></div><div id="ticket-list" class="ticket-list"></div></div></section>
@@ -37,7 +37,7 @@
         </div>
       </section>
       <section id="detalhe" class="view" hidden><button id="back" class="text-button">← Voltar aos chamados</button><div class="panel detail-panel"><div id="detail-content"></div></div></section>
-      <footer>AnnA Service Desk · v0.3.0 · Homologação visual · Sem autenticação real</footer>
+      <footer>AnnA Service Desk · v0.3.1 · Homologação visual · Sem autenticação real</footer>
     </main>
   </div>
 <script type="module" src="labmanager-entry.js"></script>

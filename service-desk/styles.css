@@ -41,3 +41,13 @@
 #inicio .stats .stat:nth-child(4){background:#eaf8f0;border-color:#bde6cc;border-left-color:#23955c}
 #inicio .stats .stat:nth-child(4) strong{color:#176e43}
 #inicio .stats .stat span,#inicio .stats .stat small{color:#48576c}
+
+/* Gestão de chamados v0.5.0 */
+.ticket-filters{display:grid;grid-template-columns:minmax(180px,1.6fr) repeat(3,minmax(120px,1fr));gap:12px;margin:14px 0 10px}
+.ticket-filters label{display:grid;gap:6px;font-size:12px;font-weight:700;color:#526580;min-width:0}
+.ticket-filters input,.ticket-filters select{width:100%;min-width:0}
+.ticket-result-count{font-size:12px;margin:12px 0;color:#61728c}
+.management-table td{white-space:nowrap}
+.management-table td:nth-child(2){white-space:normal;min-width:180px}
+@media(max-width:1000px){.ticket-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.ticket-filters{grid-template-columns:1fr}}

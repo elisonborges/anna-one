@@ -86,4 +86,4 @@ function renderDashboards() {
   ).join('');
 }
 $('dashboard-profile').addEventListener('change', renderDashboards);
-show('inicio');
+show(location.hash === '#catalogo' ? 'catalogo' : 'inicio');

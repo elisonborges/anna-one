@@ -2,3 +2,13 @@
 
 /* Dashboard preview */
 .dashboard-description{color:#62728d;margin-bottom:22px;line-height:1.5}.dashboard-breakdown{border-top:1px solid #e4ebf4;padding-top:18px}.dashboard-breakdown h3{font-size:16px;margin:0 0 17px}.dashboard-bar-row{margin:0 0 16px}.dashboard-bar-row>div:first-child{display:flex;justify-content:space-between;gap:12px;font-size:13px;margin-bottom:7px}.dashboard-bar-row strong{color:#18315a}.dashboard-track{height:10px;background:#e9f0f8;border-radius:12px;overflow:hidden}.dashboard-track span{display:block;height:100%;background:#287fd1;border-radius:12px}
+
+/* Formulário compacto de abertura de chamados */
+#novo .form-panel{max-width:960px}
+#novo .form-panel>p{margin-bottom:15px}
+#new-form.ticket-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:18px;row-gap:14px}
+#new-form .field-full{grid-column:1/-1}
+#new-form label{min-width:0;gap:6px}
+#new-form textarea{min-height:88px;resize:vertical}
+#new-form .form-actions{padding-top:10px;border-top:1px solid #e1e8f1;flex-wrap:wrap}
+@media(max-width:700px){#new-form.ticket-form-grid{grid-template-columns:1fr;gap:13px}#new-form .form-actions{justify-content:stretch}#new-form .form-actions button{flex:1}}

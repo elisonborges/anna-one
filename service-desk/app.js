@@ -26,7 +26,22 @@ function renderLists() {
   $('andamento').textContent = tickets.filter(t => t.status === 'Em andamento').length;
   $('pendentes').textContent = tickets.filter(t => t.status === 'Pendente').length;
   $('resolvidos').textContent = tickets.filter(t => t.status === 'Resolvido').length;
-  $('recent-list').innerHTML = tickets.slice(0, 4).map(ticketHtml).join('');
+  const categories = new Map();
+  for (const ticket of tickets) {
+    const category = ticket.category === 'Computadores' || ticket.category === 'Impressoras' ? 'Hardware' : ticket.category === 'Rede e internet' ? 'Rede e Internet' : ticket.category;
+    categories.set(category, (categories.get(category) || 0) + 1);
+  }
+  const categoryMax = Math.max(1, ...categories.values());
+  $('overview-categories').innerHTML = categories.size
+    ? [...categories.entries()].sort((a, b) => b[1] - a[1]).map(([category, count]) =>
+        '<div class="category-row"><div class="category-row-label"><span>' + escapeHtml(category) + '</span><strong>' + count + '</strong></div><div class="category-track"><span style="width:' + (count / categoryMax * 100) + '%"></span></div></div>'
+      ).join('')
+    : '<p class="empty">Nenhum chamado para exibir.</p>';
+  $('recent-list').innerHTML = tickets.length
+    ? tickets.slice(0, 5).map(ticket =>
+        '<tr><td><button class="ticket-link" data-ticket="' + ticket.id + '">#' + String(ticket.id).padStart(4, '0') + '</button></td><td>' + escapeHtml(ticket.title) + '</td><td>' + escapeHtml(ticket.category) + '</td><td>' + escapeHtml(ticket.priority) + '</td><td><span class="pill ' + statusClass(ticket.status) + '">' + escapeHtml(ticket.status) + '</span></td></tr>'
+      ).join('')
+    : '<tr><td colspan="5" class="empty">Nenhum chamado recente.</td></tr>';
   const filter = $('status-filter').value;
   const filtered = tickets.filter(t => filter === 'todos' || t.status === filter);
   $('ticket-list').innerHTML = filtered.length ? filtered.map(ticketHtml).join('') : '<div class="empty">Nenhum chamado encontrado.</div>';

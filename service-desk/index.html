@@ -7,7 +7,7 @@
   <title>AnnA Service Desk — Protótipo v0.1</title>
   <link rel="stylesheet" href="styles.css" />
   <script type="module" src="app.js"></script>
-</head>
+<style>.catalog-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:18px}.catalog-grid .panel{min-width:0}.catalog-grid form{display:grid;gap:14px;margin:18px 0}.catalog-grid label{display:grid;gap:6px}.catalog-grid input,.catalog-grid select{width:100%;max-width:100%}@media(max-width:800px){.catalog-grid{grid-template-columns:1fr}}</style></head>
 <body>
   <div class="shell">
     <aside class="sidebar" aria-label="Navegação">
@@ -17,7 +17,7 @@
         <button class="nav-item" data-view="chamados">Chamados</button>
         <button class="nav-item" data-view="novo">Abrir chamado</button>
         <button class="nav-item" data-view="dashboards">Dashboards</button>
-        <a class="nav-item" href="catalog-management.html" style="display:block;text-decoration:none">Contratos e prestadores (prévia)</a>
+        <button class="nav-item" data-view="catalogo">Contratos e prestadores</button>
       </nav>
       <div class="side-foot">Homologação visual · v0.1<br />Dados fictícios em memória</div>
     </aside>
@@ -28,6 +28,14 @@
       <section id="chamados" class="view" hidden><div class="panel"><div class="panel-head"><div><h2>Lista de chamados</h2><p>Selecione um chamado para consultar o histórico.</p></div><label class="filter">Status <select id="status-filter"><option value="todos">Todos</option><option value="Aberto">Aberto</option><option value="Em andamento">Em andamento</option><option value="Pendente">Pendente</option><option value="Resolvido">Resolvido</option></select></label></div><div id="ticket-list" class="ticket-list"></div></div></section>
       <section id="novo" class="view" hidden><div class="panel form-panel"><h2>Abrir novo chamado</h2><p>Preencha as informações da solicitação de teste.</p><form id="new-form"><label>Título <input name="title" required minlength="5" maxlength="100" placeholder="Ex.: Computador não inicia" /></label><label>Categoria <select name="category" required><option value="">Selecione</option><option>Computadores</option><option>Rede e internet</option><option>Sistemas</option><option>Impressoras</option><option>Outros</option></select></label><label>Prioridade <select name="priority"><option>Normal</option><option>Baixa</option><option>Alta</option></select></label><label>Descrição <textarea name="description" required minlength="10" maxlength="2000" rows="5" placeholder="Descreva o problema e o que já foi tentado."></textarea></label><div class="form-actions"><button type="button" class="secondary" data-view="chamados">Cancelar</button><button type="submit" class="primary">Registrar chamado de teste</button></div></form></div></section>
       <section id="dashboards" class="view" hidden><div class="panel"><div class="panel-head"><div><h2>Indicadores por perfil</h2><p>Prévia visual com dados fictícios, sem acesso ao banco.</p></div><label class="filter">Perfil <select id="dashboard-profile"><option value="contratos">Gestor de contratos</option><option value="escolas">Gestor de escola</option><option value="parceiros">Parceiro técnico</option><option value="plataforma">AnnA One — plataforma</option></select></label></div><div id="dashboard-description" class="dashboard-description"></div><div id="dashboard-stats" class="stats"></div><div id="dashboard-breakdown" class="dashboard-breakdown"></div></div></section>
+      <section id="catalogo" class="view" hidden>
+        <div class="panel"><div class="panel-head"><div><h2>Contratos e prestadores</h2><p>Gestão administrativa dos vínculos de atendimento.</p></div><span class="pill pending">Homologação visual</span></div>
+        <div class="notice"><strong>Prévia segura.</strong> Cadastros reais exigem autenticação e API de homologação. Nenhum dado é enviado ou armazenado nesta página pública.</div></div>
+        <div class="catalog-grid">
+          <div class="panel"><h2>Prestadores</h2><p>Empresas e equipes responsáveis pelo atendimento.</p><form><label>Nome do prestador<input placeholder="Nome do prestador" disabled></label><div class="form-actions"><button class="primary" type="button" disabled>Cadastrar prestador</button></div></form><h3>Prestadores cadastrados</h3><p>Nenhum dado carregado na prévia visual.</p></div>
+          <div class="panel"><h2>Contratos</h2><p>Vigência e vínculo com o prestador.</p><form><label>Nome do contrato<input placeholder="Nome do contrato" disabled></label><label>Prestador<select disabled><option>Selecione um prestador</option></select></label><label>Início da vigência<input type="datetime-local" disabled></label><label>Fim da vigência<input type="datetime-local" disabled></label><div class="form-actions"><button class="primary" type="button" disabled>Cadastrar contrato</button></div></form><h3>Contratos cadastrados</h3><p>Nenhum dado carregado na prévia visual.</p></div>
+        </div>
+      </section>
       <section id="detalhe" class="view" hidden><button id="back" class="text-button">← Voltar aos chamados</button><div class="panel detail-panel"><div id="detail-content"></div></div></section>
       <footer>AnnA Service Desk · Protótipo visual independente · Sem autenticação real</footer>
     </main>

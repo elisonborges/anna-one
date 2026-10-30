@@ -1,5 +1,5 @@
 'use strict';
-const {verifyPassword,issueToken}=require('./local-identity.cjs');
+const {verifyPasswordAsync,issueToken}=require('./local-identity.cjs');
 const DUMMY_HASH = ['scrypt','16384','8','1',Buffer.alloc(16).toString('base64url'),Buffer.alloc(64).toString('base64url')].join(String.fromCharCode(36));
 function send(res,status,payload) {
  res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});
@@ -32,7 +32,7 @@ function createLoginHandler(poolFactory,config=process.env) {
     const result=await client.query('SELECT user_id,password_hash,enabled,failed_attempts,locked_until FROM anna_sd.local_credentials WHERE email=$1 FOR UPDATE',[email]);
     const account=result.rows[0];
     // Fixed-cost password check for unknown users, reducing timing differences.
-    const valid=verifyPassword(password,account?.password_hash||DUMMY_HASH);
+    const valid=await verifyPasswordAsync(password,account?.password_hash||DUMMY_HASH);
     const locked=account?.locked_until && new Date(account.locked_until)>new Date();
     if(!account||!account.enabled||locked||!valid) {
      if(account && account.enabled && !locked) await client.query("UPDATE anna_sd.local_credentials SET failed_attempts=LEAST(failed_attempts+1,100), locked_until=CASE WHEN failed_attempts>=4 THEN now()+interval '15 minutes' ELSE locked_until END, updated_at=now() WHERE user_id=$1",[account.user_id]);

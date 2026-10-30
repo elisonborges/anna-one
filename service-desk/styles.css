@@ -77,3 +77,24 @@
 .sla-atencao{background:#fff0ed;color:#a63325}
 .sla-dentro{background:#edf5ff;color:#1556a3}
 .sla-concluido{background:#eaf8f0;color:#176e43}
+
+/* Abertura com inventário fictício v0.9.0 */
+#novo .form-panel{max-width:1100px}
+#novo .form-section-heading{margin:12px 0 0;padding:12px 0 7px;border-bottom:1px solid #dbe6f2;color:#1a3865;font-size:16px}
+#novo .asset-mode{display:flex;flex-wrap:wrap;gap:12px 24px;border:1px solid #dce6f2;border-radius:10px;padding:12px 15px;min-width:0}
+#novo .asset-mode legend{font-size:13px;font-weight:700;color:#526580}
+#novo .asset-mode label{display:flex;align-items:center;gap:8px;font-size:13px}
+#novo .asset-mode input{width:auto}
+#novo .asset-area{display:grid;gap:12px;min-width:0}
+#novo .asset-area[hidden]{display:none}
+#novo .manual-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+#novo .asset-summary,.ticket-context{background:#f4f8fe;border:1px solid #dbe8f6;border-radius:12px;padding:16px}
+.asset-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px;margin-top:12px}
+.asset-facts>div{display:grid;gap:4px;min-width:0}
+.asset-facts small{color:#61738d;font-size:11px}
+.asset-facts span{color:#1a355a;font-size:13px;font-weight:600;overflow-wrap:anywhere}
+.ticket-context{margin:18px 0}
+.ticket-context h3{margin:0 0 10px;font-size:15px}
+.ticket-context p{font-size:13px;line-height:1.6}
+#novo .form-note{font-size:12px;color:#64758e}
+@media(max-width:700px){#novo .manual-grid{grid-template-columns:1fr}.asset-facts{grid-template-columns:repeat(2,minmax(0,1fr))}}

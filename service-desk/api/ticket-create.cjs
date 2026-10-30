@@ -34,7 +34,7 @@ function createTicketWriter(poolFactory,config=process.env){
      await client.query("SELECT set_config('anna_sd.actor_id',$1,true)",[identity.id]);
      const emailResult=await client.query('SELECT anna_sd.ticket_recipient_email_v1() AS email');
      await client.query('COMMIT');
-     emailStatus=(await sendTicketConfirmation({to:emailResult.rows[0]?.email,protocol:result.rows[0].public_protocol,title:data.title,config})).status;
+     emailStatus=(await sendTicketConfirmation({to:emailResult.rows[0]?.email,protocol:result.rows[0].public_protocol,title:data.title,category:data.category_label,description:data.description,config})).status;
     }catch(_){try{await client.query('ROLLBACK');}catch(_){}emailStatus='failed';}
    }
    return send(res,201,{ticket:result.rows[0],email_status:emailStatus});

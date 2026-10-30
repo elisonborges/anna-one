@@ -87,7 +87,7 @@ function showTicket(id) {
   const assignee = ticket.assignee || 'Não atribuído';
   const extra = ticket.requester ? '<div class="ticket-context"><h3>Solicitante e localização</h3><p><strong>Solicitante:</strong> ' + escapeHtml(ticket.requester) + ' · <strong>Contato:</strong> ' + escapeHtml(ticket.contact || 'Não informado') + '</p><p><strong>Unidade:</strong> ' + escapeHtml(ticket.unit) + ' · <strong>Setor:</strong> ' + escapeHtml(ticket.department) + '</p><p><strong>Impacto:</strong> ' + escapeHtml(ticket.impact) + ' · <strong>Urgência:</strong> ' + escapeHtml(ticket.urgency) + ' · <strong>Disponibilidade:</strong> ' + escapeHtml(ticket.availability) + '</p>' + (ticket.attempts ? '<p><strong>Verificações realizadas:</strong> ' + escapeHtml(ticket.attempts) + '</p>' : '') + '</div>' : '';
   const attachmentsInfo = ticket.attachments && ticket.attachments.length ? '<div class="ticket-context"><h3>Anexos informados (somente simulação)</h3><ul>' + ticket.attachments.map(file => '<li>' + escapeHtml(file.name) + ' (' + Math.round(file.size / 1024) + ' KB)</li>').join('') + '</ul><p>Os arquivos não foram enviados nem armazenados; somente seus nomes aparecem nesta sessão.</p></div>' : '';
-  const assetInfo = ticket.asset ? '<div class="ticket-context"><h3>Equipamento vinculado (simulação)</h3><div class="asset-facts">' + [['Identificação',ticket.asset.id],['Tipo',ticket.asset.type],['Patrimônio',ticket.asset.tag],['Série',ticket.asset.serial],['Fabricante',ticket.asset.brand],['Modelo',ticket.asset.model],['Sistema',ticket.asset.os],['Localização',ticket.asset.location],['Situação',ticket.asset.state]].map(([label,value]) => '<div><small>' + escapeHtml(label) + '</small><span>' + escapeHtml(value || 'Não informado') + '</span></div>').join('') + '</div></div>' : '';
+  const assetInfo = ticket.asset ? '<div class="ticket-context"><h3>Equipamento vinculado (simulação)</h3><div class="asset-facts">' + [['Identificação',ticket.asset.id],['Tipo',ticket.asset.type],['Patrimônio',ticket.asset.tag],['Série',ticket.asset.serial],['IP',ticket.asset.ip || 'Não informado'],['Fabricante',ticket.asset.brand],['Modelo',ticket.asset.model],['Sistema',ticket.asset.os],['Localização',ticket.asset.location],['Situação',ticket.asset.state]].map(([label,value]) => '<div><small>' + escapeHtml(label) + '</small><span>' + escapeHtml(value || 'Não informado') + '</span></div>').join('') + '</div></div>' : '';
   const technicianForm = role === 'tecnico' ? `
     <form id="technical-form" class="technical-form">
       <h2>Atendimento técnico <span class="pill open">Simulação</span></h2>
@@ -100,7 +100,7 @@ function showTicket(id) {
       <div class="form-actions"><button class="primary" type="submit">Salvar atendimento de teste</button></div>
     </form>` : '';
   const followupForm = '<form id="followup-form" class="technical-form"><h2>Adicionar informação ao chamado <span class="pill open">Simulação</span></h2><label>Mensagem ou atualização<textarea name="message" rows="3" maxlength="1500" placeholder="Descreva novas informações ou responda ao atendimento"></textarea></label><label>Adicionar print ou arquivo (opcional)<input type="file" id="followup-attachments" multiple accept=".png,.jpg,.jpeg,.webp,.pdf,.txt,.doc,.docx,.xls,.xlsx"></label><p class="form-note">Até 5 arquivos de 5 MB. Somente nomes são registrados nesta sessão; não há upload.</p><div class="form-actions"><button type="submit" class="primary">Adicionar ao histórico</button></div><p id="followup-feedback" class="technical-feedback" role="status"></p></form>';
-  $('detail-content').innerHTML = '<h2 class="detail-title">#' + String(ticket.id).padStart(4,'0') + ' · ' + escapeHtml(ticket.title) + '</h2><div class="detail-meta"><span class="pill ' + statusClass(ticket.status) + '">' + escapeHtml(ticket.status) + '</span><span>' + escapeHtml(ticket.category) + (ticket.subcategory ? ' · ' + escapeHtml(ticket.subcategory) : '') + '</span><span>Prioridade: ' + escapeHtml(ticket.priority) + '</span><span>Responsável: ' + escapeHtml(assignee) + '</span></div><div class="detail-description">' + escapeHtml(ticket.description) + '</div>' + extra + assetInfo + attachmentsInfo + technicianForm + followupForm + '<p id="technical-feedback" class="technical-feedback" role="status"></p><h2>Histórico do chamado</h2><div class="timeline">' + timeline + '</div>';
+  $('detail-content').innerHTML = '<h2 class="detail-title">#' + String(ticket.id).padStart(4,'0') + ' · ' + escapeHtml(ticket.title) + '</h2><div class="detail-meta"><span class="pill ' + statusClass(ticket.status) + '">' + escapeHtml(ticket.status) + '</span><span>' + escapeHtml(ticket.category) + (ticket.subcategory ? ' · ' + escapeHtml(ticket.subcategory) : '') + (ticket.issueType ? ' · ' + escapeHtml(ticket.issueType) : '') + '</span><span>Prioridade: ' + escapeHtml(ticket.priority) + '</span><span>Responsável: ' + escapeHtml(assignee) + '</span></div><div class="detail-description">' + escapeHtml(ticket.description) + '</div>' + extra + assetInfo + attachmentsInfo + technicianForm + followupForm + '<p id="technical-feedback" class="technical-feedback" role="status"></p><h2>Histórico do chamado</h2><div class="timeline">' + timeline + '</div>';
   $('followup-form').addEventListener('submit', event => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -152,15 +152,15 @@ $('clear-ticket-filters').addEventListener('click', () => { $('ticket-search').v
 $('role').addEventListener('change', event => { role = event.target.value; if (!$('detalhe').hidden && selectedId !== null) showTicket(selectedId); });
 // Inventário estritamente fictício: sem chamadas de rede ou vínculo com LabManager.
 const demoAssets = [
-  {id:'LAB-04',type:'Desktop',location:'Laboratório de Informática · Bancada 04',tag:'PAT-004',serial:'SN-DEMO-004',brand:'Dell',model:'OptiPlex',os:'Windows 11',state:'Em uso'},
-  {id:'ADM-02',type:'Notebook',location:'Secretaria',tag:'PAT-021',serial:'SN-DEMO-021',brand:'Lenovo',model:'ThinkPad',os:'Windows 11',state:'Em uso'},
-  {id:'IMP-01',type:'Impressora',location:'Sala dos professores',tag:'PAT-031',serial:'SN-DEMO-031',brand:'HP',model:'LaserJet',os:'Não aplicável',state:'Em uso'},
-  {id:'LAB-08',type:'Desktop',location:'Laboratório de Informática · Bancada 08',tag:'PAT-008',serial:'SN-DEMO-008',brand:'Acer',model:'Veriton',os:'Linux',state:'Em manutenção'}
+  {id:'LAB-04',type:'Desktop',location:'Laboratório de Informática · Bancada 04',tag:'PAT-004',serial:'SN-DEMO-004',ip:'192.0.2.14',brand:'Dell',model:'OptiPlex',os:'Windows 11',state:'Em uso'},
+  {id:'ADM-02',type:'Notebook',location:'Secretaria',tag:'PAT-021',serial:'SN-DEMO-021',ip:'192.0.2.22',brand:'Lenovo',model:'ThinkPad',os:'Windows 11',state:'Em uso'},
+  {id:'IMP-01',type:'Impressora',location:'Sala dos professores',tag:'PAT-031',serial:'SN-DEMO-031',ip:'192.0.2.31',brand:'HP',model:'LaserJet',os:'Não aplicável',state:'Em uso'},
+  {id:'LAB-08',type:'Desktop',location:'Laboratório de Informática · Bancada 08',tag:'PAT-008',serial:'SN-DEMO-008',ip:'192.0.2.18',brand:'Acer',model:'Veriton',os:'Linux',state:'Em manutenção'}
 ];
 function renderDemoAssets() {
   const query = $('asset-search').value.trim().toLocaleLowerCase('pt-BR');
   const selected = $('asset-select').value;
-  const matches = demoAssets.filter(asset => [asset.id,asset.type,asset.location,asset.tag,asset.serial,asset.brand,asset.model].some(v => v.toLocaleLowerCase('pt-BR').includes(query)));
+  const matches = demoAssets.filter(asset => [asset.id,asset.type,asset.location,asset.tag,asset.serial,asset.ip,asset.brand,asset.model].some(v => v.toLocaleLowerCase('pt-BR').includes(query)));
   $('asset-select').replaceChildren(new Option('Selecione um equipamento', ''));
   for (const asset of matches) $('asset-select').add(new Option(asset.id + ' · ' + asset.type + ' · ' + asset.location, asset.id));
   $('asset-select').value = matches.some(asset => asset.id === selected) ? selected : (!query && matches.length ? matches[0].id : '');
@@ -168,7 +168,7 @@ function renderDemoAssets() {
 }
 function showAssetSummary() {
   const asset = demoAssets.find(item => item.id === $('asset-select').value);
-  $('asset-summary').innerHTML = asset ? '<strong>Dados do inventário fictício</strong><div class="asset-facts">' + [['Equipamento',asset.id],['Tipo',asset.type],['Patrimônio',asset.tag],['Série',asset.serial],['Fabricante',asset.brand],['Modelo',asset.model],['Sistema',asset.os],['Localização',asset.location],['Situação',asset.state]].map(([label,value]) => '<div><small>' + escapeHtml(label) + '</small><span>' + escapeHtml(value) + '</span></div>').join('') + '</div>' : 'Selecione um equipamento para consultar os dados fictícios.';
+  $('asset-summary').innerHTML = asset ? '<strong>Dados do inventário fictício</strong><div class="asset-facts">' + [['Equipamento',asset.id],['Tipo',asset.type],['Patrimônio',asset.tag],['Série',asset.serial],['IP',asset.ip || 'Não informado'],['Fabricante',asset.brand],['Modelo',asset.model],['Sistema',asset.os],['Localização',asset.location],['Situação',asset.state]].map(([label,value]) => '<div><small>' + escapeHtml(label) + '</small><span>' + escapeHtml(value) + '</span></div>').join('') + '</div>' : 'Selecione um equipamento para consultar os dados fictícios.';
 }
 function updateAssetMode() {
   const mode = document.querySelector('input[name="assetMode"]:checked').value;
@@ -179,11 +179,11 @@ function updateAssetMode() {
   $('asset-select').required = inventory;
   $('manual-type').required = manual;
 }
-const demoProfile = {requester:'Usuário de demonstração',contact:'usuario@exemplo.com',unit:'Escola Modelo',department:'Laboratório de Informática'};
+const demoProfile = {requester:'Usuário de demonstração',contact:'usuario@exemplo.com',phone:'(86) 99999-0000',unit:'Escola Modelo',department:'Laboratório de Informática'};
 let profileEditing = false;
 function toggleProfileEditing(editing) {
   profileEditing = editing;
-  for (const name of ['requester','contact','unit']) $('new-form').elements[name].readOnly = !editing;
+  for (const name of ['requester','contact','phone','unit']) $('new-form').elements[name].readOnly = !editing;
   $('new-form').elements.department.disabled = !editing;
   $('edit-profile').textContent = editing ? 'Concluir edição' : 'Editar dados';
   $('edit-profile').setAttribute('aria-pressed', String(editing));
@@ -200,21 +200,56 @@ renderDemoAssets();
 updateAssetMode();
 restoreDemoProfile();
 const ticketSubcategories = {
-  'Hardware': ['Computador', 'Notebook', 'Monitor', 'Teclado', 'Mouse', 'Impressora', 'Projetor'],
-  'Software': ['Sistema operacional', 'Aplicativos', 'Instalação', 'Atualização', 'Licenciamento'],
-  'Rede e Internet': ['Wi-Fi', 'Cabeamento', 'Internet', 'Roteador', 'Switch'],
-  'Sistemas': ['Acesso', 'Login e senha', 'Erro no sistema', 'Permissões'],
-  'Periféricos': ['Scanner', 'Webcam', 'Áudio', 'Outros dispositivos'],
-  'Outros': ['Manutenção', 'Solicitação geral', 'Outros']
+  'Computadores e hardware':['Desktop','Notebook','Monitor','Teclado e mouse','Memória RAM','Disco e SSD','Fonte de alimentação','Placa-mãe','Processador','Portas e conexões','Inicialização','Outro hardware'],
+  'Rede e Internet':['Internet','Rede cabeada','Roteador','Switch','Firewall','Proxy','DNS','DHCP','VPN','Cabeamento','Ponto de rede','Rede local','Outro serviço de rede'],
+  'Wi-Fi':['Conexão sem fio','Autenticação','Cobertura e sinal','Ponto de acesso','Rede de visitantes','Rede institucional','Outro problema Wi-Fi'],
+  'Impressão e digitalização':['Impressora de rede','Impressora local','Scanner','Fila de impressão','Toner e suprimentos','Driver','Impressão frente e verso','Outro'],
+  'Software e aplicativos':['Sistema operacional','Navegador','Pacote de escritório','Aplicativo institucional','Instalação','Atualização','Licença','Desempenho','Outro aplicativo'],
+  'Sistemas institucionais':['Portal escolar','Sistema acadêmico','Sistema administrativo','ERP','Sistema financeiro','Sistema de biblioteca','Integração','Relatórios','Outro sistema'],
+  'Contas e acessos':['Login','Senha','Permissões','Bloqueio de conta','Criação de usuário','Desativação de usuário','Autenticação multifator','Acesso remoto','Outro acesso'],
+  'E-mail e comunicação':['Envio de e-mail','Recebimento de e-mail','Spam','Anexos','Caixa postal','Calendário','Videoconferência','Chat institucional','Outro'],
+  'Telefonia':['Ramal','Telefone IP','Linha telefônica','Chamadas','Áudio','Central telefônica','Outro'],
+  'Segurança da informação':['Antivírus','Malware','Phishing','Acesso indevido','Site bloqueado','Certificado digital','Vazamento de dados','Backup de segurança','Outro'],
+  'Servidores e infraestrutura':['Servidor físico','Servidor virtual','Serviço indisponível','DNS interno','Diretório de usuários','Banco de dados','Virtualização','Energia e nobreak','Outro'],
+  'Armazenamento e arquivos':['Pasta compartilhada','Permissão de arquivo','Disco de rede','Nuvem','Backup','Recuperação de arquivo','Espaço insuficiente','Outro'],
+  'Equipamentos audiovisuais':['Projetor','TV e painel','Caixas de som','Microfone','Câmera','Cabo HDMI','Videoconferência','Outro'],
+  'Dispositivos móveis':['Tablet','Celular','Aplicativo móvel','Conexão móvel','Carregamento','Gerenciamento de dispositivos','Outro'],
+  'Robótica e tecnologia educacional':['mBot','micro:bit','Sphero','LittleBits','Kit de robótica','Arduino','Sensores','Plataforma educacional','Outro'],
+  'Instalação e configuração':['Novo computador','Novo software','Impressora','Rede','Periférico','Mudança de equipamento','Outro'],
+  'Manutenção preventiva':['Limpeza','Atualização programada','Verificação de hardware','Inspeção de rede','Troca preventiva','Outro'],
+  'Solicitação de serviço':['Novo acesso','Novo equipamento','Mudança de local','Orientação técnica','Instalação','Configuração','Outro'],
+  'Outros':['Dúvida','Orientação','Solicitação geral','Problema não listado']
 };
+const issueTypes = {
+  'Internet':['Não funciona','Sem acesso à internet','Lentidão','Página bloqueada','Site não abre','Conexão intermitente','Erro de DNS','Erro de certificado','Erro de proxy','Acesso apenas a alguns sites','Queda frequente','Outro problema'],
+  'Conexão sem fio':['Não conecta','Senha rejeitada','Sem sinal','Sinal fraco','Lentidão','Conexão cai','Rede não aparece','Autenticação falha','Outro problema'],
+  'Login':['Não consigo entrar','Usuário não reconhecido','Conta bloqueada','Sessão expira','Erro de autenticação','Outro problema'],
+  'Senha':['Esqueci a senha','Senha expirada','Redefinição não funciona','Alterar senha','Outro problema'],
+  'Impressora de rede':['Não imprime','Impressora offline','Fila travada','Não encontrada','Impressão lenta','Erro no driver','Outro problema'],
+  'Desktop':['Não liga','Não inicia o sistema','Tela preta','Travamento','Lentidão','Reinicia sozinho','Barulho anormal','Superaquecimento','Outro problema'],
+  'Notebook':['Não liga','Não carrega','Bateria descarrega rápido','Tela preta','Travamento','Teclado não funciona','Wi-Fi não funciona','Outro problema'],
+  'Site bloqueado':['Página bloqueada','Bloqueio indevido','Solicitar liberação','Conteúdo suspeito','Outro problema'],
+  'Portal escolar':['Não abre','Erro ao acessar','Lentidão','Página em branco','Dados incorretos','Funcionalidade indisponível','Outro problema']
+};
+const genericIssueTypes = ['Não funciona','Não conecta','Não abre','Erro ou mensagem de falha','Lentidão','Intermitência','Bloqueio ou permissão','Configuração incorreta','Instalação ou atualização','Dano físico','Solicitação de alteração','Dúvida ou orientação','Outro problema'];
+function updateTicketIssueTypes() {
+  const select = $('ticket-issue-type');
+  const subcategory = $('ticket-subcategory').value;
+  const options = subcategory ? (issueTypes[subcategory] || genericIssueTypes) : [];
+  select.replaceChildren(new Option(options.length ? 'Selecione o tipo de problema' : 'Selecione primeiro a subcategoria', ''));
+  for (const option of options) select.add(new Option(option, option));
+  select.disabled = !options.length;
+}
 function updateTicketSubcategories() {
   const select = $('ticket-subcategory');
   const options = ticketSubcategories[$('ticket-category').value] || [];
   select.replaceChildren(new Option(options.length ? 'Selecione a subcategoria' : 'Selecione primeiro a categoria', ''));
   for (const option of options) select.add(new Option(option, option));
-  select.disabled = options.length === 0;
+  select.disabled = !options.length;
+  updateTicketIssueTypes();
 }
 $('ticket-category').addEventListener('change', updateTicketSubcategories);
+$('ticket-subcategory').addEventListener('change', updateTicketIssueTypes);
 updateTicketSubcategories();
 const allowedAttachmentExtensions = /\.(png|jpe?g|webp|pdf|txt|docx?|xlsx?)$/i;
 function validateAttachments(files) {
@@ -254,7 +289,7 @@ $('new-form').addEventListener('submit', event => {
     id:String(data.get('manualTag') || '').trim() || 'Sem patrimônio',
     type:String(data.get('manualType')),tag:String(data.get('manualTag') || ''),
     brand:String(data.get('manualBrand') || ''),model:String(data.get('manualModel') || ''),
-    serial:String(data.get('manualSerial') || ''),location:String(data.get('manualLocation') || ''),
+    serial:String(data.get('manualSerial') || ''),ip:String(data.get('manualIp') || ''),location:String(data.get('manualLocation') || ''),
     os:'Não informado',state:'Não cadastrado'
   };
   const id = Math.max(0, ...tickets.map(t => t.id)) + 1;
@@ -262,9 +297,9 @@ $('new-form').addEventListener('submit', event => {
   const attachmentNames = Array.from($('ticket-attachments').files, file => ({name:file.name,size:file.size}));
   tickets.unshift({
     id, title:String(data.get('title')).trim(), category:String(data.get('category') || 'Outros'),
-    subcategory:String(data.get('subcategory') || ''), priority:urgency === 'Alta' ? 'Alta' : urgency === 'Baixa' ? 'Baixa' : 'Normal',
+    subcategory:String(data.get('subcategory') || ''), issueType:String(data.get('issueType') || ''), priority:urgency === 'Alta' ? 'Alta' : urgency === 'Baixa' ? 'Baixa' : 'Normal',
     urgency, impact:String(data.get('impact')), description:String(data.get('description')).trim(),
-    requester:String(data.get('requester')).trim(),contact:String(data.get('contact') || '').trim(),
+    requester:String(data.get('requester')).trim(),contact:String(data.get('contact') || '').trim(),phone:String(data.get('phone') || '').trim(),
     unit:String(data.get('unit')).trim(),department:String(form.elements.department.value),
     asset:asset ? {...asset} : manualAsset, attempts:String(data.get('attempts') || '').trim(),
     availability:String(data.get('availability')), attachments:attachmentNames, status:'Aberto',

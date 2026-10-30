@@ -15,7 +15,7 @@
 <form id="institution-form" class="status">
 <label>Nome da instituição <input name="name" required maxlength="150" placeholder="Nome completo" style="display:block;width:100%;padding:10px;margin:6px 0 14px"></label>
 <label>Código exclusivo <input name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" maxlength="80" placeholder="exemplo-escola" style="display:block;width:100%;padding:10px;margin:6px 0 14px"></label>
-<button type="submit">Validar cadastro</button><p id="form-feedback" role="status" class="muted">Prévia: valida dados, mas não grava no Neon até ativação do backend Master e auditoria.</p></form>
+<button type="submit">Revisar cadastro</button><p id="form-feedback" role="status" class="muted">O envio ao servidor permanece desabilitado até validação do JWT Master.</p></form>
 <div id="institutions-status" role="status">Carregando instituições…</div>
 <table><thead><tr><th>Instituição</th><th>Código</th><th>Situação</th><th>Ação</th></tr></thead><tbody id="institutions-rows"></tbody></table></section>
 <section><h2>🧩 Catálogo central de módulos</h2><p>Lista consultada no Neon com a sessão atual. O acesso operacional a cada módulo depende da autorização específica do servidor.</p><div id="catalog-status" role="status">Carregando catálogo…</div><table><thead><tr><th>Módulo</th><th>Código</th><th>Estado</th><th>Gerenciamento</th></tr></thead><tbody id="modules"></tbody></table></section>
@@ -55,7 +55,11 @@ const form=event.currentTarget, name=form.elements.name.value.trim(),slug=form.e
 const feedback=document.getElementById('form-feedback');
 if(name.length<3){feedback.textContent='Informe um nome com pelo menos 3 caracteres.';return;}
 if(institutions.some(i=>i.slug===slug)){feedback.textContent='Código já cadastrado. Escolha outro.';return;}
-feedback.textContent='Dados válidos. Cadastro não gravado: aguardando API Master com autorização e auditoria.';
+feedback.replaceChildren();
+const strong=document.createElement('strong');strong.textContent='Cadastro revisado: ';
+const details=document.createTextNode(name+' ('+slug+'). ');
+const note=document.createTextNode('Nenhum dado foi gravado. A confirmação final será liberada após o teste de autenticação JWT do Worker.');
+feedback.append(strong,details,note);
 });
 }catch(e){document.getElementById('institutions-status').textContent='Consulta indisponível: '+e.message;}
 try{

@@ -23,6 +23,33 @@ else{
  const brandingForm=document.getElementById('branding-form');
  const brandingStatus=document.getElementById('branding-status');
  const brandingApi='https://anna-one.onrender.com/api/v1/admin/branding';
+ const brandingLogo=document.getElementById('branding-logo');
+ const brandingPreview=document.getElementById('branding-logo-preview');
+ const brandingEmpty=document.getElementById('branding-logo-empty');
+ function updateBrandingPreview(){
+  const url=brandingLogo.value.trim();
+  const valid=/^https:\/\//i.test(url);
+  brandingPreview.hidden=!valid;brandingEmpty.hidden=valid;
+  if(valid)brandingPreview.src=url;else brandingPreview.removeAttribute('src');
+ }
+ brandingLogo?.addEventListener('input',updateBrandingPreview);
+ brandingPreview?.addEventListener('error',()=>{brandingPreview.hidden=true;brandingEmpty.hidden=false;brandingEmpty.textContent='Não foi possível carregar a imagem';});
+ document.getElementById('branding-logo-upload')?.addEventListener('click',async()=>{
+  const file=document.getElementById('branding-logo-file').files[0];
+  if(!file||!['image/png','image/jpeg'].includes(file.type)||file.size>1048576||file.size<32){brandingStatus.textContent='Selecione um arquivo JPG ou PNG de até 1 MB.';return;}
+  if(!brandingTenant.value){brandingStatus.textContent='Selecione uma instituição.';return;}
+  const button=document.getElementById('branding-logo-upload');button.disabled=true;brandingStatus.textContent='Enviando logotipo...';
+  try{
+   const base64=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(Error('Falha ao ler imagem'));reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.readAsDataURL(file);});
+   const auth=session();if(!auth){logout();return;}
+   const response=await fetch('https://anna-one.onrender.com/api/v1/branding-logo/'+brandingTenant.value,{method:'POST',headers:{Authorization:'Bearer '+auth.token,'Content-Type':'application/json'},body:JSON.stringify({mime:file.type,base64})});
+   if(response.status===401){logout();return;}
+   if(!response.ok)throw Error(response.status===403?'Sem permissão para enviar o logotipo.':'Falha no envio (HTTP '+response.status+').');
+   const result=await response.json();brandingLogo.value=result.logo_url;updateBrandingPreview();
+   brandingStatus.textContent='Logotipo enviado. Clique em Salvar personalização para vinculá-lo à instituição.';
+  }catch(e){brandingStatus.textContent=e.message;}
+  finally{button.disabled=false;}
+ });
  const brandingFields={display_name:'branding-name',logo_url:'branding-logo',signature:'branding-signature',contact_email:'branding-email',contact_phone:'branding-phone'};
  async function brandingRequest(method,tenant,body){
   const auth=session();if(!auth){logout();throw Error('Sessão expirada');}
@@ -40,6 +67,7 @@ else{
   try{
    const data=await brandingRequest('GET',brandingTenant.value);
    for(const [key,id] of Object.entries(brandingFields))document.getElementById(id).value=data.branding?.[key]||'';
+   updateBrandingPreview();
    brandingStatus.textContent='Configurações carregadas.';
   }catch(e){brandingStatus.textContent=e.message;}
  }

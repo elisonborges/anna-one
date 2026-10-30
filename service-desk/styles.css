@@ -227,3 +227,10 @@
 #classificacao .catalog-tree-issues .catalog-tree-context-actions{margin-left:5px;vertical-align:middle}
 #classificacao .catalog-tree-issues{columns:1}
 @media(max-width:520px){#classificacao .catalog-tree-context-actions{width:100%;justify-content:flex-end}}
+
+/* v0.10.6 — Hierarquia principal e controles avançados recolhíveis. */
+#classificacao .catalog-advanced{margin:10px 0;padding:10px 14px}
+#classificacao .catalog-advanced>summary{cursor:pointer;font-weight:700;font-size:13px;color:#1c4b87;padding:4px 0}
+#classificacao .catalog-advanced[open]>summary{margin-bottom:12px;padding-bottom:9px;border-bottom:1px solid #e1e8f1}
+#classificacao .catalog-advanced>h3{font-size:13px;margin:0 0 4px}
+#classificacao .catalog-tree-panel{margin:12px 0 10px}

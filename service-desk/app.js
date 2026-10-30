@@ -148,7 +148,7 @@ function renderDemoAssets() {
   const matches = demoAssets.filter(asset => [asset.id,asset.type,asset.location,asset.tag,asset.serial,asset.brand,asset.model].some(v => v.toLocaleLowerCase('pt-BR').includes(query)));
   $('asset-select').replaceChildren(new Option('Selecione um equipamento', ''));
   for (const asset of matches) $('asset-select').add(new Option(asset.id + ' · ' + asset.type + ' · ' + asset.location, asset.id));
-  $('asset-select').value = matches.some(asset => asset.id === selected) ? selected : '';
+  $('asset-select').value = matches.some(asset => asset.id === selected) ? selected : (!query && matches.length ? matches[0].id : '');
   showAssetSummary();
 }
 function showAssetSummary() {
@@ -156,17 +156,34 @@ function showAssetSummary() {
   $('asset-summary').innerHTML = asset ? '<strong>Dados do inventário fictício</strong><div class="asset-facts">' + [['Equipamento',asset.id],['Tipo',asset.type],['Patrimônio',asset.tag],['Série',asset.serial],['Fabricante',asset.brand],['Modelo',asset.model],['Sistema',asset.os],['Localização',asset.location],['Situação',asset.state]].map(([label,value]) => '<div><small>' + escapeHtml(label) + '</small><span>' + escapeHtml(value) + '</span></div>').join('') + '</div>' : 'Selecione um equipamento para consultar os dados fictícios.';
 }
 function updateAssetMode() {
-  const inventory = document.querySelector('input[name="assetMode"]:checked').value === 'inventory';
+  const mode = document.querySelector('input[name="assetMode"]:checked').value;
+  const inventory = mode === 'inventory';
+  const manual = mode === 'manual';
   $('asset-inventory').hidden = !inventory;
-  $('asset-manual').hidden = inventory;
+  $('asset-manual').hidden = !manual;
   $('asset-select').required = inventory;
-  $('manual-type').required = !inventory;
+  $('manual-type').required = manual;
 }
+const demoProfile = {requester:'Usuário de demonstração',contact:'usuario@exemplo.com',unit:'Escola Modelo',department:'Laboratório de Informática'};
+let profileEditing = false;
+function toggleProfileEditing(editing) {
+  profileEditing = editing;
+  for (const name of ['requester','contact','unit']) $('new-form').elements[name].readOnly = !editing;
+  $('new-form').elements.department.disabled = !editing;
+  $('edit-profile').textContent = editing ? 'Concluir edição' : 'Editar dados';
+  $('edit-profile').setAttribute('aria-pressed', String(editing));
+}
+function restoreDemoProfile() {
+  for (const [name,value] of Object.entries(demoProfile)) $('new-form').elements[name].value = value;
+  toggleProfileEditing(false);
+}
+$('edit-profile').addEventListener('click', () => toggleProfileEditing(!profileEditing));
 document.querySelectorAll('input[name="assetMode"]').forEach(input => input.addEventListener('change', updateAssetMode));
 $('asset-search').addEventListener('input', renderDemoAssets);
 $('asset-select').addEventListener('change', showAssetSummary);
 renderDemoAssets();
 updateAssetMode();
+restoreDemoProfile();
 const ticketSubcategories = {
   'Hardware': ['Computador', 'Notebook', 'Monitor', 'Teclado', 'Mouse', 'Impressora', 'Projetor'],
   'Software': ['Sistema operacional', 'Aplicativos', 'Instalação', 'Atualização', 'Licenciamento'],
@@ -190,9 +207,10 @@ $('new-form').addEventListener('submit', event => {
   if (!form.reportValidity()) return;
   const data = new FormData(form);
   const inventoryMode = data.get('assetMode') === 'inventory';
+  const manualMode = data.get('assetMode') === 'manual';
   const asset = inventoryMode ? demoAssets.find(item => item.id === data.get('assetId')) : null;
   if (inventoryMode && !asset) { $('asset-select').setCustomValidity('Selecione um equipamento.'); $('asset-select').reportValidity(); $('asset-select').setCustomValidity(''); return; }
-  const manualAsset = inventoryMode ? null : {
+  const manualAsset = !manualMode ? null : {
     id:String(data.get('manualTag') || '').trim() || 'Sem patrimônio',
     type:String(data.get('manualType')),tag:String(data.get('manualTag') || ''),
     brand:String(data.get('manualBrand') || ''),model:String(data.get('manualModel') || ''),
@@ -202,16 +220,17 @@ $('new-form').addEventListener('submit', event => {
   const id = Math.max(0, ...tickets.map(t => t.id)) + 1;
   const urgency = String(data.get('urgency'));
   tickets.unshift({
-    id, title:String(data.get('title')).trim(), category:String(data.get('category')),
-    subcategory:String(data.get('subcategory')), priority:urgency === 'Alta' ? 'Alta' : urgency === 'Baixa' ? 'Baixa' : 'Normal',
+    id, title:String(data.get('title')).trim(), category:String(data.get('category') || 'Outros'),
+    subcategory:String(data.get('subcategory') || ''), priority:urgency === 'Alta' ? 'Alta' : urgency === 'Baixa' ? 'Baixa' : 'Normal',
     urgency, impact:String(data.get('impact')), description:String(data.get('description')).trim(),
     requester:String(data.get('requester')).trim(),contact:String(data.get('contact') || '').trim(),
-    unit:String(data.get('unit')).trim(),department:String(data.get('department')),
+    unit:String(data.get('unit')).trim(),department:String(form.elements.department.value),
     asset:asset ? {...asset} : manualAsset, attempts:String(data.get('attempts') || '').trim(),
     availability:String(data.get('availability')), status:'Aberto',
     events:[{title:'Chamado registrado',note:'Registro demonstrativo criado nesta sessão, sem envio a servidor.'}]
   });
   form.reset();
+  restoreDemoProfile();
   $('asset-search').value = '';
   renderDemoAssets();
   updateAssetMode();

@@ -282,6 +282,26 @@ const defaultCatalog = () => ({
   problems:Object.fromEntries(Object.entries(issueTypes).map(([name,items]) => [name,[...items]]))
 });
 const institutionCatalogs = {escola:defaultCatalog(),centro:defaultCatalog()};
+const CATALOG_STORAGE_KEY = 'anna-service-desk-demo-catalog-v1';
+function persistCatalogs() {
+  try { localStorage.setItem(CATALOG_STORAGE_KEY, JSON.stringify(institutionCatalogs)); }
+  catch (error) { $('catalog-feedback').textContent = 'Não foi possível salvar neste navegador. As mudanças permanecem apenas nesta sessão.'; }
+}
+function validCatalog(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || !value.categories || typeof value.categories !== 'object' || Array.isArray(value.categories) || !Array.isArray(value.disabled) || !value.problems || typeof value.problems !== 'object' || Array.isArray(value.problems)) return false;
+  const entries = Object.entries(value.categories);
+  if (entries.length > 150 || !entries.every(([name,subs]) => name.length>0 && name.length<=80 && Array.isArray(subs) && subs.length<=200 && subs.every(s=>typeof s==='string' && s.length>0 && s.length<=80))) return false;
+  if (value.disabled.some(s=>typeof s!=='string' || !Object.hasOwn(value.categories,s))) return false;
+  const problems = Object.entries(value.problems);
+  return problems.length<=3000 && problems.every(([name,items])=>name.length<=200 && Array.isArray(items) && items.length<=200 && items.every(s=>typeof s==='string' && s.length>0 && s.length<=100));
+}
+try {
+  const saved = JSON.parse(localStorage.getItem(CATALOG_STORAGE_KEY) || 'null');
+  if (saved && validCatalog(saved.escola) && validCatalog(saved.centro)) {
+    institutionCatalogs.escola=saved.escola;
+    institutionCatalogs.centro=saved.centro;
+  }
+} catch (error) { /* Catálogo padrão permanece disponível. */ }
 const activeCatalog = () => institutionCatalogs[$('catalog-institution').value];
 function updateCatalogAdmin() {
   const catalog = activeCatalog();
@@ -300,8 +320,117 @@ function updateCatalogAdminSubcategories() {
   $('catalog-toggle').disabled = !category;
   $('catalog-toggle').textContent = catalog.disabled.includes(category) ? 'Ativar categoria' : 'Desativar categoria';
   const sub = $('catalog-subcategory').value;
+  updateCatalogIssues();
   $('catalog-admin-summary').textContent = category ? 'Categoria: '+category+' · '+catalog.categories[category].length+' subcategorias · '+(sub ? 'Tipos específicos: '+(catalog.problems[category+'::'+sub] || catalog.problems[sub] || categoryIssueTypes[category] || genericIssueTypes).join(', ') : 'Selecione uma subcategoria para consultar os tipos de problema.') : 'Selecione uma categoria para configurar.';
 }
+function catalogIssueList(category,sub) {
+  const catalog=activeCatalog();
+  return catalog.problems[category+'::'+sub] || catalog.problems[sub] || categoryIssueTypes[category] || genericIssueTypes;
+}
+function updateCatalogIssues() {
+  const category=$('catalog-category').value,sub=$('catalog-subcategory').value,previous=$('catalog-issue').value;
+  $('catalog-issue').replaceChildren(new Option('Selecione o tipo de problema',''));
+  if(category && sub) for(const item of catalogIssueList(category,sub)) $('catalog-issue').add(new Option(item,item));
+  $('catalog-issue').value=Array.from($('catalog-issue').options).some(o=>o.value===previous)?previous:'';
+}
+function selectedCatalogItem() {
+  const level=$('catalog-level').value,cat=$('catalog-category').value,sub=$('catalog-subcategory').value,issue=$('catalog-issue').value;
+  if(level==='category' && cat) return {level,cat,value:cat};
+  if(level==='subcategory' && cat && sub) return {level,cat,sub,value:sub};
+  if(level==='issue' && cat && sub && issue) return {level,cat,sub,issue,value:issue};
+  $('catalog-feedback').textContent='Selecione o item correspondente ao nível escolhido.';
+  return null;
+}
+function usedInTickets(item) {
+  return tickets.some(t=> item.level==='category' ? t.category===item.cat : item.level==='subcategory' ? t.category===item.cat && t.subcategory===item.sub : t.category===item.cat && t.subcategory===item.sub && t.issueType===item.issue);
+}
+function commitCatalogChange(message) {
+  persistCatalogs();updateCatalogAdmin();refreshOpeningCatalog();
+  $('catalog-feedback').textContent=message+' As alterações são locais e demonstrativas.';
+}
+$('catalog-issue').addEventListener('change',()=>{});
+$('catalog-rename').addEventListener('click',()=>{
+  const item=selectedCatalogItem();if(!item)return;
+  if(usedInTickets(item)) { $('catalog-feedback').textContent='Há chamados demonstrativos com esta classificação. Renomeação bloqueada para preservar o histórico.';return; }
+  const name=prompt('Novo nome para: '+item.value,item.value)?.trim();
+  if(!name || name===item.value)return;
+  if(name.length>(item.level==='issue'?100:80) || name.includes('::')) { $('catalog-feedback').textContent='Nome inválido ou muito longo.';return; }
+  const catalog=activeCatalog();
+  if(item.level==='category'){
+    if(catalog.categories[name]) { $('catalog-feedback').textContent='Categoria já existe.';return; }
+    catalog.categories=Object.fromEntries(Object.entries(catalog.categories).map(([key,value])=>[key===item.cat?name:key,value]));
+    catalog.disabled=catalog.disabled.map(v=>v===item.cat?name:v);
+    for(const [key,value] of Object.entries(catalog.problems))if(key.startsWith(item.cat+'::')) {catalog.problems[name+key.slice(item.cat.length)]=value;delete catalog.problems[key];}
+  } else if(item.level==='subcategory'){
+    if(catalog.categories[item.cat].includes(name)){ $('catalog-feedback').textContent='Subcategoria já existe.';return; }
+    catalog.categories[item.cat]=catalog.categories[item.cat].map(v=>v===item.sub?name:v);
+    const oldKey=item.cat+'::'+item.sub;
+    if(catalog.problems[oldKey]) {catalog.problems[item.cat+'::'+name]=catalog.problems[oldKey];delete catalog.problems[oldKey];}
+  } else {
+    const key=item.cat+'::'+item.sub,arr=catalogIssueList(item.cat,item.sub);
+    if(arr.includes(name)){ $('catalog-feedback').textContent='Tipo já existe.';return; }
+    catalog.problems[key]=arr.map(v=>v===item.issue?name:v);
+  }
+  commitCatalogChange('Item renomeado.');
+  $('catalog-category').value=item.level==='category'?name:item.cat;
+  updateCatalogAdminSubcategories();
+  if(item.level!=='category'){$('catalog-subcategory').value=item.level==='subcategory'?name:item.sub;updateCatalogIssues();}
+});
+function moveCatalogItem(direction){
+  const item=selectedCatalogItem();if(!item)return;
+  const catalog=activeCatalog();
+  let arr;
+  if(item.level==='category')arr=Object.keys(catalog.categories);
+  else if(item.level==='subcategory')arr=catalog.categories[item.cat];
+  else arr=[...catalogIssueList(item.cat,item.sub)];
+  const idx=arr.indexOf(item.value),next=idx+direction;
+  if(next<0||next>=arr.length)return;
+  [arr[idx],arr[next]]=[arr[next],arr[idx]];
+  if(item.level==='category')catalog.categories=Object.fromEntries(arr.map(key=>[key,catalog.categories[key]]));
+  else if(item.level==='issue')catalog.problems[item.cat+'::'+item.sub]=arr;
+  commitCatalogChange('Ordem atualizada.');
+  $('catalog-category').value=item.cat;updateCatalogAdminSubcategories();
+  if(item.sub){$('catalog-subcategory').value=item.sub;updateCatalogIssues();}
+  if(item.issue)$('catalog-issue').value=item.issue;
+}
+$('catalog-up').addEventListener('click',()=>moveCatalogItem(-1));
+$('catalog-down').addEventListener('click',()=>moveCatalogItem(1));
+$('catalog-delete').addEventListener('click',()=>{
+  const item=selectedCatalogItem();if(!item)return;
+  if(usedInTickets(item)){ $('catalog-feedback').textContent='Exclusão bloqueada: classificação usada em chamado demonstrativo.';return; }
+  const catalog=activeCatalog();
+  if(item.level==='category' && catalog.categories[item.cat].length){$('catalog-feedback').textContent='Remova primeiro as subcategorias ou desative esta categoria.';return;}
+  if(!confirm('Excluir '+item.value+' deste catálogo demonstrativo?'))return;
+  if(item.level==='category'){delete catalog.categories[item.cat];catalog.disabled=catalog.disabled.filter(v=>v!==item.cat);}
+  else if(item.level==='subcategory'){
+    catalog.categories[item.cat]=catalog.categories[item.cat].filter(v=>v!==item.sub);
+    delete catalog.problems[item.cat+'::'+item.sub];
+  }else catalog.problems[item.cat+'::'+item.sub]=catalogIssueList(item.cat,item.sub).filter(v=>v!==item.issue);
+  commitCatalogChange('Item excluído.');
+});
+$('catalog-export').addEventListener('click',()=>{
+  const payload={version:1,institution:$('catalog-institution').value,catalog:activeCatalog()};
+  const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));
+  const link=document.createElement('a');link.href=url;link.download='anna-service-desk-catalogo-'+payload.institution+'.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
+$('catalog-import').addEventListener('change',async event=>{
+  const file=event.currentTarget.files[0];event.currentTarget.value='';if(!file)return;
+  if(file.size>1024*1024){$('catalog-feedback').textContent='Arquivo muito grande (limite de 1 MB).';return;}
+  try{
+    const payload=JSON.parse(await file.text());
+    if(payload.version!==1 || !validCatalog(payload.catalog))throw Error('Estrutura de catálogo inválida.');
+    if(!confirm('Substituir o catálogo demonstrativo da instituição selecionada pelo arquivo?'))return;
+    institutionCatalogs[$('catalog-institution').value]=payload.catalog;
+    commitCatalogChange('Catálogo importado.');
+  }catch(error){$('catalog-feedback').textContent='Não foi possível importar: '+error.message;}
+});
+$('catalog-clear-local').addEventListener('click',()=>{
+  if(!confirm('Limpar as configurações locais das duas instituições fictícias?'))return;
+  institutionCatalogs.escola=defaultCatalog();institutionCatalogs.centro=defaultCatalog();
+  try{localStorage.removeItem(CATALOG_STORAGE_KEY);}catch(error){}
+  updateCatalogAdmin();refreshOpeningCatalog();
+  $('catalog-feedback').textContent='Configurações locais apagadas; catálogo padrão restaurado.';
+});
 function refreshOpeningCatalog() {
   const catalog = activeCatalog();
   const previous = $('ticket-category').value;
@@ -332,6 +461,7 @@ function addCatalogItem(formId,kind) {
       catalog.problems[key].push(name);
     }
     input.value='';
+    persistCatalogs();
     updateCatalogAdmin();
     if(kind==='category') $('catalog-category').value=name;
     if(kind==='subcategory') {$('catalog-category').value=category;updateCatalogAdminSubcategories();$('catalog-subcategory').value=name;}
@@ -347,11 +477,12 @@ $('catalog-toggle').addEventListener('click',()=>{
   const catalog=activeCatalog(),category=$('catalog-category').value;
   if (!category) return;
   catalog.disabled=catalog.disabled.includes(category)?catalog.disabled.filter(name=>name!==category):[...catalog.disabled,category];
-  updateCatalogAdmin();refreshOpeningCatalog();
+  persistCatalogs();updateCatalogAdmin();refreshOpeningCatalog();
 });
 $('catalog-reset').addEventListener('click',()=>{
+  if(!confirm('Restaurar o catálogo desta instituição fictícia?'))return;
   institutionCatalogs[$('catalog-institution').value]=defaultCatalog();
-  updateCatalogAdmin();refreshOpeningCatalog();
+  persistCatalogs();updateCatalogAdmin();refreshOpeningCatalog();
   $('catalog-feedback').textContent='Catálogo demonstrativo restaurado.';
 });
 addCatalogItem('catalog-add-category','category');

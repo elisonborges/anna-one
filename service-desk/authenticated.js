@@ -75,17 +75,21 @@ else{
   event.preventDefault();
   const tenant_id=document.getElementById('master-invite-tenant').value;
   const email=document.getElementById('master-invite-email').value.trim().toLowerCase();
+  const name=document.getElementById('master-invite-name').value.trim();
+  const position=document.getElementById('master-invite-position').value.trim();
+  const phone=document.getElementById('master-invite-phone').value.trim();
+  const whatsapp=document.getElementById('master-invite-whatsapp').value.trim();
   const status=document.getElementById('master-invite-status');
   const button=document.getElementById('master-invite-send');
-  if(!tenant_id||!email){status.textContent='Selecione a empresa e informe o e-mail.';return;}
+  if(!tenant_id||!email||name.length<2){status.textContent='Selecione a empresa, informe o nome e o e-mail.';return;}
   button.disabled=true;status.textContent='Enviando convite...';
   try{
    const auth=session();if(!auth){logout();return;}
-   const response=await fetch('https://anna-one.onrender.com/api/v1/master/invitations',{method:'POST',headers:{Authorization:'Bearer '+auth.token,'Content-Type':'application/json'},body:JSON.stringify({tenant_id,email})});
+   const response=await fetch('https://anna-one.onrender.com/api/v1/master/invitations',{method:'POST',headers:{Authorization:'Bearer '+auth.token,'Content-Type':'application/json'},body:JSON.stringify({tenant_id,email,name,position,phone,whatsapp})});
    if(response.status===401){logout();return;}
    if(!response.ok)throw Error(response.status===403?'Acesso exclusivo do Master.':'Falha ao enviar convite (HTTP '+response.status+').');
    status.textContent='Convite enviado para '+email+'. Validade: 48 horas.';
-   document.getElementById('master-invite-email').value='';
+   document.getElementById('master-invite-form').reset();
   }catch(error){status.textContent=error.message;}
   finally{button.disabled=false;}
  });

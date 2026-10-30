@@ -7,6 +7,7 @@ async function handle(req,res,{pool,auth,send}){
 if(!auth(req))return send(res,401,{error:'Não autorizado'});
 try{
 if(req.method==='GET'){
+const panelParam=new URL(req.url,'http://localhost').searchParams.get('panel');if(panelParam){const panelId=id(panelParam);const links=await pool.query('SELECT service_id FROM flow_panel_service_links WHERE panel_id=$1',[panelId]);return send(res,200,{serviceIds:links.rows.map(x=>Number(x.service_id))})}
 const client=req.url.includes('?')?new URL(req.url,'http://localhost').searchParams.get('client'):null;
 const clientId=client?id(client):null;
 const c=await pool.query('SELECT id,name,segment,active FROM flow_clients ORDER BY id');

@@ -20,7 +20,7 @@ const simulatedSla = ticket => {
 function show(view) {
   for (const section of document.querySelectorAll('.view')) section.hidden = section.id !== view;
   for (const button of document.querySelectorAll('.nav-item')) button.classList.toggle('active', button.dataset.view === view);
-  $('page-title').textContent = ({ inicio:'Visão geral', chamados:'Chamados', novo:'Abrir chamado', detalhe:'Detalhes do chamado', dashboards:'Dashboards', catalogo:'Contratos e prestadores' })[view];
+  $('page-title').textContent = ({ inicio:'Visão geral', chamados:'Chamados', reais:'Chamados reais', novo:'Abrir chamado', detalhe:'Detalhes do chamado', dashboards:'Dashboards', catalogo:'Contratos e prestadores' })[view];
   if (view === 'inicio' || view === 'chamados') renderLists();
   if (view === 'dashboards') renderDashboards();
   window.scrollTo({ top:0, behavior:'instant' });

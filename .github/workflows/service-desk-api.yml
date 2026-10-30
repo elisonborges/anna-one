@@ -1,0 +1,33 @@
+name: AnnA Service Desk API checks
+on:
+  push:
+    paths:
+      - 'service-desk/api/**'
+      - '.github/workflows/service-desk-api.yml'
+  pull_request:
+    paths:
+      - 'service-desk/api/**'
+      - '.github/workflows/service-desk-api.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: service-desk/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Run tests
+        run: npm test
+      - name: Check syntax
+        run: |
+          node --check server.cjs
+          node --check tickets.cjs
+          node --check auth.cjs

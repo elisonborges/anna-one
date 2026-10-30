@@ -13,7 +13,8 @@ function createBrandingHandler(poolFactory,config=process.env){
    catch(_){return send(res,400,{error:'invalid_json'});}
   }
   const tenantId=req.headers['x-tenant-id'];
-  if(typeof tenantId!=='string'||!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(tenantId))return send(res,400,{error:'invalid_tenant'});
+  const listTenants=req.method==='GET'&&!tenantId;
+  if(!listTenants&&(typeof tenantId!=='string'||!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(tenantId)))return send(res,400,{error:'invalid_tenant'});
   let client;
   try{
    client=await pool.connect();
@@ -23,14 +24,15 @@ function createBrandingHandler(poolFactory,config=process.env){
    await client.query('SET LOCAL ROLE anna_sd_api_runtime');
    await client.query("SELECT set_config('anna_sd.actor_id',$1,true)",[identity.id]);
    let result;
-   if(req.method==='GET'){
+   if(listTenants){result=await client.query('SELECT * FROM anna_sd.managed_branding_tenants_v1()');}
+   else if(req.method==='GET'){
     result=await client.query('SELECT * FROM anna_sd.get_tenant_email_branding_v1($1)',[tenantId]);
    }else{
     if(!data||['display_name','logo_url','signature','contact_email','contact_phone'].some(k=>typeof data[k]!=='string')){await client.query('ROLLBACK');return send(res,400,{error:'invalid_fields'});}
     await client.query('SELECT anna_sd.set_tenant_email_branding_v1($1,$2,$3,$4,$5,$6)',[tenantId,data.display_name,data.logo_url,data.signature,data.contact_email,data.contact_phone]);
    }
    await client.query('COMMIT');
-   return send(res,200,req.method==='GET'?{branding:result.rows[0]||null}:{saved:true});
+   return send(res,200,listTenants?{tenants:result.rows}:req.method==='GET'?{branding:result.rows[0]||null}:{saved:true});
   }catch(e){if(client){try{await client.query('ROLLBACK');}catch(_){}}return send(res,e.code==='42501'?403:e.code==='22023'?400:503,{error:e.code==='42501'?'forbidden':e.code==='22023'?'invalid_fields':'service_unavailable'});}
   finally{if(client)client.release();}
  };

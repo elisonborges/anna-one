@@ -5,16 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#101b38" />
   <title>AnnA Service Desk — Homologação v0.11.2</title>
-  <link rel="stylesheet" href="styles.css?v=0.11.0" />
+  <link rel="stylesheet" href="styles.css?v=0.11.1" />
   <script type="module" src="app.js?v=0.11.0"></script>
-<style>.catalog-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:18px}.catalog-grid .panel{min-width:0}.catalog-grid form{display:grid;gap:14px;margin:18px 0}.catalog-grid label{display:grid;gap:6px}.catalog-grid input,.catalog-grid select{width:100%;max-width:100%}@media(max-width:800px){.catalog-grid{grid-template-columns:1fr}}</style></head>
+<style>.catalog-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:18px}.catalog-grid .panel{min-width:0}.catalog-grid form{display:grid;gap:14px;margin:18px 0}.catalog-grid label{display:grid;gap:6px}.catalog-grid input,.catalog-grid select{width:100%;max-width:100%}@media(max-width:800px){.catalog-grid{grid-template-columns:1fr}}</style><script>
+(function(){
+  let valid=false;
+  try{
+    const session=JSON.parse(sessionStorage.getItem('anna_sd_session')||'null');
+    valid=!!(session&&typeof session.token==='string'&&session.token.length>20&&Number.isFinite(session.expiresAt)&&session.expiresAt>Date.now());
+  }catch(_){}
+  if(!valid){sessionStorage.removeItem('anna_sd_session');location.replace('login.html');}
+})();
+</script></head>
 <body>
   <div class="shell">
     <aside class="sidebar" aria-label="Navegação">
       <a class="brand" href="#inicio" aria-label="AnnA Service Desk"><img src="anna-symbol.svg" alt="" /><span>AnnA <b>Service Desk</b><small>AnnA One</small></span></a>
       <nav aria-label="Menu principal">
         <button class="nav-item active" data-view="inicio">Visão geral</button>
-        <button class="nav-item" data-view="chamados">Chamados</button>
+        <button class="nav-item" data-view="chamados">Chamados</button><button class="nav-item" data-view="reais">Chamados reais (Neon)</button>
         <button class="nav-item" data-view="novo">Abrir chamado</button>
         <button class="nav-item" data-view="dashboards">Dashboards</button>
         <button class="nav-item" data-view="catalogo">Contratos e prestadores</button><button class="nav-item" data-view="classificacao">Catálogo de classificação</button>
@@ -22,7 +31,7 @@
       <div class="side-foot">Homologação visual · v0.11.2<br />Dados fictícios em memória</div>
     </aside>
     <main class="main">
-      <header class="topbar"><div><div class="eyebrow">CENTRAL DE ATENDIMENTO · <span class="portal-version">VERSÃO 0.10.0</span></div><h1 id="page-title">Visão geral</h1></div><div class="top-actions"><label for="role">Visualizar como</label><select id="role"><option value="solicitante">Solicitante</option><option value="tecnico">Técnico (simulação)</option></select><button id="new-top" class="primary">+ Novo chamado</button></div></header>
+      <header class="topbar"><div><div class="eyebrow">CENTRAL DE ATENDIMENTO · <span class="portal-version">VERSÃO 0.10.0</span></div><h1 id="page-title">Visão geral</h1></div><div class="top-actions"><label for="role">Visualizar como</label><select id="role"><option value="solicitante">Solicitante</option><option value="tecnico">Técnico (simulação)</option></select><button id="new-top" class="primary">+ Novo chamado</button><span id="session-user" class="session-user"></span><button id="session-logout" class="secondary" type="button">Sair</button></div></header>
       <div class="notice" role="status"><strong>Ambiente demonstrativo.</strong> Nenhuma informação é enviada ao Neon. Chamados continuam temporários; apenas as configurações demonstrativas do catálogo podem ficar salvas neste navegador.</div>
       <section id="inicio" class="view">
         <div class="stats"><article class="stat"><span>Total de chamados</span><strong id="total">0</strong><small>Registros fictícios</small></article><article class="stat"><span>Em andamento</span><strong id="andamento">0</strong><small>Acompanhamento</small></article><article class="stat"><span>Pendentes</span><strong id="pendentes">0</strong><small>Aguardando ação</small></article><article class="stat"><span>Resolvidos</span><strong id="resolvidos">0</strong><small>Histórico</small></article></div>
@@ -31,6 +40,7 @@
           <div class="panel"><div class="panel-head"><div><h2>Chamados recentes</h2><p>Selecione um chamado para visualizar os detalhes.</p></div><button data-view="chamados" class="secondary">Ver todos</button></div><div class="table-scroll"><table class="overview-table"><thead><tr><th>Nº</th><th>Assunto</th><th>Categoria</th><th>Prioridade</th><th>Situação</th></tr></thead><tbody id="recent-list"></tbody></table></div></div>
         </div>
       </section>
+      <section id="reais" class="view" hidden><div class="panel"><div class="panel-head"><div><h2>Chamados reais</h2><p>Leitura autenticada da API com isolamento por usuário e permissões do Neon.</p></div><button type="button" class="secondary" id="reload-real-tickets">Atualizar</button></div><p id="real-tickets-status" role="status">Aguardando consulta.</p><div class="table-scroll"><table class="overview-table"><thead><tr><th>Protocolo</th><th>Assunto</th><th>Status</th><th>Prioridade</th><th>Criado em</th></tr></thead><tbody id="real-tickets-body"></tbody></table></div></div></section>
       <section id="chamados" class="view" hidden><div class="panel"><div class="panel-head"><div><h2>Gestão de chamados</h2><p>Pesquise, filtre e consulte os registros de atendimento.</p></div></div>
       <div class="ticket-filters">
         <label>Pesquisar<input id="ticket-search" type="search" placeholder="Ex.: #0005 ou assunto" aria-label="Pesquisar chamado"></label>
@@ -78,9 +88,10 @@
         </div>
       </section>
       <section id="detalhe" class="view" hidden><button id="back" class="text-button">← Voltar aos chamados</button><div class="panel detail-panel"><div id="detail-content"></div></div></section>
-      <footer>AnnA Service Desk · v0.11.2 · Homologação visual · Sem autenticação real</footer>
+      <footer>© 2026 AnnA One. Todos os direitos reservados. · Desenvolvido por Prof. Elison Borges · Projeto e desenvolvimento original.<br>AnnA Service Desk · v0.11.2 · Ambiente demonstrativo separado dos chamados reais</footer>
     </main>
   </div>
 <script type="module" src="labmanager-entry.js"></script>
+<script src="authenticated.js?v=1" defer></script>
 </body>
 </html>

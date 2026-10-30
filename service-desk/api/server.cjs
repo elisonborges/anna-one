@@ -47,6 +47,21 @@ const server = http.createServer(async (req,res) => {
   catch (_) { res.writeHead(400); res.end(); return; }
   res.setHeader('Cache-Control','no-store');
   res.setHeader('X-Content-Type-Options','nosniff');
+  // Only the approved GitHub Pages origin may call this API from a browser.
+  const allowedOrigin='https://elisonborges.github.io';
+  const origin=req.headers.origin;
+  if(origin===allowedOrigin){
+    res.setHeader('Access-Control-Allow-Origin',allowedOrigin);
+    res.setHeader('Vary','Origin');
+    res.setHeader('Access-Control-Allow-Methods','GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers','Content-Type, Authorization');
+    res.setHeader('Access-Control-Max-Age','600');
+  }
+  if(req.method==='OPTIONS' && (path==='/api/v1/auth/login'||path==='/api/v1/tickets')){
+    res.writeHead(origin===allowedOrigin?204:403);
+    res.end();
+    return;
+  }
   if (req.method === 'GET' && path === '/health') {
     const db = await databaseStatus();
     res.writeHead(db === 'unavailable' ? 503 : 200, {'Content-Type':'application/json; charset=utf-8'});

@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#101b38" />
-  <title>AnnA Service Desk — Homologação v0.9.5</title>
-  <link rel="stylesheet" href="styles.css?v=0.9.5" />
-  <script type="module" src="app.js?v=0.9.5"></script>
+  <title>AnnA Service Desk — Homologação v0.9.6</title>
+  <link rel="stylesheet" href="styles.css?v=0.9.6" />
+  <script type="module" src="app.js?v=0.9.6"></script>
 <style>.catalog-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:18px}.catalog-grid .panel{min-width:0}.catalog-grid form{display:grid;gap:14px;margin:18px 0}.catalog-grid label{display:grid;gap:6px}.catalog-grid input,.catalog-grid select{width:100%;max-width:100%}@media(max-width:800px){.catalog-grid{grid-template-columns:1fr}}</style></head>
 <body>
   <div class="shell">
@@ -19,10 +19,10 @@
         <button class="nav-item" data-view="dashboards">Dashboards</button>
         <button class="nav-item" data-view="catalogo">Contratos e prestadores</button>
       </nav>
-      <div class="side-foot">Homologação visual · v0.9.5<br />Dados fictícios em memória</div>
+      <div class="side-foot">Homologação visual · v0.9.6<br />Dados fictícios em memória</div>
     </aside>
     <main class="main">
-      <header class="topbar"><div><div class="eyebrow">CENTRAL DE ATENDIMENTO · <span class="portal-version">VERSÃO 0.9.5</span></div><h1 id="page-title">Visão geral</h1></div><div class="top-actions"><label for="role">Visualizar como</label><select id="role"><option value="solicitante">Solicitante</option><option value="tecnico">Técnico (simulação)</option></select><button id="new-top" class="primary">+ Novo chamado</button></div></header>
+      <header class="topbar"><div><div class="eyebrow">CENTRAL DE ATENDIMENTO · <span class="portal-version">VERSÃO 0.9.6</span></div><h1 id="page-title">Visão geral</h1></div><div class="top-actions"><label for="role">Visualizar como</label><select id="role"><option value="solicitante">Solicitante</option><option value="tecnico">Técnico (simulação)</option></select><button id="new-top" class="primary">+ Novo chamado</button></div></header>
       <div class="notice" role="status"><strong>Ambiente demonstrativo.</strong> Nenhuma informação é enviada ao Neon. Alterações são temporárias e desaparecem ao atualizar a página.</div>
       <section id="inicio" class="view">
         <div class="stats"><article class="stat"><span>Total de chamados</span><strong id="total">0</strong><small>Registros fictícios</small></article><article class="stat"><span>Em andamento</span><strong id="andamento">0</strong><small>Acompanhamento</small></article><article class="stat"><span>Pendentes</span><strong id="pendentes">0</strong><small>Aguardando ação</small></article><article class="stat"><span>Resolvidos</span><strong id="resolvidos">0</strong><small>Histórico</small></article></div>
@@ -57,7 +57,7 @@
 <h3 class="field-full form-section-heading">3. O que está acontecendo?</h3>
 <label class="field-full">Título <input name="title" required minlength="5" maxlength="100" placeholder="Ex.: Computador não inicia"></label>
 <div class="field-full required-details"><h3 class="form-section-heading">Classificação e detalhes do chamado</h3><div class="extra-grid"><label>Categoria <select name="category" id="ticket-category" required><option value="">Selecione a categoria</option><option>Computadores e hardware</option><option>Rede e Internet</option><option>Wi-Fi</option><option>Impressão e digitalização</option><option>Software e aplicativos</option><option>Sistemas institucionais</option><option>Contas e acessos</option><option>E-mail e comunicação</option><option>Telefonia</option><option>Segurança da informação</option><option>Servidores e infraestrutura</option><option>Armazenamento e arquivos</option><option>Equipamentos audiovisuais</option><option>Dispositivos móveis</option><option>Robótica e tecnologia educacional</option><option>Instalação e configuração</option><option>Manutenção preventiva</option><option>Solicitação de serviço</option><option>Outros</option></select></label>
-<label>Subcategoria <select name="subcategory" id="ticket-subcategory" required disabled><option value="">Selecione primeiro a categoria</option></select></label><label>Tipo de problema <select name="issueType" id="ticket-issue-type" required disabled><option value="">Selecione primeiro a subcategoria</option></select></label>
+<label>Subcategoria <select name="subcategory" id="ticket-subcategory" required disabled><option value="">Selecione primeiro a categoria</option></select></label><label>Tipo de problema <select name="issueType" id="ticket-issue-type" required disabled><option value="">Selecione primeiro a subcategoria</option></select><small>Escolha o problema mais próximo. Se não encontrar, selecione “Outro problema” e descreva abaixo.</small></label>
 <label>Impacto <select name="impact"><option>Individual</option><option>Setor</option><option>Unidade inteira</option></select></label>
 <label>Urgência <select name="urgency"><option>Média</option><option>Baixa</option><option>Alta</option></select></label>
 <label class="field-full">Descrição do problema <textarea name="description" required minlength="10" maxlength="2000" rows="4" placeholder="O que aconteceu? Quando começou? Há alguma mensagem de erro?"></textarea></label>
@@ -77,7 +77,7 @@
         </div>
       </section>
       <section id="detalhe" class="view" hidden><button id="back" class="text-button">← Voltar aos chamados</button><div class="panel detail-panel"><div id="detail-content"></div></div></section>
-      <footer>AnnA Service Desk · v0.9.5 · Homologação visual · Sem autenticação real</footer>
+      <footer>AnnA Service Desk · v0.9.6 · Homologação visual · Sem autenticação real</footer>
     </main>
   </div>
 <script type="module" src="labmanager-entry.js"></script>

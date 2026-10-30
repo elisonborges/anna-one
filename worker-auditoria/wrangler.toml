@@ -1,7 +1,7 @@
 name = "anna-one-auditoria"
 main = "src/index.js"
 compatibility_date = "2026-10-28"
-workers_dev = false
+workers_dev = true
 
 [vars]
 APP_ORIGIN = "https://annaone.com.br"

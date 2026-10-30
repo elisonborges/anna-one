@@ -20,7 +20,7 @@ function createTicketReader(poolFactory, config=process.env) {
      await client.query('BEGIN READ ONLY');
      await client.query('SET LOCAL ROLE anna_sd_api_runtime');
      await client.query("SELECT set_config('anna_sd.actor_id', $1, true)",[identity.id]);
-     const result=await client.query('SELECT id, public_protocol, title, status, priority, created_at FROM anna_sd.tickets ORDER BY created_at DESC LIMIT 50');
+     const result=await client.query('SELECT id, public_protocol, title, description, category_label, status, priority, created_at FROM anna_sd.tickets ORDER BY created_at DESC LIMIT 50');
      await client.query('COMMIT');
      return send(res,200,{tickets:result.rows});
    } catch (_) {

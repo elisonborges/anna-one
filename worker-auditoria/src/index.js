@@ -43,8 +43,10 @@ export default {
       try {
         const identity = await verifyBearer(request, env);
         return json({ authenticated: true, user_id: identity.userId, admin_authorized: false }, 200, cors);
-      } catch {
-        return json({ authenticated: false, error: "Credencial inválida ou autenticação não configurada" }, 401, cors);
+      } catch (error) {
+        const stages = ["config","bearer","format","header","claims","jwks","key","signature"];
+        const stage = stages.includes(error?.stage) ? error.stage : "unexpected";
+        return json({ authenticated: false, error: "Credencial inválida ou autenticação não configurada", diagnostic_stage: stage }, 401, cors);
       }
     }
     if (url.pathname === "/v1/admin/institutions" && request.method === "POST") {

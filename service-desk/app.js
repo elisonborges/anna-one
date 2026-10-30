@@ -231,11 +231,55 @@ const issueTypes = {
   'Site bloqueado':['Página bloqueada','Bloqueio indevido','Solicitar liberação','Conteúdo suspeito','Outro problema'],
   'Portal escolar':['Não abre','Erro ao acessar','Lentidão','Página em branco','Dados incorretos','Funcionalidade indisponível','Outro problema']
 };
+// Catálogo de classificação demonstrativo. A estrutura permite variações futuras por instituição.
+const categoryIssueTypes = {
+  'Computadores e hardware':['Não liga','Não inicia','Tela preta','Travamento','Lentidão','Reinicialização inesperada','Ruído ou superaquecimento','Componente não reconhecido','Mau contato','Dano físico','Substituição de peça','Configuração','Outro problema'],
+  'Rede e Internet':['Sem conexão','Conexão intermitente','Lentidão','Site bloqueado','Site indisponível','Erro de DNS','Falha de autenticação','Erro de certificado','Falha de roteamento','Problema de IP','Porta de rede inativa','Configuração','Outro problema'],
+  'Wi-Fi':['Rede não aparece','Sem sinal','Sinal fraco','Não conecta','Senha incorreta','Autenticação falha','Conexão cai','Lentidão','Dispositivo sem IP','Cobertura insuficiente','Outro problema'],
+  'Impressão e digitalização':['Não imprime','Não digitaliza','Dispositivo offline','Papel atolado','Fila travada','Falha no driver','Qualidade ruim','Sem tinta ou toner','Falha de conexão','Configuração','Outro problema'],
+  'Software e aplicativos':['Não abre','Fecha inesperadamente','Travamento','Lentidão','Erro na instalação','Erro na atualização','Licença inválida','Incompatibilidade','Funcionalidade ausente','Dados incorretos','Outro problema'],
+  'Sistemas institucionais':['Sistema fora do ar','Erro no login','Página em branco','Lentidão','Erro ao salvar','Erro ao emitir relatório','Dados incorretos','Permissão insuficiente','Integração falhou','Funcionalidade indisponível','Outro problema'],
+  'Contas e acessos':['Conta bloqueada','Esqueci a senha','Senha expirada','Falha no login','Acesso negado','Solicitar acesso','Alterar permissão','Criar conta','Desativar conta','Erro no segundo fator','Outro problema'],
+  'E-mail e comunicação':['Não envia','Não recebe','Mensagem devolvida','Anexo bloqueado','Caixa cheia','Spam indevido','Conta bloqueada','Falha de sincronização','Áudio ou vídeo falha','Outro problema'],
+  'Telefonia':['Sem linha','Não recebe chamadas','Não realiza chamadas','Sem áudio','Áudio ruim','Ramal indisponível','Falha no aparelho','Configuração','Outro problema'],
+  'Segurança da informação':['Alerta de vírus','Suspeita de phishing','Site bloqueado','Acesso suspeito','Dispositivo comprometido','Certificado inválido','Vulnerabilidade','Solicitação de desbloqueio','Outro problema'],
+  'Servidores e infraestrutura':['Serviço indisponível','Lentidão','Erro de inicialização','Falha de autenticação','Falha de armazenamento','Sem comunicação','Falha de backup','Falha de energia','Configuração','Outro problema'],
+  'Armazenamento e arquivos':['Arquivo não abre','Arquivo desapareceu','Acesso negado','Sem espaço','Falha de sincronização','Backup falhou','Restaurar arquivo','Pasta não encontrada','Outro problema'],
+  'Equipamentos audiovisuais':['Sem imagem','Sem som','Imagem distorcida','Áudio com ruído','Não liga','Não conecta','Controle não funciona','Configuração','Outro problema'],
+  'Dispositivos móveis':['Não liga','Não carrega','Sem conexão','Aplicativo não abre','Tela danificada','Lentidão','Bloqueio de acesso','Configuração','Outro problema'],
+  'Robótica e tecnologia educacional':['Não liga','Não conecta','Firmware ou atualização','Sensor não responde','Motor não funciona','Falha de programação','Erro de comunicação','Peça danificada','Calibração','Outro problema'],
+  'Instalação e configuração':['Instalar novo dispositivo','Instalar aplicativo','Configurar rede','Configurar usuário','Migrar equipamento','Atualizar software','Reinstalar sistema','Outro pedido'],
+  'Manutenção preventiva':['Limpeza programada','Inspeção','Atualização preventiva','Teste de desempenho','Verificação de segurança','Troca programada','Outro pedido'],
+  'Solicitação de serviço':['Novo equipamento','Novo usuário','Nova permissão','Instalação','Mudança de local','Orientação','Configuração','Outro pedido'],
+  'Outros':['Dúvida','Orientação','Solicitação não listada','Outro problema']
+};
+const specializedIssueTypes = {
+  'Rede cabeada':['Cabo desconectado','Sem conexão','Porta inativa','IP não atribuído','Conflito de IP','Lentidão','Intermitência','Outro problema'],
+  'DNS':['Nome não resolve','Site não abre pelo nome','Registro incorreto','Propagação pendente','Outro problema'],
+  'DHCP':['Não recebe IP','IP duplicado','Reserva de IP','Escopo esgotado','Outro problema'],
+  'VPN':['Não conecta','Autenticação falha','Conexão cai','Sem acesso à rede interna','Lentidão','Outro problema'],
+  'Firewall':['Porta bloqueada','Regra incorreta','Serviço bloqueado','Solicitar liberação','Outro problema'],
+  'Proxy':['Página bloqueada','Autenticação falha','Erro de proxy','Lentidão','Solicitar exceção','Outro problema'],
+  'Roteador':['Sem internet','Reiniciando','Configuração incorreta','Porta inativa','Falha de energia','Outro problema'],
+  'Switch':['Porta sem link','Porta bloqueada','VLAN incorreta','Falha de energia','Intermitência','Outro problema'],
+  'Scanner':['Não digitaliza','Não encontrado','Imagem ilegível','Erro de driver','Falha de alimentação','Outro problema'],
+  'Fila de impressão':['Documento preso','Fila não limpa','Trabalho duplicado','Falha de spooler','Outro problema'],
+  'Sistema operacional':['Não inicia','Atualização falha','Tela azul','Travamento','Lentidão','Erro de usuário','Outro problema'],
+  'Navegador':['Não abre','Página bloqueada','Certificado inválido','Extensão falha','Cache ou cookies','Lentidão','Outro problema'],
+  'Videoconferência':['Sem áudio','Sem vídeo','Não entra na reunião','Conexão cai','Compartilhamento de tela falha','Outro problema'],
+  'Pasta compartilhada':['Acesso negado','Pasta não encontrada','Conexão indisponível','Arquivo bloqueado','Outro problema'],
+  'Backup':['Cópia falhou','Restauração falhou','Backup ausente','Agendamento não executou','Outro problema'],
+  'mBot':['Não conecta','Motor não gira','Sensor não responde','Bateria','Firmware','Programação','Outro problema'],
+  'micro:bit':['Não conecta','Programa não transfere','Sensor não responde','Alimentação','Firmware','Outro problema'],
+  'Projetor':['Não liga','Sem imagem','Imagem fora de foco','Cabo não reconhecido','Superaquecimento','Outro problema']
+};
+Object.assign(issueTypes, specializedIssueTypes);
 const genericIssueTypes = ['Não funciona','Não conecta','Não abre','Erro ou mensagem de falha','Lentidão','Intermitência','Bloqueio ou permissão','Configuração incorreta','Instalação ou atualização','Dano físico','Solicitação de alteração','Dúvida ou orientação','Outro problema'];
 function updateTicketIssueTypes() {
   const select = $('ticket-issue-type');
   const subcategory = $('ticket-subcategory').value;
-  const options = subcategory ? (issueTypes[subcategory] || genericIssueTypes) : [];
+  const category = $('ticket-category').value;
+  const options = subcategory ? (issueTypes[subcategory] || categoryIssueTypes[category] || genericIssueTypes) : [];
   select.replaceChildren(new Option(options.length ? 'Selecione o tipo de problema' : 'Selecione primeiro a subcategoria', ''));
   for (const option of options) select.add(new Option(option, option));
   select.disabled = !options.length;

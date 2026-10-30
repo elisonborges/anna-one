@@ -40,7 +40,8 @@ function createLoginHandler(poolFactory,config=process.env) {
      return send(res,401,{error:'invalid_credentials'});
     }
     const membership=await client.query("SELECT 1 FROM anna_sd.memberships WHERE user_id=$1 AND status='active' LIMIT 1",[account.user_id]);
-    if(!membership.rows.length) {await client.query('COMMIT');return send(res,401,{error:'invalid_credentials'});}
+    const master=await client.query('SELECT 1 FROM anna_sd.platform_admins WHERE user_id=$1 AND active=true LIMIT 1',[account.user_id]);
+    if(!membership.rows.length&&!master.rows.length) {await client.query('COMMIT');return send(res,401,{error:'invalid_credentials'});}
     await client.query("UPDATE anna_sd.local_credentials SET failed_attempts=0,locked_until=NULL,updated_at=now() WHERE user_id=$1",[account.user_id]);
     await client.query('COMMIT');
     return send(res,200,{access_token:issueToken(account.user_id,config),token_type:'Bearer',expires_in:900});

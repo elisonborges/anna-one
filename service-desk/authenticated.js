@@ -68,6 +68,18 @@ else{
  });
  const status=document.getElementById('real-tickets-status');
  const tbody=document.getElementById('real-tickets-body');
+ const detail=document.getElementById('real-ticket-detail');
+ const detailContent=document.getElementById('real-ticket-detail-content');
+ const statusNames={open:'Aberto',in_progress:'Em atendimento',pending:'Pendente',resolved:'Resolvido',closed:'Fechado'};
+ const priorityNames={low:'Baixa',normal:'Normal',high:'Alta'};
+ document.getElementById('real-detail-close')?.addEventListener('click',()=>{detail.hidden=true;detailContent.replaceChildren();});
+ function showTicketDetail(ticket){
+  detailContent.replaceChildren();
+  const date=ticket.created_at?new Date(ticket.created_at):null;
+  const fields=[['Protocolo',ticket.public_protocol],['Assunto',ticket.title],['Descrição',ticket.description],['Categoria',ticket.category_label],['Situação',statusNames[ticket.status]||ticket.status],['Prioridade',priorityNames[ticket.priority]||ticket.priority],['Criado em',date&&!Number.isNaN(date.valueOf())?date.toLocaleString('pt-BR'):'']];
+  for(const [label,value] of fields){const dt=document.createElement('dt');dt.textContent=label;const dd=document.createElement('dd');dd.textContent=value||'—';detailContent.append(dt,dd);}
+  detail.hidden=false;detail.scrollIntoView({behavior:'smooth',block:'nearest'});
+ }
  let pending=false;
  async function loadTickets(){
   if(pending)return;
@@ -75,6 +87,7 @@ else{
   if(!auth){logout();return;}
   pending=true;status.textContent='Consultando chamados autorizados...';
   tbody.replaceChildren();
+  detail.hidden=true;detailContent.replaceChildren();
   try{
    const response=await fetch(API,{headers:{Authorization:'Bearer '+auth.token},cache:'no-store',mode:'cors'});
    if(response.status===401){logout();return;}
@@ -85,7 +98,8 @@ else{
    for(const ticket of data.tickets){
     const tr=document.createElement('tr');
     const date=ticket.created_at?new Date(ticket.created_at):null;
-    for(const value of [ticket.public_protocol||ticket.id||'',ticket.title||'',ticket.status||'',ticket.priority||'',date&&!Number.isNaN(date.valueOf())?date.toLocaleString('pt-BR'):'']){
+    const first=document.createElement('td');const open=document.createElement('button');open.type='button';open.className='real-protocol-button';open.textContent=ticket.public_protocol||ticket.id||'Consultar';open.title='Consultar detalhes do chamado';open.addEventListener('click',()=>showTicketDetail(ticket));first.append(open);tr.append(first);
+    for(const value of [ticket.title||'',statusNames[ticket.status]||ticket.status||'',priorityNames[ticket.priority]||ticket.priority||'',date&&!Number.isNaN(date.valueOf())?date.toLocaleString('pt-BR'):'']){
      const td=document.createElement('td');td.textContent=String(value);tr.append(td);
     }
     tbody.append(tr);

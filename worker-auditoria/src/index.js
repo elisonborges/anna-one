@@ -21,6 +21,8 @@ export default {
         ? new Response(null, { status: 204, headers: cors })
         : json({ error: "Origem não permitida" }, 403);
     }
+    // Não expor diagnóstico do banco a sites não autorizados.
+    // Respostas de saúde podem ser consultadas pela origem aprovada.
     if (url.pathname === "/health" && request.method === "GET") {
       return json({ service: "anna-one-auditoria", status: "preparacao", audit_enabled: false }, 200, cors);
     }

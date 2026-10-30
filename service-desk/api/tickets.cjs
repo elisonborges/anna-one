@@ -13,6 +13,10 @@ function createTicketReader(poolFactory, config=process.env) {
    let client;
    try {
      client=await pool.connect();
+     // Reject owner/admin connections even when they can SET ROLE: fail closed.
+     const guard=await client.query("SELECT rolname, rolsuper, rolbypassrls, rolcreaterole FROM pg_roles WHERE rolname = current_user");
+     const role=guard.rows[0];
+     if (!role || role.rolsuper || role.rolbypassrls || role.rolcreaterole || role.rolname === 'anna_sd_api_runtime') throw Error('unsafe database role');
      await client.query('BEGIN READ ONLY');
      await client.query('SET LOCAL ROLE anna_sd_api_runtime');
      await client.query("SELECT set_config('anna_sd.actor_id', $1, true)",[identity.id]);

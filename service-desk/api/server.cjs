@@ -4,6 +4,7 @@
 const http = require('node:http');
 const { URL } = require('node:url');
 const {createTicketReader} = require('./tickets.cjs');
+const {createLoginHandler} = require('./login.cjs');
 const host = process.env.HOST || '127.0.0.1';
 const port = Number(process.env.PORT || 8787);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw Error('Invalid PORT');
@@ -38,6 +39,7 @@ async function databaseStatus() {
   }
 }
 const readTickets = createTicketReader(getPool);
+const login = createLoginHandler(getPool);
 const authConfigured = () => Boolean((process.env.SD_JWT_SECRET && Buffer.byteLength(process.env.SD_JWT_SECRET) >= 32 && process.env.SD_JWT_ISSUER && process.env.SD_JWT_AUDIENCE));
 const server = http.createServer(async (req,res) => {
   let path;
@@ -51,6 +53,7 @@ const server = http.createServer(async (req,res) => {
     res.end(JSON.stringify({service:'anna-service-desk-api',status:'foundation',database:db,auth:authConfigured() ? 'configured-not-verified' : 'not-configured'}));
     return;
   }
+  if (req.method === 'POST' && path === '/api/v1/auth/login') return login(req,res);
   if (req.method === 'GET' && path === '/api/v1/tickets') return readTickets(req,res);
   res.writeHead(404, {'Content-Type':'application/json; charset=utf-8'});
   res.end(JSON.stringify({error:'not_found'}));

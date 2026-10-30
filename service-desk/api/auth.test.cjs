@@ -18,6 +18,7 @@ test('rejects unsigned, expired, wrong audience and forged identity',()=>{
  assert.equal(verifyToken(token({exp:1}),cfg),null);
  assert.equal(verifyToken(token({aud:'another'}),cfg),null);
  assert.equal(verifyToken(token({sub:'admin'}),cfg),null);
+ assert.equal(verifyToken(token({nbf:Math.floor(Date.now()/1000)+3600}),cfg),null);
  assert.deepEqual(verifyToken(token(),cfg),{id:user});
 });
 test('handler uses verified identity and transaction-local restricted role',async()=>{
@@ -28,8 +29,21 @@ test('handler uses verified identity and transaction-local restricted role',asyn
  await createTicketReader(()=>db,cfg)({headers:{authorization:token()}},res);
  assert.equal(res.status,200);
  assert.deepEqual(response,{tickets:[]});
- assert.equal(statements[0][0],'BEGIN');
+ assert.equal(statements[0][0],'BEGIN READ ONLY');
  assert.equal(statements[1][0],'SET LOCAL ROLE anna_sd_api_runtime');
  assert.equal(statements[2][1][0],user);
  assert.equal(statements[4][0],'COMMIT');
+});
+
+test('handler rolls back and returns 503 without leaking errors',async()=>{
+ const statements=[];
+ let released=false;
+ const db={connect:async()=>({query:async(sql)=>{statements.push(sql);if(sql.startsWith('SELECT id,'))throw Error('database secret');return {rows:[]};},release(){released=true;}})};
+ let response;
+ const res={writeHead(status){this.status=status;},end(data){response=JSON.parse(data);}};
+ await createTicketReader(()=>db,cfg)({headers:{authorization:token()}},res);
+ assert.equal(res.status,503);
+ assert.deepEqual(response,{error:'service_unavailable'});
+ assert.equal(statements.at(-1),'ROLLBACK');
+ assert.equal(released,true);
 });

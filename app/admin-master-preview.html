@@ -54,13 +54,16 @@ jwtButton.addEventListener('click',async()=>{
     const candidate=typeof result==='string'?result:
       typeof result?.token==='string'?result.token:
       typeof result?.data?.token==='string'?result.data.token:
-      typeof result?.data?.jwt==='string'?result.data.jwt:null;
+      typeof result?.data?.jwt==='string'?result.data.jwt:
+      typeof result?.data?.access_token==='string'?result.data.access_token:null;
     if(candidate&&candidate.split('.').length===3){jwt=candidate;break;}
     // Mostrar somente a estrutura da resposta, jamais seus valores.
     const shape=result&&typeof result==='object'
       ? Object.keys(result).filter(k=>/^[a-zA-Z_]+$/.test(k)).slice(0,8).join(', ')
       : typeof result;
-    failures.push(method+': resposta sem JWT [estrutura: '+(shape||'vazia')+']');
+    const dataShape=result?.data&&typeof result.data==='object'?Object.keys(result.data).filter(k=>/^[a-zA-Z_]+$/.test(k)).slice(0,8).join(', '):typeof result?.data;
+    const errorStatus=result?.error?(' · erro: '+(typeof result.error?.status==='number'?'HTTP '+result.error.status:typeof result.error?.code==='string'?result.error.code:'presente')):'';
+    failures.push(method+': resposta sem JWT [estrutura: '+(shape||'vazia')+'; data: '+(dataShape||'vazia')+errorStatus+']');
    }catch(e){
     const message=String(e?.message||'erro');
     const http=message.match(/(?:HTTP\s*)?(401|403|404|405|500|502|503)\b/i);

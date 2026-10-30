@@ -40,9 +40,30 @@ body.login-mode #loginForm button{width:100%;height:41px;background:#087ee3;bord
 body.login-mode #authMessage{font-size:12px;min-height:16px;margin:14px 0 0}
 body:not(.login-mode) #authPanel{padding:10px 16px;display:flex;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap}
 body:not(.login-mode) #authPanel .login-brand,body:not(.login-mode) #authPanel h2,body:not(.login-mode) #authPanel .login-description{display:none}
+
+/* Organização do workspace inspirada na hierarquia visual aprovada da v5.2 */
+body:not(.login-mode)>header{padding:12px max(16px,calc((100vw - 1220px)/2))}
+body:not(.login-mode)>header h1{font-size:20px;margin:0}
+body:not(.login-mode)>header p{font-size:12px;margin:3px 0 0}
+body:not(.login-mode) #workspace{display:block;max-width:1252px;padding:18px 16px 30px}
+.workspace-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+.workspace-heading h1{font-size:clamp(22px,3vw,28px);margin:0}
+.workspace-heading p{font-size:13px;margin:4px 0}
+.version{font-size:12px;font-weight:700;color:#275482;background:#e4edf8;padding:5px 9px;border-radius:25px;vertical-align:middle}
+.heading-summary{display:grid;grid-template-columns:repeat(3,minmax(105px,1fr));gap:7px;flex:1 1 330px;max-width:480px}
+.summary-item{background:#fff;border:1px solid #dce6f1;border-radius:9px;padding:9px;text-align:center}
+.summary-item strong{display:block;font-size:18px;color:#173f6a}.summary-item small{font-size:10px;color:#667d94}
+#workspace>nav{display:flex;flex-wrap:wrap;gap:5px;background:#e7edf6;border:0;padding:5px;border-radius:10px;box-shadow:none;margin-bottom:14px}
+#workspace>nav button{display:inline-block;width:auto;margin:0;padding:9px 13px;background:transparent;color:#526e8d;border:0;border-radius:7px;font-size:12px}
+#workspace>nav button[aria-pressed=true]{background:#fff;color:#144f92;box-shadow:0 1px 5px #14365720}
+#workspace>div:last-child>section.panel{padding:18px}
+#workspace>div:last-child>section.panel>h2{font-size:17px}
+#workspace .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+#workspace article{background:#fff;border:1px solid #dce6f1;border-radius:13px;box-shadow:0 3px 14px #15345407}
+@media(max-width:720px){.heading-summary{max-width:none;flex-basis:100%}#workspace .grid{grid-template-columns:1fr}#workspace>nav button{flex:1 1 140px}}
 </style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script></head><body class="login-mode">
-<header><div><small>AnnA One / Health Monitor</small><h1>Gestão de monitores</h1><p>Protótipo v5.3 — autenticação e organizações reais (somente leitura). Monitores e widgets continuam ilustrativos.</p></div><div><label for="orgSelect">Organização autorizada</label><select id="orgSelect" disabled><option>Entre para consultar</option></select><span class="badge">Ambiente de desenvolvimento</span></div></header>
-<section class="panel" id="authPanel"><div class="login-brand"><span class="login-logo" aria-hidden="true">A</span><div><strong>AnnA Health Monitor</strong><small>AnnA One</small></div></div><h2>Acessar sua conta</h2><p class="login-description">Entre com as credenciais cadastradas no Health Monitor.</p><form id="loginForm"><label>E-mail<input name="email" type="email" autocomplete="username" required></label><label>Senha<input name="password" type="password" autocomplete="current-password" required></label><button type="submit">Entrar</button></form><button type="button" id="logout" hidden>Sair</button><p id="authMessage" role="status">Conectando...</p></section><main id="workspace" hidden><nav class="panel" aria-label="Navegação">
+<header><div><small>AnnA One</small><h1>Health Monitor</h1><p>Monitoramento e gestão por organização · v5.3 em homologação</p></div><div><label for="orgSelect">Organização autorizada</label><select id="orgSelect" disabled><option>Entre para consultar</option></select><span class="badge">Versão de testes</span></div></header>
+<section class="panel" id="authPanel"><div class="login-brand"><span class="login-logo" aria-hidden="true">A</span><div><strong>AnnA Health Monitor</strong><small>AnnA One</small></div></div><h2>Acessar sua conta</h2><p class="login-description">Entre com as credenciais cadastradas no Health Monitor.</p><form id="loginForm"><label>E-mail<input name="email" type="email" autocomplete="username" required></label><label>Senha<input name="password" type="password" autocomplete="current-password" required></label><button type="submit">Entrar</button></form><button type="button" id="logout" hidden>Sair</button><p id="authMessage" role="status">Conectando...</p></section><main id="workspace" hidden><div class="workspace-heading"><div><h1>Health Monitor <span class="version">v5.3</span></h1><p>Visão geral e gestão de serviços da organização selecionada.</p></div><div class="heading-summary"><div class="summary-item"><strong id="summaryMonitors">0</strong><small>Monitores de exemplo</small></div><div class="summary-item"><strong id="summaryOrg">1</strong><small>Organização ativa</small></div><div class="summary-item"><strong>Prévia</strong><small>Sem checagens reais</small></div></div></div><nav class="panel" aria-label="Navegação">
 <button type="button" data-view="monitors" aria-pressed="true">Meus monitores</button>
 <button type="button" data-view="dashboards" aria-pressed="false">Meus dashboards</button>
 <button type="button" data-view="shared" aria-pressed="false">Infraestrutura AnnA One</button><button type="button" id="adminNav" data-view="admin" aria-pressed="false" hidden>Administrar acessos</button>
@@ -60,7 +81,7 @@ body:not(.login-mode) #authPanel .login-brand,body:not(.login-mode) #authPanel h
 'use strict';
 let isPlatformAdmin=false;const orgData=Object.create(null);let activeOrg=null;const current=()=>orgData[activeOrg];const orgSelect=document.getElementById('orgSelect'),authMessage=document.getElementById('authMessage'),workspace=document.getElementById('workspace');const supabaseClient=window.supabase?.createClient('https://tnvghprwltbziivlxeod.supabase.co','sb_publishable_yI9_7tD4RwGrjolPjiq9vg_oSGpxxFR');
 const list=document.getElementById('monitorList');
-function render(){list.replaceChildren();for(const m of current().monitors){const card=document.createElement('article'),title=document.createElement('strong'),url=document.createElement('p'),status=document.createElement('small');title.textContent=m.name;url.textContent=m.url;status.textContent='Inativo · exemplo, sem verificações';card.append(title,url,status);list.append(card);}}
+function render(){document.getElementById("summaryMonitors").textContent=current().monitors.length;list.replaceChildren();for(const m of current().monitors){const card=document.createElement('article'),title=document.createElement('strong'),url=document.createElement('p'),status=document.createElement('small');title.textContent=m.name;url.textContent=m.url;status.textContent='Inativo · exemplo, sem verificações';card.append(title,url,status);list.append(card);}}
 document.querySelectorAll('[data-view]').forEach(button=>button.addEventListener('click',()=>{for(const el of document.querySelectorAll('main > div > section'))el.hidden=el.id!==button.dataset.view;for(const b of document.querySelectorAll('[data-view]'))b.setAttribute('aria-pressed',String(b===button));}));
 document.getElementById('new').addEventListener('click',()=>{document.getElementById('formPanel').hidden=false;document.getElementById('monitorName').focus();});
 document.getElementById('cancel').addEventListener('click',()=>document.getElementById('formPanel').hidden=true);

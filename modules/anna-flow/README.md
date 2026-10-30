@@ -1,29 +1,31 @@
-# AnnA Flow — atendimento inteligente
+# AnnA Flow v0.7 — Homologação online
 
-**Status:** módulo em desenvolvimento, branch de homologação. Não publicado nem disponível para clientes.
+**Módulo AnnA One · Tecnologia e Educação Juntas**
 
-Produto integrante do **AnnA One — Tecnologia e Educação Juntas**. Plataforma para filas e serviços simultâneos (Matrículas, Financeiro, Vendas, Informações etc.), chamada com destino (guichê/sala), painel público, orientações, mídia institucional e relatórios.
+Status: código integrado na branch `feature/anna-flow-online`. **Sem implantação pública**, ainda não pronto para clientes reais. Preservada a branch `main`.
 
-## Diretrizes aprovadas
-- Identidade visual AnnA One, símbolo oficial, cores institucionais, temas configuráveis.
-- Tela pública 16:9 sem barra de rolagem, relógio e orientações no corpo do painel.
-- Botão Modo TV com retorno visível e tecla Esc.
-- Chamada destacada temporariamente; acessibilidade e movimento reduzido.
-- Histórico separado em aguardando, chamado e concluído.
-- Múltiplas filas independentes por serviço.
-- Desenvolvimento **online primeiro**. A versão offline e o instalador por terminal/IP serão posteriores.
-- **Neon/PostgreSQL** como banco quando necessário; **não usar Supabase**.
+## Implementado
+- Painel multifilas, três temas adaptativos, relógio e orientações no corpo da tela, modo tela cheia com saída.
+- Senha e guichê em destaque na chamada; histórico distingue **CHAMADO** e **CONCLUÍDO**.
+- Console de emissão, chamada, conclusão, novos serviços, mensagens e fila de demonstração.
+- API Node.js com PostgreSQL Neon; transações com `SELECT ... FOR UPDATE` para evitar colisões nos comandos simultâneos.
+- Banco **Neon exclusivo** `anna-flow-dev` (projeto `frosty-butterfly-84934287`); tabela `flow_runtime` instalada e verificada.
+- Nenhum Supabase.
 
-## Situação técnica
-A v0.6 preparada localmente usa Node.js e arquivo JSON para teste, sem implantação pública. **Ela ainda não foi integrada a esta branch.** Esta pasta representa a criação do módulo no GitHub e documentação/arquitetura; não afirma ter backend implantado.
+## Executar em hospedagem Node.js
+1. Usar `modules/anna-flow` como diretório raiz de build/execução.
+2. Instalar: `npm install`; iniciar: `npm start`. Exige Node >=20.
+3. Configurar na hospedagem, **somente como segredos**, `DATABASE_URL` (string do Neon para este projeto) e `FLOW_ADMIN_TOKEN` (segredo aleatório com 24+ caracteres).
+4. Ativar HTTPS e testar `/health`, `/api/state`, emissão e conclusão.
+5. Nunca colocar `.env` ou credenciais no GitHub.
+6. O sistema faz polling de estado a cada 1,5 s. É necessário um servidor Node persistente, não somente GitHub Pages.
 
-## Próxima implementação
-1. Importar, revisar e testar a base de código v0.6, corrigindo eventuais falhas visuais.
-2. Criar projeto Neon isolado para AnnA Flow, somente na fase de integração persistente.
-3. API Node.js/HTTPS, perfis de acesso, empresas/locais, operações transacionais, auditoria.
-4. Implantar ambiente de homologação; só depois decidir publicação comercial.
+## Segurança — limitações da homologação
+O console utiliza um único token compartilhado: adequado apenas para laboratório fechado, **não para produção pública**. Antes de liberar a clientes: autenticação por usuário, RBAC, tenant isolation, rate limit, auditoria e política de dados. A estimativa de espera é ilustrativa; mídia em vídeo compartilhada ainda é pendente.
 
-## Arquitetura
-Consulte [arquitetura.md](./arquitetura.md), [schema.sql](./schema.sql) e [historico.md](./historico.md).
+## Plano
+- Online primeiro com homologação e testes em navegador; depois versão offline e instalador Windows selecionando módulos, interligados por IP.
+- v0.4: reprovada; não considerada versão aprovada.
+- Não promover esta branch para `main` nem expor a operação à internet sem autenticação robusta.
 
-**Atenção:** não colocar segredos ou credenciais no repositório. Não reutilizar bancos de outros módulos.
+Consulte `arquitetura.md` e `historico.md`.

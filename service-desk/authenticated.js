@@ -380,7 +380,7 @@ else{
    const data=await response.json();if(!Array.isArray(data.tickets))throw Error('Resposta inválida');
    institutionalTickets=data.tickets;
    const count=status=>institutionalTickets.filter(t=>t.status===status).length;
-   for(const [id,value] of [['institutional-total',institutionalTickets.length],['institutional-open',count('open')],['institutional-progress',count('in_progress')],['institutional-resolved',count('resolved')]])document.getElementById(id).textContent=String(value);
+   for(const [id,value] of [['institutional-total',institutionalTickets.length],['institutional-open',count('open')],['institutional-progress',count('in_progress')],['institutional-resolved',count('resolved')],['institutional-pending',count('pending')],['institutional-closed',count('closed')]])document.getElementById(id).textContent=String(value);
    const breakdown=document.getElementById('institutional-status-breakdown');breakdown.replaceChildren();
    for(const [status,label] of Object.entries({open:'Abertos',in_progress:'Em atendimento',pending:'Pendentes',resolved:'Resolvidos',closed:'Fechados'})){
     const item=document.createElement('p');item.textContent=label+': '+count(status);breakdown.append(item);
@@ -393,6 +393,7 @@ else{
     }body.append(tr);
    }
    dashboardStatus.textContent='Dados reais autorizados · '+institutionalTickets.length+' registro(s) consultado(s).';
+   document.getElementById('institutional-monitor-updated').textContent='Última atualização: '+new Date().toLocaleString('pt-BR');
    reportStatus.textContent='Consulta limitada aos 50 chamados mais recentes visíveis para sua conta.';
    document.getElementById('institutional-report-export').disabled=!institutionalTickets.length;
   }catch(_){institutionalTickets=[];dashboardStatus.textContent='Não foi possível carregar os indicadores.';reportStatus.textContent='Não foi possível carregar o relatório.';}
@@ -401,6 +402,31 @@ else{
   document.querySelector('.sidebar [data-view="'+view+'"]')?.addEventListener('click',loadInstitutionalReports);
   document.getElementById(button)?.addEventListener('click',loadInstitutionalReports);
  }
+ let monitorTimer=null;
+ const monitorButton=document.getElementById('institutional-monitor-toggle');
+ function stopMonitoring(){
+  if(monitorTimer!==null){clearInterval(monitorTimer);monitorTimer=null;}
+  document.body.classList.remove('institutional-monitor-mode');
+  monitorButton.textContent='Modo Monitoramento';
+  if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});
+ }
+ monitorButton?.addEventListener('click',async()=>{
+  if(document.body.classList.contains('institutional-monitor-mode')){stopMonitoring();return;}
+  document.body.classList.add('institutional-monitor-mode');
+  monitorButton.textContent='Sair do monitoramento';
+  await loadInstitutionalReports();
+  if(document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(()=>{});
+  monitorTimer=setInterval(()=>{
+   if(!session()){stopMonitoring();logout();return;}
+   if(document.visibilityState==='visible')loadInstitutionalReports();
+  },60000);
+ });
+ document.addEventListener('fullscreenchange',()=>{
+  if(!document.fullscreenElement&&document.body.classList.contains('institutional-monitor-mode'))stopMonitoring();
+ });
+ document.querySelectorAll('.sidebar [data-view]').forEach(button=>button.addEventListener('click',()=>{
+  if(document.body.classList.contains('institutional-monitor-mode'))stopMonitoring();
+ }));
  document.getElementById('institutional-report-export')?.addEventListener('click',()=>{
   if(!institutionalTickets.length)return;
   const quote=value=>'"'+String(value??'').replace(/"/g,'""')+'"';

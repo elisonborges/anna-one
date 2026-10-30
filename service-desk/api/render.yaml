@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: anna-service-desk-api
+    runtime: node
+    plan: free
+    rootDir: service-desk/api
+    buildCommand: npm ci
+    startCommand: node server.cjs
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATABASE_URL
+        sync: false
+      - key: SD_JWT_SECRET
+        generateValue: true
+      - key: SD_JWT_ISSUER
+        value: anna-service-desk
+      - key: SD_JWT_AUDIENCE
+        value: anna-service-desk-api

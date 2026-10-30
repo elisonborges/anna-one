@@ -136,3 +136,13 @@
 .catalog-admin-form button{white-space:nowrap}
 #catalog-admin-summary{margin-top:20px;overflow-wrap:anywhere;line-height:1.6}
 @media(max-width:780px){.catalog-admin-grid{grid-template-columns:1fr}.catalog-admin-form{flex-direction:column;align-items:stretch}}
+
+/* Gestão e backup do catálogo v0.10.0 */
+.catalog-admin-tools{margin:22px 0;padding:17px;border:1px solid #dce6f2;border-radius:12px}
+.catalog-admin-tools h3{margin:0 0 8px}
+.catalog-admin-tools>label{display:grid;gap:7px;max-width:420px;margin:12px 0}
+.catalog-admin-tools select{width:100%}
+.catalog-admin-tools .catalog-admin-actions{margin:15px 0}
+.catalog-import{display:inline-flex;align-items:center;gap:8px;padding:9px 13px;border:1px solid #a6b8d2;border-radius:8px;cursor:pointer;font-size:13px}
+.catalog-import input{max-width:180px;font-size:12px}
+@media(max-width:650px){.catalog-admin-tools{padding:12px}.catalog-import{flex-wrap:wrap}}

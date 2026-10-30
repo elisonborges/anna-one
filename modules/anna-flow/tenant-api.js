@@ -4,9 +4,11 @@ const safe=(v,n=100)=>typeof v==='string'?v.trim().slice(0,n):'';
 const read=async req=>{let body='';for await(const c of req){body+=c;if(body.length>10000)throw Error('Corpo muito grande')}return JSON.parse(body)};
 const initial=()=>({counters:{},queue:[],current:null,history:[],completed:0,calls:0});
 async function handle(req,res,{pool,auth,send}){
- if(!auth(req))return send(res,401,{error:'Autorização necessária'});
+ const user=await require('./auth-api').session(req,pool);
+ if(!user&&!auth(req))return send(res,401,{error:'Autorização necessária'});
  try{
  const u=new URL(req.url,'http://localhost');const unit=id(u.searchParams.get('unit'));
+ if(user){const access=await pool.query('SELECT 1 FROM flow_user_units WHERE user_id=$1 AND client_id=$2 AND unit_id=$3',[user.id,user.client_id,unit]);if(!access.rowCount)return send(res,403,{error:'Unidade não autorizada'})}
  if(req.method==='GET'){
  const q=await pool.query('SELECT r.revision,r.state FROM flow_client_runtime r JOIN flow_client_units u ON u.id=r.unit_id WHERE u.id=$1',[unit]);
  if(q.rowCount)return send(res,200,q.rows[0]);

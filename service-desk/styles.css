@@ -110,3 +110,11 @@
 #novo .extra-grid .field-full{grid-column:1/-1}
 #novo .asset-mode label{cursor:pointer}
 @media(max-width:650px){#novo .extra-grid{grid-template-columns:1fr}}
+
+/* Campos essenciais sempre visíveis v0.9.2 */
+#novo .required-details{border:1px solid #dce6f2;border-radius:12px;padding:14px 16px}
+#novo .required-details>.form-section-heading{margin:0}
+#novo .required-details .extra-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:16px}
+#novo .required-details .extra-grid label{display:grid;gap:6px}
+#novo .required-details .extra-grid .field-full{grid-column:1/-1}
+@media(max-width:650px){#novo .required-details .extra-grid{grid-template-columns:1fr}}

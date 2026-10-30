@@ -71,7 +71,7 @@ function renderLists() {
     (slaFilter === 'todos' || simulatedSla(t).key === slaFilter) &&
     (categorySelect.value === 'todos' || t.category === categorySelect.value) &&
     (assigneeSelect.value === 'todos' || (assigneeSelect.value === 'unassigned' ? !t.assignee : t.assignee === assigneeSelect.value)) &&
-    (!query || String(t.id).includes(query.replace(/^#/, '')) || t.title.toLocaleLowerCase('pt-BR').includes(query))
+    (!query || ( /^#?\d+$/.test(query) ? String(t.id) === String(Number(query.replace(/^#/, ''))) : t.title.toLocaleLowerCase('pt-BR').includes(query)))
   );
   $('ticket-result-count').textContent = filtered.length + (filtered.length === 1 ? ' chamado encontrado' : ' chamados encontrados');
   $('ticket-list').innerHTML = filtered.length ? filtered.map(t =>
@@ -151,16 +151,21 @@ $('new-top').addEventListener('click', () => show('novo'));
 $('back').addEventListener('click', () => show('chamados'));
 for (const id of ['status-filter', 'priority-filter', 'category-filter', 'assignee-filter', 'sla-filter']) $(id).addEventListener('change', renderLists);
 $('ticket-search').addEventListener('input', renderLists);
-$('detail-content').addEventListener('click',event=>{
+$('detail-content').addEventListener('click',async event=>{
   if(!event.target.closest('#copy-ticket-number'))return;
   const number=$('ticket-number-value')?.textContent;
-  if(!number)return;
-  if(navigator.clipboard?.writeText){
-    navigator.clipboard.writeText(number).then(()=>{
-      $('copy-ticket-number').textContent='Copiado!';
-    }).catch(()=>{ $('copy-ticket-number').textContent='Selecione o número para copiar'; });
-  }else{
-    $('copy-ticket-number').textContent='Selecione o número para copiar';
+  const button=$('copy-ticket-number');
+  if(!number||!button)return;
+  try{
+    if(!navigator.clipboard?.writeText)throw new Error('Área de transferência indisponível');
+    await navigator.clipboard.writeText(number);
+    button.textContent='Copiado!';
+  }catch(error){
+    button.textContent='Copie o número selecionado';
+    const range=document.createRange();
+    range.selectNodeContents($('ticket-number-value'));
+    const selection=window.getSelection();
+    selection.removeAllRanges();selection.addRange(range);
   }
 });
 $('clear-ticket-filters').addEventListener('click', () => { $('ticket-search').value = ''; for (const id of ['status-filter','priority-filter','category-filter','assignee-filter','sla-filter']) $(id).value = 'todos'; renderLists(); });

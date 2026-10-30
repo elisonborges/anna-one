@@ -1,5 +1,5 @@
 // AnnA Service Desk — API foundation (Node.js 20+).
-// Database connectivity is server-side only; no ticket routes are exposed.
+// Server-side database access; ticket listing is gated by JWT and RLS.
 'use strict';
 const http = require('node:http');
 const { URL } = require('node:url');
@@ -38,6 +38,7 @@ async function databaseStatus() {
   }
 }
 const readTickets = createTicketReader(getPool);
+const authConfigured = () => Boolean(process.env.SD_JWT_SECRET && Buffer.byteLength(process.env.SD_JWT_SECRET) >= 32 && process.env.SD_JWT_ISSUER && process.env.SD_JWT_AUDIENCE);
 const server = http.createServer(async (req,res) => {
   let path;
   try { path = new URL(req.url, 'http://localhost').pathname; }
@@ -47,7 +48,7 @@ const server = http.createServer(async (req,res) => {
   if (req.method === 'GET' && path === '/health') {
     const db = await databaseStatus();
     res.writeHead(db === 'unavailable' ? 503 : 200, {'Content-Type':'application/json; charset=utf-8'});
-    res.end(JSON.stringify({service:'anna-service-desk-api',status:'foundation',database:db,auth:'not-configured'}));
+    res.end(JSON.stringify({service:'anna-service-desk-api',status:'foundation',database:db,auth:authConfigured() ? 'configured-not-verified' : 'not-configured'}));
     return;
   }
   if (req.method === 'GET' && path === '/api/v1/tickets') return readTickets(req,res);

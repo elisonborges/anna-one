@@ -6,7 +6,7 @@
 <title>Entrar — AnnA Service Desk</title>
 <style>
 :root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#1d2b48;background:#f3f6fb}
-*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:22px}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:22px;gap:24px}
 main{width:min(100%,420px);background:white;border:1px solid #e1e8f1;border-radius:18px;box-shadow:0 12px 40px #182a5020;padding:32px}
 .brand{display:flex;align-items:center;gap:12px;color:#111c3b;font-size:22px;font-weight:750}
 .brand img{width:45px;height:45px}.brand small{display:block;color:#66738a;font-size:12px}
@@ -17,7 +17,7 @@ input:focus-visible,button:focus-visible{outline:3px solid #64c8ff;outline-offse
 button{padding:12px;border:0;border-radius:9px;background:#087bdf;color:white;font:inherit;font-weight:700;cursor:pointer}
 button:disabled{opacity:.65;cursor:wait}.feedback{min-height:22px;font-size:14px;color:#ad2934}
 .success{color:#176d42}.links{margin-top:20px;font-size:13px}
-a{color:#176eb4}.hidden{display:none!important}
+a{color:#176eb4}.site-footer{text-align:center;font-size:12px;color:#14335c;line-height:1.6;max-width:700px}.site-footer small{display:block;font-size:10px;color:#63758a}.hidden{display:none!important}
 </style>
 </head>
 <body>
@@ -40,6 +40,7 @@ a{color:#176eb4}.hidden{display:none!important}
 </section>
 <p class="links"><a href="./">Abrir ambiente demonstrativo</a></p>
 </main>
+<footer class="site-footer"><div>© 2026 AnnA One. Todos os direitos reservados.</div><div>Desenvolvido por Prof. Elison Borges · Projeto e desenvolvimento original.</div><small>Versão demonstrativa · Reprodução ou distribuição não autorizada sujeita à legislação aplicável.</small></footer>
 <script>
 'use strict';
 const api='https://anna-one.onrender.com/api/v1/auth/login';

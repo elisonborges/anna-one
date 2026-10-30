@@ -10,7 +10,7 @@ function createInvitesHandler(poolFactory,config=process.env){
   const actor=accept?null:verifyToken(req.headers.authorization,config);
   if(!accept&&!actor)return send(res,401,{error:'unauthorized'});
   if(accept&&(!/^[a-f0-9]{64}$/.test(crypto.createHash('sha256').update(String(data.token||'')).digest('hex'))||typeof data.password!=='string'||data.password.length<12))return send(res,400,{error:'invalid_request'});
-  if(!accept&&(!/^[0-9a-f-]{36}$/i.test(data.tenant_id||'')||typeof data.email!=='string'||!/^\S+@\S+\.\S+$/.test(data.email)))return send(res,400,{error:'invalid_request'});
+  if(!accept&&(!/^[0-9a-f-]{36}$/i.test(data.tenant_id||'')||typeof data.email!=='string'||!/^\S+@\S+\.\S+$/.test(data.email)||typeof data.name!=='string'||data.name.trim().length<2||data.name.length>120))return send(res,400,{error:'invalid_request'});
   const pool=poolFactory();if(!pool)return send(res,503,{error:'service_unavailable'});
   let client;
   try{
@@ -28,7 +28,7 @@ function createInvitesHandler(poolFactory,config=process.env){
     return send(res,result.rows[0].ok?200:400,{ok:result.rows[0].ok,error:result.rows[0].ok?undefined:'invalid_or_expired_invitation'});
    }
    // Email must be delivered before committing the invitation.
-   const result=await client.query('SELECT anna_sd.master_invite_admin_v1($1,$2,$3) AS id',[data.tenant_id,data.email.trim().toLowerCase(),tokenHash]);
+   const result=await client.query('SELECT anna_sd.master_invite_admin_v1($1,$2,$3,$4,$5,$6,$7) AS id',[data.tenant_id,data.email.trim().toLowerCase(),tokenHash,data.name,data.position||'',data.phone||'',data.whatsapp||'']);
    if(!config.RESEND_API_KEY){await client.query('ROLLBACK');return send(res,503,{error:'email_not_configured'});}
    const url='https://elisonborges.github.io/anna-one/service-desk/activate.html?token='+encodeURIComponent(token);
    const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+config.RESEND_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({from:config.SD_EMAIL_FROM||'AnnA Service Desk <sevicedesk@annaone.com.br>',to:[data.email.trim().toLowerCase()],subject:'Convite para administrar uma instituição — AnnA One',text:'Você foi convidado para administrar uma instituição no AnnA Service Desk. Para ativar seu acesso, abra este link em até 48 horas:\n'+url+'\n\nSe não solicitou esse acesso, ignore esta mensagem.'})});

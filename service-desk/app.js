@@ -10,6 +10,13 @@ let role = 'solicitante';
 const $ = id => document.getElementById(id);
 const escapeHtml = value => String(value).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
 const statusClass = status => status === 'Pendente' ? 'pending' : status === 'Resolvido' ? 'done' : status === 'Aberto' ? 'open' : '';
+// Prazos ilustrativos, não representam SLA contratual ou medição real.
+const simulatedSla = ticket => {
+  if (ticket.status === 'Resolvido') return {key:'concluido',label:'Concluído'};
+  if (ticket.priority === 'Alta') return {key:'atencao',label:'Atenção · 4h'};
+  if (ticket.priority === 'Normal') return {key:'dentro',label:'Referência · 24h'};
+  return {key:'dentro',label:'Referência · 72h'};
+};
 function show(view) {
   for (const section of document.querySelectorAll('.view')) section.hidden = section.id !== view;
   for (const button of document.querySelectorAll('.nav-item')) button.classList.toggle('active', button.dataset.view === view);
@@ -57,17 +64,19 @@ function renderLists() {
   const query = $('ticket-search').value.trim().toLocaleLowerCase('pt-BR');
   const status = $('status-filter').value;
   const priority = $('priority-filter').value;
+  const slaFilter = $('sla-filter').value;
   const filtered = tickets.filter(t =>
     (status === 'todos' || t.status === status) &&
     (priority === 'todos' || t.priority === priority) &&
+    (slaFilter === 'todos' || simulatedSla(t).key === slaFilter) &&
     (categorySelect.value === 'todos' || t.category === categorySelect.value) &&
     (assigneeSelect.value === 'todos' || (assigneeSelect.value === 'unassigned' ? !t.assignee : t.assignee === assigneeSelect.value)) &&
     (!query || String(t.id).includes(query.replace(/^#/, '')) || t.title.toLocaleLowerCase('pt-BR').includes(query))
   );
   $('ticket-result-count').textContent = filtered.length + (filtered.length === 1 ? ' chamado encontrado' : ' chamados encontrados');
   $('ticket-list').innerHTML = filtered.length ? filtered.map(t =>
-    '<tr><td>#' + String(t.id).padStart(4, '0') + '</td><td>' + escapeHtml(t.title) + '</td><td>' + escapeHtml(t.category) + '</td><td>' + escapeHtml(t.subcategory || '—') + '</td><td>' + escapeHtml(t.priority) + '</td><td><span class="pill ' + statusClass(t.status) + '">' + escapeHtml(t.status) + '</span></td><td>' + escapeHtml(t.assignee || 'Não atribuído') + '</td><td><button class="ticket-link" data-ticket="' + t.id + '">Visualizar</button></td></tr>'
-  ).join('') : '<tr><td colspan="8" class="empty">Nenhum chamado encontrado.</td></tr>';
+    '<tr><td>#' + String(t.id).padStart(4, '0') + '</td><td>' + escapeHtml(t.title) + '</td><td>' + escapeHtml(t.category) + '</td><td>' + escapeHtml(t.subcategory || '—') + '</td><td>' + escapeHtml(t.priority) + '</td><td><span class="pill ' + statusClass(t.status) + '">' + escapeHtml(t.status) + '</span></td><td>' + escapeHtml(t.assignee || 'Não atribuído') + '</td><td><span class="sla-chip sla-" + simulatedSla(t).key + "">' + escapeHtml(simulatedSla(t).label) + '</span></td><td><button class="ticket-link" data-ticket="' + t.id + '">Visualizar</button></td></tr>'
+  ).join('') : '<tr><td colspan="9" class="empty">Nenhum chamado encontrado.</td></tr>';
 }
 const demoTechnicians = ['Equipe de TI', 'Suporte de infraestrutura', 'Suporte de sistemas', 'Prestador externo'];
 function showTicket(id) {
@@ -120,9 +129,9 @@ document.addEventListener('click', event => {
 });
 $('new-top').addEventListener('click', () => show('novo'));
 $('back').addEventListener('click', () => show('chamados'));
-for (const id of ['status-filter', 'priority-filter', 'category-filter', 'assignee-filter']) $(id).addEventListener('change', renderLists);
+for (const id of ['status-filter', 'priority-filter', 'category-filter', 'assignee-filter', 'sla-filter']) $(id).addEventListener('change', renderLists);
 $('ticket-search').addEventListener('input', renderLists);
-$('clear-ticket-filters').addEventListener('click', () => { $('ticket-search').value = ''; for (const id of ['status-filter','priority-filter','category-filter','assignee-filter']) $(id).value = 'todos'; renderLists(); });
+$('clear-ticket-filters').addEventListener('click', () => { $('ticket-search').value = ''; for (const id of ['status-filter','priority-filter','category-filter','assignee-filter','sla-filter']) $(id).value = 'todos'; renderLists(); });
 $('role').addEventListener('change', event => { role = event.target.value; if (!$('detalhe').hidden && selectedId !== null) showTicket(selectedId); });
 const ticketSubcategories = {
   'Hardware': ['Computador', 'Notebook', 'Monitor', 'Teclado', 'Mouse', 'Impressora', 'Projetor'],

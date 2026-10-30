@@ -22,6 +22,13 @@ else{
  const createForm=document.getElementById('real-create-form');
  const createStatus=document.getElementById('real-create-status');
  const createButton=document.getElementById('real-submit');
+ const success=document.getElementById('real-success');
+ const successProtocol=document.getElementById('real-success-protocol');
+ const copyFeedback=document.getElementById('real-copy-feedback');
+ document.getElementById('real-copy-protocol')?.addEventListener('click',async()=>{
+  try{await navigator.clipboard.writeText(successProtocol.textContent);copyFeedback.textContent='Protocolo copiado!';}
+  catch(_){copyFeedback.textContent='Selecione o número acima para copiar.';}
+ });
  let unitsLoaded=false;
  async function loadUnits(){
   const auth=session();if(!auth){logout();return;}
@@ -50,7 +57,9 @@ else{
    if(response.status===401){logout();return;}
    if(!response.ok){createStatus.textContent=response.status===403?'Sem permissão para registrar nesta unidade.':'Falha no cadastro (HTTP '+response.status+').';return;}
    const result=await response.json();
-   createStatus.textContent='Chamado registrado: '+(result.ticket?.public_protocol||'protocolo disponível na lista');
+   const protocol=result.ticket?.public_protocol;
+   if(protocol){successProtocol.textContent=protocol;success.hidden=false;copyFeedback.textContent='';success.scrollIntoView({behavior:'smooth',block:'start'});}
+   createStatus.textContent=protocol?'Cadastro concluído. Protocolo destacado acima.':'Cadastro concluído. Consulte o protocolo na lista.';
    createForm.reset();
    await loadTickets();
   }catch(_){createStatus.textContent='Falha de conexão ao registrar. Confira a lista antes de tentar novamente para evitar duplicação.';}

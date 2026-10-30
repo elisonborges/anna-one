@@ -35,6 +35,52 @@
   .anna-flow-compact .module-hero,.anna-flow-compact .module-panel{padding:9px 13px}
   .anna-flow-compact .module-icon{width:42px;height:42px}
 }
+
+/* AnnA Flow: layout adaptativo à altura disponível, sem rolagem da página. */
+html:has(.anna-flow-compact),body:has(.anna-flow-compact){height:100%;overflow:hidden}
+body:has(.anna-flow-compact){display:flex;flex-direction:column;min-height:0}
+body:has(.anna-flow-compact) .module-header{flex:0 0 auto;padding-top:5px;padding-bottom:5px}
+body:has(.anna-flow-compact) .module-brand img{width:31px;height:31px}
+body:has(.anna-flow-compact) .module-brand strong{font-size:17px}
+body:has(.anna-flow-compact) .module-brand small{font-size:8px}
+body:has(.anna-flow-compact) .module-header nav a{padding:5px 8px;font-size:11px}
+.anna-flow-compact{flex:1 1 auto;min-height:0;width:100%;max-width:1120px;margin:0 auto!important;padding:8px 14px!important;display:flex;flex-direction:column;gap:7px;overflow:hidden}
+.anna-flow-compact .module-hero,.anna-flow-compact .module-panel{margin:0!important;padding:10px 14px!important;flex-shrink:1;min-height:0}
+.anna-flow-compact .module-hero{flex:0 1 auto}
+.anna-flow-compact .module-panel{flex:1 1 auto;display:flex;flex-direction:column}
+.anna-flow-compact .module-hero-content{grid-template-columns:minmax(0,1fr) minmax(0,.85fr);gap:12px}
+.anna-flow-compact .module-icon{width:40px;height:40px;font-size:23px}
+.anna-flow-compact .module-hero h1{font-size:clamp(18px,2.6vw,24px)}
+.anna-flow-compact .module-hero p{font-size:clamp(10px,1.2vw,12px);line-height:1.25}
+.anna-flow-compact .module-usage{padding:0 0 0 12px;border-left:1px solid #d8e2f2;border-top:0}
+.anna-flow-compact .module-usage h2{font-size:14px;margin-bottom:2px}
+.anna-flow-compact .module-usage p{font-size:11px;line-height:1.23}
+.anna-flow-compact .module-usage .note{font-size:9px;line-height:1.2}
+.anna-flow-compact .module-actions{margin-top:4px}
+.anna-flow-compact .module-panel h2{font-size:15px;margin-bottom:5px!important;flex-shrink:0}
+.anna-flow-compact .service-grid{flex:1 1 auto;min-height:0;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px!important}
+.anna-flow-compact .service{min-height:0!important;padding:8px!important;overflow:hidden}
+.anna-flow-compact .service-icon{width:26px!important;height:26px!important;font-size:16px!important;margin-bottom:2px!important}
+.anna-flow-compact .service strong{font-size:clamp(11px,1.3vw,14px)!important;line-height:1.16!important}
+.anna-flow-compact .service span:not(.service-icon){font-size:clamp(10px,1.1vw,12px)!important;line-height:1.2!important}
+body:has(.anna-flow-compact) .module-footer{flex:0 0 auto;margin:0;padding:5px;font-size:10px}
+body:has(.anna-flow-compact) .module-footer strong{display:inline;margin:0 8px 0 0}
+@media(max-width:899px){
+ .anna-flow-compact .module-hero-content{grid-template-columns:1fr;gap:5px}
+ .anna-flow-compact .module-usage{border-left:0;border-top:1px solid #d8e2f2;padding:5px 0 0}
+ .anna-flow-compact .service-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .anna-flow-compact .service{padding:5px!important}
+ .anna-flow-compact .service-icon{display:none}
+ .anna-flow-compact .service strong{font-size:11px!important}
+ .anna-flow-compact .service span:not(.service-icon){font-size:10px!important}
+ .anna-flow-compact .module-usage .note{display:none}
+}
+@media(max-height:560px){
+ .anna-flow-compact .module-usage .note{display:none}
+ .anna-flow-compact .module-icon,.anna-flow-compact .service-icon{display:none}
+ .anna-flow-compact .module-hero,.anna-flow-compact .module-panel{padding:5px 10px!important}
+ .anna-flow-compact{padding:4px 10px!important;gap:4px}
+}
 </style></head><body><header class="module-header"><a class="module-brand" href="../"><img src="../assets/anna-symbol.svg" alt=""><span><strong>AnnA One</strong><small>TECNOLOGIA E EDUCAÇÃO JUNTAS</small></span></a><nav aria-label="Navegação"><a href="home-preview.html?v=5">← Voltar aos módulos</a><a href="../">Site institucional</a></nav></header><main class="module-page"><section class="module-hero"><div class="module-hero-content"><div class="module-intro"><div class="module-label">AnnA One · Apresentação do módulo</div><div class="module-hero-top"><span class="module-icon" id="module-icon" aria-hidden="true"></span><h1 id="title"></h1></div><p id="description"></p><div class="module-actions" id="actions"></div></div><div class="module-usage"><h2>Como pode ser utilizado</h2><p id="use"></p><p class="note">Os módulos podem ser oferecidos separadamente ou integrados ao ecossistema AnnA One. A disponibilidade de cada recurso depende do estágio real de desenvolvimento e de futuras condições de implantação. Esta página é uma apresentação experimental, não uma oferta comercial ou contratação.</p></div></div></section><section class="module-panel"><h2>Serviços e recursos do módulo</h2><div class="service-grid" id="services"></div></section><section class="module-panel" id="health-summary" hidden><h2>🚦 Semáforo dos serviços</h2><p class="health-summary-note">Último registro disponível: <strong>24/10/2026, 19h44 (Brasília)</strong>. Consulta histórica, não monitoramento em tempo real.</p><div class="health-summary-grid"><div class="health-summary-row"><strong>AnnA One</strong><span><i class="health-summary-dot"></i>Última verificação: OK</span></div><div class="health-summary-row"><strong>Projetos Escolares</strong><span><i class="health-summary-dot"></i>Última verificação: OK</span></div><div class="health-summary-row"><strong>Agenda Educacional</strong><span><i class="health-summary-dot"></i>Última verificação: OK</span></div><div class="health-summary-row"><strong>Neon Agenda</strong><span><i class="health-summary-dot"></i>Última verificação: OK</span></div></div><p class="health-summary-note"><strong>Atenção:</strong> os resultados podem estar desatualizados. Para a situação atual, consulte o <a href="health-monitor/">Health Monitor completo</a>.</p></section></main><footer class="module-footer"><strong>AnnA One · TECNOLOGIA E EDUCAÇÃO JUNTAS</strong>© 2026 AnnA One · Desenvolvimento: Prof. Elison Borges</footer><script>
 const data={
 "labmanager":{title:"AnnA LabManager",description:"Gestão do parque computacional e da infraestrutura de T.I. de escolas, faculdades e universidades.",services:[["Dispositivos","Cadastro e acompanhamento de computadores e equipamentos"],["Inventário","Organização dos ativos de hardware e software"],["Deploy","Planejamento de instalações e distribuição de programas"],["Redes e conectividade","Gestão da infraestrutura de rede institucional"],["Acesso de visitantes","Cadastro temporário para acesso autorizado à internet"],["Comunicação técnica","Mensagens e ferramentas de apoio aos laboratórios"]],use:"Pode ser adotado independentemente para a gestão de T.I. de uma instituição. Integrações com Service Desk, monitoramento e AnnA One Connect são possibilidades planejadas.",status:"Em desenvolvimento"},

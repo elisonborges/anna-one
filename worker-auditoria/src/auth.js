@@ -38,16 +38,26 @@ export async function verifyBearer(request, env) {
   if (!Number.isInteger(claims.iat) || claims.iat > now + 30) invalid("claims_issued_at");
   if (claims.exp - claims.iat > 900) invalid("claims_lifetime");
   if (claims.nbf !== undefined && (!Number.isInteger(claims.nbf) || claims.nbf > now + 30)) invalid("claims_not_before");
-  const response = await fetch(jwksUrl.toString(), { redirect: "error" });
+  let response;
+  try { response = await fetch(jwksUrl.toString(), { redirect: "error" }); }
+  catch { invalid("jwks_network"); }
   if (!response.ok) invalid("jwks");
-  const jwks = await response.json();
-  if (!Array.isArray(jwks.keys)) invalid("jwks");
+  let jwks;
+  try { jwks = await response.json(); }
+  catch { invalid("jwks_json"); }
+  if (!jwks || !Array.isArray(jwks.keys)) invalid("jwks");
   const keys = jwks.keys.filter(k => k.kid === header.kid && k.kty === "OKP" &&
     k.crv === "Ed25519" && (!k.alg || k.alg === "EdDSA") &&
     (!k.use || k.use === "sig") && typeof k.x === "string");
   if (keys.length !== 1) invalid("key");
-  const key = await crypto.subtle.importKey("jwk", keys[0], "Ed25519", false, ["verify"]);
-  if (!await crypto.subtle.verify("Ed25519", key, decodeBase64Url(parts[2]),
-    new TextEncoder().encode(parts[0] + "." + parts[1]))) invalid("signature");
+  let key;
+  try { key = await crypto.subtle.importKey("jwk", keys[0], "Ed25519", false, ["verify"]); }
+  catch { invalid("key_import"); }
+  let verified;
+  try {
+    verified = await crypto.subtle.verify("Ed25519", key, decodeBase64Url(parts[2]),
+      new TextEncoder().encode(parts[0] + "." + parts[1]));
+  } catch { invalid("signature_runtime"); }
+  if (!verified) invalid("signature");
   return { userId: claims.sub };
 }

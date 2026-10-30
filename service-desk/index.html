@@ -42,7 +42,7 @@
         <div class="nav-heading">ATENDIMENTO</div><button class="nav-item" data-view="chamados">Chamados demonstrativos</button><button class="nav-item" data-view="reais">Chamados reais</button>
         <button class="nav-item" data-view="novo">Abrir chamado</button>
         <div class="nav-heading">GESTÃO</div><button class="nav-item" data-view="dashboards">Dashboards</button>
-        <button class="nav-item" data-view="catalogo">Contratos e prestadores</button><button class="nav-item" data-view="classificacao">Catálogo de classificação</button>
+        <button class="nav-item" data-view="catalogo">Contratos e prestadores</button><button class="nav-item" data-view="classificacao">Catálogo de classificação</button><button class="nav-item" data-view="identidade" id="branding-nav" hidden>Identidade e Comunicação</button>
       </nav>
       <div class="side-foot">Homologação visual · v0.11.2<br />Dados fictícios em memória</div>
     </aside>
@@ -104,10 +104,11 @@
         </div>
       </section>
       <section id="detalhe" class="view" hidden><button id="back" class="text-button">← Voltar aos chamados</button><div class="panel detail-panel"><div id="detail-content"></div></div></section>
+<section id="identidade" class="view" hidden><div class="panel"><div class="panel-head"><div><h2>Identidade e Comunicação</h2><p>Personalização institucional dos e-mails de chamados. Disponível apenas para gestores autorizados.</p></div></div><form id="branding-form" style="display:grid;gap:14px;max-width:650px"><label>Instituição<select id="branding-tenant" required></select></label><label>Nome exibido<input id="branding-name" maxlength="120"></label><label>URL HTTPS do logotipo<input id="branding-logo" type="url" maxlength="500" placeholder="https://..."></label><label>Assinatura<input id="branding-signature" maxlength="200" placeholder="Equipe de atendimento"></label><label>E-mail de contato<input id="branding-email" type="email" maxlength="254"></label><label>Telefone de contato<input id="branding-phone" maxlength="50"></label><button type="submit" id="branding-save">Salvar personalização</button><p id="branding-status" role="status"></p></form></div></section>
       <footer>© 2026 AnnA One. Todos os direitos reservados. · Desenvolvido por Prof. Elison Borges · Projeto e desenvolvimento original.<br>AnnA Service Desk · v0.11.2 · Ambiente demonstrativo separado dos chamados reais</footer>
     </main>
   </div>
 <script type="module" src="labmanager-entry.js"></script>
-<script src="authenticated.js?v=3" defer></script>
+<script src="authenticated.js?v=4" defer></script>
 </body>
 </html>

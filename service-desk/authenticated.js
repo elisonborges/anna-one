@@ -379,19 +379,21 @@ else{
    if(!response.ok)throw Error('HTTP '+response.status);
    const data=await response.json();if(!Array.isArray(data.tickets))throw Error('Resposta inválida');
    institutionalTickets=data.tickets;
-   const count=status=>institutionalTickets.filter(t=>t.status===status).length;
-   for(const [id,value] of [['institutional-total',institutionalTickets.length],['institutional-open',count('open')],['institutional-progress',count('in_progress')],['institutional-resolved',count('resolved')],['institutional-pending',count('pending')],['institutional-closed',count('closed')]])document.getElementById(id).textContent=String(value);
-   const critical=institutionalTickets.filter(t=>t.priority==='high'&&!['resolved','closed'].includes(t.status)).length;
+   const focus=document.getElementById('institutional-monitor-focus').value;
+   const dashboardTickets=institutionalTickets.filter(t=>focus==='active'?!['resolved','closed'].includes(t.status):focus==='high'?(t.priority==='high'&&!['resolved','closed'].includes(t.status)):true);
+   const count=status=>dashboardTickets.filter(t=>t.status===status).length;
+   for(const [id,value] of [['institutional-total',dashboardTickets.length],['institutional-open',count('open')],['institutional-progress',count('in_progress')],['institutional-resolved',count('resolved')],['institutional-pending',count('pending')],['institutional-closed',count('closed')]])document.getElementById(id).textContent=String(value);
+   const critical=dashboardTickets.filter(t=>t.priority==='high'&&!['resolved','closed'].includes(t.status)).length;
    document.getElementById('institutional-critical').textContent=String(critical);
    document.querySelector('.institutional-priority-alert').dataset.alert=String(critical>0);
-   document.getElementById('institutional-completion').textContent=institutionalTickets.length?Math.round(100*(count('resolved')+count('closed'))/institutionalTickets.length)+'%':'—';
+   document.getElementById('institutional-completion').textContent=dashboardTickets.length?Math.round(100*(count('resolved')+count('closed'))/dashboardTickets.length)+'%':'—';
    const breakdown=document.getElementById('institutional-status-breakdown');breakdown.replaceChildren();
    for(const [status,label] of Object.entries({open:'Abertos',in_progress:'Em atendimento',pending:'Pendentes',resolved:'Resolvidos',closed:'Fechados'})){
     const row=document.createElement('div');row.className='institutional-bar-row';
     const name=document.createElement('span');name.textContent=label;
     const track=document.createElement('div');track.className='institutional-bar-track';
     const fill=document.createElement('div');fill.className='institutional-bar-fill';
-    fill.style.width=(institutionalTickets.length?100*count(status)/institutionalTickets.length:0)+'%';
+    fill.style.width=(dashboardTickets.length?100*count(status)/dashboardTickets.length:0)+'%';
     track.append(fill);
     const number=document.createElement('span');number.className='institutional-bar-count';number.textContent=String(count(status));
     row.append(name,track,number);breakdown.append(row);
@@ -403,12 +405,13 @@ else{
      const td=document.createElement('td');td.textContent=value;tr.append(td);
     }body.append(tr);
    }
-   dashboardStatus.textContent='Dados reais autorizados · '+institutionalTickets.length+' registro(s) consultado(s).';
+   dashboardStatus.textContent='Dados reais autorizados · '+dashboardTickets.length+' registro(s) no foco selecionado, de '+institutionalTickets.length+' consultado(s).';
    document.getElementById('institutional-monitor-updated').textContent='Última atualização: '+new Date().toLocaleString('pt-BR');
    reportStatus.textContent='Consulta limitada aos 50 chamados mais recentes visíveis para sua conta.';
    document.getElementById('institutional-report-export').disabled=!institutionalTickets.length;
   }catch(_){institutionalTickets=[];dashboardStatus.textContent='Não foi possível carregar os indicadores.';reportStatus.textContent='Não foi possível carregar o relatório.';}
  }
+ document.getElementById('institutional-monitor-focus')?.addEventListener('change',loadInstitutionalReports);
  for(const [view,button] of [['painel-institucional','institutional-dashboard-refresh'],['relatorios-institucionais','institutional-report-refresh']]){
   document.querySelector('.sidebar [data-view="'+view+'"]')?.addEventListener('click',loadInstitutionalReports);
   document.getElementById(button)?.addEventListener('click',loadInstitutionalReports);

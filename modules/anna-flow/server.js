@@ -2,6 +2,7 @@
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const {Pool}=require('pg');
 const adminApi=require('./admin-api');
+const tenantApi=require('./tenant-api');
 const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:true},max:5});
 const token=process.env.FLOW_ADMIN_TOKEN||'';
 if(!process.env.DATABASE_URL||token.length<24){console.error('Configure DATABASE_URL e FLOW_ADMIN_TOKEN (mínimo 24 caracteres).');process.exit(1)}
@@ -19,6 +20,7 @@ case 'demo': {if(s.queue.length||s.current)throw Error('Limpe a fila primeiro');
 case 'reset': {Object.assign(s,{queue:[],current:null,history:[],counters:{},completed:0,calls:0});return {ok:true}}
 default:throw Error('Ação inválida')}}
 const server=http.createServer(async(req,res)=>{const url=new URL(req.url,'http://localhost');
+if(url.pathname==='/api/tenant')return tenantApi(req,res,{pool,auth,send});
 if(url.pathname==='/api/admin')return adminApi(req,res,{pool,auth,send});
 if(url.pathname==='/health')return send(res,200,{ok:true,service:'anna-flow'});
 if(url.pathname==='/api/state'&&req.method==='GET'){try{const q=await pool.query('SELECT revision,state FROM flow_runtime WHERE id=1');return send(res,200,q.rows[0]||{revision:0,state:defaults})}catch{return send(res,503,{error:'Banco indisponível'})}}

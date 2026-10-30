@@ -182,3 +182,25 @@
   #classificacao .catalog-admin-form{flex-direction:column;align-items:stretch}
   #classificacao .catalog-admin-form button{width:100%}
 }
+
+/* v0.10.2 — Hierarquia completa do catálogo, recolhível e responsiva. */
+#classificacao .catalog-tree-panel{margin:14px 0;padding:12px 14px;border:1px solid #dce6f2;border-radius:12px;background:#f9fbfe}
+#classificacao .catalog-tree-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+#classificacao .catalog-tree-head h3{font-size:15px;margin:0 0 3px;color:#18315a}
+#classificacao .catalog-tree-head p{font-size:12px}
+#classificacao .catalog-tree-count{font-size:12px;font-weight:700;color:#536987}
+#classificacao .catalog-tree{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:start}
+#classificacao .catalog-tree-category{min-width:0;background:white;border:1px solid #dce6f2;border-radius:9px;overflow:hidden}
+#classificacao .catalog-tree-category>summary{display:flex;align-items:center;gap:9px;cursor:pointer;padding:10px 12px;font-size:13px;list-style-position:inside}
+#classificacao .catalog-tree-category>summary strong{flex:1;min-width:0;overflow-wrap:anywhere}
+#classificacao .catalog-tree-status{font-size:11px;color:#176e43;background:#eaf8f0;border-radius:12px;padding:3px 7px}
+#classificacao .catalog-tree-status.is-inactive{color:#8a5510;background:#fff3df}
+#classificacao .catalog-tree-category>summary small,#classificacao .catalog-tree-subcategory>summary small{font-size:11px;color:#61738d;white-space:nowrap}
+#classificacao .catalog-tree-subcategory{margin:0 9px 7px;border:1px solid #e6edf5;border-radius:7px}
+#classificacao .catalog-tree-subcategory>summary{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;font-size:12px;cursor:pointer}
+#classificacao .catalog-tree-subcategory>summary span{overflow-wrap:anywhere}
+#classificacao .catalog-tree-issues{margin:0;padding:7px 12px 9px 29px;border-top:1px solid #e6edf5;columns:2;column-gap:18px;font-size:12px;line-height:1.6}
+#classificacao .catalog-tree-issues li{break-inside:avoid;overflow-wrap:anywhere}
+#classificacao .catalog-tree-empty{padding:8px 12px;font-size:12px}
+@media(max-width:900px){#classificacao .catalog-tree{grid-template-columns:1fr}}
+@media(max-width:520px){#classificacao .catalog-tree-panel{padding:10px}#classificacao .catalog-tree-category>summary{flex-wrap:wrap}#classificacao .catalog-tree-issues{columns:1}}

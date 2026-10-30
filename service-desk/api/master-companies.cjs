@@ -10,7 +10,7 @@ function createMasterCompaniesHandler(poolFactory,config=process.env){
    let raw='';
    try{for await(const chunk of req){raw+=chunk;if(Buffer.byteLength(raw)>4096)return send(res,413,{error:'payload_too_large'});}body=JSON.parse(raw);}
    catch(_){return send(res,400,{error:'invalid_json'});}
-   if(!body||typeof body.code!=='string'||typeof body.name!=='string')return send(res,400,{error:'invalid_fields'});
+   if(!body||typeof body.name!=='string'||!body.details||typeof body.details!=='object'||Array.isArray(body.details))return send(res,400,{error:'invalid_fields'});
   }
   const pool=poolFactory();if(!pool)return send(res,503,{error:'service_unavailable'});
   let client;
@@ -21,9 +21,9 @@ function createMasterCompaniesHandler(poolFactory,config=process.env){
    await client.query('BEGIN');
    await client.query('SET LOCAL ROLE anna_sd_api_runtime');
    await client.query("SELECT set_config('anna_sd.actor_id',$1,true)",[identity.id]);
-   const result=req.method==='GET'?await client.query('SELECT * FROM anna_sd.master_list_tenants_v1()'):await client.query('SELECT anna_sd.master_create_tenant_v1($1,$2) AS id',[body.code,body.name]);
+   const result=req.method==='GET'?await client.query('SELECT * FROM anna_sd.master_list_tenants_v1()'):await client.query('SELECT id,code FROM anna_sd.master_create_tenant_profile_v2($1,$2::jsonb)',[body.name,JSON.stringify(body.details)]);
    await client.query('COMMIT');
-   return send(res,req.method==='GET'?200:201,req.method==='GET'?{companies:result.rows}:{id:result.rows[0].id});
+   return send(res,req.method==='GET'?200:201,req.method==='GET'?{companies:result.rows}:{id:result.rows[0].id,code:result.rows[0].code});
   }catch(e){
    if(client)try{await client.query('ROLLBACK');}catch(_){}
    return send(res,e.code==='42501'?403:e.code==='22023'?400:e.code==='23505'?409:503,{error:e.code==='42501'?'forbidden':e.code==='22023'?'invalid_fields':e.code==='23505'?'company_exists':'service_unavailable'});

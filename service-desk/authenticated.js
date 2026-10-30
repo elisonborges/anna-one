@@ -380,7 +380,16 @@ else{
    const data=await response.json();if(!Array.isArray(data.tickets))throw Error('Resposta inválida');
    institutionalTickets=data.tickets;
    const focus=document.getElementById('institutional-monitor-focus').value;
-   const dashboardTickets=institutionalTickets.filter(t=>focus==='active'?!['resolved','closed'].includes(t.status):focus==='high'?(t.priority==='high'&&!['resolved','closed'].includes(t.status)):true);
+   const period=document.getElementById('institutional-monitor-period').value;
+   const start=new Date();start.setHours(0,0,0,0);
+   if(period==='7'||period==='30')start.setDate(start.getDate()-Number(period)+1);
+   const dashboardTickets=institutionalTickets.filter(t=>{
+    const matchesFocus=focus==='active'?!['resolved','closed'].includes(t.status):focus==='high'?(t.priority==='high'&&!['resolved','closed'].includes(t.status)):true;
+    if(!matchesFocus)return false;
+    if(period==='all')return true;
+    const created=new Date(t.created_at);
+    return !Number.isNaN(created.getTime())&&created>=start&&created<=new Date();
+   });
    const count=status=>dashboardTickets.filter(t=>t.status===status).length;
    for(const [id,value] of [['institutional-total',dashboardTickets.length],['institutional-open',count('open')],['institutional-progress',count('in_progress')],['institutional-resolved',count('resolved')],['institutional-pending',count('pending')],['institutional-closed',count('closed')]])document.getElementById(id).textContent=String(value);
    const critical=dashboardTickets.filter(t=>t.priority==='high'&&!['resolved','closed'].includes(t.status)).length;
@@ -454,7 +463,11 @@ else{
   }catch(_){institutionalTickets=[];dashboardStatus.textContent='Não foi possível carregar os indicadores.';reportStatus.textContent='Não foi possível carregar o relatório.';}
  }
  const monitorFocus=document.getElementById('institutional-monitor-focus');
- const requestedFocus=new URLSearchParams(location.search).get('monitor');
+ const params=new URLSearchParams(location.search);
+ const requestedFocus=params.get('monitor');
+ const requestedPeriod=params.get('period');
+ const monitorPeriod=document.getElementById('institutional-monitor-period');
+ if(['all','7','30'].includes(requestedPeriod)&&monitorPeriod)monitorPeriod.value=requestedPeriod;
  if(['all','active','high'].includes(requestedFocus)&&monitorFocus){
   monitorFocus.value=requestedFocus;
   // Navigation module is loaded separately; use the existing view button.
@@ -463,6 +476,7 @@ else{
   else showDashboard();
  }
  document.getElementById('institutional-monitor-focus')?.addEventListener('change',loadInstitutionalReports);
+ monitorPeriod?.addEventListener('change',loadInstitutionalReports);
  for(const [view,button] of [['painel-institucional','institutional-dashboard-refresh'],['relatorios-institucionais','institutional-report-refresh']]){
   document.querySelector('.sidebar [data-view="'+view+'"]')?.addEventListener('click',loadInstitutionalReports);
   document.getElementById(button)?.addEventListener('click',loadInstitutionalReports);
@@ -492,6 +506,7 @@ else{
   if(!new URLSearchParams(location.search).has('monitor')){
    const url=new URL(location.href);
    url.searchParams.set('monitor',monitorFocus?.value||'all');
+   url.searchParams.set('period',monitorPeriod?.value||'all');
    const separate=window.open(url.href,'_blank');
    if(!separate)alert('O navegador bloqueou a nova guia. Permita pop-ups deste site e tente novamente.');
    return;

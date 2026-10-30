@@ -29,7 +29,8 @@ function createInvitesHandler(poolFactory,config=process.env){
    }
    // Email must be delivered before committing the invitation.
    const result=await client.query('SELECT anna_sd.master_invite_admin_v1($1,$2,$3,$4,$5,$6,$7) AS id',[data.tenant_id,data.email.trim().toLowerCase(),tokenHash,data.name,data.position||'',data.phone||'',data.whatsapp||'']);
-   const company=(await client.query('SELECT name FROM anna_sd.tenants WHERE id=$1',[data.tenant_id])).rows[0]?.name||'Instituição convidante';
+   const overview=(await client.query('SELECT anna_sd.master_overview_v1() AS overview')).rows[0]?.overview;
+   const company=overview?.companies?.find(item=>item.id===data.tenant_id)?.name||'Instituição convidante';
    if(!config.RESEND_API_KEY){await client.query('ROLLBACK');return send(res,503,{error:'email_not_configured'});}
    const url='https://elisonborges.github.io/anna-one/service-desk/activate.html?token='+encodeURIComponent(token);
    const escapeHtml=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

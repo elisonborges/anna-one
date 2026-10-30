@@ -57,12 +57,12 @@ else{
   event.preventDefault();
   if(masterBusy)return;
   const name=document.getElementById('master-company-name').value.trim();
-  const code=document.getElementById('master-company-code').value.trim().toUpperCase();
-  if(name.length<2||!/^[A-Z0-9_-]{2,30}$/.test(code)){masterStatus.textContent='Confira os dados da empresa.';return;}
+  const details=Object.fromEntries([...masterForm.querySelectorAll('[data-company-field]')].map(input=>[input.dataset.companyField,input.value.trim()]));
+  if(name.length<2){masterStatus.textContent='Confira os dados da empresa.';return;}
   const button=document.getElementById('master-company-save');button.disabled=true;masterStatus.textContent='Cadastrando empresa...';
   try{
-   await masterRequest('POST',{name,code});
-   masterStatus.textContent='Empresa cadastrada com sucesso.';
+   const created=await masterRequest('POST',{name,details});
+   masterStatus.textContent='Empresa cadastrada com sucesso. Código gerado: '+created.code+'.';
    masterForm.reset();
    await loadMasterCompanies();
   }catch(e){masterStatus.textContent=e.message;}

@@ -210,7 +210,7 @@ else{
    const auth=session();if(!auth){logout();return;}
    const response=await fetch('https://anna-one.onrender.com/api/v1/master/invitations',{method:'POST',headers:{Authorization:'Bearer '+auth.token,'Content-Type':'application/json'},body:JSON.stringify({tenant_id,email,name,position,phone,whatsapp})});
    if(response.status===401){logout();return;}
-   if(!response.ok)throw Error(response.status===403?'Acesso exclusivo do Master.':'Falha ao enviar convite (HTTP '+response.status+').');
+   if(!response.ok)throw Error(response.status===403?'Convite não autorizado pelo servidor. Sua sessão pode não estar reconhecida como Master; entre novamente e, se persistir, informe o erro 403.':'Falha ao enviar convite (HTTP '+response.status+').');
    status.textContent='Convite enviado para '+email+'. Validade: 48 horas.';
    document.getElementById('master-invite-form').reset();
   }catch(error){status.textContent=error.message;}

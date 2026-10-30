@@ -1,12 +1,13 @@
 'use strict';
 const {verifyToken} = require('./auth.cjs');
+const {createSupabaseVerifier} = require('./supabase-auth.cjs');
 function send(res,status,payload) {
  res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'});
  res.end(JSON.stringify(payload));
 }
-function createTicketReader(poolFactory, config=process.env) {
+function createTicketReader(poolFactory, config=process.env, supabaseVerifier=createSupabaseVerifier(config)) {
  return async function readTickets(req,res) {
-   const identity = verifyToken(req.headers.authorization,config);
+   const identity = config.SD_SUPABASE_URL ? await supabaseVerifier(req.headers.authorization) : verifyToken(req.headers.authorization,config);
    if (!identity) return send(res,401,{error:'unauthorized'});
    const pool=poolFactory();
    if (!pool) return send(res,503,{error:'service_unavailable'});

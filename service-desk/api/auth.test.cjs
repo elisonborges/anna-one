@@ -23,27 +23,41 @@ test('rejects unsigned, expired, wrong audience and forged identity',()=>{
 });
 test('handler uses verified identity and transaction-local restricted role',async()=>{
  const statements=[];
- const db={connect:async()=>({query:async(sql,args)=>{statements.push([sql,args]);return {rows:[]};},release(){}})};
+ const db={connect:async()=>({query:async(sql,args)=>{statements.push([sql,args]);if(sql.startsWith('SELECT rolname'))return {rows:[{rolname:'sd_api_login',rolsuper:false,rolbypassrls:false,rolcreaterole:false}]};return {rows:[]};},release(){}})};
  let response;
  const res={writeHead(status){this.status=status;},end(data){response=JSON.parse(data);}};
  await createTicketReader(()=>db,cfg)({headers:{authorization:token()}},res);
  assert.equal(res.status,200);
  assert.deepEqual(response,{tickets:[]});
- assert.equal(statements[0][0],'BEGIN READ ONLY');
- assert.equal(statements[1][0],'SET LOCAL ROLE anna_sd_api_runtime');
- assert.equal(statements[2][1][0],user);
- assert.equal(statements[4][0],'COMMIT');
+ assert.ok(statements[0][0].startsWith('SELECT rolname'));
+ assert.equal(statements[1][0],'BEGIN READ ONLY');
+ assert.equal(statements[2][0],'SET LOCAL ROLE anna_sd_api_runtime');
+ assert.equal(statements[3][1][0],user);
+ assert.equal(statements[5][0],'COMMIT');
 });
 
 test('handler rolls back and returns 503 without leaking errors',async()=>{
  const statements=[];
  let released=false;
- const db={connect:async()=>({query:async(sql)=>{statements.push(sql);if(sql.startsWith('SELECT id,'))throw Error('database secret');return {rows:[]};},release(){released=true;}})};
+ const db={connect:async()=>({query:async(sql)=>{statements.push(sql);if(sql.startsWith('SELECT rolname'))return {rows:[{rolname:'sd_api_login',rolsuper:false,rolbypassrls:false,rolcreaterole:false}]};if(sql.startsWith('SELECT id,'))throw Error('database secret');return {rows:[]};},release(){released=true;}})};
  let response;
  const res={writeHead(status){this.status=status;},end(data){response=JSON.parse(data);}};
  await createTicketReader(()=>db,cfg)({headers:{authorization:token()}},res);
  assert.equal(res.status,503);
  assert.deepEqual(response,{error:'service_unavailable'});
  assert.equal(statements.at(-1),'ROLLBACK');
+ assert.equal(released,true);
+});
+
+test('rejects privileged database connections before reading tickets',async()=>{
+ const statements=[];
+ let released=false;
+ const db={connect:async()=>({query:async(sql)=>{statements.push(sql);return {rows:[{rolname:'neondb_owner',rolsuper:false,rolbypassrls:true,rolcreaterole:true}]};},release(){released=true;}})};
+ let response;
+ const res={writeHead(status){this.status=status;},end(data){response=JSON.parse(data);}};
+ await createTicketReader(()=>db,cfg)({headers:{authorization:token()}},res);
+ assert.equal(res.status,503);
+ assert.deepEqual(response,{error:'service_unavailable'});
+ assert.equal(statements.includes('SET LOCAL ROLE anna_sd_api_runtime'),false);
  assert.equal(released,true);
 });

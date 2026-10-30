@@ -35,6 +35,14 @@ else{
   if(!response.ok)throw Error('Não foi possível concluir a operação (HTTP '+response.status+').');
   return response.json();
  }
+ async function changeMasterStatus(tenant_id,user_id,status,label){
+  const reason=prompt('Motivo da alteração para '+label+' (mínimo 5 caracteres):');
+  if(reason===null)return;
+  if(reason.trim().length<5){alert('Informe um motivo com pelo menos 5 caracteres.');return;}
+  if(!confirm('Confirma a alteração de '+label+' para '+status+'?'))return;
+  try{await masterRequest('PATCH',{tenant_id,user_id,status,reason:reason.trim()});await loadMasterCompanies();}
+  catch(error){alert(error.message);}
+ }
  async function loadMasterCompanies(){
   if(masterBusy)return;
   masterBusy=true;masterCount.textContent='Consultando empresas...';
@@ -42,15 +50,39 @@ else{
    const data=await masterRequest('GET');
    if(!Array.isArray(data.companies))throw Error('Resposta inválida da API.');
    masterNav.hidden=false;masterList.replaceChildren();
-   const tenantSelect=document.getElementById('master-invite-tenant');const previous=tenantSelect.value;tenantSelect.replaceChildren(new Option('Selecione a empresa',''));
-   for(const company of data.companies){if(company.active)tenantSelect.add(new Option(company.name,company.id));}
-   if([...tenantSelect.options].some(option=>option.value===previous))tenantSelect.value=previous;
+   const select=document.getElementById('master-invite-tenant'),previous=select.value;
+   select.replaceChildren(new Option('Selecione a empresa',''));
+   for(const company of data.companies)if(company.status==='active')select.add(new Option(company.name,company.id));
+   if([...select.options].some(x=>x.value===previous))select.value=previous;
+   const labels={active:'Ativa',suspended:'Suspensa',closed:'Encerrada'};
    for(const company of data.companies){
     const tr=document.createElement('tr');
-    for(const value of [company.name,company.code,company.active?'Ativa':'Inativa']){
+    for(const value of [company.name,company.code,labels[company.status]||company.status]){
      const td=document.createElement('td');td.textContent=String(value||'');tr.append(td);
     }
-    masterList.append(tr);
+    const td=document.createElement('td');
+    for(const [status,label] of [['active','Ativar'],['suspended','Suspender'],['closed','Encerrar']]){
+     if(company.status===status||company.status==='closed')continue;
+     const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent=label;
+     b.onclick=()=>changeMasterStatus(company.id,null,status,company.name);td.append(b);
+    }
+    tr.append(td);masterList.append(tr);
+   }
+   const admins=document.getElementById('master-admin-list');admins.replaceChildren();
+   for(const admin of data.administrators||[]){
+    const company=data.companies.find(x=>x.id===admin.tenant_id);
+    const tr=document.createElement('tr');
+    for(const value of [company?.name||'—',admin.name||admin.email,admin.status==='active'?'Ativo':'Suspenso']){
+     const td=document.createElement('td');td.textContent=value;tr.append(td);
+    }
+    const td=document.createElement('td'),b=document.createElement('button');
+    b.type='button';b.className='secondary';b.textContent=admin.status==='active'?'Suspender':'Reativar';
+    b.onclick=()=>changeMasterStatus(admin.tenant_id,admin.user_id,admin.status==='active'?'suspended':'active',admin.name||admin.email);
+    td.append(b);tr.append(td);admins.append(tr);
+   }
+   const events=document.getElementById('master-events-list');events.replaceChildren();
+   for(const item of data.events||[]){
+    const p=document.createElement('p');p.textContent=new Date(item.created_at).toLocaleString('pt-BR')+' · '+item.kind+' · '+item.new_status+' · '+item.reason;events.append(p);
    }
    masterCount.textContent=data.companies.length+' empresa(s) cadastrada(s).';
   }catch(e){masterCount.textContent=e.message;}

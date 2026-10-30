@@ -82,6 +82,30 @@ body:has(.module-compact) .module-footer strong{display:inline;margin:0 8px 0 0}
  .module-compact{padding:4px 10px!important;gap:4px}
 }
 
+/* Health Monitor: resumo compacto, preservando os indicadores históricos. */
+@media(min-width:900px){
+ html:has(.health-compact),body:has(.health-compact){height:100%;overflow:hidden}
+ body:has(.health-compact){display:flex;flex-direction:column}
+ body:has(.health-compact) .module-header{flex:0 0 auto;padding-top:5px;padding-bottom:5px}
+ .health-compact{flex:1 1 auto;min-height:0;width:100%;max-width:1120px;margin:0 auto!important;padding:7px 14px!important;display:flex;flex-direction:column;gap:6px;overflow:auto}
+ .health-compact .module-hero,.health-compact .module-panel{margin:0!important;padding:8px 13px!important;min-height:0}
+ .health-compact .module-hero-content{gap:12px}
+ .health-compact .module-hero h1{font-size:23px}
+ .health-compact .module-icon{width:40px;height:40px;font-size:22px}
+ .health-compact .module-hero p,.health-compact .module-usage p{font-size:11px;line-height:1.25}
+ .health-compact .module-usage .note{font-size:9px}
+ .health-compact .module-panel h2{font-size:15px;margin-bottom:5px!important}
+ .health-compact .service-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:5px!important}
+ .health-compact .service{min-height:0!important;padding:7px!important}
+ .health-compact .service-icon{display:none}
+ .health-compact .service strong{font-size:13px!important}
+ .health-compact .service span:not(.service-icon){font-size:11px!important}
+ .health-compact .health-summary-grid{gap:5px}
+ .health-compact .health-summary-row{padding:6px 9px}
+ .health-compact .health-summary-row strong,.health-compact .health-summary-row span{font-size:12px}
+ .health-compact .health-summary-note{font-size:11px!important;line-height:1.25!important;margin:3px 0!important}
+ body:has(.health-compact) .module-footer{flex:0 0 auto;margin:0;padding:5px;font-size:10px}
+}
 /* Layout comum: distribuir até seis serviços sem ocultar o conteúdo. */
 .module-compact .service-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media(min-width:900px) and (min-height:660px){.module-compact .service-grid{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr))}}
@@ -102,7 +126,7 @@ const data={
 const moduleIcons={"labmanager":"🖥️","service-desk":"🛟","anna-flow":"🎟️","administracao":"⚙️","health-monitor":"🩺","labpc":"🎓","projetos-escolares":"📚","classroom":"👩‍🏫","agenda":"📅"};
 const palettes={"labmanager":["#06449e","#e0efff"],"service-desk":["#06449e","#e0efff"],"anna-flow":["#06449e","#e0efff"],"administracao":["#0856b4","#e3f1ff"],"health-monitor":["#0856b4","#e3f1ff"],"labpc":["#075b2b","#e3f5ee"],"projetos-escolares":["#075b2b","#e3f5ee"],"classroom":["#3512a2","#ece8ff"],"agenda":["#3512a2","#ece8ff"]};
 const serviceIcons={"Dispositivos":"💻","Inventário":"📋","Deploy":"📦","Redes e conectividade":"🌐","Acesso de visitantes":"🪪","Comunicação técnica":"💬","Chamados":"🎫","Atendimento":"🛟","Histórico":"🕘","Integração com LabManager":"🔗","Instituições":"🏫","Usuários e perfis":"👥","Segurança":"🛡️","Personalização":"🎨","Logs e auditoria":"📑","Relatórios e indicadores":"📊","Status dos serviços":"📈","Bancos de dados":"🗄️","Tráfego":"🌐","Usuários e acessos":"👤","Alertas":"🔔","Universo Aprender":"🎮","LabRobótica":"🤖","Programação":"💻","Maker":"💡","Projetos":"📚","Entregas":"📨","Professores":"👩‍🏫","Biblioteca digital":"📖","Turmas e alunos":"👥","Avaliações":"📝","E-books":"📚","Aulas on-line":"🎥","Comunicação educacional":"💬","Planejamento":"🗓️","Agenda":"📅","Impressão A4":"🖨️","Integração com Classroom":"🔗"};
-const requestedKey=new URLSearchParams(location.search).get("modulo")||"labmanager";const key=Object.prototype.hasOwnProperty.call(data,requestedKey)?requestedKey:"labmanager";const m=data[key];if(key!=="health-monitor")document.querySelector(".module-page")?.classList.add("module-compact");
+const requestedKey=new URLSearchParams(location.search).get("modulo")||"labmanager";const key=Object.prototype.hasOwnProperty.call(data,requestedKey)?requestedKey:"labmanager";const m=data[key];if(key!=="health-monitor")document.querySelector(".module-page")?.classList.add("module-compact");else document.querySelector(".module-page")?.classList.add("health-compact");
 document.documentElement.style.setProperty("--accent",palettes[key]?.[0]||"#075dc1");document.documentElement.style.setProperty("--tint",palettes[key]?.[1]||"#e0efff");document.getElementById("module-icon").textContent=moduleIcons[key]||"🧩";document.title=m.title+" | AnnA One";document.getElementById("title").textContent=m.title;document.getElementById("description").textContent=m.description;
 document.getElementById("services").innerHTML=m.services.map(([name,desc])=>'<div class="service"><span class="service-icon" aria-hidden="true">'+(serviceIcons[name]||'🧩')+'</span><strong>'+name+'</strong><span>'+desc+'</span></div>').join("");
 document.getElementById("use").textContent=m.use;

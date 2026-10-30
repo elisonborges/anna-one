@@ -421,6 +421,25 @@ else{
     categories.set(category,(categories.get(category)||0)+1);
    }
    renderBreakdown('institutional-category-breakdown',[...categories].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'pt-BR')));
+   const weekly=document.getElementById('institutional-weekly-breakdown');weekly.replaceChildren();
+   const localDay=date=>[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-');
+   const today=new Date();today.setHours(0,0,0,0);
+   const days=Array.from({length:7},(_,index)=>{const date=new Date(today);date.setDate(today.getDate()-6+index);return {key:localDay(date),label:date.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}),total:0};});
+   const dayMap=new Map(days.map(day=>[day.key,day]));
+   for(const ticket of dashboardTickets){
+    const created=new Date(ticket.created_at);
+    if(!Number.isNaN(created.getTime())){const day=dayMap.get(localDay(created));if(day)day.total++;}
+   }
+   const maximum=Math.max(1,...days.map(day=>day.total));
+   for(const day of days){
+    const col=document.createElement('div');col.className='institutional-weekly-day';
+    const number=document.createElement('strong');number.textContent=String(day.total);
+    const track=document.createElement('div');track.className='institutional-weekly-track';
+    const fill=document.createElement('div');fill.className='institutional-weekly-fill';fill.style.height=(100*day.total/maximum)+'%';
+    track.append(fill);
+    const label=document.createElement('span');label.textContent=day.label;
+    col.append(number,track,label);weekly.append(col);
+   }
    const body=document.getElementById('institutional-report-body');body.replaceChildren();
    for(const ticket of institutionalTickets){
     const tr=document.createElement('tr');

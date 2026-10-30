@@ -92,7 +92,7 @@ const server = http.createServer(async (req,res) => {
   }
   if (req.method === 'POST' && path === '/api/v1/master/invitations') return invites(req,res,false);
   if (req.method === 'POST' && path === '/api/v1/auth/accept-invitation') return invites(req,res,true);
-  if ((req.method === 'GET'||req.method === 'POST'||req.method === 'PATCH') && path === '/api/v1/master/companies') return masterCompanies(req,res);
+  if ((req.method === 'GET'||req.method === 'POST'||req.method === 'PUT'||req.method === 'PATCH') && path === '/api/v1/master/companies') return masterCompanies(req,res);
   if ((req.method === 'GET'||req.method === 'POST') && path.startsWith('/api/v1/branding-logo/')) return brandingLogo(req,res,path.slice('/api/v1/branding-logo/'.length));
   if ((req.method === 'GET'||req.method === 'PUT') && path === '/api/v1/admin/branding') return branding(req,res);
   if (req.method === 'POST' && path === '/api/v1/auth/login') return login(req,res);

@@ -22,6 +22,7 @@ case 'demo': {if(s.queue.length||s.current)throw Error('Limpe a fila primeiro');
 case 'reset': {Object.assign(s,{queue:[],current:null,history:[],counters:{},completed:0,calls:0});return {ok:true}}
 default:throw Error('Ação inválida')}}
 const server=http.createServer(async(req,res)=>{const url=new URL(req.url,'http://localhost');
+if(url.pathname==='/api/manage-users')return userAuth.manageUsers(req,res,{pool,auth,send});
 if(url.pathname==='/api/me'&&req.method==='GET')return userAuth.me(req,res,{pool,send});
 if(url.pathname==='/api/catalog'&&req.method==='GET')return userAuth.unitCatalog(req,res,{pool,send});
 if(url.pathname==='/api/login'&&req.method==='POST')return userAuth.login(req,res,{pool,send});

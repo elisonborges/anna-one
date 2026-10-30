@@ -5,7 +5,7 @@ workers_dev = true
 
 [vars]
 APP_ORIGIN = "https://annaone.com.br"
-AUTH_ISSUER = "https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth"
+AUTH_ISSUER = "https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech"
 AUTH_JWKS_URL = "https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth/.well-known/jwks.json"
 # AUTH_ISSUER e AUTH_JWKS_URL são URLs públicas de autenticação, não segredos.
 # DATABASE_URL permanece secret no Cloudflare; nunca registrar neste arquivo.

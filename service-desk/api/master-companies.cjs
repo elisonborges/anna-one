@@ -11,7 +11,8 @@ function createMasterCompaniesHandler(poolFactory,config=process.env){
    try{for await(const chunk of req){raw+=chunk;if(Buffer.byteLength(raw)>4096)return send(res,413,{error:'payload_too_large'});}body=JSON.parse(raw);}
    catch(_){return send(res,400,{error:'invalid_json'});}
    if(req.method==='POST'&&(!body||typeof body.name!=='string'||!body.details||typeof body.details!=='object'||Array.isArray(body.details)))return send(res,400,{error:'invalid_fields'});
-   if(req.method==='PUT'&&(!body||!body.tenant_id||typeof body.name!=='string'||!body.details||typeof body.details!=='object'||Array.isArray(body.details)))return send(res,400,{error:'invalid_fields'});
+   if(req.method==='PUT'&&body?.user_id&&(!body.tenant_id||typeof body.name!=='string'||typeof body.position!=='string'||typeof body.phone!=='string'||typeof body.whatsapp!=='string'))return send(res,400,{error:'invalid_fields'});
+   if(req.method==='PUT'&&!body?.user_id&&(!body||!body.tenant_id||typeof body.name!=='string'||!body.details||typeof body.details!=='object'||Array.isArray(body.details)))return send(res,400,{error:'invalid_fields'});
    if(req.method==='PATCH'&&(!body||!body.tenant_id||!['active','suspended','closed'].includes(body.status)||typeof body.reason!=='string'||body.reason.trim().length<5))return send(res,400,{error:'invalid_fields'});
   }
   const pool=poolFactory();if(!pool)return send(res,503,{error:'service_unavailable'});
@@ -23,7 +24,7 @@ function createMasterCompaniesHandler(poolFactory,config=process.env){
    await client.query('BEGIN');
    await client.query('SET LOCAL ROLE anna_sd_api_runtime');
    await client.query("SELECT set_config('anna_sd.actor_id',$1,true)",[identity.id]);
-   const result=req.method==='GET'?await client.query('SELECT anna_sd.master_overview_v1() AS overview'):req.method==='PUT'?await client.query('SELECT anna_sd.master_update_tenant_profile_v1($1,$2,$3::jsonb)',[body.tenant_id,body.name,JSON.stringify(body.details)]):req.method==='PATCH'?await client.query('SELECT anna_sd.master_manage_v1($1,$2,$3,$4)',[body.tenant_id,body.user_id||null,body.status,body.reason]):await client.query('SELECT id,code FROM anna_sd.master_create_tenant_profile_v2($1,$2::jsonb)',[body.name,JSON.stringify(body.details)]);
+   const result=req.method==='GET'?await client.query('SELECT anna_sd.master_overview_v1() AS overview'):req.method==='PUT'&&body.user_id?await client.query('SELECT anna_sd.master_update_admin_profile_v1($1,$2,$3,$4,$5,$6)',[body.tenant_id,body.user_id,body.name,body.position,body.phone,body.whatsapp]):req.method==='PUT'?await client.query('SELECT anna_sd.master_update_tenant_profile_v1($1,$2,$3::jsonb)',[body.tenant_id,body.name,JSON.stringify(body.details)]):req.method==='PATCH'?await client.query('SELECT anna_sd.master_manage_v1($1,$2,$3,$4)',[body.tenant_id,body.user_id||null,body.status,body.reason]):await client.query('SELECT id,code FROM anna_sd.master_create_tenant_profile_v2($1,$2::jsonb)',[body.name,JSON.stringify(body.details)]);
    await client.query('COMMIT');
    return send(res,req.method==='GET'?200:req.method==='PATCH'||req.method==='PUT'?200:201,req.method==='GET'?result.rows[0].overview:req.method==='PATCH'||req.method==='PUT'?{ok:true}:{id:result.rows[0].id,code:result.rows[0].code});
   }catch(e){

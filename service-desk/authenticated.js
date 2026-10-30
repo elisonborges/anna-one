@@ -36,7 +36,7 @@ else{
      const demoNew=document.getElementById('new-top');
      if(demoNew)demoNew.hidden=true;
      const realNav=document.querySelector('.sidebar [data-view="reais"]');
-     if(realNav)realNav.click();
+     if(realNav && !new URLSearchParams(location.search).has('monitor'))realNav.click();
     }
    }).catch(()=>{});
  }
@@ -411,6 +411,21 @@ else{
    document.getElementById('institutional-report-export').disabled=!institutionalTickets.length;
   }catch(_){institutionalTickets=[];dashboardStatus.textContent='Não foi possível carregar os indicadores.';reportStatus.textContent='Não foi possível carregar o relatório.';}
  }
+ const monitorFocus=document.getElementById('institutional-monitor-focus');
+ const requestedFocus=new URLSearchParams(location.search).get('monitor');
+ if(['all','active','high'].includes(requestedFocus)&&monitorFocus){
+  monitorFocus.value=requestedFocus;
+  // Navigation module is loaded separately; use the existing view button.
+  const showDashboard=()=>document.querySelector('.sidebar [data-view="painel-institucional"]')?.click();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',showDashboard,{once:true});
+  else showDashboard();
+ }
+ document.getElementById('institutional-monitor-window')?.addEventListener('click',()=>{
+  const url=new URL(location.href);
+  url.searchParams.set('monitor',monitorFocus?.value||'all');
+  const separate=window.open(url.href,'_blank');
+  if(!separate)alert('Permita a abertura de uma nova janela para usar o painel separado.');
+ });
  document.getElementById('institutional-monitor-focus')?.addEventListener('change',loadInstitutionalReports);
  for(const [view,button] of [['painel-institucional','institutional-dashboard-refresh'],['relatorios-institucionais','institutional-report-refresh']]){
   document.querySelector('.sidebar [data-view="'+view+'"]')?.addEventListener('click',loadInstitutionalReports);

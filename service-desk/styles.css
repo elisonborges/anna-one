@@ -204,3 +204,8 @@
 #classificacao .catalog-tree-empty{padding:8px 12px;font-size:12px}
 @media(max-width:900px){#classificacao .catalog-tree{grid-template-columns:1fr}}
 @media(max-width:520px){#classificacao .catalog-tree-panel{padding:10px}#classificacao .catalog-tree-category>summary{flex-wrap:wrap}#classificacao .catalog-tree-issues{columns:1}}
+
+/* v0.10.3 — Pesquisa na hierarquia sem alterar o catálogo persistido. */
+#classificacao .catalog-tree-search-label{display:grid;gap:5px;margin:4px 0 8px;font-size:12px;font-weight:650;color:#526580}
+#classificacao #catalog-tree-search{width:100%;max-width:480px;min-height:36px;padding:7px 10px;border:1px solid #ccd8e7;border-radius:8px;background:white}
+#classificacao .catalog-tree-filter-count{font-size:12px;color:#61738d;margin:0 0 8px}

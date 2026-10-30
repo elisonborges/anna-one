@@ -111,6 +111,25 @@ body:has(.module-compact) .module-footer strong{display:inline;margin:0 8px 0 0}
 @media(min-width:900px) and (min-height:660px){.module-compact .service-grid{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr))}}
 @media(min-width:900px) and (max-height:659px){.module-compact .service-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.module-compact .service-icon{display:none}}
 @media(max-width:899px){.module-compact .service-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Corrige painel oculto: display:flex não deve sobrescrever o atributo hidden. */
+#health-summary[hidden]{display:none!important}
+/* Evita truncamento das descrições nos cartões das apresentações. */
+.module-compact .service-grid{grid-template-rows:auto!important;align-content:start;flex:0 0 auto}
+.module-compact .service{overflow:visible;min-height:76px!important;padding:9px 11px!important}
+.module-compact .service span:not(.service-icon){overflow-wrap:anywhere}
+.module-compact .module-panel{flex:0 0 auto}
+.module-compact{justify-content:flex-start}
+@media(max-width:899px){
+ html:has(.module-compact),body:has(.module-compact){height:auto;min-height:100%;overflow:auto}
+ .module-compact{overflow:visible;display:block}
+ .module-compact .module-hero,.module-compact .module-panel{margin-bottom:8px!important}
+ .module-compact .service{min-height:0!important}
+}
+@media(min-width:900px) and (max-height:580px){
+ html:has(.module-compact),body:has(.module-compact){height:auto;min-height:100%;overflow:auto}
+ .module-compact{overflow:visible}
+}
 </style></head><body><header class="module-header"><a class="module-brand" href="../"><img src="../assets/anna-symbol.svg" alt=""><span><strong>AnnA One</strong><small>TECNOLOGIA E EDUCAÇÃO JUNTAS</small></span></a><nav aria-label="Navegação"><a href="home-preview.html?v=5">← Voltar aos módulos</a><a href="../">Site institucional</a></nav></header><main class="module-page"><section class="module-hero"><div class="module-hero-content"><div class="module-intro"><div class="module-label">AnnA One · Apresentação do módulo</div><div class="module-hero-top"><span class="module-icon" id="module-icon" aria-hidden="true"></span><h1 id="title"></h1></div><p id="description"></p><div class="module-actions" id="actions"></div></div><div class="module-usage"><h2>Como pode ser utilizado</h2><p id="use"></p><p class="note">Os módulos podem ser oferecidos separadamente ou integrados ao ecossistema AnnA One. A disponibilidade de cada recurso depende do estágio real de desenvolvimento e de futuras condições de implantação. Esta página é uma apresentação experimental, não uma oferta comercial ou contratação.</p></div></div></section><section class="module-panel"><h2>Serviços e recursos do módulo</h2><div class="service-grid" id="services"></div></section><section class="module-panel" id="health-summary" hidden><h2>🚦 Semáforo dos serviços</h2><p class="health-summary-note">Último registro disponível: <strong>24/10/2026, 19h44 (Brasília)</strong>. Consulta histórica, não monitoramento em tempo real.</p><div class="health-summary-grid"><div class="health-summary-row"><strong>AnnA One</strong><span><i class="health-summary-dot"></i>Última verificação: OK</span></div><div class="health-summary-row"><strong>Projetos Escolares</strong><span><i class="health-summary-dot"></i>Última verificação: OK</span></div><div class="health-summary-row"><strong>Agenda Educacional</strong><span><i class="health-summary-dot"></i>Última verificação: OK</span></div><div class="health-summary-row"><strong>Neon Agenda</strong><span><i class="health-summary-dot"></i>Última verificação: OK</span></div></div><p class="health-summary-note"><strong>Atenção:</strong> os resultados podem estar desatualizados. Para a situação atual, consulte o <a href="health-monitor/">Health Monitor completo</a>.</p></section></main><footer class="module-footer"><strong>AnnA One · TECNOLOGIA E EDUCAÇÃO JUNTAS</strong>© 2026 AnnA One · Desenvolvimento: Prof. Elison Borges</footer><script>
 const data={
 "labmanager":{title:"AnnA LabManager",description:"Gestão do parque computacional e da infraestrutura de T.I. de escolas, faculdades e universidades.",services:[["Dispositivos","Cadastro e acompanhamento de computadores e equipamentos"],["Inventário","Organização dos ativos de hardware e software"],["Deploy","Planejamento de instalações e distribuição de programas"],["Redes e conectividade","Gestão da infraestrutura de rede institucional"],["Acesso de visitantes","Cadastro temporário para acesso autorizado à internet"],["Comunicação técnica","Mensagens e ferramentas de apoio aos laboratórios"]],use:"Pode ser adotado independentemente para a gestão de T.I. de uma instituição. Integrações com Service Desk, monitoramento e AnnA One Connect são possibilidades planejadas.",status:"Em desenvolvimento"},

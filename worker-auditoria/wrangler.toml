@@ -1,0 +1,8 @@
+name = "anna-one-auditoria"
+main = "src/index.js"
+compatibility_date = "2026-10-28"
+workers_dev = true
+
+[vars]
+APP_ORIGIN = "https://annaone.com.br"
+# Configurar secrets apenas no ambiente Cloudflare, nunca neste arquivo.

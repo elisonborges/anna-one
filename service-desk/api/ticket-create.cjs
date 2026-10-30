@@ -1,5 +1,6 @@
 'use strict';
 const {verifyToken}=require('./auth.cjs');
+const {sendTicketConfirmation}=require('./ticket-email.cjs');
 function send(res,status,data){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(data));}
 function createTicketWriter(poolFactory,config=process.env){
  return async function writeTicket(req,res){
@@ -23,7 +24,15 @@ function createTicketWriter(poolFactory,config=process.env){
    await client.query("SELECT set_config('anna_sd.actor_id',$1,true)",[identity.id]);
    const result=await client.query('SELECT * FROM anna_sd.create_ticket_v1($1,$2,$3,$4,$5,$6)',[data.unit_id,data.category_code,data.category_label,data.title,data.description,data.priority||'normal']);
    await client.query('COMMIT');
-   return send(res,201,{ticket:result.rows[0]});
+   // A confirmed ticket must never be rolled back because of an email delivery failure.
+   // Resolve the recipient on the server, never from the browser payload.
+   let emailStatus='not_configured';
+   try{
+    const emailResult=await client.query("SELECT email FROM anna_sd.local_credentials WHERE user_id=$1 LIMIT 1",[identity.id]);
+    const recipient=emailResult.rows[0]?.email;
+    emailStatus=(await sendTicketConfirmation({to:recipient,protocol:result.rows[0].public_protocol,title:data.title,config})).status;
+   }catch(_){emailStatus='failed';}
+   return send(res,201,{ticket:result.rows[0],email_status:emailStatus});
   }catch(e){
    if(client){try{await client.query('ROLLBACK');}catch(_){}}
    return send(res,e.code==='42501'?403:e.code==='22023'?400:503,{error:e.code==='42501'?'forbidden':e.code==='22023'?'invalid_fields':'service_unavailable'});

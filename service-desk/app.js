@@ -85,6 +85,8 @@ function showTicket(id) {
   if (!ticket) return;
   const timeline = ticket.events.map(event => '<div class="event"><strong>' + escapeHtml(event.title) + '</strong><p>' + escapeHtml(event.note) + '</p><small>Evento demonstrativo</small></div>').join('');
   const assignee = ticket.assignee || 'Não atribuído';
+  const extra = ticket.requester ? '<div class="ticket-context"><h3>Solicitante e localização</h3><p><strong>Solicitante:</strong> ' + escapeHtml(ticket.requester) + ' · <strong>Contato:</strong> ' + escapeHtml(ticket.contact || 'Não informado') + '</p><p><strong>Unidade:</strong> ' + escapeHtml(ticket.unit) + ' · <strong>Setor:</strong> ' + escapeHtml(ticket.department) + '</p><p><strong>Impacto:</strong> ' + escapeHtml(ticket.impact) + ' · <strong>Urgência:</strong> ' + escapeHtml(ticket.urgency) + ' · <strong>Disponibilidade:</strong> ' + escapeHtml(ticket.availability) + '</p>' + (ticket.attempts ? '<p><strong>Verificações realizadas:</strong> ' + escapeHtml(ticket.attempts) + '</p>' : '') + '</div>' : '';
+  const assetInfo = ticket.asset ? '<div class="ticket-context"><h3>Equipamento vinculado (simulação)</h3><div class="asset-facts">' + [['Identificação',ticket.asset.id],['Tipo',ticket.asset.type],['Patrimônio',ticket.asset.tag],['Série',ticket.asset.serial],['Fabricante',ticket.asset.brand],['Modelo',ticket.asset.model],['Sistema',ticket.asset.os],['Localização',ticket.asset.location],['Situação',ticket.asset.state]].map(([label,value]) => '<div><small>' + escapeHtml(label) + '</small><span>' + escapeHtml(value || 'Não informado') + '</span></div>').join('') + '</div></div>' : '';
   const technicianForm = role === 'tecnico' ? `
     <form id="technical-form" class="technical-form">
       <h2>Atendimento técnico <span class="pill open">Simulação</span></h2>
@@ -96,7 +98,7 @@ function showTicket(id) {
       <label>Observação do atendimento<textarea name="note" rows="3" maxlength="1000" placeholder="Descreva a ação realizada (opcional)"></textarea></label>
       <div class="form-actions"><button class="primary" type="submit">Salvar atendimento de teste</button></div>
     </form>` : '';
-  $('detail-content').innerHTML = '<h2 class="detail-title">#' + String(ticket.id).padStart(4,'0') + ' · ' + escapeHtml(ticket.title) + '</h2><div class="detail-meta"><span class="pill ' + statusClass(ticket.status) + '">' + escapeHtml(ticket.status) + '</span><span>' + escapeHtml(ticket.category) + (ticket.subcategory ? ' · ' + escapeHtml(ticket.subcategory) : '') + '</span><span>Prioridade: ' + escapeHtml(ticket.priority) + '</span><span>Responsável: ' + escapeHtml(assignee) + '</span></div><div class="detail-description">' + escapeHtml(ticket.description) + '</div>' + technicianForm + '<p id="technical-feedback" class="technical-feedback" role="status"></p><h2>Histórico do chamado</h2><div class="timeline">' + timeline + '</div>';
+  $('detail-content').innerHTML = '<h2 class="detail-title">#' + String(ticket.id).padStart(4,'0') + ' · ' + escapeHtml(ticket.title) + '</h2><div class="detail-meta"><span class="pill ' + statusClass(ticket.status) + '">' + escapeHtml(ticket.status) + '</span><span>' + escapeHtml(ticket.category) + (ticket.subcategory ? ' · ' + escapeHtml(ticket.subcategory) : '') + '</span><span>Prioridade: ' + escapeHtml(ticket.priority) + '</span><span>Responsável: ' + escapeHtml(assignee) + '</span></div><div class="detail-description">' + escapeHtml(ticket.description) + '</div>' + extra + assetInfo + technicianForm + '<p id="technical-feedback" class="technical-feedback" role="status"></p><h2>Histórico do chamado</h2><div class="timeline">' + timeline + '</div>';
   if (role === 'tecnico') {
     $('technical-form').addEventListener('submit', event => {
       event.preventDefault();
@@ -133,6 +135,38 @@ for (const id of ['status-filter', 'priority-filter', 'category-filter', 'assign
 $('ticket-search').addEventListener('input', renderLists);
 $('clear-ticket-filters').addEventListener('click', () => { $('ticket-search').value = ''; for (const id of ['status-filter','priority-filter','category-filter','assignee-filter','sla-filter']) $(id).value = 'todos'; renderLists(); });
 $('role').addEventListener('change', event => { role = event.target.value; if (!$('detalhe').hidden && selectedId !== null) showTicket(selectedId); });
+// Inventário estritamente fictício: sem chamadas de rede ou vínculo com LabManager.
+const demoAssets = [
+  {id:'LAB-04',type:'Desktop',location:'Laboratório de Informática · Bancada 04',tag:'PAT-004',serial:'SN-DEMO-004',brand:'Dell',model:'OptiPlex',os:'Windows 11',state:'Em uso'},
+  {id:'ADM-02',type:'Notebook',location:'Secretaria',tag:'PAT-021',serial:'SN-DEMO-021',brand:'Lenovo',model:'ThinkPad',os:'Windows 11',state:'Em uso'},
+  {id:'IMP-01',type:'Impressora',location:'Sala dos professores',tag:'PAT-031',serial:'SN-DEMO-031',brand:'HP',model:'LaserJet',os:'Não aplicável',state:'Em uso'},
+  {id:'LAB-08',type:'Desktop',location:'Laboratório de Informática · Bancada 08',tag:'PAT-008',serial:'SN-DEMO-008',brand:'Acer',model:'Veriton',os:'Linux',state:'Em manutenção'}
+];
+function renderDemoAssets() {
+  const query = $('asset-search').value.trim().toLocaleLowerCase('pt-BR');
+  const selected = $('asset-select').value;
+  const matches = demoAssets.filter(asset => [asset.id,asset.type,asset.location,asset.tag,asset.serial,asset.brand,asset.model].some(v => v.toLocaleLowerCase('pt-BR').includes(query)));
+  $('asset-select').replaceChildren(new Option('Selecione um equipamento', ''));
+  for (const asset of matches) $('asset-select').add(new Option(asset.id + ' · ' + asset.type + ' · ' + asset.location, asset.id));
+  $('asset-select').value = matches.some(asset => asset.id === selected) ? selected : '';
+  showAssetSummary();
+}
+function showAssetSummary() {
+  const asset = demoAssets.find(item => item.id === $('asset-select').value);
+  $('asset-summary').innerHTML = asset ? '<strong>Dados do inventário fictício</strong><div class="asset-facts">' + [['Equipamento',asset.id],['Tipo',asset.type],['Patrimônio',asset.tag],['Série',asset.serial],['Fabricante',asset.brand],['Modelo',asset.model],['Sistema',asset.os],['Localização',asset.location],['Situação',asset.state]].map(([label,value]) => '<div><small>' + escapeHtml(label) + '</small><span>' + escapeHtml(value) + '</span></div>').join('') + '</div>' : 'Selecione um equipamento para consultar os dados fictícios.';
+}
+function updateAssetMode() {
+  const inventory = document.querySelector('input[name="assetMode"]:checked').value === 'inventory';
+  $('asset-inventory').hidden = !inventory;
+  $('asset-manual').hidden = inventory;
+  $('asset-select').required = inventory;
+  $('manual-type').required = !inventory;
+}
+document.querySelectorAll('input[name="assetMode"]').forEach(input => input.addEventListener('change', updateAssetMode));
+$('asset-search').addEventListener('input', renderDemoAssets);
+$('asset-select').addEventListener('change', showAssetSummary);
+renderDemoAssets();
+updateAssetMode();
 const ticketSubcategories = {
   'Hardware': ['Computador', 'Notebook', 'Monitor', 'Teclado', 'Mouse', 'Impressora', 'Projetor'],
   'Software': ['Sistema operacional', 'Aplicativos', 'Instalação', 'Atualização', 'Licenciamento'],
@@ -155,9 +189,32 @@ $('new-form').addEventListener('submit', event => {
   const form = event.currentTarget;
   if (!form.reportValidity()) return;
   const data = new FormData(form);
+  const inventoryMode = data.get('assetMode') === 'inventory';
+  const asset = inventoryMode ? demoAssets.find(item => item.id === data.get('assetId')) : null;
+  if (inventoryMode && !asset) { $('asset-select').setCustomValidity('Selecione um equipamento.'); $('asset-select').reportValidity(); $('asset-select').setCustomValidity(''); return; }
+  const manualAsset = inventoryMode ? null : {
+    id:String(data.get('manualTag') || '').trim() || 'Sem patrimônio',
+    type:String(data.get('manualType')),tag:String(data.get('manualTag') || ''),
+    brand:String(data.get('manualBrand') || ''),model:String(data.get('manualModel') || ''),
+    serial:String(data.get('manualSerial') || ''),location:String(data.get('manualLocation') || ''),
+    os:'Não informado',state:'Não cadastrado'
+  };
   const id = Math.max(0, ...tickets.map(t => t.id)) + 1;
-  tickets.unshift({ id, title: String(data.get('title')).trim(), category: String(data.get('category')), subcategory: String(data.get('subcategory')), priority: String(data.get('priority')), description: String(data.get('description')).trim(), status: 'Aberto', events: [{ title: 'Chamado registrado', note: 'Criado neste protótipo offline, sem envio ao servidor.' }] });
+  const urgency = String(data.get('urgency'));
+  tickets.unshift({
+    id, title:String(data.get('title')).trim(), category:String(data.get('category')),
+    subcategory:String(data.get('subcategory')), priority:urgency === 'Alta' ? 'Alta' : urgency === 'Baixa' ? 'Baixa' : 'Normal',
+    urgency, impact:String(data.get('impact')), description:String(data.get('description')).trim(),
+    requester:String(data.get('requester')).trim(),contact:String(data.get('contact') || '').trim(),
+    unit:String(data.get('unit')).trim(),department:String(data.get('department')),
+    asset:asset ? {...asset} : manualAsset, attempts:String(data.get('attempts') || '').trim(),
+    availability:String(data.get('availability')), status:'Aberto',
+    events:[{title:'Chamado registrado',note:'Registro demonstrativo criado nesta sessão, sem envio a servidor.'}]
+  });
   form.reset();
+  $('asset-search').value = '';
+  renderDemoAssets();
+  updateAssetMode();
   updateTicketSubcategories();
   showTicket(id);
 });

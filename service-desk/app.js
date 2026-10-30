@@ -83,6 +83,9 @@ function showTicket(id) {
   selectedId = id;
   const ticket = tickets.find(t => t.id === id);
   if (!ticket) return;
+  const demoNumber = '#' + String(ticket.id).padStart(4,'0');
+  const createdNow = ticket.demoCreated === true;
+  const numberNotice = '<div class="ticket-number-result"><strong>Número do chamado (demonstração): <span id="ticket-number-value">' + demoNumber + '</span></strong><button type="button" id="copy-ticket-number" class="secondary">Copiar número</button><p>' + (createdNow?'Chamado registrado nesta sessão. ':'') + 'Número provisório, sem registro em servidor. Para consultar, abra Gestão de chamados e pesquise pelo número.</p></div>';
   const timeline = ticket.events.map(event => '<div class="event"><strong>' + escapeHtml(event.title) + '</strong><p>' + escapeHtml(event.note) + '</p><small>Evento demonstrativo</small></div>').join('');
   const assignee = ticket.assignee || 'Não atribuído';
   const extra = ticket.requester ? '<div class="ticket-context"><h3>Solicitante e localização</h3><p><strong>Solicitante:</strong> ' + escapeHtml(ticket.requester) + ' · <strong>Contato:</strong> ' + escapeHtml(ticket.contact || 'Não informado') + '</p><p><strong>Unidade:</strong> ' + escapeHtml(ticket.unit) + ' · <strong>Setor:</strong> ' + escapeHtml(ticket.department) + '</p><p><strong>Impacto:</strong> ' + escapeHtml(ticket.impact) + ' · <strong>Urgência:</strong> ' + escapeHtml(ticket.urgency) + ' · <strong>Disponibilidade:</strong> ' + escapeHtml(ticket.availability) + '</p>' + (ticket.attempts ? '<p><strong>Verificações realizadas:</strong> ' + escapeHtml(ticket.attempts) + '</p>' : '') + '</div>' : '';
@@ -100,7 +103,7 @@ function showTicket(id) {
       <div class="form-actions"><button class="primary" type="submit">Salvar atendimento de teste</button></div>
     </form>` : '';
   const followupForm = '<form id="followup-form" class="technical-form"><h2>Adicionar informação ao chamado <span class="pill open">Simulação</span></h2><label>Mensagem ou atualização<textarea name="message" rows="3" maxlength="1500" placeholder="Descreva novas informações ou responda ao atendimento"></textarea></label><label>Adicionar print ou arquivo (opcional)<input type="file" id="followup-attachments" multiple accept=".png,.jpg,.jpeg,.webp,.pdf,.txt,.doc,.docx,.xls,.xlsx"></label><p class="form-note">Até 5 arquivos de 5 MB. Somente nomes são registrados nesta sessão; não há upload.</p><div class="form-actions"><button type="submit" class="primary">Adicionar ao histórico</button></div><p id="followup-feedback" class="technical-feedback" role="status"></p></form>';
-  $('detail-content').innerHTML = '<h2 class="detail-title">#' + String(ticket.id).padStart(4,'0') + ' · ' + escapeHtml(ticket.title) + '</h2><div class="detail-meta"><span class="pill ' + statusClass(ticket.status) + '">' + escapeHtml(ticket.status) + '</span><span>' + escapeHtml(ticket.category) + (ticket.subcategory ? ' · ' + escapeHtml(ticket.subcategory) : '') + (ticket.issueType ? ' · ' + escapeHtml(ticket.issueType) : '') + '</span><span>Prioridade: ' + escapeHtml(ticket.priority) + '</span><span>Responsável: ' + escapeHtml(assignee) + '</span></div><div class="detail-description">' + escapeHtml(ticket.description) + '</div>' + extra + assetInfo + attachmentsInfo + technicianForm + followupForm + '<p id="technical-feedback" class="technical-feedback" role="status"></p><h2>Histórico do chamado</h2><div class="timeline">' + timeline + '</div>';
+  $('detail-content').innerHTML = numberNotice + '<h2 class="detail-title">#' + String(ticket.id).padStart(4,'0') + ' · ' + escapeHtml(ticket.title) + '</h2><div class="detail-meta"><span class="pill ' + statusClass(ticket.status) + '">' + escapeHtml(ticket.status) + '</span><span>' + escapeHtml(ticket.category) + (ticket.subcategory ? ' · ' + escapeHtml(ticket.subcategory) : '') + (ticket.issueType ? ' · ' + escapeHtml(ticket.issueType) : '') + '</span><span>Prioridade: ' + escapeHtml(ticket.priority) + '</span><span>Responsável: ' + escapeHtml(assignee) + '</span></div><div class="detail-description">' + escapeHtml(ticket.description) + '</div>' + extra + assetInfo + attachmentsInfo + technicianForm + followupForm + '<p id="technical-feedback" class="technical-feedback" role="status"></p><h2>Histórico do chamado</h2><div class="timeline">' + timeline + '</div>';
   $('followup-form').addEventListener('submit', event => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -148,6 +151,18 @@ $('new-top').addEventListener('click', () => show('novo'));
 $('back').addEventListener('click', () => show('chamados'));
 for (const id of ['status-filter', 'priority-filter', 'category-filter', 'assignee-filter', 'sla-filter']) $(id).addEventListener('change', renderLists);
 $('ticket-search').addEventListener('input', renderLists);
+$('detail-content').addEventListener('click',event=>{
+  if(!event.target.closest('#copy-ticket-number'))return;
+  const number=$('ticket-number-value')?.textContent;
+  if(!number)return;
+  if(navigator.clipboard?.writeText){
+    navigator.clipboard.writeText(number).then(()=>{
+      $('copy-ticket-number').textContent='Copiado!';
+    }).catch(()=>{ $('copy-ticket-number').textContent='Selecione o número para copiar'; });
+  }else{
+    $('copy-ticket-number').textContent='Selecione o número para copiar';
+  }
+});
 $('clear-ticket-filters').addEventListener('click', () => { $('ticket-search').value = ''; for (const id of ['status-filter','priority-filter','category-filter','assignee-filter','sla-filter']) $(id).value = 'todos'; renderLists(); });
 $('role').addEventListener('change', event => { role = event.target.value; if (!$('detalhe').hidden && selectedId !== null) showTicket(selectedId); });
 // Inventário estritamente fictício: sem chamadas de rede ou vínculo com LabManager.
@@ -718,7 +733,7 @@ $('new-form').addEventListener('submit', event => {
   const urgency = String(data.get('urgency'));
   const attachmentNames = Array.from($('ticket-attachments').files, file => ({name:file.name,size:file.size}));
   tickets.unshift({
-    id, title:String(data.get('title')).trim(), category:String(data.get('category') || 'Outros'),
+    id, demoCreated:true, title:String(data.get('title')).trim(), category:String(data.get('category') || 'Outros'),
     subcategory:String(data.get('subcategory') || ''), issueType:String(data.get('issueType') || ''), priority:urgency === 'Alta' ? 'Alta' : urgency === 'Baixa' ? 'Baixa' : 'Normal',
     urgency, impact:String(data.get('impact')), description:String(data.get('description')).trim(),
     requester:String(data.get('requester')).trim(),contact:String(data.get('contact') || '').trim(),phone:String(data.get('phone') || '').trim(),

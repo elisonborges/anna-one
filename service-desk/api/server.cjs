@@ -58,7 +58,17 @@ const server = http.createServer(async (req,res) => {
     res.setHeader('Access-Control-Max-Age','600');
   }
   if(req.method==='OPTIONS' && (path==='/api/v1/auth/login'||path==='/api/v1/tickets')){
-    res.writeHead(origin===allowedOrigin?204:403);
+    if(origin!==allowedOrigin){
+      // Origin is a public website address, not a credential. Never log request bodies or headers.
+      console.warn('[service-desk/cors] preflight rejected', {
+        origin: typeof origin==='string' ? origin.slice(0,200) : 'missing',
+        path
+      });
+      res.writeHead(403,{'Content-Type':'application/json; charset=utf-8'});
+      res.end(JSON.stringify({error:'origin_not_allowed'}));
+      return;
+    }
+    res.writeHead(204);
     res.end();
     return;
   }

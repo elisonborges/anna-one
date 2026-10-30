@@ -18,6 +18,44 @@ else{
  const user=document.getElementById('session-user');
  if(user)user.textContent=current.email||'Conta autenticada';
  document.getElementById('session-logout')?.addEventListener('click',logout);
+ const unitSelect=document.getElementById('real-unit');
+ const createForm=document.getElementById('real-create-form');
+ const createStatus=document.getElementById('real-create-status');
+ const createButton=document.getElementById('real-submit');
+ let unitsLoaded=false;
+ async function loadUnits(){
+  const auth=session();if(!auth){logout();return;}
+  unitSelect.replaceChildren(new Option('Carregando unidades...',''));
+  try{
+   const response=await fetch('https://anna-one.onrender.com/api/v1/units',{headers:{Authorization:'Bearer '+auth.token},cache:'no-store'});
+   if(response.status===401){logout();return;}
+   if(!response.ok)throw Error('HTTP '+response.status);
+   const data=await response.json();if(!Array.isArray(data.units))throw Error('invalid units');
+   unitSelect.replaceChildren(new Option(data.units.length?'Selecione a unidade':'Nenhuma unidade autorizada',''));
+   for(const unit of data.units){
+    if(typeof unit.id==='string'&&typeof unit.name==='string')unitSelect.add(new Option(unit.tenant_code+' · '+unit.name,unit.id));
+   }
+   unitsLoaded=true;
+  }catch(_){unitSelect.replaceChildren(new Option('Não foi possível carregar unidades',''));unitsLoaded=false;}
+ }
+ createForm?.addEventListener('submit',async event=>{
+  event.preventDefault();
+  if(!unitsLoaded||!unitSelect.value){createStatus.textContent='Selecione uma unidade autorizada.';return;}
+  const auth=session();if(!auth){logout();return;}
+  createButton.disabled=true;createStatus.textContent='Registrando chamado...';
+  const category=document.getElementById('real-category');
+  const data={unit_id:unitSelect.value,category_code:category.value,category_label:category.selectedOptions[0].textContent,title:document.getElementById('real-title').value.trim(),description:document.getElementById('real-description').value.trim(),priority:document.getElementById('real-priority').value};
+  try{
+   const response=await fetch(API,{method:'POST',headers:{Authorization:'Bearer '+auth.token,'Content-Type':'application/json'},body:JSON.stringify(data),cache:'no-store'});
+   if(response.status===401){logout();return;}
+   if(!response.ok){createStatus.textContent=response.status===403?'Sem permissão para registrar nesta unidade.':'Falha no cadastro (HTTP '+response.status+').';return;}
+   const result=await response.json();
+   createStatus.textContent='Chamado registrado: '+(result.ticket?.public_protocol||'protocolo disponível na lista');
+   createForm.reset();
+   await loadTickets();
+  }catch(_){createStatus.textContent='Falha de conexão ao registrar. Confira a lista antes de tentar novamente para evitar duplicação.';}
+  finally{createButton.disabled=false;}
+ });
  const status=document.getElementById('real-tickets-status');
  const tbody=document.getElementById('real-tickets-body');
  let pending=false;
@@ -46,6 +84,6 @@ else{
   finally{pending=false;}
  }
  document.getElementById('reload-real-tickets')?.addEventListener('click',loadTickets);
- document.querySelector('[data-view="reais"]')?.addEventListener('click',loadTickets);
+ document.querySelector('[data-view="reais"]')?.addEventListener('click',()=>{loadTickets();loadUnits();});
  // Never fetch private records while showing the public demonstration.
 }

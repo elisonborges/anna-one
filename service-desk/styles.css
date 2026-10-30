@@ -245,3 +245,10 @@
 #classificacao .catalog-tree-head{justify-content:flex-start}
 #classificacao .catalog-tree-head>div{flex:1 1 220px}
 @media(max-width:520px){#classificacao #catalog-tree-add-category{width:100%}}
+
+/* v0.11.0 — Número provisório de chamado, antes e depois do registro. */
+.ticket-number-pending,.ticket-number-result{padding:13px 15px;border:1px solid #c5d9ed;border-radius:10px;background:#f1f7ff;color:#183e68;margin:12px 0 18px}
+.ticket-number-pending strong,.ticket-number-result strong{font-weight:750}
+.ticket-number-result{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.ticket-number-result p{flex-basis:100%;margin:0;font-size:12px;line-height:1.5}
+.ticket-number-result #ticket-number-value{font-size:1.15em;letter-spacing:.03em}

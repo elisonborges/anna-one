@@ -209,3 +209,10 @@
 #classificacao .catalog-tree-search-label{display:grid;gap:5px;margin:4px 0 8px;font-size:12px;font-weight:650;color:#526580}
 #classificacao #catalog-tree-search{width:100%;max-width:480px;min-height:36px;padding:7px 10px;border:1px solid #ccd8e7;border-radius:8px;background:white}
 #classificacao .catalog-tree-filter-count{font-size:12px;color:#61738d;margin:0 0 8px}
+
+/* v0.10.4 — Seleção direta dos itens na árvore. */
+#classificacao .catalog-tree-pick{flex:0 0 auto;min-height:28px;padding:4px 8px;font-size:11px;border:1px solid #b7d2ec;background:#f1f7ff;color:#195b99;border-radius:6px;font-weight:650}
+#classificacao .catalog-tree-pick:hover,#classificacao .catalog-tree-issue-pick:hover{background:#e1f0ff;color:#064f92}
+#classificacao .catalog-tree-issue-pick{display:inline;text-align:left;min-height:0;padding:2px 4px;border:0;border-radius:4px;background:transparent;color:#1c4b87;font-size:12px;line-height:1.5;white-space:normal;overflow-wrap:anywhere}
+#classificacao .catalog-tree-issue-pick:focus-visible,#classificacao .catalog-tree-pick:focus-visible{outline:2px solid #087bdf;outline-offset:2px}
+@media(max-width:520px){#classificacao .catalog-tree-pick{margin-left:auto}}

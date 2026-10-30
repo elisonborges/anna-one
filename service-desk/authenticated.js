@@ -364,6 +364,52 @@ else{
   }catch(_){createStatus.textContent='Falha de conexão ao registrar. Confira a lista antes de tentar novamente para evitar duplicação.';}
   finally{createButton.disabled=false;}
  });
+ const reportStatus=document.getElementById('institutional-report-status');
+ const dashboardStatus=document.getElementById('institutional-dashboard-status');
+ let institutionalTickets=[];
+ const formatDate=value=>{const date=value?new Date(value):null;return date&&!Number.isNaN(date.valueOf())?date.toLocaleString('pt-BR'):'—';};
+ async function loadInstitutionalReports(){
+  const auth=session();if(!auth){logout();return;}
+  dashboardStatus.textContent='Consultando indicadores autorizados...';
+  reportStatus.textContent='Consultando registros autorizados...';
+  document.getElementById('institutional-report-export').disabled=true;
+  try{
+   const response=await fetch(API,{headers:{Authorization:'Bearer '+auth.token},cache:'no-store'});
+   if(response.status===401){logout();return;}
+   if(!response.ok)throw Error('HTTP '+response.status);
+   const data=await response.json();if(!Array.isArray(data.tickets))throw Error('Resposta inválida');
+   institutionalTickets=data.tickets;
+   const count=status=>institutionalTickets.filter(t=>t.status===status).length;
+   for(const [id,value] of [['institutional-total',institutionalTickets.length],['institutional-open',count('open')],['institutional-progress',count('in_progress')],['institutional-resolved',count('resolved')]])document.getElementById(id).textContent=String(value);
+   const breakdown=document.getElementById('institutional-status-breakdown');breakdown.replaceChildren();
+   for(const [status,label] of Object.entries({open:'Abertos',in_progress:'Em atendimento',pending:'Pendentes',resolved:'Resolvidos',closed:'Fechados'})){
+    const item=document.createElement('p');item.textContent=label+': '+count(status);breakdown.append(item);
+   }
+   const body=document.getElementById('institutional-report-body');body.replaceChildren();
+   for(const ticket of institutionalTickets){
+    const tr=document.createElement('tr');
+    for(const value of [ticket.public_protocol||'—',ticket.title||'—',({open:'Aberto',in_progress:'Em atendimento',pending:'Pendente',resolved:'Resolvido',closed:'Fechado'})[ticket.status]||ticket.status||'—',({low:'Baixa',normal:'Normal',high:'Alta'})[ticket.priority]||ticket.priority||'—',formatDate(ticket.created_at)]){
+     const td=document.createElement('td');td.textContent=value;tr.append(td);
+    }body.append(tr);
+   }
+   dashboardStatus.textContent='Dados reais autorizados · '+institutionalTickets.length+' registro(s) consultado(s).';
+   reportStatus.textContent='Consulta limitada aos 50 chamados mais recentes visíveis para sua conta.';
+   document.getElementById('institutional-report-export').disabled=!institutionalTickets.length;
+  }catch(_){institutionalTickets=[];dashboardStatus.textContent='Não foi possível carregar os indicadores.';reportStatus.textContent='Não foi possível carregar o relatório.';}
+ }
+ for(const [view,button] of [['painel-institucional','institutional-dashboard-refresh'],['relatorios-institucionais','institutional-report-refresh']]){
+  document.querySelector('.sidebar [data-view="'+view+'"]')?.addEventListener('click',loadInstitutionalReports);
+  document.getElementById(button)?.addEventListener('click',loadInstitutionalReports);
+ }
+ document.getElementById('institutional-report-export')?.addEventListener('click',()=>{
+  if(!institutionalTickets.length)return;
+  const quote=value=>'"'+String(value??'').replace(/"/g,'""')+'"';
+  const rows=[['Protocolo','Assunto','Situação','Prioridade','Criado em'],...institutionalTickets.map(t=>[t.public_protocol,t.title,t.status,t.priority,formatDate(t.created_at)])];
+  const csv='\uFEFF'+rows.map(row=>row.map(quote).join(';')).join('\r\n');
+  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  const link=document.createElement('a');link.href=url;link.download='anna-service-desk-relatorio.csv';link.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+ });
  const status=document.getElementById('real-tickets-status');
  const tbody=document.getElementById('real-tickets-body');
  const detail=document.getElementById('real-ticket-detail');

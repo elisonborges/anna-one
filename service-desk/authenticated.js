@@ -16,7 +16,20 @@ const current=session();
 if(!current){logout();}
 else{
  const user=document.getElementById('session-user');
- if(user)user.textContent=current.email||'Conta autenticada';
+ if(user){
+  user.textContent=current.email||'Conta autenticada';
+  const auth=session();
+  fetch('https://anna-one.onrender.com/api/v1/auth/profile',{headers:{Authorization:'Bearer '+auth.token},cache:'no-store'})
+   .then(response=>{if(!response.ok)throw Error('profile unavailable');return response.json();})
+   .then(data=>{
+    const names={master:'Administrador Master',manager:'Administrador institucional',requester:'Solicitante'};
+    if(!session()||!names[data.profile])return;
+    user.replaceChildren();
+    const email=document.createElement('span');email.textContent=current.email||'Conta autenticada';
+    const profile=document.createElement('strong');profile.textContent='Perfil: '+names[data.profile];profile.style.display='block';
+    user.append(email,profile);
+   }).catch(()=>{});
+ }
  document.getElementById('session-logout')?.addEventListener('click',logout);
  const masterNav=document.getElementById('master-companies-nav');
  const masterForm=document.getElementById('master-company-form');

@@ -7,7 +7,7 @@ function send(res,status,payload) {
 }
 function createLoginHandler(poolFactory,config=process.env) {
  return async function login(req,res) {
-  if(!config.SD_JWT_SECRET||Buffer.byteLength(config.SD_JWT_SECRET)<32||!config.SD_JWT_ISSUER||!config.SD_JWT_AUDIENCE) return send(res,503,{error:'service_unavailable'});
+  if(!config.SD_JWT_SECRET||Buffer.byteLength(config.SD_JWT_SECRET)<32||!config.SD_JWT_ISSUER||!config.SD_JWT_AUDIENCE) {console.error('[service-desk/login] signing configuration incomplete');return send(res,503,{error:'service_unavailable'});}
   let data='';
   try {
    for await(const chunk of req) {
@@ -44,7 +44,9 @@ function createLoginHandler(poolFactory,config=process.env) {
     await client.query("UPDATE anna_sd.local_credentials SET failed_attempts=0,locked_until=NULL,updated_at=now() WHERE user_id=$1",[account.user_id]);
     await client.query('COMMIT');
     return send(res,200,{access_token:issueToken(account.user_id,config),token_type:'Bearer',expires_in:900});
-   }catch(_) {
+   }catch(err) {
+    // Log only a fixed stage and PostgreSQL SQLSTATE; never log SQL, credentials or tokens.
+    console.error('[service-desk/login] database/auth failure', {code: typeof err?.code==='string' ? err.code : 'internal', category: err?.message==='unsafe role' ? 'unsafe_role' : 'database_operation'});
     if(client) try{await client.query('ROLLBACK');}catch(_){}
     return send(res,503,{error:'service_unavailable'});
    }finally{if(client)client.release();}

@@ -322,6 +322,51 @@ function updateCatalogAdminSubcategories() {
   const sub = $('catalog-subcategory').value;
   updateCatalogIssues();
   $('catalog-admin-summary').textContent = category ? 'Categoria: '+category+' · '+catalog.categories[category].length+' subcategorias · '+(sub ? 'Tipos específicos: '+(catalog.problems[category+'::'+sub] || catalog.problems[sub] || categoryIssueTypes[category] || genericIssueTypes).join(', ') : 'Selecione uma subcategoria para consultar os tipos de problema.') : 'Selecione uma categoria para configurar.';
+  renderCatalogTree();
+}
+function renderCatalogTree() {
+  const catalog = activeCatalog();
+  const categories = Object.entries(catalog.categories);
+  const totalSubs = categories.reduce((sum,[,subs])=>sum+subs.length,0);
+  $('catalog-tree-count').textContent = categories.length+' categorias · '+totalSubs+' subcategorias';
+  const tree = $('catalog-tree');
+  const openKeys = new Set(Array.from(tree.querySelectorAll('details[open]')).map(node=>node.dataset.key));
+  const fragment = document.createDocumentFragment();
+  for (const [category,subs] of categories) {
+    const group = document.createElement('details');
+    group.className='catalog-tree-category';
+    group.dataset.key='cat:'+category;
+    group.open=openKeys.has(group.dataset.key);
+    const head=document.createElement('summary');
+    const name=document.createElement('strong');name.textContent=category;
+    const status=document.createElement('span');
+    const inactive=catalog.disabled.includes(category);
+    status.className='catalog-tree-status'+(inactive?' is-inactive':'');
+    status.textContent=inactive?'Inativa':'Ativa';
+    const count=document.createElement('small');count.textContent=subs.length+' subcategorias';
+    head.append(name,status,count);
+    group.append(head);
+    if (!subs.length) {
+      const empty=document.createElement('p');empty.className='catalog-tree-empty';empty.textContent='Nenhuma subcategoria cadastrada.';
+      group.append(empty);
+    }
+    for (const sub of subs) {
+      const child=document.createElement('details');
+      child.className='catalog-tree-subcategory';
+      child.dataset.key='sub:'+category+'::'+sub;
+      child.open=openKeys.has(child.dataset.key);
+      const summary=document.createElement('summary');
+      const label=document.createElement('span');label.textContent=sub;
+      const issues=catalogIssueList(category,sub);
+      const total=document.createElement('small');total.textContent=issues.length+' tipos';
+      summary.append(label,total);child.append(summary);
+      const list=document.createElement('ul');list.className='catalog-tree-issues';
+      for(const issue of issues){const li=document.createElement('li');li.textContent=issue;list.append(li);}
+      child.append(list);group.append(child);
+    }
+    fragment.append(group);
+  }
+  tree.replaceChildren(fragment);
 }
 function catalogIssueList(category,sub) {
   const catalog=activeCatalog();

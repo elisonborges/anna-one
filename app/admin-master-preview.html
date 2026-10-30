@@ -53,6 +53,15 @@ async function obtainJwt(){
  }
  throw Error('JWT não disponível na sessão atual.');
 }
+function readJwtIssuerLocally(jwt){
+ try{
+  const part=jwt.split('.')[1];
+  const base64=part.replace(/-/g,'+').replace(/_/g,'/');
+  const bytes=Uint8Array.from(atob(base64.padEnd(Math.ceil(base64.length/4)*4,'=')),c=>c.charCodeAt(0));
+  const claims=JSON.parse(new TextDecoder().decode(bytes));
+  return typeof claims.iss==='string'&&claims.iss.length<=500?claims.iss:'emissor ausente ou inválido';
+ }catch{return 'não foi possível ler o emissor';}
+}
 workerButton.addEventListener('click',async()=>{
  const output=document.getElementById('jwt-worker-result');
  workerButton.disabled=true;output.textContent='Verificando assinatura no servidor…';
@@ -60,9 +69,10 @@ workerButton.addEventListener('click',async()=>{
   const jwt=await obtainJwt();
   const response=await fetch(worker+'/v1/auth/verify',{method:'GET',headers:{Authorization:'Bearer '+jwt},cache:'no-store'});
   const data=await response.json();
+  const issuerDiagnostic=data?.diagnostic_stage==='claims_issuer'?' Emissor informado pelo JWT (leitura local, não verificado): '+readJwtIssuerLocally(jwt)+'.':'';
   output.textContent=response.ok&&data?.authenticated===true?
    'Assinatura JWT validada pelo Worker. Identidade reconhecida. Autorização Master ainda não testada.':
-   'Worker não validou a credencial (HTTP '+response.status+'). Etapa: '+(typeof data?.diagnostic_stage==='string'?data.diagnostic_stage:'não informada')+'. Nenhuma operação de escrita realizada.';
+   'Worker não validou a credencial (HTTP '+response.status+'). Etapa: '+(typeof data?.diagnostic_stage==='string'?data.diagnostic_stage:'não informada')+'.'+issuerDiagnostic+' Nenhuma operação de escrita realizada.';
  }catch(e){output.textContent='Teste no Worker indisponível: '+(e instanceof TypeError?'Falha de conexão ou CORS.':e.message);}
  finally{workerButton.disabled=false;}
 });

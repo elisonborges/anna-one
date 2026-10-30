@@ -3,6 +3,7 @@
 <style>:root{font:15px system-ui,Arial;color:#19324c;background:#f2f6fb}body{margin:0}header{background:#102f55;color:#fff;padding:22px max(20px,calc((100vw - 1100px)/2))}header a{color:#c7e6ff}main{max-width:1100px;margin:auto;padding:24px 16px}h1{margin:8px 0}p{line-height:1.5}.status,.card{background:white;border:1px solid #d7e3ee;border-radius:12px;padding:18px}.status{margin-bottom:18px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}.card h2{font-size:17px;margin:0 0 10px}.card p{color:#52677c;font-size:13px}.card a{color:#135a96;font-weight:700}.pill{display:inline-block;font-size:12px;border-radius:20px;background:#e7f0fa;padding:5px 10px}.muted{color:#60748b}button{border:0;border-radius:8px;background:#135a96;color:white;padding:9px 12px;cursor:pointer}button:disabled{background:#a1afbc}table{width:100%;border-collapse:collapse;background:white}td,th{text-align:left;border-bottom:1px solid #e4ebf2;padding:11px}section{margin-top:24px}#app[hidden]{display:none}</style></head><body>
 <header><div>AnnA One · Ambiente administrativo de testes</div><h1>Administração Master <span class="pill">Prévia v1.0</span></h1><a href="./admin-geral-preview.html">← Administração Geral aprovada</a></header>
 <main><div class="status" id="status" role="status">Verificando autenticação e perfil…</div>
+<section class="status"><h2>Diagnóstico de autenticação Master</h2><p>Verificação local, sem exibir nem transmitir credenciais.</p><div id="auth-diagnostic" role="status">Aguardando verificação…</div></section>
 <div id="app" hidden><p class="muted">Central de acesso e consulta. Nenhuma operação de escrita está habilitada nesta prévia.</p>
 <div class="grid">
 <article class="card"><h2>🏫 Instituições</h2><p>Consultar instituições e preparar o fluxo de cadastro.</p><a href="./admin-geral-preview.html#instituicoes">Abrir consulta</a></article>
@@ -21,13 +22,25 @@
 <section><h2>🧩 Catálogo central de módulos</h2><p>Lista consultada no Neon com a sessão atual. O acesso operacional a cada módulo depende da autorização específica do servidor.</p><div id="catalog-status" role="status">Carregando catálogo…</div><table><thead><tr><th>Módulo</th><th>Código</th><th>Estado</th><th>Gerenciamento</th></tr></thead><tbody id="modules"></tbody></table></section>
 </div></main>
 <script type="module">
-const status=document.getElementById('status');
+const status=document.getElementById('status'),diagnostic=document.getElementById('auth-diagnostic');
+const worker='https://anna-one-auditoria.elisonborg.workers.dev';
+async function checkWorker(){
+ try {
+  const response=await fetch(worker+'/health/db',{cache:'no-store'});
+  const body=await response.json();
+  return response.ok&&body.database==='connected'?'Conexão Neon confirmada':'Conexão Neon indisponível';
+ } catch {return 'Worker inacessível';}
+}
 try{
 const sdk=await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');
 const auth=sdk.createAuthClient('https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth');
 const result=await auth.getSession();
 const user=result?.data?.user||result?.data?.session?.user;
 const token=result?.data?.session?.token;
+const jwtMethods=['getJWTToken','getJwtToken','token'].filter(name=>typeof auth[name]==='function');
+const connection=await checkWorker();
+diagnostic.textContent='Sessão: '+(user?'presente':'ausente')+' · SDK JWT: '+(jwtMethods.length?jwtMethods.join(', '):'método não identificado')+' · '+connection+'. Teste JWT assinado: pendente.';
+
 if(!user||!token)throw Error('Sessão não autenticada. Entre pelo login da AnnA One.');
 const base='https://ep-spring-snow-b6mci3yx.apirest.c-2.sa-east-1.aws.neon.tech/neondb/rest/v1/';
 const load=async path=>{

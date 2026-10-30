@@ -324,6 +324,23 @@ function updateCatalogAdminSubcategories() {
   $('catalog-admin-summary').textContent = category ? 'Categoria: '+category+' · '+catalog.categories[category].length+' subcategorias · '+(sub ? 'Tipos específicos: '+(catalog.problems[category+'::'+sub] || catalog.problems[sub] || categoryIssueTypes[category] || genericIssueTypes).join(', ') : 'Selecione uma subcategoria para consultar os tipos de problema.') : 'Selecione uma categoria para configurar.';
   renderCatalogTree();
 }
+function catalogContextActions(level,category,subcategory='',issue='') {
+  const wrapper=document.createElement('span');
+  wrapper.className='catalog-tree-context-actions';
+  for(const [action,label] of [['rename','Editar'],['up','↑'],['down','↓'],['delete','Excluir']]){
+    const button=document.createElement('button');
+    button.type='button';button.className='catalog-tree-context-btn';
+    button.textContent=label;
+    button.title=({rename:'Renomear',up:'Mover para cima',down:'Mover para baixo',delete:'Excluir'})[action];
+    button.dataset.catalogAction=action;
+    button.dataset.catalogPick=level;
+    button.dataset.category=category;
+    if(subcategory)button.dataset.subcategory=subcategory;
+    if(issue)button.dataset.issue=issue;
+    wrapper.append(button);
+  }
+  return wrapper;
+}
 function renderCatalogTree() {
   const catalog = activeCatalog();
   const categories = Object.entries(catalog.categories);
@@ -355,7 +372,7 @@ function renderCatalogTree() {
     head.append(name,status,count);
     head.title='Clique para expandir; use Selecionar para editar';
     const selectCat=document.createElement('button');selectCat.type='button';selectCat.className='catalog-tree-pick';selectCat.textContent='Selecionar';selectCat.dataset.catalogPick='category';selectCat.dataset.category=category;
-    head.append(selectCat);
+    head.append(selectCat,catalogContextActions('category',category));
     group.append(head);
     if (!subs.length) {
       const empty=document.createElement('p');empty.className='catalog-tree-empty';empty.textContent='Nenhuma subcategoria cadastrada.';
@@ -372,9 +389,9 @@ function renderCatalogTree() {
       const total=document.createElement('small');total.textContent=issues.length+' tipos';
       summary.append(label,total);
       const selectSub=document.createElement('button');selectSub.type='button';selectSub.className='catalog-tree-pick';selectSub.textContent='Selecionar';selectSub.dataset.catalogPick='subcategory';selectSub.dataset.category=category;selectSub.dataset.subcategory=sub;
-      summary.append(selectSub);child.append(summary);
+      summary.append(selectSub,catalogContextActions('subcategory',category,sub));child.append(summary);
       const list=document.createElement('ul');list.className='catalog-tree-issues';
-      for(const issue of issues.filter(issue=>!search || categoryMatch || matches(sub) || matches(issue))){const li=document.createElement('li');const btn=document.createElement('button');btn.type='button';btn.className='catalog-tree-issue-pick';btn.textContent=issue;btn.title='Selecionar tipo de problema para gerenciar';btn.dataset.catalogPick='issue';btn.dataset.category=category;btn.dataset.subcategory=sub;btn.dataset.issue=issue;li.append(btn);list.append(li);}
+      for(const issue of issues.filter(issue=>!search || categoryMatch || matches(sub) || matches(issue))){const li=document.createElement('li');const btn=document.createElement('button');btn.type='button';btn.className='catalog-tree-issue-pick';btn.textContent=issue;btn.title='Selecionar tipo de problema para gerenciar';btn.dataset.catalogPick='issue';btn.dataset.category=category;btn.dataset.subcategory=sub;btn.dataset.issue=issue;li.append(btn,catalogContextActions('issue',category,sub,issue));list.append(li);}
       child.append(list);group.append(child);
     }
     fragment.append(group);
@@ -396,7 +413,13 @@ $('catalog-tree').addEventListener('click',event=>{
   }
   if(level==='issue')$('catalog-issue').value=button.dataset.issue;
   $('catalog-level').value=level;
-  $('catalog-feedback').textContent='Item selecionado na estrutura. Use os controles de gerenciamento para editar, mover ou excluir.';
+  const action=button.dataset.catalogAction;
+  if(action){
+    const actionId={rename:'catalog-rename',up:'catalog-up',down:'catalog-down',delete:'catalog-delete'}[action];
+    if(actionId)$(actionId).click();
+  }else{
+    $('catalog-feedback').textContent='Item selecionado na estrutura. Use os controles de gerenciamento para editar, mover ou excluir.';
+  }
 });
 
 function catalogIssueList(category,sub) {

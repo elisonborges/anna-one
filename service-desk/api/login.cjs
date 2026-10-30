@@ -1,6 +1,7 @@
 'use strict';
 const {verifyPassword,issueToken}=require('./local-identity.cjs');
-const DUMMY_HASH = ['scrypt','16384','8','1',Buffer.alloc(16).toString('base64url'),Buffer.alloc(64).toString('base64url')].join('function send(res,status,payload) {
+const DUMMY_HASH = ['scrypt','16384','8','1',Buffer.alloc(16).toString('base64url'),Buffer.alloc(64).toString('base64url')].join(String.fromCharCode(36));
+function send(res,status,payload) {
  res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});
  res.end(JSON.stringify(payload));
 }

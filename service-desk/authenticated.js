@@ -381,9 +381,20 @@ else{
    institutionalTickets=data.tickets;
    const count=status=>institutionalTickets.filter(t=>t.status===status).length;
    for(const [id,value] of [['institutional-total',institutionalTickets.length],['institutional-open',count('open')],['institutional-progress',count('in_progress')],['institutional-resolved',count('resolved')],['institutional-pending',count('pending')],['institutional-closed',count('closed')]])document.getElementById(id).textContent=String(value);
+   const critical=institutionalTickets.filter(t=>t.priority==='high'&&!['resolved','closed'].includes(t.status)).length;
+   document.getElementById('institutional-critical').textContent=String(critical);
+   document.querySelector('.institutional-priority-alert').dataset.alert=String(critical>0);
+   document.getElementById('institutional-completion').textContent=institutionalTickets.length?Math.round(100*(count('resolved')+count('closed'))/institutionalTickets.length)+'%':'—';
    const breakdown=document.getElementById('institutional-status-breakdown');breakdown.replaceChildren();
    for(const [status,label] of Object.entries({open:'Abertos',in_progress:'Em atendimento',pending:'Pendentes',resolved:'Resolvidos',closed:'Fechados'})){
-    const item=document.createElement('p');item.textContent=label+': '+count(status);breakdown.append(item);
+    const row=document.createElement('div');row.className='institutional-bar-row';
+    const name=document.createElement('span');name.textContent=label;
+    const track=document.createElement('div');track.className='institutional-bar-track';
+    const fill=document.createElement('div');fill.className='institutional-bar-fill';
+    fill.style.width=(institutionalTickets.length?100*count(status)/institutionalTickets.length:0)+'%';
+    track.append(fill);
+    const number=document.createElement('span');number.className='institutional-bar-count';number.textContent=String(count(status));
+    row.append(name,track,number);breakdown.append(row);
    }
    const body=document.getElementById('institutional-report-body');body.replaceChildren();
    for(const ticket of institutionalTickets){

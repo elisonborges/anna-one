@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#101b38" />
-  <title>AnnA Service Desk — Homologação v0.9.1</title>
-  <link rel="stylesheet" href="styles.css?v=0.9.1" />
-  <script type="module" src="app.js?v=0.9.1"></script>
+  <title>AnnA Service Desk — Homologação v0.9.2</title>
+  <link rel="stylesheet" href="styles.css?v=0.9.2" />
+  <script type="module" src="app.js?v=0.9.2"></script>
 <style>.catalog-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:18px}.catalog-grid .panel{min-width:0}.catalog-grid form{display:grid;gap:14px;margin:18px 0}.catalog-grid label{display:grid;gap:6px}.catalog-grid input,.catalog-grid select{width:100%;max-width:100%}@media(max-width:800px){.catalog-grid{grid-template-columns:1fr}}</style></head>
 <body>
   <div class="shell">
@@ -19,10 +19,10 @@
         <button class="nav-item" data-view="dashboards">Dashboards</button>
         <button class="nav-item" data-view="catalogo">Contratos e prestadores</button>
       </nav>
-      <div class="side-foot">Homologação visual · v0.9.1<br />Dados fictícios em memória</div>
+      <div class="side-foot">Homologação visual · v0.9.2<br />Dados fictícios em memória</div>
     </aside>
     <main class="main">
-      <header class="topbar"><div><div class="eyebrow">CENTRAL DE ATENDIMENTO · <span class="portal-version">VERSÃO 0.9.1</span></div><h1 id="page-title">Visão geral</h1></div><div class="top-actions"><label for="role">Visualizar como</label><select id="role"><option value="solicitante">Solicitante</option><option value="tecnico">Técnico (simulação)</option></select><button id="new-top" class="primary">+ Novo chamado</button></div></header>
+      <header class="topbar"><div><div class="eyebrow">CENTRAL DE ATENDIMENTO · <span class="portal-version">VERSÃO 0.9.2</span></div><h1 id="page-title">Visão geral</h1></div><div class="top-actions"><label for="role">Visualizar como</label><select id="role"><option value="solicitante">Solicitante</option><option value="tecnico">Técnico (simulação)</option></select><button id="new-top" class="primary">+ Novo chamado</button></div></header>
       <div class="notice" role="status"><strong>Ambiente demonstrativo.</strong> Nenhuma informação é enviada ao Neon. Alterações são temporárias e desaparecem ao atualizar a página.</div>
       <section id="inicio" class="view">
         <div class="stats"><article class="stat"><span>Total de chamados</span><strong id="total">0</strong><small>Registros fictícios</small></article><article class="stat"><span>Em andamento</span><strong id="andamento">0</strong><small>Acompanhamento</small></article><article class="stat"><span>Pendentes</span><strong id="pendentes">0</strong><small>Aguardando ação</small></article><article class="stat"><span>Resolvidos</span><strong id="resolvidos">0</strong><small>Histórico</small></article></div>
@@ -56,15 +56,15 @@
 <div id="asset-manual" class="field-full asset-area" hidden><div class="manual-grid"><label>Tipo de equipamento <select name="manualType" id="manual-type"><option value="">Selecione</option><option>Desktop</option><option>Notebook</option><option>Impressora</option><option>Monitor</option><option>Projetor</option><option>Rede</option><option>Outro</option></select></label><label>Identificação / patrimônio <input name="manualTag" maxlength="60" placeholder="Ex.: PAT-001"></label><label>Fabricante <input name="manualBrand" maxlength="60"></label><label>Modelo <input name="manualModel" maxlength="60"></label><label>Número de série <input name="manualSerial" maxlength="80"></label><label>Localização física <input name="manualLocation" maxlength="120" placeholder="Bloco, sala, bancada"></label></div></div>
 <h3 class="field-full form-section-heading">3. O que está acontecendo?</h3>
 <label class="field-full">Título <input name="title" required minlength="5" maxlength="100" placeholder="Ex.: Computador não inicia"></label>
-<details class="field-full extra-details"><summary>Mais detalhes da solicitação (opcional)</summary><div class="extra-grid"><label>Categoria <select name="category" id="ticket-category"><option value="">Selecione a categoria</option><option>Hardware</option><option>Software</option><option>Rede e Internet</option><option>Sistemas</option><option>Periféricos</option><option>Outros</option></select></label>
-<label>Subcategoria <select name="subcategory" id="ticket-subcategory" disabled><option value="">Selecione primeiro a categoria</option></select></label>
+<div class="field-full required-details"><h3 class="form-section-heading">Classificação e detalhes do chamado</h3><div class="extra-grid"><label>Categoria <select name="category" id="ticket-category" required><option value="">Selecione a categoria</option><option>Hardware</option><option>Software</option><option>Rede e Internet</option><option>Sistemas</option><option>Periféricos</option><option>Outros</option></select></label>
+<label>Subcategoria <select name="subcategory" id="ticket-subcategory" required disabled><option value="">Selecione primeiro a categoria</option></select></label>
 <label>Impacto <select name="impact"><option>Individual</option><option>Setor</option><option>Unidade inteira</option></select></label>
 <label>Urgência <select name="urgency"><option>Média</option><option>Baixa</option><option>Alta</option></select></label>
 <label class="field-full">Descrição do problema <textarea name="description" required minlength="10" maxlength="2000" rows="4" placeholder="O que aconteceu? Quando começou? Há alguma mensagem de erro?"></textarea></label>
-<label class="field-full">Verificações já realizadas <textarea name="attempts" maxlength="1000" rows="2" placeholder="Ex.: Reiniciei o equipamento e conferi os cabos."></textarea></label>
+<label class="field-full">Verificações já realizadas <textarea name="attempts" required minlength="5" maxlength="1000" rows="2" placeholder="Ex.: Reiniciei o equipamento e conferi os cabos."></textarea></label>
 <h3 class="field-full form-section-heading">4. Atendimento</h3>
 <label>Disponibilidade <select name="availability"><option>Horário comercial</option><option>Manhã</option><option>Tarde</option><option>A combinar</option></select></label>
-</div></details><div class="field-full form-note">Anexos e integração com inventário real serão avaliados em etapa futura. Os equipamentos exibidos são exclusivamente fictícios.</div>
+</div></div><div class="field-full form-note">Anexos e integração com inventário real serão avaliados em etapa futura. Os equipamentos exibidos são exclusivamente fictícios.</div>
 <div class="form-actions field-full"><button type="button" class="secondary" data-view="chamados">Cancelar</button><button type="submit" class="primary">Registrar chamado de teste</button></div>
 </form></div></section>
       <section id="dashboards" class="view" hidden><div class="panel"><div class="panel-head"><div><h2>Indicadores por perfil</h2><p>Prévia visual com dados fictícios, sem acesso ao banco.</p></div><label class="filter">Perfil <select id="dashboard-profile"><option value="contratos">Gestor de contratos</option><option value="escolas">Gestor de escola</option><option value="parceiros">Parceiro técnico</option><option value="plataforma">AnnA One — plataforma</option></select></label></div><div id="dashboard-description" class="dashboard-description"></div><div id="dashboard-stats" class="stats"></div><div id="dashboard-breakdown" class="dashboard-breakdown"></div></div></section>
@@ -77,7 +77,7 @@
         </div>
       </section>
       <section id="detalhe" class="view" hidden><button id="back" class="text-button">← Voltar aos chamados</button><div class="panel detail-panel"><div id="detail-content"></div></div></section>
-      <footer>AnnA Service Desk · v0.9.1 · Homologação visual · Sem autenticação real</footer>
+      <footer>AnnA Service Desk · v0.9.2 · Homologação visual · Sem autenticação real</footer>
     </main>
   </div>
 <script type="module" src="labmanager-entry.js"></script>

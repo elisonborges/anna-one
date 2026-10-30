@@ -339,6 +339,15 @@ function catalogContextActions(level,category,subcategory='',issue='') {
     if(issue)button.dataset.issue=issue;
     wrapper.append(button);
   }
+  if(level==='category' || level==='subcategory'){
+    const add=document.createElement('button');add.type='button';
+    add.className='catalog-tree-context-btn catalog-tree-add';
+    add.textContent=level==='category'?'+ Subcategoria':'+ Tipo';
+    add.dataset.catalogCreate=level==='category'?'subcategory':'issue';
+    add.dataset.category=category;
+    if(subcategory)add.dataset.subcategory=subcategory;
+    wrapper.append(add);
+  }
   return wrapper;
 }
 function renderCatalogTree() {
@@ -400,6 +409,34 @@ function renderCatalogTree() {
   $('catalog-tree-filter-count').textContent=search ? visibleCategories+' categorias e '+visibleSubcategories+' subcategorias encontradas'+(visibleCategories?'':' — nenhum resultado') : '';
 }
 $('catalog-tree-search').addEventListener('input',renderCatalogTree);
+$('catalog-tree').addEventListener('click',event=>{
+  const button=event.target.closest('button[data-catalog-create]');
+  if(!button)return;
+  event.preventDefault();event.stopPropagation();
+  const kind=button.dataset.catalogCreate;
+  const category=button.dataset.category,sub=button.dataset.subcategory;
+  const name=prompt(kind==='subcategory'?'Nome da nova subcategoria:':'Nome do novo tipo de problema:')?.trim();
+  if(!name)return;
+  if(name.length>(kind==='subcategory'?80:100)||name.includes('::')){
+    $('catalog-feedback').textContent='Nome inválido ou muito longo.';return;
+  }
+  const catalog=activeCatalog();
+  if(!Object.hasOwn(catalog.categories,category) || (kind==='issue'&&!catalog.categories[category].includes(sub)))return;
+  if(kind==='subcategory'){
+    if(catalog.categories[category].includes(name)){$('catalog-feedback').textContent='Subcategoria já existente.';return;}
+    catalog.categories[category].push(name);
+  }else{
+    const key=category+'::'+sub,arr=catalogIssueList(category,sub);
+    if(arr.includes(name)){$('catalog-feedback').textContent='Tipo já existente.';return;}
+    catalog.problems[key]=[...arr,name];
+  }
+  persistCatalogs();updateCatalogAdmin();refreshOpeningCatalog();
+  $('catalog-category').value=category;updateCatalogAdminSubcategories();
+  if(kind==='subcategory')$('catalog-subcategory').value=name;
+  else{$('catalog-subcategory').value=sub;updateCatalogAdminSubcategories();$('catalog-issue').value=name;}
+  $('catalog-feedback').textContent='Item criado no catálogo demonstrativo desta instituição.';
+});
+
 $('catalog-tree').addEventListener('click',event=>{
   const button=event.target.closest('button[data-catalog-pick]');
   if(!button)return;

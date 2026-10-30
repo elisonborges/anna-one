@@ -36,3 +36,11 @@ node --check tickets.cjs
 O workflow `.github/workflows/service-desk-api.yml` executa os testes a cada alteração na pasta da API. Para liberar implantação, faltam: credencial de login restrita e auditada, integração com provedor de identidade, teste HTTP real com Neon, revisão de dependências/lockfile, proteção operacional (rate limit, logs e TLS reverso) e homologação.
 
 **Não usar `neondb_owner` como conexão de aplicação. Não publicar o backend ou integrar o portal sem aprovação.**
+
+## Integração Supabase Auth (adicionada)
+
+Definir no backend `SD_SUPABASE_URL=https://<project-ref>.supabase.co` e `SD_SUPABASE_PUBLISHABLE_KEY` (chave publicável do mesmo projeto). Nesse modo, `GET /api/v1/tickets` valida o access token em `GET /auth/v1/user` antes de consultar o Neon. Requisições sem token válido retornam 401. Não utilizar `service_role` nem chave secreta do Supabase.
+
+**Mapeamento obrigatório:** `auth.users.id` do projeto Supabase selecionado deve corresponder a `anna_sd.platform_users.id` e ter vínculo ativo em `anna_sd.memberships`. Não copiar dados pessoais automaticamente; fazer onboarding autorizado. A URL Supabase ainda não foi escolhida/configurada. Os dois projetos existentes (Projetos Escolares e Health Monitor) não foram modificados.
+
+**Limitação:** ainda existe modo legado de token HS256 para testes quando `SD_SUPABASE_URL` não está configurada. Não ativar ambos os modos em produção sem revisão de segurança. A consulta ao Auth é online; a API falha fechada em indisponibilidade. A credencial Neon restrita continua pendente.

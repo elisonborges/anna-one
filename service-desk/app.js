@@ -275,18 +275,102 @@ const specializedIssueTypes = {
 };
 Object.assign(issueTypes, specializedIssueTypes);
 const genericIssueTypes = ['Não funciona','Não conecta','Não abre','Erro ou mensagem de falha','Lentidão','Intermitência','Bloqueio ou permissão','Configuração incorreta','Instalação ou atualização','Dano físico','Solicitação de alteração','Dúvida ou orientação','Outro problema'];
+// Configuração independente por instituição fictícia, apenas em memória.
+const defaultCatalog = () => ({
+  categories: Object.fromEntries(Object.entries(ticketSubcategories).map(([name,subs]) => [name,[...subs]])),
+  disabled:[],
+  problems:Object.fromEntries(Object.entries(issueTypes).map(([name,items]) => [name,[...items]]))
+});
+const institutionCatalogs = {escola:defaultCatalog(),centro:defaultCatalog()};
+const activeCatalog = () => institutionCatalogs[$('catalog-institution').value];
+function updateCatalogAdmin() {
+  const catalog = activeCatalog();
+  const category = $('catalog-category').value;
+  $('catalog-category').replaceChildren(new Option('Selecione uma categoria',''));
+  for (const name of Object.keys(catalog.categories)) $('catalog-category').add(new Option(name+(catalog.disabled.includes(name)?' (inativa)':''),name));
+  $('catalog-category').value = catalog.categories[category] ? category : '';
+  updateCatalogAdminSubcategories();
+}
+function updateCatalogAdminSubcategories() {
+  const catalog = activeCatalog(), category = $('catalog-category').value;
+  const selected = $('catalog-subcategory').value;
+  $('catalog-subcategory').replaceChildren(new Option('Selecione uma subcategoria',''));
+  for (const name of (catalog.categories[category] || [])) $('catalog-subcategory').add(new Option(name,name));
+  $('catalog-subcategory').value = (catalog.categories[category] || []).includes(selected) ? selected : '';
+  $('catalog-toggle').disabled = !category;
+  $('catalog-toggle').textContent = catalog.disabled.includes(category) ? 'Ativar categoria' : 'Desativar categoria';
+  const sub = $('catalog-subcategory').value;
+  $('catalog-admin-summary').textContent = category ? 'Categoria: '+category+' · '+catalog.categories[category].length+' subcategorias · '+(sub ? 'Tipos específicos: '+(catalog.problems[category+'::'+sub] || catalog.problems[sub] || categoryIssueTypes[category] || genericIssueTypes).join(', ') : 'Selecione uma subcategoria para consultar os tipos de problema.') : 'Selecione uma categoria para configurar.';
+}
+function refreshOpeningCatalog() {
+  const catalog = activeCatalog();
+  const previous = $('ticket-category').value;
+  $('ticket-category').replaceChildren(new Option('Selecione a categoria',''));
+  for (const category of Object.keys(catalog.categories).filter(name=>!catalog.disabled.includes(name))) $('ticket-category').add(new Option(category,category));
+  $('ticket-category').value = catalog.categories[previous] && !catalog.disabled.includes(previous) ? previous : '';
+  updateTicketSubcategories();
+}
+function addCatalogItem(formId,kind) {
+  $(formId).addEventListener('submit',event=>{
+    event.preventDefault();
+    const input = event.currentTarget.elements.name;
+    const name = input.value.trim();
+    const catalog = activeCatalog(),category = $('catalog-category').value,sub = $('catalog-subcategory').value;
+    if (!name) return;
+    if (kind === 'category') {
+      if (catalog.categories[name]) { $('catalog-feedback').textContent='Categoria já existente.';return; }
+      catalog.categories[name]=[];
+    } else if (kind === 'subcategory') {
+      if (!category) { $('catalog-feedback').textContent='Selecione uma categoria.';return; }
+      if (catalog.categories[category].includes(name)) { $('catalog-feedback').textContent='Subcategoria já existente.';return; }
+      catalog.categories[category].push(name);
+    } else {
+      if (!category || !sub) { $('catalog-feedback').textContent='Selecione categoria e subcategoria.';return; }
+      const key=category+'::'+sub;
+      if (!catalog.problems[key]) catalog.problems[key]=[...(catalog.problems[sub] || categoryIssueTypes[category] || genericIssueTypes)];
+      if (catalog.problems[key].includes(name)) { $('catalog-feedback').textContent='Tipo já existente.';return; }
+      catalog.problems[key].push(name);
+    }
+    input.value='';
+    updateCatalogAdmin();
+    if(kind==='category') $('catalog-category').value=name;
+    if(kind==='subcategory') {$('catalog-category').value=category;updateCatalogAdminSubcategories();$('catalog-subcategory').value=name;}
+    updateCatalogAdminSubcategories();
+    refreshOpeningCatalog();
+    $('catalog-feedback').textContent='Alteração aplicada apenas ao catálogo demonstrativo desta instituição.';
+  });
+}
+$('catalog-institution').addEventListener('change',()=>{updateCatalogAdmin();refreshOpeningCatalog();});
+$('catalog-category').addEventListener('change',updateCatalogAdminSubcategories);
+$('catalog-subcategory').addEventListener('change',updateCatalogAdminSubcategories);
+$('catalog-toggle').addEventListener('click',()=>{
+  const catalog=activeCatalog(),category=$('catalog-category').value;
+  if (!category) return;
+  catalog.disabled=catalog.disabled.includes(category)?catalog.disabled.filter(name=>name!==category):[...catalog.disabled,category];
+  updateCatalogAdmin();refreshOpeningCatalog();
+});
+$('catalog-reset').addEventListener('click',()=>{
+  institutionCatalogs[$('catalog-institution').value]=defaultCatalog();
+  updateCatalogAdmin();refreshOpeningCatalog();
+  $('catalog-feedback').textContent='Catálogo demonstrativo restaurado.';
+});
+addCatalogItem('catalog-add-category','category');
+addCatalogItem('catalog-add-subcategory','subcategory');
+addCatalogItem('catalog-add-issue','issue');
+updateCatalogAdmin();
 function updateTicketIssueTypes() {
   const select = $('ticket-issue-type');
   const subcategory = $('ticket-subcategory').value;
   const category = $('ticket-category').value;
-  const options = subcategory ? (issueTypes[subcategory] || categoryIssueTypes[category] || genericIssueTypes) : [];
+  const catalog = activeCatalog();
+  const options = subcategory ? (catalog.problems[category+'::'+subcategory] || catalog.problems[subcategory] || categoryIssueTypes[category] || genericIssueTypes) : [];
   select.replaceChildren(new Option(options.length ? 'Selecione o tipo de problema' : 'Selecione primeiro a subcategoria', ''));
   for (const option of options) select.add(new Option(option, option));
   select.disabled = !options.length;
 }
 function updateTicketSubcategories() {
   const select = $('ticket-subcategory');
-  const options = ticketSubcategories[$('ticket-category').value] || [];
+  const options = activeCatalog().categories[$('ticket-category').value] || [];
   select.replaceChildren(new Option(options.length ? 'Selecione a subcategoria' : 'Selecione primeiro a categoria', ''));
   for (const option of options) select.add(new Option(option, option));
   select.disabled = !options.length;
@@ -294,7 +378,7 @@ function updateTicketSubcategories() {
 }
 $('ticket-category').addEventListener('change', updateTicketSubcategories);
 $('ticket-subcategory').addEventListener('change', updateTicketIssueTypes);
-updateTicketSubcategories();
+refreshOpeningCatalog();
 const allowedAttachmentExtensions = /\.(png|jpe?g|webp|pdf|txt|docx?|xlsx?)$/i;
 function validateAttachments(files) {
   if (files.length > 5) return 'Selecione no máximo 5 arquivos.';

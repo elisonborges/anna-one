@@ -48,6 +48,12 @@ function renderLists() {
   categorySelect.replaceChildren(new Option('Todas', 'todos'));
   for (const category of categoriesAvailable) categorySelect.add(new Option(category, category));
   categorySelect.value = categoriesAvailable.includes(selectedCategory) ? selectedCategory : 'todos';
+  const assigneeSelect = $('assignee-filter');
+  const selectedAssignee = assigneeSelect.value;
+  const assignees = [...new Set(tickets.map(t => t.assignee).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'pt-BR'));
+  assigneeSelect.replaceChildren(new Option('Todos', 'todos'), new Option('Não atribuído', 'unassigned'));
+  for (const assignee of assignees) assigneeSelect.add(new Option(assignee, assignee));
+  assigneeSelect.value = selectedAssignee === 'unassigned' || assignees.includes(selectedAssignee) ? selectedAssignee : 'todos';
   const query = $('ticket-search').value.trim().toLocaleLowerCase('pt-BR');
   const status = $('status-filter').value;
   const priority = $('priority-filter').value;
@@ -55,6 +61,7 @@ function renderLists() {
     (status === 'todos' || t.status === status) &&
     (priority === 'todos' || t.priority === priority) &&
     (categorySelect.value === 'todos' || t.category === categorySelect.value) &&
+    (assigneeSelect.value === 'todos' || (assigneeSelect.value === 'unassigned' ? !t.assignee : t.assignee === assigneeSelect.value)) &&
     (!query || String(t.id).includes(query.replace(/^#/, '')) || t.title.toLocaleLowerCase('pt-BR').includes(query))
   );
   $('ticket-result-count').textContent = filtered.length + (filtered.length === 1 ? ' chamado encontrado' : ' chamados encontrados');
@@ -113,8 +120,9 @@ document.addEventListener('click', event => {
 });
 $('new-top').addEventListener('click', () => show('novo'));
 $('back').addEventListener('click', () => show('chamados'));
-for (const id of ['status-filter', 'priority-filter', 'category-filter']) $(id).addEventListener('change', renderLists);
+for (const id of ['status-filter', 'priority-filter', 'category-filter', 'assignee-filter']) $(id).addEventListener('change', renderLists);
 $('ticket-search').addEventListener('input', renderLists);
+$('clear-ticket-filters').addEventListener('click', () => { $('ticket-search').value = ''; for (const id of ['status-filter','priority-filter','category-filter','assignee-filter']) $(id).value = 'todos'; renderLists(); });
 $('role').addEventListener('change', event => { role = event.target.value; if (!$('detalhe').hidden && selectedId !== null) showTicket(selectedId); });
 const ticketSubcategories = {
   'Hardware': ['Computador', 'Notebook', 'Monitor', 'Teclado', 'Mouse', 'Impressora', 'Projetor'],

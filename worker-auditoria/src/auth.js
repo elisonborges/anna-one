@@ -30,14 +30,14 @@ export async function verifyBearer(request, env) {
       header.crit || header.jwk || header.jku) invalid("header");
   const aud = typeof claims.aud === "string" ? [claims.aud] : claims.aud;
   const now = Math.floor(Date.now() / 1000);
-  if (claims.iss !== env.AUTH_ISSUER ||
-      (env.AUTH_AUDIENCE && (!Array.isArray(aud) || !aud.includes(env.AUTH_AUDIENCE))) ||
-      typeof claims.sub !== "string" ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(claims.sub) ||
-      !Number.isInteger(claims.exp) || claims.exp <= now ||
-      !Number.isInteger(claims.iat) || claims.iat > now + 30 ||
-      claims.exp - claims.iat > 900 ||
-      (claims.nbf !== undefined && (!Number.isInteger(claims.nbf) || claims.nbf > now + 30))) invalid("claims");
+  if (claims.iss !== env.AUTH_ISSUER) invalid("claims_issuer");
+  if (env.AUTH_AUDIENCE && (!Array.isArray(aud) || !aud.includes(env.AUTH_AUDIENCE))) invalid("claims_audience");
+  if (typeof claims.sub !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(claims.sub)) invalid("claims_subject");
+  if (!Number.isInteger(claims.exp) || claims.exp <= now) invalid("claims_expiration");
+  if (!Number.isInteger(claims.iat) || claims.iat > now + 30) invalid("claims_issued_at");
+  if (claims.exp - claims.iat > 900) invalid("claims_lifetime");
+  if (claims.nbf !== undefined && (!Number.isInteger(claims.nbf) || claims.nbf > now + 30)) invalid("claims_not_before");
   const response = await fetch(jwksUrl.toString(), { redirect: "error" });
   if (!response.ok) invalid("jwks");
   const jwks = await response.json();

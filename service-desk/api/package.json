@@ -1,0 +1,9 @@
+{
+  "name": "anna-service-desk-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Isolated API foundation; no public ticket endpoints",
+  "engines": { "node": ">=20" },
+  "scripts": { "start": "node server.cjs", "test": "node --test server.test.cjs" },
+  "dependencies": { "pg": "8.16.3" }
+}

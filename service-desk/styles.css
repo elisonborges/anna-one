@@ -146,3 +146,39 @@
 .catalog-import{display:inline-flex;align-items:center;gap:8px;padding:9px 13px;border:1px solid #a6b8d2;border-radius:8px;cursor:pointer;font-size:13px}
 .catalog-import input{max-width:180px;font-size:12px}
 @media(max-width:650px){.catalog-admin-tools{padding:12px}.catalog-import{flex-wrap:wrap}}
+
+/* Catálogo de classificação — layout compacto v0.10.1. Apenas apresentação. */
+#classificacao .form-panel{max-width:none;width:100%;padding:16px 18px}
+#classificacao .form-panel>h2{margin:0 0 5px;font-size:19px}
+#classificacao .form-panel>p{margin:0 0 10px;font-size:12px;line-height:1.45}
+#classificacao .catalog-admin-grid{gap:10px;margin:12px 0 8px}
+#classificacao .catalog-admin-grid label,#classificacao .catalog-admin-form label{gap:4px;font-size:12px}
+#classificacao input,#classificacao select{min-height:36px;padding:7px 9px;font-size:13px}
+#classificacao button{min-height:36px;padding:7px 11px;font-size:12px}
+#classificacao .catalog-admin-actions{gap:7px;margin:8px 0 12px}
+#classificacao .catalog-admin-form{display:flex;align-items:end;gap:9px;margin:7px 0}
+#classificacao .catalog-admin-form label{flex:1;min-width:0}
+#classificacao .catalog-admin-tools{margin:12px 0;padding:12px 14px}
+#classificacao .catalog-admin-tools h3{margin:0 0 4px;font-size:15px}
+#classificacao .catalog-admin-tools p{font-size:12px;line-height:1.45}
+#classificacao .catalog-admin-tools>label{margin:8px 0;max-width:none}
+#classificacao .catalog-admin-tools .catalog-admin-actions{margin:8px 0}
+#classificacao .catalog-import{padding:6px 9px;font-size:12px}
+#classificacao .catalog-import input{min-height:0;padding:2px;max-width:220px}
+#classificacao #catalog-admin-summary{margin-top:10px;padding:10px 12px;font-size:12px;line-height:1.5}
+#classificacao #catalog-feedback{margin:6px 0}
+@media(min-width:1050px){
+  #classificacao .catalog-admin-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  #classificacao .catalog-admin-form{display:inline-flex;width:calc(33.333% - 10px);vertical-align:bottom;margin-right:8px}
+  #classificacao .catalog-admin-form button{white-space:normal;max-width:132px}
+}
+@media(max-width:780px){
+  #classificacao .catalog-admin-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #classificacao .catalog-admin-form{display:flex;flex-direction:row;align-items:end}
+}
+@media(max-width:520px){
+  #classificacao .form-panel{padding:12px}
+  #classificacao .catalog-admin-grid{grid-template-columns:1fr}
+  #classificacao .catalog-admin-form{flex-direction:column;align-items:stretch}
+  #classificacao .catalog-admin-form button{width:100%}
+}

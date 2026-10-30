@@ -28,6 +28,16 @@ else{
     const email=document.createElement('span');email.textContent=current.email||'Conta autenticada';
     const profile=document.createElement('strong');profile.textContent='Perfil: '+names[data.profile];profile.style.display='block';
     user.append(email,profile);
+    const demo=document.getElementById('demo-navigation');
+    if(demo)demo.open=false;
+    if(data.profile==='manager'){
+     const roleControl=document.querySelector('.role-control');
+     if(roleControl)roleControl.hidden=true;
+     const demoNew=document.getElementById('new-top');
+     if(demoNew)demoNew.hidden=true;
+     const realNav=document.querySelector('.sidebar [data-view="reais"]');
+     if(realNav)realNav.click();
+    }
    }).catch(()=>{});
  }
  document.getElementById('session-logout')?.addEventListener('click',logout);

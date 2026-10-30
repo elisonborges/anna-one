@@ -10,6 +10,7 @@ const {createLoginHandler} = require('./login.cjs');
 const {createBrandingHandler} = require('./branding.cjs');
 const {createLogoHandler} = require('./branding-logo.cjs');
 const {createMasterCompaniesHandler} = require('./master-companies.cjs');
+const {createInvitesHandler} = require('./master-invites.cjs');
 const host = process.env.HOST || '127.0.0.1';
 const port = Number(process.env.PORT || 8787);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw Error('Invalid PORT');
@@ -50,6 +51,7 @@ const login = createLoginHandler(getPool);
 const branding = createBrandingHandler(getPool);
 const brandingLogo = createLogoHandler(getPool);
 const masterCompanies = createMasterCompaniesHandler(getPool);
+const invites = createInvitesHandler(getPool);
 const authConfigured = () => Boolean((process.env.SD_JWT_SECRET && Buffer.byteLength(process.env.SD_JWT_SECRET) >= 32 && process.env.SD_JWT_ISSUER && process.env.SD_JWT_AUDIENCE));
 const server = http.createServer(async (req,res) => {
   let path;
@@ -67,7 +69,7 @@ const server = http.createServer(async (req,res) => {
     res.setHeader('Access-Control-Allow-Headers','Content-Type, Authorization, X-Tenant-Id');
     res.setHeader('Access-Control-Max-Age','600');
   }
-  if(req.method==='OPTIONS' && (path==='/api/v1/auth/login'||path==='/api/v1/tickets'||path==='/api/v1/units'||path==='/api/v1/admin/branding'||path==='/api/v1/master/companies'||path.startsWith('/api/v1/branding-logo/'))){
+  if(req.method==='OPTIONS' && (path==='/api/v1/auth/login'||path==='/api/v1/tickets'||path==='/api/v1/units'||path==='/api/v1/admin/branding'||path==='/api/v1/master/companies'||path==='/api/v1/master/invitations'||path==='/api/v1/auth/accept-invitation'||path.startsWith('/api/v1/branding-logo/'))){
     if(!allowedOrigins.has(origin)){
       // Origin is a public website address, not a credential. Never log request bodies or headers.
       console.warn('[service-desk/cors] preflight rejected', {
@@ -88,6 +90,8 @@ const server = http.createServer(async (req,res) => {
     res.end(JSON.stringify({service:'anna-service-desk-api',status:'foundation',database:db,auth:authConfigured() ? 'configured-not-verified' : 'not-configured'}));
     return;
   }
+  if (req.method === 'POST' && path === '/api/v1/master/invitations') return invites(req,res,false);
+  if (req.method === 'POST' && path === '/api/v1/auth/accept-invitation') return invites(req,res,true);
   if ((req.method === 'GET'||req.method === 'POST') && path === '/api/v1/master/companies') return masterCompanies(req,res);
   if ((req.method === 'GET'||req.method === 'POST') && path.startsWith('/api/v1/branding-logo/')) return brandingLogo(req,res,path.slice('/api/v1/branding-logo/'.length));
   if ((req.method === 'GET'||req.method === 'PUT') && path === '/api/v1/admin/branding') return branding(req,res);

@@ -353,6 +353,9 @@ function renderCatalogTree() {
     status.textContent=inactive?'Inativa':'Ativa';
     const count=document.createElement('small');count.textContent=subs.length+' subcategorias';
     head.append(name,status,count);
+    head.title='Clique para expandir; use Selecionar para editar';
+    const selectCat=document.createElement('button');selectCat.type='button';selectCat.className='catalog-tree-pick';selectCat.textContent='Selecionar';selectCat.dataset.catalogPick='category';selectCat.dataset.category=category;
+    head.append(selectCat);
     group.append(head);
     if (!subs.length) {
       const empty=document.createElement('p');empty.className='catalog-tree-empty';empty.textContent='Nenhuma subcategoria cadastrada.';
@@ -367,9 +370,11 @@ function renderCatalogTree() {
       const label=document.createElement('span');label.textContent=sub;
       const issues=catalogIssueList(category,sub);
       const total=document.createElement('small');total.textContent=issues.length+' tipos';
-      summary.append(label,total);child.append(summary);
+      summary.append(label,total);
+      const selectSub=document.createElement('button');selectSub.type='button';selectSub.className='catalog-tree-pick';selectSub.textContent='Selecionar';selectSub.dataset.catalogPick='subcategory';selectSub.dataset.category=category;selectSub.dataset.subcategory=sub;
+      summary.append(selectSub);child.append(summary);
       const list=document.createElement('ul');list.className='catalog-tree-issues';
-      for(const issue of issues.filter(issue=>!search || categoryMatch || matches(sub) || matches(issue))){const li=document.createElement('li');li.textContent=issue;list.append(li);}
+      for(const issue of issues.filter(issue=>!search || categoryMatch || matches(sub) || matches(issue))){const li=document.createElement('li');const btn=document.createElement('button');btn.type='button';btn.className='catalog-tree-issue-pick';btn.textContent=issue;btn.title='Selecionar tipo de problema para gerenciar';btn.dataset.catalogPick='issue';btn.dataset.category=category;btn.dataset.subcategory=sub;btn.dataset.issue=issue;li.append(btn);list.append(li);}
       child.append(list);group.append(child);
     }
     fragment.append(group);
@@ -378,6 +383,22 @@ function renderCatalogTree() {
   $('catalog-tree-filter-count').textContent=search ? visibleCategories+' categorias e '+visibleSubcategories+' subcategorias encontradas'+(visibleCategories?'':' — nenhum resultado') : '';
 }
 $('catalog-tree-search').addEventListener('input',renderCatalogTree);
+$('catalog-tree').addEventListener('click',event=>{
+  const button=event.target.closest('button[data-catalog-pick]');
+  if(!button)return;
+  event.preventDefault();event.stopPropagation();
+  const level=button.dataset.catalogPick;
+  $('catalog-category').value=button.dataset.category;
+  updateCatalogAdminSubcategories();
+  if(level!=='category'){
+    $('catalog-subcategory').value=button.dataset.subcategory;
+    updateCatalogAdminSubcategories();
+  }
+  if(level==='issue')$('catalog-issue').value=button.dataset.issue;
+  $('catalog-level').value=level;
+  $('catalog-feedback').textContent='Item selecionado na estrutura. Use os controles de gerenciamento para editar, mover ou excluir.';
+});
+
 function catalogIssueList(category,sub) {
   const catalog=activeCatalog();
   return catalog.problems[category+'::'+sub] || catalog.problems[sub] || categoryIssueTypes[category] || genericIssueTypes;

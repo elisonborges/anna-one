@@ -2,7 +2,7 @@
 const crypto = require('node:crypto');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function verifyToken(header, config = process.env) {
-  if (!header || !/^Bearer [A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(header)) return null;
+  if (typeof header !== 'string' || header.length > 4096 || !/^Bearer [A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(header)) return null;
   const secret = config.SD_JWT_SECRET;
   if (!secret || Buffer.byteLength(secret) < 32 || !config.SD_JWT_ISSUER || !config.SD_JWT_AUDIENCE) return null;
   try {
@@ -18,8 +18,8 @@ function verifyToken(header, config = process.env) {
     if (!UUID.test(claims.sub || '') || claims.iss !== config.SD_JWT_ISSUER ||
         claims.aud !== config.SD_JWT_AUDIENCE || !Number.isInteger(claims.exp) ||
         claims.exp <= now || claims.exp > now+3600 ||
-        !Number.isInteger(claims.iat) || claims.iat > now+60 ||
-        claims.iat > claims.exp || (claims.nbf != null && (typeof claims.nbf !== 'number' || claims.nbf > now))) return null;
+        !Number.isInteger(claims.iat) || claims.iat > now+60 || claims.iat > claims.exp ||
+        (claims.nbf != null && (!Number.isInteger(claims.nbf) || claims.nbf > now))) return null;
     return {id:claims.sub};
   } catch (_) { return null; }
 }

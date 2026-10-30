@@ -36,18 +36,19 @@ const sdk=await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');
 const auth=sdk.createAuthClient('https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth');
 const result=await auth.getSession();
 const user=result?.data?.user||result?.data?.session?.user;
-const token=result?.data?.session?.token;
+const token=result?.data?.session?.access_token||result?.data?.session?.token;
 const jwtMethods=['getJWTToken','getJwtToken','token'].filter(name=>typeof auth[name]==='function');
 const jwtButton=document.getElementById('jwt-local-check');
-jwtButton.disabled=!user||!jwtMethods.length;
+jwtButton.disabled=!user;
 jwtButton.addEventListener('click',async()=>{
  const output=document.getElementById('jwt-local-result');
  jwtButton.disabled=true;output.textContent='Verificando formato do JWT somente neste navegador…';
  try{
   // Tentar métodos documentados/compatíveis sem expor tokens ou URLs sensíveis.
-  let jwt=null;
+  let jwt=typeof result?.data?.session?.access_token==='string'?result.data.session.access_token:null;
+  if(jwt&&jwt.split('.').length!==3)jwt=null;
   const failures=[];
-  for(const method of jwtMethods){
+  for(const method of jwt?[]:jwtMethods){
    try{
     const result=await auth[method]();
     const candidate=typeof result==='string'?result:
@@ -62,7 +63,7 @@ jwtButton.addEventListener('click',async()=>{
     failures.push(method+': '+(http?'HTTP '+http[1]:'indisponível'));
    }
   }
-  if(!jwt)throw Error('Nenhum método retornou JWT ('+failures.join('; ')+').');
+  if(!jwt)throw Error('A sessão não contém access_token e os métodos alternativos não retornaram JWT ('+failures.join('; ')+').');
   if(!jwt||jwt.split('.').length!==3)throw Error('O SDK não retornou um JWT no formato esperado.');
   const [head,payload]=jwt.split('.');
   const decode=part=>JSON.parse(atob(part.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(part.length/4)*4,'=')));

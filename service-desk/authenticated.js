@@ -25,6 +25,82 @@ else{
  const masterCount=document.getElementById('master-company-count');
  const masterApi='https://anna-one.onrender.com/api/v1/master/companies';
  let masterBusy=false;
+ let editingCompany=null;
+ let cachedCompanies=[];
+ const digits=value=>String(value||'').replace(/\D/g,'');
+ function maskBrazil(value,kind){
+  const d=digits(value).slice(0,kind==='cnpj'?14:kind==='cep'?8:11);
+  if(kind==='cep')return d.replace(/^(\d{5})(\d)/,'$1-$2');
+  if(kind==='cnpj')return d.replace(/^(\d{2})(\d)/,'$1.$2').replace(/^(\d{2}\.\d{3})(\d)/,'$1.$2').replace(/\.(\d{3})(\d)/,'.$1/$2').replace(/(\d{4})(\d)/,'$1-$2');
+  return d.length>10?d.replace(/^(\d{2})(\d)/,'($1) $2').replace(/(\d{5})(\d{4})$/,'$1-$2'):d.replace(/^(\d{2})(\d)/,'($1) $2').replace(/(\d{4})(\d{4})$/,'$1-$2');
+ }
+ function validCnpj(value){
+  const d=digits(value);if(!d)return true;if(d.length!==14||/^(\d)\1+$/.test(d))return false;
+  for(let size=12;size<=13;size++){
+   const weights=size===12?[5,4,3,2,9,8,7,6,5,4,3,2]:[6,5,4,3,2,9,8,7,6,5,4,3,2];
+   const sum=weights.reduce((a,w,i)=>a+Number(d[i])*w,0);
+   if(Number(d[size])!==(sum%11<2?0:11-sum%11))return false;
+  }return true;
+ }
+ const companyFields=[...masterForm.querySelectorAll('[data-company-field]')];
+ for(const input of companyFields){
+  const kind=({tax_id:'cnpj',zip_code:'cep',phone:'phone',whatsapp:'phone'})[input.dataset.companyField];
+  if(kind)input.addEventListener('input',()=>{input.value=maskBrazil(input.value,kind);});
+ }
+ for(const id of ['master-invite-phone','master-invite-whatsapp']){
+  const input=document.getElementById(id);input?.addEventListener('input',()=>{input.value=maskBrazil(input.value,'phone');});
+ }
+ const cepInput=masterForm.querySelector('[data-company-field="zip_code"]');
+ cepInput.addEventListener('blur',async()=>{
+  const cep=digits(cepInput.value);if(cep.length!==8)return;
+  const before=cep;
+  try{
+   const response=await fetch('https://viacep.com.br/ws/'+cep+'/json/',{cache:'no-store'});
+   if(!response.ok)throw Error('CEP indisponível');
+   const address=await response.json();
+   if(address.erro||digits(cepInput.value)!==before){masterStatus.textContent='CEP não encontrado.';return;}
+   for(const [key,value] of Object.entries({street:address.logradouro,district:address.bairro,city:address.localidade,state:address.uf})){
+    const input=masterForm.querySelector('[data-company-field="'+key+'"]');if(input&&value)input.value=value;
+   }
+   masterStatus.textContent='Endereço localizado pelo CEP. Confira o número e complemento.';
+  }catch(_){masterStatus.textContent='Não foi possível consultar o CEP. Preencha o endereço manualmente.';}
+ });
+ function resetCompanyEdit(){
+  editingCompany=null;masterForm.reset();
+  document.getElementById('master-company-save').textContent='Cadastrar empresa';
+  document.getElementById('master-company-cancel').hidden=true;
+ }
+ document.getElementById('master-company-cancel').addEventListener('click',()=>{resetCompanyEdit();masterStatus.textContent='Edição cancelada.';});
+ function editCompany(company){
+  editingCompany=company.id;
+  document.getElementById('master-company-name').value=company.name;
+  for(const input of companyFields)input.value=company.details?.[input.dataset.companyField]||'';
+  document.getElementById('master-company-save').textContent='Salvar alterações';
+  document.getElementById('master-company-cancel').hidden=false;
+  masterStatus.textContent='Editando '+company.name;
+  masterForm.scrollIntoView({behavior:'smooth',block:'start'});
+ }
+ function renderCompanyRows(){
+  const q=document.getElementById('master-company-search').value.trim().toLowerCase();
+  masterList.replaceChildren();
+  for(const company of cachedCompanies.filter(c=>(c.name+' '+c.code+' '+(c.details?.tax_id||'')).toLowerCase().includes(q))){
+   const tr=document.createElement('tr');
+   const labels={active:'Ativa',suspended:'Suspensa',closed:'Encerrada'};
+   for(const value of [company.name,company.code,labels[company.status]||company.status]){
+    const td=document.createElement('td');td.textContent=String(value||'');tr.append(td);
+   }
+   const td=document.createElement('td'),edit=document.createElement('button');
+   edit.type='button';edit.className='secondary';edit.textContent='Editar';edit.onclick=()=>editCompany(company);td.append(edit);
+   for(const [status,label] of [['active','Ativar'],['suspended','Suspender'],['closed','Encerrar']]){
+    if(company.status===status||company.status==='closed')continue;
+    const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent=label;
+    b.onclick=()=>changeMasterStatus(company.id,null,status,company.name);td.append(b);
+   }
+   tr.append(td);masterList.append(tr);
+  }
+ }
+ document.getElementById('master-company-search').addEventListener('input',renderCompanyRows);
+
  async function masterRequest(method,body){
   const auth=session();if(!auth){logout();throw Error('Sessão expirada');}
   const response=await fetch(masterApi,{method,headers:{Authorization:'Bearer '+auth.token,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,cache:'no-store'});
@@ -55,19 +131,7 @@ else{
    for(const company of data.companies)if(company.status==='active')select.add(new Option(company.name,company.id));
    if([...select.options].some(x=>x.value===previous))select.value=previous;
    const labels={active:'Ativa',suspended:'Suspensa',closed:'Encerrada'};
-   for(const company of data.companies){
-    const tr=document.createElement('tr');
-    for(const value of [company.name,company.code,labels[company.status]||company.status]){
-     const td=document.createElement('td');td.textContent=String(value||'');tr.append(td);
-    }
-    const td=document.createElement('td');
-    for(const [status,label] of [['active','Ativar'],['suspended','Suspender'],['closed','Encerrar']]){
-     if(company.status===status||company.status==='closed')continue;
-     const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent=label;
-     b.onclick=()=>changeMasterStatus(company.id,null,status,company.name);td.append(b);
-    }
-    tr.append(td);masterList.append(tr);
-   }
+   cachedCompanies=data.companies;renderCompanyRows();
    const admins=document.getElementById('master-admin-list');admins.replaceChildren();
    for(const admin of data.administrators||[]){
     const company=data.companies.find(x=>x.id===admin.tenant_id);
@@ -96,9 +160,12 @@ else{
   if(name.length<2){masterStatus.textContent='Confira os dados da empresa.';return;}
   const button=document.getElementById('master-company-save');button.disabled=true;masterStatus.textContent='Cadastrando empresa...';
   try{
-   const created=await masterRequest('POST',{name,details});
-   masterStatus.textContent='Empresa cadastrada com sucesso. Código gerado: '+created.code+'.';
-   masterForm.reset();
+   if(!validCnpj(details.tax_id))throw Error('CNPJ inválido. Confira os dígitos verificadores.');
+   if(details.zip_code&&digits(details.zip_code).length!==8)throw Error('CEP deve ter 8 dígitos.');
+   for(const key of ['phone','whatsapp'])if(details[key]&&![10,11].includes(digits(details[key]).length))throw Error('Telefone e WhatsApp precisam de DDD e 10 ou 11 dígitos.');
+   const created=await masterRequest(editingCompany?'PUT':'POST',{...(editingCompany?{tenant_id:editingCompany}:{}),name,details});
+   masterStatus.textContent=editingCompany?'Cadastro atualizado com sucesso.':'Empresa cadastrada. Código: '+created.code+'.';
+   resetCompanyEdit();
    await loadMasterCompanies();
   }catch(e){masterStatus.textContent=e.message;}
   finally{button.disabled=false;}

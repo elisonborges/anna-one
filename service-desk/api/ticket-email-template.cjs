@@ -1,0 +1,12 @@
+'use strict';
+// Institutional HTML template. Client branding is server-side configuration, never user-submitted HTML.
+const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function ticketEmail({protocol,title,clientName='AnnA One',supportEmail='',supportPhone='',logoUrl='',signature='Equipe de Atendimento',portalUrl='https://annaone.com.br'}){
+ const safeLogo=/^https:\/\/[a-z0-9.-]+(?:\/[^\s"'<>]*)?$/i.test(logoUrl)?logoUrl:'';
+ const safePortal=/^https:\/\/[a-z0-9.-]+(?:\/[^\s"'<>]*)?$/i.test(portalUrl)?portalUrl:'https://annaone.com.br';
+ const lines=[supportEmail&&'E-mail: '+supportEmail,supportPhone&&'Telefone: '+supportPhone].filter(Boolean);
+ const html=`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"></head><body style="margin:0;background:#f2f5fa;font-family:Arial,sans-serif;color:#20324a"><div style="max-width:600px;margin:30px auto;background:#fff;border-radius:14px;overflow:hidden"><div style="padding:24px 30px;background:#142f60;color:white">${safeLogo?`<img src="${escapeHtml(safeLogo)}" alt="" style="max-height:56px;max-width:190px;display:block;margin-bottom:12px">`:''}<strong style="font-size:21px">${escapeHtml(clientName)}</strong><div style="opacity:.9;margin-top:5px">AnnA Service Desk</div></div><div style="padding:30px"><h2 style="margin-top:0">Chamado registrado com sucesso</h2><p>Recebemos sua solicitação. Guarde o protocolo abaixo para acompanhamento.</p><div style="background:#eaf3ff;border:1px solid #b4d3ff;padding:20px;border-radius:10px;text-align:center"><div style="font-size:13px">NÚMERO DO CHAMADO</div><strong style="font-size:24px;overflow-wrap:anywhere">${escapeHtml(protocol)}</strong></div><p><strong>Assunto:</strong> ${escapeHtml(title)}</p><p><a href="${escapeHtml(safePortal)}">Acessar portal</a></p><p>Atenciosamente,<br><strong>${escapeHtml(signature)}</strong></p>${lines.length?`<p style="font-size:13px;color:#52647b">${lines.map(escapeHtml).join('<br>')}</p>`:''}</div><div style="padding:17px 30px;background:#f2f5fa;font-size:12px;color:#5b6c83">Mensagem automática de confirmação · AnnA Service Desk</div></div></body></html>`;
+ const text=`${clientName} — AnnA Service Desk\nChamado registrado com sucesso\nProtocolo: ${protocol}\nAssunto: ${title}\n${signature}\n${lines.join('\n')}\nPortal: ${safePortal}`;
+ return {subject:`AnnA Service Desk — Chamado ${protocol} registrado`,html,text};
+}
+module.exports={ticketEmail};

@@ -86,6 +86,7 @@ function showTicket(id) {
   const timeline = ticket.events.map(event => '<div class="event"><strong>' + escapeHtml(event.title) + '</strong><p>' + escapeHtml(event.note) + '</p><small>Evento demonstrativo</small></div>').join('');
   const assignee = ticket.assignee || 'Não atribuído';
   const extra = ticket.requester ? '<div class="ticket-context"><h3>Solicitante e localização</h3><p><strong>Solicitante:</strong> ' + escapeHtml(ticket.requester) + ' · <strong>Contato:</strong> ' + escapeHtml(ticket.contact || 'Não informado') + '</p><p><strong>Unidade:</strong> ' + escapeHtml(ticket.unit) + ' · <strong>Setor:</strong> ' + escapeHtml(ticket.department) + '</p><p><strong>Impacto:</strong> ' + escapeHtml(ticket.impact) + ' · <strong>Urgência:</strong> ' + escapeHtml(ticket.urgency) + ' · <strong>Disponibilidade:</strong> ' + escapeHtml(ticket.availability) + '</p>' + (ticket.attempts ? '<p><strong>Verificações realizadas:</strong> ' + escapeHtml(ticket.attempts) + '</p>' : '') + '</div>' : '';
+  const attachmentsInfo = ticket.attachments && ticket.attachments.length ? '<div class="ticket-context"><h3>Anexos informados (somente simulação)</h3><ul>' + ticket.attachments.map(file => '<li>' + escapeHtml(file.name) + ' (' + Math.round(file.size / 1024) + ' KB)</li>').join('') + '</ul><p>Os arquivos não foram enviados nem armazenados; somente seus nomes aparecem nesta sessão.</p></div>' : '';
   const assetInfo = ticket.asset ? '<div class="ticket-context"><h3>Equipamento vinculado (simulação)</h3><div class="asset-facts">' + [['Identificação',ticket.asset.id],['Tipo',ticket.asset.type],['Patrimônio',ticket.asset.tag],['Série',ticket.asset.serial],['Fabricante',ticket.asset.brand],['Modelo',ticket.asset.model],['Sistema',ticket.asset.os],['Localização',ticket.asset.location],['Situação',ticket.asset.state]].map(([label,value]) => '<div><small>' + escapeHtml(label) + '</small><span>' + escapeHtml(value || 'Não informado') + '</span></div>').join('') + '</div></div>' : '';
   const technicianForm = role === 'tecnico' ? `
     <form id="technical-form" class="technical-form">
@@ -98,7 +99,7 @@ function showTicket(id) {
       <label>Observação do atendimento<textarea name="note" rows="3" maxlength="1000" placeholder="Descreva a ação realizada (opcional)"></textarea></label>
       <div class="form-actions"><button class="primary" type="submit">Salvar atendimento de teste</button></div>
     </form>` : '';
-  $('detail-content').innerHTML = '<h2 class="detail-title">#' + String(ticket.id).padStart(4,'0') + ' · ' + escapeHtml(ticket.title) + '</h2><div class="detail-meta"><span class="pill ' + statusClass(ticket.status) + '">' + escapeHtml(ticket.status) + '</span><span>' + escapeHtml(ticket.category) + (ticket.subcategory ? ' · ' + escapeHtml(ticket.subcategory) : '') + '</span><span>Prioridade: ' + escapeHtml(ticket.priority) + '</span><span>Responsável: ' + escapeHtml(assignee) + '</span></div><div class="detail-description">' + escapeHtml(ticket.description) + '</div>' + extra + assetInfo + technicianForm + '<p id="technical-feedback" class="technical-feedback" role="status"></p><h2>Histórico do chamado</h2><div class="timeline">' + timeline + '</div>';
+  $('detail-content').innerHTML = '<h2 class="detail-title">#' + String(ticket.id).padStart(4,'0') + ' · ' + escapeHtml(ticket.title) + '</h2><div class="detail-meta"><span class="pill ' + statusClass(ticket.status) + '">' + escapeHtml(ticket.status) + '</span><span>' + escapeHtml(ticket.category) + (ticket.subcategory ? ' · ' + escapeHtml(ticket.subcategory) : '') + '</span><span>Prioridade: ' + escapeHtml(ticket.priority) + '</span><span>Responsável: ' + escapeHtml(assignee) + '</span></div><div class="detail-description">' + escapeHtml(ticket.description) + '</div>' + extra + assetInfo + attachmentsInfo + technicianForm + '<p id="technical-feedback" class="technical-feedback" role="status"></p><h2>Histórico do chamado</h2><div class="timeline">' + timeline + '</div>';
   if (role === 'tecnico') {
     $('technical-form').addEventListener('submit', event => {
       event.preventDefault();
@@ -201,9 +202,34 @@ function updateTicketSubcategories() {
 }
 $('ticket-category').addEventListener('change', updateTicketSubcategories);
 updateTicketSubcategories();
+const allowedAttachmentExtensions = /\.(png|jpe?g|webp|pdf|txt|docx?|xlsx?)$/i;
+function validateAttachments(files) {
+  if (files.length > 5) return 'Selecione no máximo 5 arquivos.';
+  for (const file of files) {
+    if (!allowedAttachmentExtensions.test(file.name)) return 'Tipo de arquivo não permitido: ' + file.name;
+    if (file.size > 5 * 1024 * 1024) return 'Arquivo acima de 5 MB: ' + file.name;
+  }
+  return '';
+}
+$('ticket-attachments').addEventListener('change', () => {
+  const files = Array.from($('ticket-attachments').files);
+  const error = validateAttachments(files);
+  $('ticket-attachments').setCustomValidity(error);
+  $('attachment-list').replaceChildren();
+  if (error) { $('attachment-list').textContent = error; return; }
+  const list = document.createElement('ul');
+  for (const file of files) {
+    const item = document.createElement('li');
+    item.textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
+    list.append(item);
+  }
+  $('attachment-list').append(list);
+});
 $('new-form').addEventListener('submit', event => {
   event.preventDefault();
   const form = event.currentTarget;
+  const attachmentError = validateAttachments(Array.from($('ticket-attachments').files));
+  $('ticket-attachments').setCustomValidity(attachmentError);
   if (!form.reportValidity()) return;
   const data = new FormData(form);
   const inventoryMode = data.get('assetMode') === 'inventory';
@@ -219,6 +245,7 @@ $('new-form').addEventListener('submit', event => {
   };
   const id = Math.max(0, ...tickets.map(t => t.id)) + 1;
   const urgency = String(data.get('urgency'));
+  const attachmentNames = Array.from($('ticket-attachments').files, file => ({name:file.name,size:file.size}));
   tickets.unshift({
     id, title:String(data.get('title')).trim(), category:String(data.get('category') || 'Outros'),
     subcategory:String(data.get('subcategory') || ''), priority:urgency === 'Alta' ? 'Alta' : urgency === 'Baixa' ? 'Baixa' : 'Normal',
@@ -226,10 +253,12 @@ $('new-form').addEventListener('submit', event => {
     requester:String(data.get('requester')).trim(),contact:String(data.get('contact') || '').trim(),
     unit:String(data.get('unit')).trim(),department:String(form.elements.department.value),
     asset:asset ? {...asset} : manualAsset, attempts:String(data.get('attempts') || '').trim(),
-    availability:String(data.get('availability')), status:'Aberto',
+    availability:String(data.get('availability')), attachments:attachmentNames, status:'Aberto',
     events:[{title:'Chamado registrado',note:'Registro demonstrativo criado nesta sessão, sem envio a servidor.'}]
   });
   form.reset();
+  $('ticket-attachments').setCustomValidity('');
+  $('attachment-list').replaceChildren();
   restoreDemoProfile();
   $('asset-search').value = '';
   renderDemoAssets();

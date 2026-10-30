@@ -13,7 +13,7 @@ export default {
     const allowed = env.APP_ORIGIN || "https://annaone.com.br";
     const cors = origin === allowed
       ? { "access-control-allow-origin": allowed, "access-control-allow-headers": "authorization, content-type",
-          "access-control-allow-methods": "GET, OPTIONS", "vary": "Origin" }
+          "access-control-allow-methods": "GET, POST, OPTIONS", "vary": "Origin" }
       : {};
     if (request.method === "OPTIONS") {
       return origin === allowed
@@ -31,6 +31,26 @@ export default {
       } catch {
         return json({ authenticated: false, error: "Credencial inválida ou autenticação não configurada" }, 401, cors);
       }
+    }
+    if (url.pathname === "/v1/admin/institutions" && request.method === "POST") {
+      let identity;
+      try { identity = await verifyBearer(request, env); }
+      catch { return json({ error: "Autenticação necessária" }, 401, cors); }
+      if (!(request.headers.get("content-type") || "").toLowerCase().startsWith("application/json"))
+        return json({ error: "Envie JSON" }, 415, cors);
+      const body = await request.text();
+      if (body.length > 4096) return json({ error: "Dados excedem o limite" }, 413, cors);
+      let data;
+      try { data = JSON.parse(body); }
+      catch { return json({ error: "JSON inválido" }, 400, cors); }
+      const name = typeof data?.name === "string" ? data.name.trim() : "";
+      const slug = typeof data?.slug === "string" ? data.slug.trim() : "";
+      if (name.length < 2 || name.length > 160 || slug.length > 80 ||
+          !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug))
+        return json({ error: "Nome ou código inválido" }, 422, cors);
+      // Identidade verificada NÃO equivale a autorização Master.
+      // Falha fechada até existir conexão segura com o Neon e checagem de platform_admins.
+      return json({ error: "Cadastro aguardando autorização Master e auditoria transacional no banco" }, 503, cors);
     }
     if (url.pathname.startsWith("/v1/audit") || url.pathname.startsWith("/v1/admin")) {
       return json({ error: "Integração indisponível até validação de autorização e banco no servidor" }, 503, cors);

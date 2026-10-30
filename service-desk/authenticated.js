@@ -420,12 +420,6 @@ else{
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',showDashboard,{once:true});
   else showDashboard();
  }
- document.getElementById('institutional-monitor-window')?.addEventListener('click',()=>{
-  const url=new URL(location.href);
-  url.searchParams.set('monitor',monitorFocus?.value||'all');
-  const separate=window.open(url.href,'_blank');
-  if(!separate)alert('Permita a abertura de uma nova janela para usar o painel separado.');
- });
  document.getElementById('institutional-monitor-focus')?.addEventListener('change',loadInstitutionalReports);
  for(const [view,button] of [['painel-institucional','institutional-dashboard-refresh'],['relatorios-institucionais','institutional-report-refresh']]){
   document.querySelector('.sidebar [data-view="'+view+'"]')?.addEventListener('click',loadInstitutionalReports);
@@ -439,10 +433,20 @@ else{
   monitorButton.textContent='Modo Monitoramento';
   if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});
  }
- monitorButton?.addEventListener('click',async()=>{
+ async function activateMonitoring(){
+  if(document.body.classList.contains('institutional-monitor-mode'))return;
+  document.body.classList.add('institutional-monitor-mode');
+  monitorButton.textContent='Sair do monitoramento';
+  await loadInstitutionalReports();
+  // Fullscreen may require a direct user gesture in the new tab.
+  if(document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(()=>{});
+  monitorTimer=setInterval(()=>{
+   if(!session()){stopMonitoring();logout();return;}
+   if(document.visibilityState==='visible')loadInstitutionalReports();
+  },60000);
+ }
+ monitorButton?.addEventListener('click',()=>{
   if(document.body.classList.contains('institutional-monitor-mode')){stopMonitoring();return;}
-  // First click from the main dashboard opens a separate authenticated tab.
-  // Inside that tab, the same button activates fullscreen monitoring.
   if(!new URLSearchParams(location.search).has('monitor')){
    const url=new URL(location.href);
    url.searchParams.set('monitor',monitorFocus?.value||'all');
@@ -450,15 +454,12 @@ else{
    if(!separate)alert('O navegador bloqueou a nova guia. Permita pop-ups deste site e tente novamente.');
    return;
   }
-  document.body.classList.add('institutional-monitor-mode');
-  monitorButton.textContent='Sair do monitoramento';
-  await loadInstitutionalReports();
-  if(document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(()=>{});
-  monitorTimer=setInterval(()=>{
-   if(!session()){stopMonitoring();logout();return;}
-   if(document.visibilityState==='visible')loadInstitutionalReports();
-  },60000);
+  activateMonitoring();
  });
+ if(['all','active','high'].includes(requestedFocus)){
+  // Open directly in branded monitoring mode; fullscreen depends on browser permission.
+  activateMonitoring();
+ }
  document.addEventListener('fullscreenchange',()=>{
   if(!document.fullscreenElement&&document.body.classList.contains('institutional-monitor-mode'))stopMonitoring();
  });

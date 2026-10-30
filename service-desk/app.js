@@ -75,7 +75,7 @@ function renderLists() {
   );
   $('ticket-result-count').textContent = filtered.length + (filtered.length === 1 ? ' chamado encontrado' : ' chamados encontrados');
   $('ticket-list').innerHTML = filtered.length ? filtered.map(t =>
-    '<tr><td>#' + String(t.id).padStart(4, '0') + '</td><td>' + escapeHtml(t.title) + '</td><td>' + escapeHtml(t.category) + '</td><td>' + escapeHtml(t.subcategory || '—') + '</td><td>' + escapeHtml(t.priority) + '</td><td><span class="pill ' + statusClass(t.status) + '">' + escapeHtml(t.status) + '</span></td><td>' + escapeHtml(t.assignee || 'Não atribuído') + '</td><td><span class="sla-chip sla-" + simulatedSla(t).key + "">' + escapeHtml(simulatedSla(t).label) + '</span></td><td><button class="ticket-link" data-ticket="' + t.id + '">Visualizar</button></td></tr>'
+    '<tr><td>#' + String(t.id).padStart(4, '0') + '</td><td>' + escapeHtml(t.title) + '</td><td>' + escapeHtml(t.category) + '</td><td>' + escapeHtml(t.subcategory || '—') + '</td><td>' + escapeHtml(t.priority) + '</td><td><span class="pill ' + statusClass(t.status) + '">' + escapeHtml(t.status) + '</span></td><td>' + escapeHtml(t.assignee || 'Não atribuído') + '</td><td><span class="sla-chip sla-' + simulatedSla(t).key + '">' + escapeHtml(simulatedSla(t).label) + '</span></td><td><button class="ticket-link" data-ticket="' + t.id + '">Visualizar</button></td></tr>'
   ).join('') : '<tr><td colspan="9" class="empty">Nenhum chamado encontrado.</td></tr>';
 }
 const demoTechnicians = ['Equipe de TI', 'Suporte de infraestrutura', 'Suporte de sistemas', 'Prestador externo'];

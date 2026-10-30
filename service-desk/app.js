@@ -118,6 +118,22 @@ function showTicket(id) {
     ticket.events.push({title:role === 'tecnico' ? 'Atualização do técnico (simulação)' : 'Informação do solicitante (simulação)',note:[message,fileInfo.length ? 'Arquivos informados: ' + fileInfo.map(file => file.name).join(', ') + ' (sem upload)' : ''].filter(Boolean).join(' — ')});
     showTicket(ticket.id);
   });
+  if (role === 'solicitante') {
+    $('priority-review-form').addEventListener('submit',event=>{
+      event.preventDefault();
+      const form=event.currentTarget;
+      if(!form.reportValidity())return;
+      const data=new FormData(form);
+      const requested=String(data.get('requested'));
+      const reason=String(data.get('reason')).trim();
+      if(!['Baixa','Normal','Alta'].includes(requested)||requested===ticket.priority||reason.length<10){
+        alert('Selecione uma prioridade diferente da atual e informe pelo menos 10 caracteres na justificativa.');
+        return;
+      }
+      ticket.events.push({title:'Pedido de revisão de prioridade (simulação)',note:'Prioridade solicitada: '+requested+'. Justificativa: '+reason+'. Pendente de análise; prioridade atual preservada.',at:new Date().toISOString()});
+      showTicket(ticket.id);
+    });
+  }
   if (role === 'tecnico') {
     $('technical-form').addEventListener('submit', event => {
       event.preventDefault();
@@ -746,7 +762,7 @@ $('new-form').addEventListener('submit', event => {
     unit:String(data.get('unit')).trim(),department:String(form.elements.department.value),
     asset:asset ? {...asset} : manualAsset, attempts:String(data.get('attempts') || '').trim(),
     availability:String(data.get('availability')), attachments:attachmentNames, status:'Aberto',
-    events:[{title:'Chamado registrado',note:'Registro demonstrativo criado nesta sessão, sem envio a servidor.'}]
+    events:[{title:'Chamado registrado',note:'Registro demonstrativo criado nesta sessão, sem envio a servidor.',at:new Date().toISOString()}]
   });
   form.reset();
   $('ticket-attachments').setCustomValidity('');

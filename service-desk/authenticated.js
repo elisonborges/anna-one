@@ -42,6 +42,9 @@ else{
    const data=await masterRequest('GET');
    if(!Array.isArray(data.companies))throw Error('Resposta inválida da API.');
    masterNav.hidden=false;masterList.replaceChildren();
+   const tenantSelect=document.getElementById('master-invite-tenant');const previous=tenantSelect.value;tenantSelect.replaceChildren(new Option('Selecione a empresa',''));
+   for(const company of data.companies){if(company.active)tenantSelect.add(new Option(company.name,company.id));}
+   if([...tenantSelect.options].some(option=>option.value===previous))tenantSelect.value=previous;
    for(const company of data.companies){
     const tr=document.createElement('tr');
     for(const value of [company.name,company.code,company.active?'Ativa':'Inativa']){
@@ -66,6 +69,24 @@ else{
    masterForm.reset();
    await loadMasterCompanies();
   }catch(e){masterStatus.textContent=e.message;}
+  finally{button.disabled=false;}
+ });
+ document.getElementById('master-invite-form')?.addEventListener('submit',async event=>{
+  event.preventDefault();
+  const tenant_id=document.getElementById('master-invite-tenant').value;
+  const email=document.getElementById('master-invite-email').value.trim().toLowerCase();
+  const status=document.getElementById('master-invite-status');
+  const button=document.getElementById('master-invite-send');
+  if(!tenant_id||!email){status.textContent='Selecione a empresa e informe o e-mail.';return;}
+  button.disabled=true;status.textContent='Enviando convite...';
+  try{
+   const auth=session();if(!auth){logout();return;}
+   const response=await fetch('https://anna-one.onrender.com/api/v1/master/invitations',{method:'POST',headers:{Authorization:'Bearer '+auth.token,'Content-Type':'application/json'},body:JSON.stringify({tenant_id,email})});
+   if(response.status===401){logout();return;}
+   if(!response.ok)throw Error(response.status===403?'Acesso exclusivo do Master.':'Falha ao enviar convite (HTTP '+response.status+').');
+   status.textContent='Convite enviado para '+email+'. Validade: 48 horas.';
+   document.getElementById('master-invite-email').value='';
+  }catch(error){status.textContent=error.message;}
   finally{button.disabled=false;}
  });
  document.getElementById('master-reload')?.addEventListener('click',loadMasterCompanies);

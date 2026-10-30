@@ -330,13 +330,21 @@ function renderCatalogTree() {
   const totalSubs = categories.reduce((sum,[,subs])=>sum+subs.length,0);
   $('catalog-tree-count').textContent = categories.length+' categorias · '+totalSubs+' subcategorias';
   const tree = $('catalog-tree');
+  const search = $('catalog-tree-search').value.trim().toLocaleLowerCase('pt-BR');
+  let visibleCategories=0,visibleSubcategories=0;
+  const matches = value => value.toLocaleLowerCase('pt-BR').includes(search);
   const openKeys = new Set(Array.from(tree.querySelectorAll('details[open]')).map(node=>node.dataset.key));
   const fragment = document.createDocumentFragment();
   for (const [category,subs] of categories) {
+    const categoryMatch=matches(category);
+    const visibleSubs=subs.filter(sub=>categoryMatch || matches(sub) || catalogIssueList(category,sub).some(matches));
+    if(search && !categoryMatch && !visibleSubs.length)continue;
+    visibleCategories++;
+    visibleSubcategories+=visibleSubs.length;
     const group = document.createElement('details');
     group.className='catalog-tree-category';
     group.dataset.key='cat:'+category;
-    group.open=openKeys.has(group.dataset.key);
+    group.open=search?true:openKeys.has(group.dataset.key);
     const head=document.createElement('summary');
     const name=document.createElement('strong');name.textContent=category;
     const status=document.createElement('span');
@@ -350,24 +358,26 @@ function renderCatalogTree() {
       const empty=document.createElement('p');empty.className='catalog-tree-empty';empty.textContent='Nenhuma subcategoria cadastrada.';
       group.append(empty);
     }
-    for (const sub of subs) {
+    for (const sub of visibleSubs) {
       const child=document.createElement('details');
       child.className='catalog-tree-subcategory';
       child.dataset.key='sub:'+category+'::'+sub;
-      child.open=openKeys.has(child.dataset.key);
+      child.open=search?true:openKeys.has(child.dataset.key);
       const summary=document.createElement('summary');
       const label=document.createElement('span');label.textContent=sub;
       const issues=catalogIssueList(category,sub);
       const total=document.createElement('small');total.textContent=issues.length+' tipos';
       summary.append(label,total);child.append(summary);
       const list=document.createElement('ul');list.className='catalog-tree-issues';
-      for(const issue of issues){const li=document.createElement('li');li.textContent=issue;list.append(li);}
+      for(const issue of issues.filter(issue=>!search || categoryMatch || matches(sub) || matches(issue))){const li=document.createElement('li');li.textContent=issue;list.append(li);}
       child.append(list);group.append(child);
     }
     fragment.append(group);
   }
   tree.replaceChildren(fragment);
+  $('catalog-tree-filter-count').textContent=search ? visibleCategories+' categorias e '+visibleSubcategories+' subcategorias encontradas'+(visibleCategories?'':' — nenhum resultado') : '';
 }
+$('catalog-tree-search').addEventListener('input',renderCatalogTree);
 function catalogIssueList(category,sub) {
   const catalog=activeCatalog();
   return catalog.problems[category+'::'+sub] || catalog.problems[sub] || categoryIssueTypes[category] || genericIssueTypes;

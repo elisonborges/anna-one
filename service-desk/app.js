@@ -62,22 +62,49 @@ function renderLists() {
     '<tr><td>#' + String(t.id).padStart(4, '0') + '</td><td>' + escapeHtml(t.title) + '</td><td>' + escapeHtml(t.category) + '</td><td>' + escapeHtml(t.subcategory || '—') + '</td><td>' + escapeHtml(t.priority) + '</td><td><span class="pill ' + statusClass(t.status) + '">' + escapeHtml(t.status) + '</span></td><td>' + escapeHtml(t.assignee || 'Não atribuído') + '</td><td><button class="ticket-link" data-ticket="' + t.id + '">Visualizar</button></td></tr>'
   ).join('') : '<tr><td colspan="8" class="empty">Nenhum chamado encontrado.</td></tr>';
 }
+const demoTechnicians = ['Equipe de TI', 'Suporte de infraestrutura', 'Suporte de sistemas', 'Prestador externo'];
 function showTicket(id) {
   selectedId = id;
   const ticket = tickets.find(t => t.id === id);
   if (!ticket) return;
-  const timeline = ticket.events.map(event => `<div class="event"><strong>${escapeHtml(event.title)}</strong><p>${escapeHtml(event.note)}</p><small>Evento demonstrativo</small></div>`).join('');
-  $('detail-content').innerHTML = `<h2 class="detail-title">#${ticket.id.toString().padStart(4,'0')} · ${escapeHtml(ticket.title)}</h2><div class="detail-meta"><span class="pill ${statusClass(ticket.status)}">${escapeHtml(ticket.status)}</span><span>${escapeHtml(ticket.category)}${ticket.subcategory ? ' · ' + escapeHtml(ticket.subcategory) : ''}</span><span>Prioridade: ${escapeHtml(ticket.priority)}</span></div><div class="detail-description">${escapeHtml(ticket.description)}</div><h2>Histórico do chamado</h2><div class="timeline">${timeline}</div>${role === 'tecnico' ? `<div class="technician"><label for="next-status">Atualizar status (somente simulação)</label><select id="next-status"><option>Aberto</option><option>Em andamento</option><option>Pendente</option><option>Resolvido</option></select><button id="save-status" class="primary">Salvar status</button></div>` : ''}`;
+  const timeline = ticket.events.map(event => '<div class="event"><strong>' + escapeHtml(event.title) + '</strong><p>' + escapeHtml(event.note) + '</p><small>Evento demonstrativo</small></div>').join('');
+  const assignee = ticket.assignee || 'Não atribuído';
+  const technicianForm = role === 'tecnico' ? `
+    <form id="technical-form" class="technical-form">
+      <h2>Atendimento técnico <span class="pill open">Simulação</span></h2>
+      <div class="technical-fields">
+        <label>Responsável<select name="assignee"><option value="">Não atribuído</option>${demoTechnicians.map(name => '<option value="' + escapeHtml(name) + '"' + (ticket.assignee === name ? ' selected' : '') + '>' + escapeHtml(name) + '</option>').join('')}</select></label>
+        <label>Situação<select name="status">${['Aberto','Em andamento','Pendente','Resolvido'].map(value => '<option' + (ticket.status === value ? ' selected' : '') + '>' + value + '</option>').join('')}</select></label>
+        <label>Prioridade<select name="priority">${['Baixa','Normal','Alta'].map(value => '<option' + (ticket.priority === value ? ' selected' : '') + '>' + value + '</option>').join('')}</select></label>
+      </div>
+      <label>Observação do atendimento<textarea name="note" rows="3" maxlength="1000" placeholder="Descreva a ação realizada (opcional)"></textarea></label>
+      <div class="form-actions"><button class="primary" type="submit">Salvar atendimento de teste</button></div>
+    </form>` : '';
+  $('detail-content').innerHTML = '<h2 class="detail-title">#' + String(ticket.id).padStart(4,'0') + ' · ' + escapeHtml(ticket.title) + '</h2><div class="detail-meta"><span class="pill ' + statusClass(ticket.status) + '">' + escapeHtml(ticket.status) + '</span><span>' + escapeHtml(ticket.category) + (ticket.subcategory ? ' · ' + escapeHtml(ticket.subcategory) : '') + '</span><span>Prioridade: ' + escapeHtml(ticket.priority) + '</span><span>Responsável: ' + escapeHtml(assignee) + '</span></div><div class="detail-description">' + escapeHtml(ticket.description) + '</div>' + technicianForm + '<p id="technical-feedback" class="technical-feedback" role="status"></p><h2>Histórico do chamado</h2><div class="timeline">' + timeline + '</div>';
   if (role === 'tecnico') {
-    $('next-status').value = ticket.status;
-    $('save-status').addEventListener('click', () => {
-      const next = $('next-status').value;
-      if (next !== ticket.status) { ticket.status = next; ticket.events.push({ title: 'Status alterado para ' + next, note: 'Alteração fictícia realizada na demonstração.' }); }
+    $('technical-form').addEventListener('submit', event => {
+      event.preventDefault();
+      const data = new FormData(event.currentTarget);
+      const nextStatus = String(data.get('status'));
+      const nextPriority = String(data.get('priority'));
+      const nextAssignee = String(data.get('assignee'));
+      const note = String(data.get('note')).trim();
+      const changes = [];
+      if (nextStatus !== ticket.status) changes.push('Situação: ' + ticket.status + ' → ' + nextStatus);
+      if (nextPriority !== ticket.priority) changes.push('Prioridade: ' + ticket.priority + ' → ' + nextPriority);
+      if (nextAssignee !== (ticket.assignee || '')) changes.push('Responsável: ' + (ticket.assignee || 'Não atribuído') + ' → ' + (nextAssignee || 'Não atribuído'));
+      if (!changes.length && !note) { $('technical-feedback').textContent = 'Nenhuma alteração para salvar.'; return; }
+      ticket.status = nextStatus;
+      ticket.priority = nextPriority;
+      ticket.assignee = nextAssignee;
+      ticket.events.push({title:'Atendimento atualizado (simulação)',note: [changes.join(' | '),note].filter(Boolean).join(' — ')});
       showTicket(ticket.id);
+      $('technical-feedback').textContent = 'Atendimento registrado apenas nesta sessão.';
     });
   }
   show('detalhe');
 }
+
 document.addEventListener('click', event => {
   const ticketButton = event.target.closest('[data-ticket]');
   if (ticketButton) return showTicket(Number(ticketButton.dataset.ticket));

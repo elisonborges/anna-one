@@ -4,6 +4,7 @@ const {Pool}=require('pg');
 const adminApi=require('./admin-api');
 const tenantApi=require('./tenant-api');
 const panelApi=require('./panel-api');
+const userAuth=require('./auth-api');
 const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:true},max:5});
 const token=process.env.FLOW_ADMIN_TOKEN||'';
 if(!process.env.DATABASE_URL||token.length<24){console.error('Configure DATABASE_URL e FLOW_ADMIN_TOKEN (mínimo 24 caracteres).');process.exit(1)}
@@ -21,6 +22,9 @@ case 'demo': {if(s.queue.length||s.current)throw Error('Limpe a fila primeiro');
 case 'reset': {Object.assign(s,{queue:[],current:null,history:[],counters:{},completed:0,calls:0});return {ok:true}}
 default:throw Error('Ação inválida')}}
 const server=http.createServer(async(req,res)=>{const url=new URL(req.url,'http://localhost');
+if(url.pathname==='/api/login'&&req.method==='POST')return userAuth.login(req,res,{pool,send});
+if(url.pathname==='/api/logout'&&req.method==='POST')return userAuth.logout(req,res,{pool,send});
+if(url.pathname==='/api/users'&&req.method==='POST')return userAuth.createUser(req,res,{pool,auth,send});
 if(url.pathname==='/api/panel')return panelApi(req,res,{pool,send});
 if(url.pathname==='/api/tenant')return tenantApi(req,res,{pool,auth,send});
 if(url.pathname==='/api/admin')return adminApi(req,res,{pool,auth,send});

@@ -38,7 +38,7 @@ async function databaseStatus() {
   }
 }
 const readTickets = createTicketReader(getPool);
-const authConfigured = () => Boolean((process.env.SD_SUPABASE_URL && process.env.SD_SUPABASE_PUBLISHABLE_KEY) || (process.env.SD_JWT_SECRET && Buffer.byteLength(process.env.SD_JWT_SECRET) >= 32 && process.env.SD_JWT_ISSUER && process.env.SD_JWT_AUDIENCE));
+const authConfigured = () => Boolean((process.env.SD_JWT_SECRET && Buffer.byteLength(process.env.SD_JWT_SECRET) >= 32 && process.env.SD_JWT_ISSUER && process.env.SD_JWT_AUDIENCE));
 const server = http.createServer(async (req,res) => {
   let path;
   try { path = new URL(req.url, 'http://localhost').pathname; }

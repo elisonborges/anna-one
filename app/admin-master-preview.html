@@ -42,7 +42,7 @@ const jwtButton=document.getElementById('jwt-local-check');
 jwtButton.disabled=!user;
 jwtButton.addEventListener('click',async()=>{
  const output=document.getElementById('jwt-local-result');
- jwtButton.disabled=true;output.textContent='Verificando formato do JWT somente neste navegador…';
+ jwtButton.disabled=true;output.textContent='Inspecionando somente a estrutura da resposta do SDK…';
  try{
   // Tentar métodos documentados/compatíveis sem expor tokens ou URLs sensíveis.
   let jwt=typeof result?.data?.session?.access_token==='string'?result.data.session.access_token:null;
@@ -56,7 +56,11 @@ jwtButton.addEventListener('click',async()=>{
       typeof result?.data?.token==='string'?result.data.token:
       typeof result?.data?.jwt==='string'?result.data.jwt:null;
     if(candidate&&candidate.split('.').length===3){jwt=candidate;break;}
-    failures.push(method+': resposta sem JWT');
+    // Mostrar somente a estrutura da resposta, jamais seus valores.
+    const shape=result&&typeof result==='object'
+      ? Object.keys(result).filter(k=>/^[a-zA-Z_]+$/.test(k)).slice(0,8).join(', ')
+      : typeof result;
+    failures.push(method+': resposta sem JWT [estrutura: '+(shape||'vazia')+']');
    }catch(e){
     const message=String(e?.message||'erro');
     const http=message.match(/(?:HTTP\s*)?(401|403|404|405|500|502|503)\b/i);

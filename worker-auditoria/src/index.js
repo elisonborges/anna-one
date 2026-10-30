@@ -61,9 +61,36 @@ export default {
       if (name.length < 2 || name.length > 160 || slug.length > 80 ||
           !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug))
         return json({ error: "Nome ou código inválido" }, 422, cors);
-      // Identidade verificada NÃO equivale a autorização Master.
-      // Falha fechada até existir conexão segura com o Neon e checagem de platform_admins.
-      return json({ error: "Cadastro aguardando autorização Master e auditoria transacional no banco" }, 503, cors);
+      if (!env.DATABASE_URL) return json({ error: "Banco indisponível" }, 503, cors);
+      try {
+        const sql = neon(env.DATABASE_URL);
+        // INSERT + auditoria são atômicos na mesma instrução SQL.
+        // O actor vem exclusivamente do JWT validado, nunca do corpo enviado.
+        const result = await sql`
+          WITH created AS (
+            INSERT INTO public.institutions (name, slug, status)
+            SELECT ${name}, ${slug}, 'active'
+            WHERE EXISTS (
+              SELECT 1 FROM public.platform_admins WHERE user_id = ${identity.userId}::uuid
+            )
+            RETURNING id
+          ), logged AS (
+            INSERT INTO anna_audit.audit_logs
+              (actor_user_id, institution_id, action, entity_type, entity_id, details)
+            SELECT ${identity.userId}::uuid, id, 'institution.created', 'institution',
+                   id::text, jsonb_build_object('name', ${name}, 'slug', ${slug}, 'status', 'active')
+            FROM created
+            RETURNING institution_id
+          )
+          SELECT institution_id AS id FROM logged
+        `;
+        if (!result.length) return json({ error: "Acesso Master negado" }, 403, cors);
+        return json({ id: result[0].id, name, slug, status: "active" }, 201, cors);
+      } catch (error) {
+        if (error?.code === "23505") return json({ error: "Código já cadastrado" }, 409, cors);
+        console.error("master institution create failed", error?.code || "db_error");
+        return json({ error: "Não foi possível cadastrar a instituição" }, 503, cors);
+      }
     }
     if (url.pathname.startsWith("/v1/audit") || url.pathname.startsWith("/v1/admin")) {
       return json({ error: "Integração indisponível até validação de autorização e banco no servidor" }, 503, cors);

@@ -181,6 +181,7 @@ else{
   const status=document.getElementById('master-invite-status');
   const button=document.getElementById('master-invite-send');
   if(!tenant_id||!email||name.length<2){status.textContent='Selecione a empresa, informe o nome e o e-mail.';return;}
+  for(const [value,label] of [[phone,'Telefone'],[whatsapp,'WhatsApp']])if(value&&![10,11].includes(digits(value).length)){status.textContent=label+' deve conter DDD e 10 ou 11 dígitos.';return;}
   button.disabled=true;status.textContent='Enviando convite...';
   try{
    const auth=session();if(!auth){logout();return;}

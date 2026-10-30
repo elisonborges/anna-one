@@ -18,6 +18,8 @@
 })();
 </script><style>
 /* Layout-only refinements: preserve navigation and demo/real ticket logic. */
+/* Root cause: .main had margin:auto inside a full-height grid, vertically centering short views. */
+.shell{align-items:start}.main{margin:0 auto;align-self:start}
 .sidebar{gap:26px}.sidebar nav{gap:5px}.nav-heading{font-size:10px;font-weight:800;letter-spacing:.12em;color:#90a8d0;padding:16px 15px 5px}.sidebar .nav-item{padding:11px 14px;font-size:14px;line-height:1.35}
 .topbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 18px;margin-bottom:18px}.topbar-heading{flex:1 1 210px}.topbar h1{margin:5px 0 0;line-height:1.15}
 .topbar-heading{min-width:0}.top-actions{display:flex;flex:0 1 auto;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:10px}

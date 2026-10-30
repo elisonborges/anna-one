@@ -13,7 +13,7 @@ test('health endpoint exposes no real-service claim', async () => {
   assert.equal(data.database,'not-configured');
   assert.equal(data.auth,'not-configured');
   const missing=await fetch('http://127.0.0.1:'+port+'/api/v1/tickets');
-  assert.equal(missing.status,404);
+  assert.equal(missing.status,401);
  } finally {
   await new Promise((resolve,reject)=>server.close(err=>err?reject(err):resolve()));
  }

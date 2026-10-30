@@ -45,6 +45,7 @@ a{color:#176eb4}.site-footer{text-align:center;font-size:12px;color:#14335c;line
 <script>
 'use strict';
 const api='https://anna-one.onrender.com/api/v1/auth/login';
+try{const saved=JSON.parse(sessionStorage.getItem('anna_sd_session')||'null');if(saved?.token&&saved.expiresAt>Date.now())window.location.replace('./');}catch(_){}
 const form=document.getElementById('login-form');
 const feedback=document.getElementById('feedback');
 const submit=document.getElementById('submit');
@@ -57,15 +58,16 @@ form.addEventListener('submit',async event=>{
   if(!response.ok){feedback.textContent=response.status===401?'E-mail ou senha inválidos.':response.status===429?'Muitas tentativas. Aguarde e tente novamente.':'Não foi possível entrar agora. Tente novamente.';return;}
   const result=await response.json();
   if(!result.access_token && !result.token){feedback.textContent='Resposta de autenticação incompleta.';return;}
-  // O token não é persistido nesta etapa: sem localStorage, cookies ou URL.
+  // Sessão temporária da aba; não usar localStorage, cookies nem URL para o JWT.
+  try { sessionStorage.setItem('anna_sd_session',JSON.stringify({token:result.access_token||result.token,email,expiresAt:Date.now()+Math.min(Number(result.expires_in)||900,900)*1000})); }
+  catch(_){feedback.textContent='O navegador não permite armazenamento temporário da sessão.';return;}
   document.getElementById('password').value='';
-  document.getElementById('welcome').textContent='Conta '+email+' autenticada com sucesso.';
-  document.getElementById('login-view').classList.add('hidden');
-  document.getElementById('success-view').classList.remove('hidden');
+  window.location.replace('./');
  }catch(_){feedback.textContent='Falha de conexão com o servidor. Verifique sua conexão e tente novamente.';}
  finally{submit.disabled=false;submit.textContent='Entrar';}
 });
 document.getElementById('logout').addEventListener('click',()=>{
+ sessionStorage.removeItem('anna_sd_session');
  document.getElementById('success-view').classList.add('hidden');
  document.getElementById('login-view').classList.remove('hidden');
  document.getElementById('email').value='';document.getElementById('password').value='';

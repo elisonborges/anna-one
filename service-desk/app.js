@@ -382,6 +382,11 @@ function renderCatalogTree() {
     head.title='Clique para expandir; use Selecionar para editar';
     const selectCat=document.createElement('button');selectCat.type='button';selectCat.className='catalog-tree-pick';selectCat.textContent='Selecionar';selectCat.dataset.catalogPick='category';selectCat.dataset.category=category;
     head.append(selectCat,catalogContextActions('category',category));
+    const toggle=document.createElement('button');toggle.type='button';
+    toggle.className='catalog-tree-context-btn catalog-tree-toggle';
+    toggle.textContent=inactive?'Ativar':'Desativar';
+    toggle.dataset.catalogToggle=category;
+    head.append(toggle);
     group.append(head);
     if (!subs.length) {
       const empty=document.createElement('p');empty.className='catalog-tree-empty';empty.textContent='Nenhuma subcategoria cadastrada.';
@@ -409,6 +414,28 @@ function renderCatalogTree() {
   $('catalog-tree-filter-count').textContent=search ? visibleCategories+' categorias e '+visibleSubcategories+' subcategorias encontradas'+(visibleCategories?'':' — nenhum resultado') : '';
 }
 $('catalog-tree-search').addEventListener('input',renderCatalogTree);
+$('catalog-tree').addEventListener('click',event=>{
+  const button=event.target.closest('button[data-catalog-toggle]');
+  if(!button)return;
+  event.preventDefault();event.stopPropagation();
+  const category=button.dataset.catalogToggle,catalog=activeCatalog();
+  if(!Object.hasOwn(catalog.categories,category))return;
+  catalog.disabled=catalog.disabled.includes(category)?catalog.disabled.filter(name=>name!==category):[...catalog.disabled,category];
+  persistCatalogs();updateCatalogAdmin();refreshOpeningCatalog();
+  $('catalog-feedback').textContent='Status da categoria atualizado no catálogo demonstrativo.';
+});
+$('catalog-tree-add-category').addEventListener('click',()=>{
+  const name=prompt('Nome da nova categoria:')?.trim();
+  if(!name)return;
+  if(name.length>80||name.includes('::')){$('catalog-feedback').textContent='Nome inválido ou muito longo.';return;}
+  const catalog=activeCatalog();
+  if(Object.hasOwn(catalog.categories,name)){$('catalog-feedback').textContent='Categoria já existente.';return;}
+  catalog.categories[name]=[];
+  persistCatalogs();updateCatalogAdmin();refreshOpeningCatalog();
+  $('catalog-category').value=name;updateCatalogAdminSubcategories();
+  $('catalog-feedback').textContent='Categoria criada no catálogo demonstrativo.';
+});
+
 $('catalog-tree').addEventListener('click',event=>{
   const button=event.target.closest('button[data-catalog-create]');
   if(!button)return;

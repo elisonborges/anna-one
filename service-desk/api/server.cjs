@@ -5,6 +5,7 @@ const http = require('node:http');
 const { URL } = require('node:url');
 const {createTicketReader} = require('./tickets.cjs');
 const {createTicketWriter} = require('./ticket-create.cjs');
+const {createUnitsReader} = require('./units.cjs');
 const {createLoginHandler} = require('./login.cjs');
 const host = process.env.HOST || '127.0.0.1';
 const port = Number(process.env.PORT || 8787);
@@ -41,6 +42,7 @@ async function databaseStatus() {
 }
 const readTickets = createTicketReader(getPool);
 const writeTicket = createTicketWriter(getPool);
+const readUnits = createUnitsReader(getPool);
 const login = createLoginHandler(getPool);
 const authConfigured = () => Boolean((process.env.SD_JWT_SECRET && Buffer.byteLength(process.env.SD_JWT_SECRET) >= 32 && process.env.SD_JWT_ISSUER && process.env.SD_JWT_AUDIENCE));
 const server = http.createServer(async (req,res) => {
@@ -59,7 +61,7 @@ const server = http.createServer(async (req,res) => {
     res.setHeader('Access-Control-Allow-Headers','Content-Type, Authorization');
     res.setHeader('Access-Control-Max-Age','600');
   }
-  if(req.method==='OPTIONS' && (path==='/api/v1/auth/login'||path==='/api/v1/tickets')){
+  if(req.method==='OPTIONS' && (path==='/api/v1/auth/login'||path==='/api/v1/tickets'||path==='/api/v1/units')){
     if(!allowedOrigins.has(origin)){
       // Origin is a public website address, not a credential. Never log request bodies or headers.
       console.warn('[service-desk/cors] preflight rejected', {
@@ -81,6 +83,7 @@ const server = http.createServer(async (req,res) => {
     return;
   }
   if (req.method === 'POST' && path === '/api/v1/auth/login') return login(req,res);
+  if (req.method === 'GET' && path === '/api/v1/units') return readUnits(req,res);
   if (req.method === 'GET' && path === '/api/v1/tickets') return readTickets(req,res);
   if (req.method === 'POST' && path === '/api/v1/tickets') return writeTicket(req,res);
   res.writeHead(404, {'Content-Type':'application/json; charset=utf-8'});

@@ -18,6 +18,59 @@ else{
  const user=document.getElementById('session-user');
  if(user)user.textContent=current.email||'Conta autenticada';
  document.getElementById('session-logout')?.addEventListener('click',logout);
+ const masterNav=document.getElementById('master-companies-nav');
+ const masterForm=document.getElementById('master-company-form');
+ const masterStatus=document.getElementById('master-company-status');
+ const masterList=document.getElementById('master-company-list');
+ const masterCount=document.getElementById('master-company-count');
+ const masterApi='https://anna-one.onrender.com/api/v1/master/companies';
+ let masterBusy=false;
+ async function masterRequest(method,body){
+  const auth=session();if(!auth){logout();throw Error('Sessão expirada');}
+  const response=await fetch(masterApi,{method,headers:{Authorization:'Bearer '+auth.token,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,cache:'no-store'});
+  if(response.status===401){logout();throw Error('Sessão expirada');}
+  if(response.status===403)throw Error('Acesso exclusivo do Administrador Master.');
+  if(response.status===409)throw Error('Já existe uma empresa com esse código.');
+  if(response.status===400)throw Error('Confira o nome e o código da empresa.');
+  if(!response.ok)throw Error('Não foi possível concluir a operação (HTTP '+response.status+').');
+  return response.json();
+ }
+ async function loadMasterCompanies(){
+  if(masterBusy)return;
+  masterBusy=true;masterCount.textContent='Consultando empresas...';
+  try{
+   const data=await masterRequest('GET');
+   if(!Array.isArray(data.companies))throw Error('Resposta inválida da API.');
+   masterNav.hidden=false;masterList.replaceChildren();
+   for(const company of data.companies){
+    const tr=document.createElement('tr');
+    for(const value of [company.name,company.code,company.active?'Ativa':'Inativa']){
+     const td=document.createElement('td');td.textContent=String(value||'');tr.append(td);
+    }
+    masterList.append(tr);
+   }
+   masterCount.textContent=data.companies.length+' empresa(s) cadastrada(s).';
+  }catch(e){masterCount.textContent=e.message;}
+  finally{masterBusy=false;}
+ }
+ masterForm?.addEventListener('submit',async event=>{
+  event.preventDefault();
+  if(masterBusy)return;
+  const name=document.getElementById('master-company-name').value.trim();
+  const code=document.getElementById('master-company-code').value.trim().toUpperCase();
+  if(name.length<2||!/^[A-Z0-9_-]{2,30}$/.test(code)){masterStatus.textContent='Confira os dados da empresa.';return;}
+  const button=document.getElementById('master-company-save');button.disabled=true;masterStatus.textContent='Cadastrando empresa...';
+  try{
+   await masterRequest('POST',{name,code});
+   masterStatus.textContent='Empresa cadastrada com sucesso.';
+   masterForm.reset();
+   await loadMasterCompanies();
+  }catch(e){masterStatus.textContent=e.message;}
+  finally{button.disabled=false;}
+ });
+ document.getElementById('master-reload')?.addEventListener('click',loadMasterCompanies);
+ loadMasterCompanies();
+
  const brandingNav=document.getElementById('branding-nav');
  const brandingTenant=document.getElementById('branding-tenant');
  const brandingForm=document.getElementById('branding-form');

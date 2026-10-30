@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#111c3b">
+<title>Entrar — AnnA Service Desk</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#1d2b48;background:#f3f6fb}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:22px}
+main{width:min(100%,420px);background:white;border:1px solid #e1e8f1;border-radius:18px;box-shadow:0 12px 40px #182a5020;padding:32px}
+.brand{display:flex;align-items:center;gap:12px;color:#111c3b;font-size:22px;font-weight:750}
+.brand img{width:45px;height:45px}.brand small{display:block;color:#66738a;font-size:12px}
+h1{font-size:25px;margin:30px 0 8px}p{color:#66738a;line-height:1.5}
+form{display:grid;gap:16px;margin-top:25px}label{display:grid;gap:7px;font-size:14px;font-weight:650}
+input{width:100%;padding:12px;border:1px solid #cbd6e5;border-radius:9px;font:inherit}
+input:focus-visible,button:focus-visible{outline:3px solid #64c8ff;outline-offset:2px}
+button{padding:12px;border:0;border-radius:9px;background:#087bdf;color:white;font:inherit;font-weight:700;cursor:pointer}
+button:disabled{opacity:.65;cursor:wait}.feedback{min-height:22px;font-size:14px;color:#ad2934}
+.success{color:#176d42}.links{margin-top:20px;font-size:13px}
+a{color:#176eb4}.hidden{display:none!important}
+</style>
+</head>
+<body>
+<main>
+<div class="brand"><img src="anna-symbol.svg" alt=""><div>AnnA Service Desk<small>AnnA One</small></div></div>
+<section id="login-view">
+<h1>Acessar sua conta</h1><p>Entre com as credenciais cadastradas no Service Desk.</p>
+<form id="login-form">
+<label>E-mail<input id="email" type="email" autocomplete="username" maxlength="254" required></label>
+<label>Senha<input id="password" type="password" autocomplete="current-password" required></label>
+<button id="submit" type="submit">Entrar</button>
+<div id="feedback" class="feedback" role="alert" aria-live="polite"></div>
+</form>
+</section>
+<section id="success-view" class="hidden">
+<h1>Autenticação realizada</h1>
+<p id="welcome" class="success">Sua conta foi validada pela API do AnnA Service Desk.</p>
+<p>A área de chamados reais ainda será integrada. A versão demonstrativa permanece separada.</p>
+<button id="logout" type="button">Sair</button>
+</section>
+<p class="links"><a href="./">Abrir ambiente demonstrativo</a></p>
+</main>
+<script>
+'use strict';
+const api='https://anna-one.onrender.com/api/v1/auth/login';
+const form=document.getElementById('login-form');
+const feedback=document.getElementById('feedback');
+const submit=document.getElementById('submit');
+form.addEventListener('submit',async event=>{
+ event.preventDefault();feedback.textContent='';submit.disabled=true;submit.textContent='Entrando...';
+ const email=document.getElementById('email').value.trim();
+ const password=document.getElementById('password').value;
+ try{
+  const response=await fetch(api,{method:'POST',mode:'cors',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+  if(!response.ok){feedback.textContent=response.status===401?'E-mail ou senha inválidos.':response.status===429?'Muitas tentativas. Aguarde e tente novamente.':'Não foi possível entrar agora. Tente novamente.';return;}
+  const result=await response.json();
+  if(!result.access_token && !result.token){feedback.textContent='Resposta de autenticação incompleta.';return;}
+  // O token não é persistido nesta etapa: sem localStorage, cookies ou URL.
+  document.getElementById('password').value='';
+  document.getElementById('welcome').textContent='Conta '+email+' autenticada com sucesso.';
+  document.getElementById('login-view').classList.add('hidden');
+  document.getElementById('success-view').classList.remove('hidden');
+ }catch(_){feedback.textContent='Falha de conexão com o servidor. Verifique sua conexão e tente novamente.';}
+ finally{submit.disabled=false;submit.textContent='Entrar';}
+});
+document.getElementById('logout').addEventListener('click',()=>{
+ document.getElementById('success-view').classList.add('hidden');
+ document.getElementById('login-view').classList.remove('hidden');
+ document.getElementById('email').value='';document.getElementById('password').value='';
+ feedback.textContent='';
+});
+</script>
+</body></html>

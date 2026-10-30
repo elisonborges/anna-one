@@ -234,3 +234,14 @@
 #classificacao .catalog-advanced[open]>summary{margin-bottom:12px;padding-bottom:9px;border-bottom:1px solid #e1e8f1}
 #classificacao .catalog-advanced>h3{font-size:13px;margin:0 0 4px}
 #classificacao .catalog-tree-panel{margin:12px 0 10px}
+
+/* v0.10.7–v0.10.9 — Criação direta, formulários recolhíveis e status. */
+#classificacao .catalog-creation-panel{margin:10px 0;border:1px solid #dce6f2;border-radius:9px;padding:10px 12px}
+#classificacao .catalog-creation-panel>summary{font-size:13px;font-weight:700;color:#1c4b87;cursor:pointer}
+#classificacao .catalog-creation-forms{padding-top:12px}
+#classificacao .catalog-tree-add{color:#176e43;border-color:#b9dfc8}
+#classificacao .catalog-tree-toggle{color:#795018}
+#classificacao #catalog-tree-add-category{min-height:32px;padding:6px 11px;font-size:12px}
+#classificacao .catalog-tree-head{justify-content:flex-start}
+#classificacao .catalog-tree-head>div{flex:1 1 220px}
+@media(max-width:520px){#classificacao #catalog-tree-add-category{width:100%}}

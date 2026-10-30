@@ -44,7 +44,7 @@ export default {
         const identity = await verifyBearer(request, env);
         return json({ authenticated: true, user_id: identity.userId, admin_authorized: false }, 200, cors);
       } catch (error) {
-        const stages = ["config","bearer","format","header","claims","claims_issuer","claims_audience","claims_subject","claims_expiration","claims_issued_at","claims_lifetime","claims_not_before","jwks","key","signature"];
+        const stages = ["config","bearer","format","header","claims","claims_issuer","claims_audience","claims_subject","claims_expiration","claims_issued_at","claims_lifetime","claims_not_before","jwks","jwks_network","jwks_json","key","key_import","signature","signature_runtime","invalid"];
         const stage = stages.includes(error?.stage) ? error.stage : "unexpected";
         return json({ authenticated: false, error: "Credencial inválida ou autenticação não configurada", diagnostic_stage: stage }, 401, cors);
       }

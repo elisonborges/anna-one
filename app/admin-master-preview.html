@@ -62,7 +62,7 @@ workerButton.addEventListener('click',async()=>{
   const data=await response.json();
   output.textContent=response.ok&&data?.authenticated===true?
    'Assinatura JWT validada pelo Worker. Identidade reconhecida. Autorização Master ainda não testada.':
-   'Worker não validou a credencial (HTTP '+response.status+'). Nenhuma operação de escrita realizada.';
+   'Worker não validou a credencial (HTTP '+response.status+'). Etapa: '+(typeof data?.diagnostic_stage==='string'?data.diagnostic_stage:'não informada')+'. Nenhuma operação de escrita realizada.';
  }catch(e){output.textContent='Teste no Worker indisponível: '+(e instanceof TypeError?'Falha de conexão ou CORS.':e.message);}
  finally{workerButton.disabled=false;}
 });

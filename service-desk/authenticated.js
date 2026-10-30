@@ -398,6 +398,29 @@ else{
     const number=document.createElement('span');number.className='institutional-bar-count';number.textContent=String(count(status));
     row.append(name,track,number);breakdown.append(row);
    }
+   // Both breakdowns use the same authorized, focus-filtered sample as the status chart.
+   function renderBreakdown(elementId,entries){
+    const root=document.getElementById(elementId);root.replaceChildren();
+    if(!dashboardTickets.length){
+     const empty=document.createElement('span');empty.textContent='Nenhum chamado no foco selecionado.';root.append(empty);return;
+    }
+    for(const [label,total] of entries){
+     const row=document.createElement('div');row.className='institutional-bar-row';
+     const name=document.createElement('span');name.textContent=label;name.title=label;
+     const track=document.createElement('div');track.className='institutional-bar-track';
+     const fill=document.createElement('div');fill.className='institutional-bar-fill';
+     fill.style.width=(100*total/dashboardTickets.length)+'%';track.append(fill);
+     const number=document.createElement('span');number.className='institutional-bar-count';number.textContent=String(total);
+     row.append(name,track,number);root.append(row);
+    }
+   }
+   renderBreakdown('institutional-priority-breakdown',[['Alta',dashboardTickets.filter(t=>t.priority==='high').length],['Normal',dashboardTickets.filter(t=>t.priority==='normal').length],['Baixa',dashboardTickets.filter(t=>t.priority==='low').length]]);
+   const categories=new Map();
+   for(const ticket of dashboardTickets){
+    const category=String(ticket.category_label||'Sem categoria').trim().slice(0,100)||'Sem categoria';
+    categories.set(category,(categories.get(category)||0)+1);
+   }
+   renderBreakdown('institutional-category-breakdown',[...categories].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'pt-BR')));
    const body=document.getElementById('institutional-report-body');body.replaceChildren();
    for(const ticket of institutionalTickets){
     const tr=document.createElement('tr');

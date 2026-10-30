@@ -59,7 +59,8 @@ else{
    const result=await response.json();
    const protocol=result.ticket?.public_protocol;
    if(protocol){successProtocol.textContent=protocol;success.hidden=false;copyFeedback.textContent='';success.scrollIntoView({behavior:'smooth',block:'start'});}
-   createStatus.textContent=protocol?'Cadastro concluído. Protocolo destacado acima.':'Cadastro concluído. Consulte o protocolo na lista.';
+   const emailInfo=result.email_status==='sent'?' Confirmação enviada por e-mail.':result.email_status==='failed'?' Chamado salvo, mas não foi possível confirmar o envio do e-mail.':result.email_status==='not_configured'?' Envio por e-mail aguardando configuração do servidor.':' E-mail do solicitante indisponível.';
+   createStatus.textContent=(protocol?'Cadastro concluído. Protocolo destacado acima.':'Cadastro concluído. Consulte o protocolo na lista.')+emailInfo;
    createForm.reset();
    await loadTickets();
   }catch(_){createStatus.textContent='Falha de conexão ao registrar. Confira a lista antes de tentar novamente para evitar duplicação.';}

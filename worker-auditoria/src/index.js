@@ -1,3 +1,4 @@
+import { neon } from "@neondatabase/serverless";
 import { verifyBearer } from "./auth.js";
 
 const json = (data, status = 200, headers = {}) =>
@@ -22,6 +23,18 @@ export default {
     }
     if (url.pathname === "/health" && request.method === "GET") {
       return json({ service: "anna-one-auditoria", status: "preparacao", audit_enabled: false }, 200, cors);
+    }
+    if (url.pathname === "/health/db" && request.method === "GET") {
+      // Diagnóstico somente leitura, sem retornar detalhes da conexão.
+      if (!env.DATABASE_URL) return json({ database: "not_configured" }, 503, cors);
+      try {
+        const sql = neon(env.DATABASE_URL);
+        const rows = await sql`SELECT 1 AS ok`;
+        return json({ database: rows[0]?.ok === 1 ? "connected" : "unavailable" },
+          rows[0]?.ok === 1 ? 200 : 503, cors);
+      } catch {
+        return json({ database: "unavailable" }, 503, cors);
+      }
     }
     // Apenas teste de identidade; NÃO confirma permissão administrativa.
     if (url.pathname === "/v1/auth/verify" && request.method === "GET") {

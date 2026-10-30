@@ -216,3 +216,14 @@
 #classificacao .catalog-tree-issue-pick{display:inline;text-align:left;min-height:0;padding:2px 4px;border:0;border-radius:4px;background:transparent;color:#1c4b87;font-size:12px;line-height:1.5;white-space:normal;overflow-wrap:anywhere}
 #classificacao .catalog-tree-issue-pick:focus-visible,#classificacao .catalog-tree-pick:focus-visible{outline:2px solid #087bdf;outline-offset:2px}
 @media(max-width:520px){#classificacao .catalog-tree-pick{margin-left:auto}}
+
+/* v0.10.5 — Ações contextuais da hierarquia. */
+#classificacao .catalog-tree-context-actions{display:inline-flex;align-items:center;gap:3px;flex-wrap:wrap;flex:0 0 auto}
+#classificacao .catalog-tree-context-btn{min-height:26px;padding:3px 7px;font-size:11px;line-height:1.2;border:1px solid #d5e0ed;border-radius:6px;background:white;color:#23547d;font-weight:600}
+#classificacao .catalog-tree-context-btn:hover{background:#eaf5ff;border-color:#a7c9e8}
+#classificacao .catalog-tree-context-btn:last-child{color:#9a3740}
+#classificacao .catalog-tree-category>summary,#classificacao .catalog-tree-subcategory>summary{flex-wrap:wrap}
+#classificacao .catalog-tree-issues li{margin-bottom:3px}
+#classificacao .catalog-tree-issues .catalog-tree-context-actions{margin-left:5px;vertical-align:middle}
+#classificacao .catalog-tree-issues{columns:1}
+@media(max-width:520px){#classificacao .catalog-tree-context-actions{width:100%;justify-content:flex-end}}

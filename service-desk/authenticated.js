@@ -27,6 +27,39 @@ else{
  let masterBusy=false;
  let editingCompany=null;
  let cachedCompanies=[];
+ let cachedAdmins=[];
+ async function editAdmin(admin){
+  const name=prompt('Nome completo:',admin.name||'');if(name===null)return;
+  const position=prompt('Função:',admin.position||'');if(position===null)return;
+  const phone=prompt('Telefone com DDD:',admin.phone||'');if(phone===null)return;
+  const whatsapp=prompt('WhatsApp com DDD:',admin.whatsapp||'');if(whatsapp===null)return;
+  if(name.trim().length<2){alert('Informe o nome completo.');return;}
+  for(const [value,label] of [[phone,'Telefone'],[whatsapp,'WhatsApp']])if(value&&![10,11].includes(digits(value).length)){alert(label+' deve ter DDD e 10 ou 11 dígitos.');return;}
+  try{
+   await masterRequest('PUT',{tenant_id:admin.tenant_id,user_id:admin.user_id,name:name.trim(),position:position.trim(),phone:maskBrazil(phone,'phone'),whatsapp:maskBrazil(whatsapp,'phone')});
+   await loadMasterCompanies();
+  }catch(error){alert(error.message);}
+ }
+ function renderAdminRows(){
+  const list=document.getElementById('master-admin-list');list.replaceChildren();
+  const q=document.getElementById('master-admin-search').value.trim().toLowerCase();
+  for(const admin of cachedAdmins){
+   const company=cachedCompanies.find(c=>c.id===admin.tenant_id);
+   if(!(admin.name+' '+admin.email+' '+(company?.name||'')).toLowerCase().includes(q))continue;
+   const tr=document.createElement('tr');
+   for(const value of [company?.name||'—',admin.name||admin.email,admin.status==='active'?'Ativo':'Suspenso']){
+    const td=document.createElement('td');td.textContent=value;tr.append(td);
+   }
+   const td=document.createElement('td'),edit=document.createElement('button');
+   edit.type='button';edit.className='secondary';edit.textContent='Editar';edit.onclick=()=>editAdmin(admin);td.append(edit);
+   const b=document.createElement('button');b.type='button';b.className='secondary';
+   b.textContent=admin.status==='active'?'Suspender':'Reativar';
+   b.onclick=()=>changeMasterStatus(admin.tenant_id,admin.user_id,admin.status==='active'?'suspended':'active',admin.name||admin.email);
+   td.append(b);tr.append(td);list.append(tr);
+  }
+ }
+ document.getElementById('master-admin-search').addEventListener('input',renderAdminRows);
+
  const digits=value=>String(value||'').replace(/\D/g,'');
  function maskBrazil(value,kind){
   const d=digits(value).slice(0,kind==='cnpj'?14:kind==='cep'?8:11);
@@ -132,18 +165,8 @@ else{
    if([...select.options].some(x=>x.value===previous))select.value=previous;
    const labels={active:'Ativa',suspended:'Suspensa',closed:'Encerrada'};
    cachedCompanies=data.companies;renderCompanyRows();
-   const admins=document.getElementById('master-admin-list');admins.replaceChildren();
-   for(const admin of data.administrators||[]){
-    const company=data.companies.find(x=>x.id===admin.tenant_id);
-    const tr=document.createElement('tr');
-    for(const value of [company?.name||'—',admin.name||admin.email,admin.status==='active'?'Ativo':'Suspenso']){
-     const td=document.createElement('td');td.textContent=value;tr.append(td);
-    }
-    const td=document.createElement('td'),b=document.createElement('button');
-    b.type='button';b.className='secondary';b.textContent=admin.status==='active'?'Suspender':'Reativar';
-    b.onclick=()=>changeMasterStatus(admin.tenant_id,admin.user_id,admin.status==='active'?'suspended':'active',admin.name||admin.email);
-    td.append(b);tr.append(td);admins.append(tr);
-   }
+   cachedAdmins=data.administrators||[];
+   renderAdminRows();
    const events=document.getElementById('master-events-list');events.replaceChildren();
    for(const item of data.events||[]){
     const p=document.createElement('p');p.textContent=new Date(item.created_at).toLocaleString('pt-BR')+' · '+item.kind+' · '+item.new_status+' · '+item.reason;events.append(p);

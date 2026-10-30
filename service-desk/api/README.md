@@ -44,3 +44,11 @@ Definir no backend `SD_SUPABASE_URL=https://<project-ref>.supabase.co` e `SD_SUP
 **Mapeamento obrigatório:** `auth.users.id` do projeto Supabase selecionado deve corresponder a `anna_sd.platform_users.id` e ter vínculo ativo em `anna_sd.memberships`. Não copiar dados pessoais automaticamente; fazer onboarding autorizado. A URL Supabase ainda não foi escolhida/configurada. Os dois projetos existentes (Projetos Escolares e Health Monitor) não foram modificados.
 
 **Limitação:** ainda existe modo legado de token HS256 para testes quando `SD_SUPABASE_URL` não está configurada. Não ativar ambos os modos em produção sem revisão de segurança. A consulta ao Auth é online; a API falha fechada em indisponibilidade. A credencial Neon restrita continua pendente.
+
+## Login independente no Neon (fase de testes)
+
+`POST /api/v1/auth/login` recebe JSON `{"email":"usuario@exemplo.org","password":"senha"}`. Valida as credenciais em `anna_sd.local_credentials` usando o papel `anna_sd_identity_runtime` e devolve um JWT de 15 minutos. Cinco tentativas inválidas bloqueiam a conta por 15 minutos. A rota de leitura `GET /api/v1/tickets` usa esse token e o papel separado `anna_sd_api_runtime`.
+
+Migrações 007 e 008 foram aplicadas somente no Neon isolado. O papel de identidade é `NOLOGIN` e não pode acessar o banco diretamente. A conta de conexão da API deverá ser uma conta LOGIN **não privilegiada**, autorizada explicitamente a `SET ROLE` nos dois papéis restritos, com senha armazenada fora do repositório. Nenhuma conta real de usuário foi cadastrada. Cadastro público não foi habilitado; o provisionamento inicial deve ser administrativo e auditado. Não implantar sem HTTPS, limitação de requisições por IP e por conta, proteção contra abuso, auditoria e recuperação segura de senha.
+
+**Estado:** código da rota e testes criados; conexão HTTP real com credencial restrita, implantação e testes de ponta a ponta ainda pendentes. O Supabase não participa do fluxo; arquivos legados `supabase-auth.cjs` não são importados pelo servidor.

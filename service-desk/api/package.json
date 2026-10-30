@@ -4,6 +4,6 @@
   "private": true,
   "description": "Isolated API foundation; no public ticket endpoints",
   "engines": { "node": ">=20" },
-  "scripts": { "start": "node server.cjs", "test": "node --test server.test.cjs" },
+  "scripts": { "start": "node server.cjs", "test": "node --test *.test.cjs" },
   "dependencies": { "pg": "8.16.3" }
 }

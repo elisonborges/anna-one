@@ -441,6 +441,15 @@ else{
  }
  monitorButton?.addEventListener('click',async()=>{
   if(document.body.classList.contains('institutional-monitor-mode')){stopMonitoring();return;}
+  // First click from the main dashboard opens a separate authenticated tab.
+  // Inside that tab, the same button activates fullscreen monitoring.
+  if(!new URLSearchParams(location.search).has('monitor')){
+   const url=new URL(location.href);
+   url.searchParams.set('monitor',monitorFocus?.value||'all');
+   const separate=window.open(url.href,'_blank');
+   if(!separate)alert('O navegador bloqueou a nova guia. Permita pop-ups deste site e tente novamente.');
+   return;
+  }
   document.body.classList.add('institutional-monitor-mode');
   monitorButton.textContent='Sair do monitoramento';
   await loadInstitutionalReports();

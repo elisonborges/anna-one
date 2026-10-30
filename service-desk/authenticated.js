@@ -18,6 +18,52 @@ else{
  const user=document.getElementById('session-user');
  if(user)user.textContent=current.email||'Conta autenticada';
  document.getElementById('session-logout')?.addEventListener('click',logout);
+ const brandingNav=document.getElementById('branding-nav');
+ const brandingTenant=document.getElementById('branding-tenant');
+ const brandingForm=document.getElementById('branding-form');
+ const brandingStatus=document.getElementById('branding-status');
+ const brandingApi='https://anna-one.onrender.com/api/v1/admin/branding';
+ const brandingFields={display_name:'branding-name',logo_url:'branding-logo',signature:'branding-signature',contact_email:'branding-email',contact_phone:'branding-phone'};
+ async function brandingRequest(method,tenant,body){
+  const auth=session();if(!auth){logout();throw Error('Sessão expirada');}
+  const headers={Authorization:'Bearer '+auth.token};
+  if(tenant)headers['X-Tenant-Id']=tenant;
+  if(body){headers['Content-Type']='application/json';}
+  const response=await fetch(brandingApi,{method,headers,body:body?JSON.stringify(body):undefined,cache:'no-store'});
+  if(response.status===401){logout();throw Error('Sessão expirada');}
+  if(!response.ok)throw Error(response.status===403?'Sem permissão para esta instituição.':'Falha na operação (HTTP '+response.status+').');
+  return response.json();
+ }
+ async function loadBranding(){
+  if(!brandingTenant.value)return;
+  brandingStatus.textContent='Carregando configurações...';
+  try{
+   const data=await brandingRequest('GET',brandingTenant.value);
+   for(const [key,id] of Object.entries(brandingFields))document.getElementById(id).value=data.branding?.[key]||'';
+   brandingStatus.textContent='Configurações carregadas.';
+  }catch(e){brandingStatus.textContent=e.message;}
+ }
+ brandingTenant?.addEventListener('change',loadBranding);
+ brandingForm?.addEventListener('submit',async event=>{
+  event.preventDefault();
+  if(!brandingTenant.value)return;
+  const body=Object.fromEntries(Object.entries(brandingFields).map(([key,id])=>[key,document.getElementById(id).value.trim()]));
+  const button=document.getElementById('branding-save');button.disabled=true;brandingStatus.textContent='Salvando...';
+  try{await brandingRequest('PUT',brandingTenant.value,body);brandingStatus.textContent='Personalização salva com sucesso.';}
+  catch(e){brandingStatus.textContent=e.message;}
+  finally{button.disabled=false;}
+ });
+ async function initBranding(){
+  try{
+   const data=await brandingRequest('GET');
+   if(!Array.isArray(data.tenants)||!data.tenants.length)return;
+   brandingNav.hidden=false;
+   brandingTenant.replaceChildren(...data.tenants.map(t=>new Option(t.name,t.id)));
+   await loadBranding();
+  }catch(_){/* Non-managers never see the editor. */}
+ }
+ initBranding();
+
  const unitSelect=document.getElementById('real-unit');
  const createForm=document.getElementById('real-create-form');
  const createStatus=document.getElementById('real-create-status');

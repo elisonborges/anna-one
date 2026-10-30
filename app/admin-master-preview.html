@@ -44,10 +44,25 @@ jwtButton.addEventListener('click',async()=>{
  const output=document.getElementById('jwt-local-result');
  jwtButton.disabled=true;output.textContent='Verificando formato do JWT somente neste navegador…';
  try{
-  const result=await auth[jwtMethods[0]]();
-  const jwt=typeof result==='string'?result:
-    typeof result?.token==='string'?result.token:
-    typeof result?.data?.token==='string'?result.data.token:null;
+  // Tentar métodos documentados/compatíveis sem expor tokens ou URLs sensíveis.
+  let jwt=null;
+  const failures=[];
+  for(const method of jwtMethods){
+   try{
+    const result=await auth[method]();
+    const candidate=typeof result==='string'?result:
+      typeof result?.token==='string'?result.token:
+      typeof result?.data?.token==='string'?result.data.token:
+      typeof result?.data?.jwt==='string'?result.data.jwt:null;
+    if(candidate&&candidate.split('.').length===3){jwt=candidate;break;}
+    failures.push(method+': resposta sem JWT');
+   }catch(e){
+    const message=String(e?.message||'erro');
+    const http=message.match(/(?:HTTP\s*)?(401|403|404|405|500|502|503)\b/i);
+    failures.push(method+': '+(http?'HTTP '+http[1]:'indisponível'));
+   }
+  }
+  if(!jwt)throw Error('Nenhum método retornou JWT ('+failures.join('; ')+').');
   if(!jwt||jwt.split('.').length!==3)throw Error('O SDK não retornou um JWT no formato esperado.');
   const [head,payload]=jwt.split('.');
   const decode=part=>JSON.parse(atob(part.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(part.length/4)*4,'=')));

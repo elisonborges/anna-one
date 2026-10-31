@@ -121,13 +121,16 @@ export default {
       try { data = JSON.parse(body); }
       catch { return json({ error: "JSON inválido" }, 400, cors); }
       const name = typeof data?.name === "string" ? data.name.trim() : "";
-      const slug = typeof data?.slug === "string" ? data.slug.trim() : "";
+      const baseSlug = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 65).replace(/-+$/g, "");
+      let slug = baseSlug;
       const parentId = typeof data?.parent_institution_id === "string" && /^[0-9a-f-]{36}$/i.test(data.parent_institution_id) ? data.parent_institution_id : null;
       if (data?.parent_institution_id && !parentId) return json({error:"Instituição principal inválida"},422,cors);
-      if (name.length < 2 || name.length > 160 || slug.length > 80 ||
+      if (name.length < 2 || name.length > 160 || !baseSlug ||
           !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug))
         return json({ error: "Nome ou código inválido" }, 422, cors);
       if (!env.DATABASE_URL) return json({ error: "Banco indisponível" }, 503, cors);
+      for (let attempt = 0; attempt < 5; attempt++) {
+      if (attempt) slug = baseSlug + "-" + crypto.randomUUID().slice(0, 8);
       try {
         const sql = neon(env.DATABASE_URL);
         // INSERT + auditoria são atômicos na mesma instrução SQL.
@@ -153,10 +156,12 @@ export default {
         if (!result.length) return json({ error: "Acesso Master negado" }, 403, cors);
         return json({ id: result[0].id, name, slug, status: "active" }, 201, cors);
       } catch (error) {
-        if (error?.code === "23505") return json({ error: "Código já cadastrado" }, 409, cors);
+        if (error?.code === "23505") continue;
         console.error("master institution create failed", error?.code || "db_error");
         return json({ error: "Não foi possível cadastrar a instituição" }, 503, cors);
       }
+      }
+      return json({ error: "Não foi possível gerar um código exclusivo. Tente novamente." }, 409, cors);
     }
     if (url.pathname.startsWith("/v1/audit") || url.pathname.startsWith("/v1/admin")) {
       return json({ error: "Integração indisponível até validação de autorização e banco no servidor" }, 503, cors);

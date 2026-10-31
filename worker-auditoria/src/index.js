@@ -102,6 +102,18 @@ export default {
         return json({error:"Convite não encontrado ou não está pendente"},409,cors);
       }catch(error){console.error("invitation cancel failed",error?.code||"db_error");return json({error:"Não foi possível cancelar o convite"},503,cors);}
     }
+    if(url.pathname==="/v1/admin/invitation-email-readiness"&&request.method==="GET"){
+      let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
+      if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
+      try{
+        const sql=neon(env.DATABASE_URL);
+        const rows=await sql`SELECT EXISTS(SELECT 1 FROM public.platform_admins WHERE user_id=${identity.userId}::uuid) AS ok`;
+        if(!rows[0]?.ok)return json({error:"Acesso Master negado"},403,cors);
+        const apiKeyReady=typeof env.RESEND_API_KEY==="string"&&env.RESEND_API_KEY.trim().length>0;
+        const fromReady=typeof env.RESEND_FROM_EMAIL==="string"&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.RESEND_FROM_EMAIL.trim());
+        return json({provider:"resend",api_key_configured:apiKeyReady,sender_configured:fromReady,domain_verified:"not_checked",sending_enabled:false,reason:"Envio ainda não habilitado. É necessário validar domínio, entrega e fluxo de aceite."},200,cors);
+      }catch{return json({error:"Não foi possível verificar a configuração"},503,cors);}
+    }
     if(url.pathname==="/v1/admin/institution-admin-invitations"&&["GET","POST"].includes(request.method)){
       let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
       if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);

@@ -21,16 +21,7 @@ function verifyPassword(password,encoded) {
 }
 function verifyPasswordAsync(password,encoded) {
  if(typeof password!=='string'||Buffer.byteLength(password)>1024||typeof encoded!=='string') return Promise.resolve(false);
- const parts=encoded.split('userId,config=process.env) {
- if(!UUID.test(userId||'')||!config.SD_JWT_SECRET||Buffer.byteLength(config.SD_JWT_SECRET)<32||!config.SD_JWT_ISSUER||!config.SD_JWT_AUDIENCE) throw Error('token issuer not configured');
- const now=Math.floor(Date.now()/1000);
- const encode=obj=>Buffer.from(JSON.stringify(obj)).toString('base64url');
- const body=encode({sub:userId,iss:config.SD_JWT_ISSUER,aud:config.SD_JWT_AUDIENCE,iat:now,exp:now+900});
- const unsigned=encode({alg:'HS256',typ:'JWT'})+'.'+body;
- return unsigned+'.'+crypto.createHmac('sha256',config.SD_JWT_SECRET).update(unsigned).digest('base64url');
-}
-module.exports={hashPassword,verifyPassword,verifyPasswordAsync,issueToken};
-);
+ const parts=encoded.split('$');
  if(parts.length!==6||parts[0]!=='scrypt'||parts[1]!=='16384'||parts[2]!=='8'||parts[3]!=='1') return Promise.resolve(false);
  try {
   const salt=Buffer.from(parts[4],'base64url'),expected=Buffer.from(parts[5],'base64url');
@@ -50,4 +41,4 @@ function issueToken(userId,config=process.env) {
  const unsigned=encode({alg:'HS256',typ:'JWT'})+'.'+body;
  return unsigned+'.'+crypto.createHmac('sha256',config.SD_JWT_SECRET).update(unsigned).digest('base64url');
 }
-module.exports={hashPassword,verifyPassword,issueToken};
+module.exports={hashPassword,verifyPassword,verifyPasswordAsync,issueToken};

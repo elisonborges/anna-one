@@ -103,6 +103,8 @@ export default {
         if(v.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email))return json({error:"E-mail inválido"},422,cors);
         if(v.tax_id&&v.tax_id.replace(/\D/g,"").length!==14)return json({error:"CNPJ deve conter 14 dígitos"},422,cors);
         if(v.address_state&&!/^[A-Za-z]{2}$/.test(v.address_state))return json({error:"UF inválida"},422,cors);
+        if(v.phone&&![10,11].includes(v.phone.replace(/\D/g,"").length))return json({error:"Telefone deve ter DDD e 8 ou 9 dígitos"},422,cors);
+        if(v.address_postal_code&&v.address_postal_code.replace(/\D/g,"").length!==8)return json({error:"CEP deve conter 8 dígitos"},422,cors);
         const rows=await sql`
           WITH saved AS (
             INSERT INTO public.institution_profiles(institution_id,legal_name,tax_id,email,phone,website,address_street,address_number,address_complement,address_district,address_city,address_state,address_postal_code,updated_at)

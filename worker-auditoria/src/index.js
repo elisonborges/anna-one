@@ -14,7 +14,7 @@ export default {
     const allowed = env.APP_ORIGIN || "https://annaone.com.br";
     const cors = origin === allowed
       ? { "access-control-allow-origin": allowed, "access-control-allow-headers": "authorization, content-type",
-          "access-control-allow-methods": "GET, POST, OPTIONS", "vary": "Origin" }
+          "access-control-allow-methods": "GET, POST, PATCH, OPTIONS", "vary": "Origin" }
       : {};
     if (request.method === "OPTIONS") {
       return origin === allowed

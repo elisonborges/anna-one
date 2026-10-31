@@ -16,7 +16,7 @@
 <form id="institution-form" class="status">
 <label>Nome da instituição <input name="name" required maxlength="150" placeholder="Nome completo" style="display:block;width:100%;padding:10px;margin:6px 0 14px"></label>
 <label>Código exclusivo <input name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" maxlength="80" placeholder="exemplo-escola" style="display:block;width:100%;padding:10px;margin:6px 0 14px"></label>
-<button type="submit">Cadastrar instituição</button><p id="form-feedback" role="status" class="muted">O cadastro será confirmado e enviado ao servidor com autorização Master.</p></form>
+<label>Instituição principal <select id="institution-parent" name="parent_institution_id" style="display:block;width:100%;padding:10px;margin:6px 0 14px"><option value="">Nova matriz</option></select></label><button type="submit">Cadastrar instituição</button><p id="form-feedback" role="status" class="muted">O cadastro será confirmado e enviado ao servidor com autorização Master.</p></form>
 <div id="institutions-status" role="status">Carregando instituições…</div>
 <table><thead><tr><th>Instituição</th><th>Código</th><th>Situação</th><th>Ação</th></tr></thead><tbody id="institutions-rows"></tbody></table></section>
 <section><h2>🧩 Catálogo central de módulos</h2><p>Lista consultada no Neon com a sessão atual. O acesso operacional a cada módulo depende da autorização específica do servidor.</p><div id="catalog-status" role="status">Carregando catálogo…</div><table><thead><tr><th>Módulo</th><th>Código</th><th>Estado</th><th>Gerenciamento</th></tr></thead><tbody id="modules"></tbody></table></section>
@@ -163,10 +163,10 @@ status.textContent='Administrador geral reconhecido: '+(user.name||user.email||'
 document.getElementById('app').hidden=false;
 try{
 const institutions=await load('/v1/admin/institutions');
-const body=document.getElementById('institutions-rows');
-for(const institution of institutions){
+const body=document.getElementById('institutions-rows');const parentSelect=document.getElementById('institution-parent');for(const i of institutions.filter(x=>!x.parent_institution_id)){const option=document.createElement('option');option.value=i.id;option.textContent=i.name;parentSelect.append(option);}
+for(const institution of [...institutions].sort((a,b)=>(a.parent_institution_id?1:0)-(b.parent_institution_id?1:0))){
 const tr=document.createElement('tr');
-for(const value of [institution.name,institution.slug,institution.status==='active'?'Ativa':'Suspensa','Edição e bloqueio: aguardando backend']){
+for(const value of [(institution.parent_institution_id?'↳ ':'')+institution.name,institution.slug,institution.status==='active'?'Ativa':'Suspensa','Edição e bloqueio: aguardando backend']){
 const td=document.createElement('td');td.textContent=value||'—';tr.append(td);
 }body.append(tr);
 }
@@ -174,14 +174,14 @@ document.getElementById('institutions-status').textContent=institutions.length+'
 document.getElementById('institution-form').addEventListener('submit',async event=>{
  event.preventDefault();
  const form=event.currentTarget, name=form.elements.name.value.trim(),slug=form.elements.slug.value.trim().toLowerCase();
- const feedback=document.getElementById('form-feedback'),button=form.querySelector('button[type=submit]');
+ const feedback=document.getElementById('form-feedback'),button=form.querySelector('button[type=submit]'),parent_institution_id=form.elements.parent_institution_id.value||null;
  if(name.length<2||!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)){feedback.textContent='Confira nome e código.';return;}
  if(institutions.some(i=>i.slug===slug)){feedback.textContent='Código já cadastrado. Escolha outro.';return;}
  if(!confirm('Confirmar cadastro de '+name+' ('+slug+')?'))return;
  button.disabled=true;feedback.textContent='Gravando instituição…';
  try{
   const jwt=await obtainJwt();
-  const response=await fetch(worker+'/v1/admin/institutions',{method:'POST',headers:{Authorization:'Bearer '+jwt,'Content-Type':'application/json'},body:JSON.stringify({name,slug})});
+  const response=await fetch(worker+'/v1/admin/institutions',{method:'POST',headers:{Authorization:'Bearer '+jwt,'Content-Type':'application/json'},body:JSON.stringify({name,slug,parent_institution_id})});
   const data=await response.json();
   if(!response.ok)throw Error(data?.error||'Erro HTTP '+response.status);
   feedback.textContent='Instituição cadastrada. Atualizando a lista…';

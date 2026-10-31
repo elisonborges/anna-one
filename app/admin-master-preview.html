@@ -3,7 +3,7 @@
 <style>:root{font:15px system-ui,Arial;color:#19324c;background:#f2f6fb}body{margin:0}header{background:#102f55;color:#fff;padding:22px max(20px,calc((100vw - 1100px)/2))}header a{color:#c7e6ff}main{max-width:1100px;margin:auto;padding:24px 16px}h1{margin:8px 0}p{line-height:1.5}.status,.card{background:white;border:1px solid #d7e3ee;border-radius:12px;padding:18px}.status{margin-bottom:18px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}.card h2{font-size:17px;margin:0 0 10px}.card p{color:#52677c;font-size:13px}.card a{color:#135a96;font-weight:700}.pill{display:inline-block;vertical-align:middle;font-size:13px;font-weight:700;line-height:1.35;border-radius:20px;background:#60a5fa;color:#102f55;padding:6px 12px;white-space:nowrap}.muted{color:#60748b}button{border:0;border-radius:8px;background:#135a96;color:white;padding:9px 12px;cursor:pointer}button:disabled{background:#a1afbc}table{width:100%;border-collapse:collapse;background:white}td,th{text-align:left;border-bottom:1px solid #e4ebf2;padding:11px}section{margin-top:24px}#app[hidden]{display:none}</style></head><body>
 <header><div>AnnA One · Ambiente administrativo de testes</div><h1>Administração Master <span class="pill">Prévia v1.0</span></h1><a href="./admin-geral-preview.html">← Administração Geral aprovada</a></header>
 <main><div class="status" id="status" role="status">Verificando autenticação e perfil…</div>
-<section class="status"><h2>Diagnóstico de autenticação Master</h2><p>Verificação local, sem exibir nem transmitir credenciais.</p><div id="auth-diagnostic" role="status">Aguardando verificação…</div><p><button type="button" id="jwt-local-check" disabled>Verificar JWT localmente</button> <button type="button" id="jwt-worker-check" disabled>Validar assinatura no Worker</button></p><p id="jwt-worker-result" role="status" class="muted">Validação no servidor ainda não executada.</p><p id="jwt-local-result" role="status" class="muted">Nenhum JWT será exibido, armazenado ou enviado ao Worker neste teste.</p></section>
+<section class="status"><h2>Diagnóstico de autenticação Master</h2><p>Verificação local, sem exibir nem transmitir credenciais.</p><div id="auth-diagnostic" role="status">Aguardando verificação…</div><p><button type="button" id="jwt-local-check" disabled>Verificar JWT localmente</button> <button type="button" id="jwt-worker-check" disabled>Validar assinatura no Worker</button> <button type="button" id="master-worker-check" disabled>Verificar autorização Master</button></p><p id="jwt-worker-result" role="status" class="muted">Validação no servidor ainda não executada.</p><p id="master-worker-result" role="status" class="muted">Autorização Master no servidor ainda não testada.</p><p id="jwt-local-result" role="status" class="muted">Nenhum JWT será exibido, armazenado ou enviado ao Worker neste teste.</p></section>
 <div id="app" hidden><p class="muted">Central de acesso e consulta. Nenhuma operação de escrita está habilitada nesta prévia.</p>
 <div class="grid">
 <article class="card"><h2>🏫 Instituições</h2><p>Consultar instituições e preparar o fluxo de cadastro.</p><a href="./admin-geral-preview.html#instituicoes">Abrir consulta</a></article>
@@ -41,6 +41,8 @@ const jwtMethods=['getJWTToken','getJwtToken','token'].filter(name=>typeof auth[
 const jwtButton=document.getElementById('jwt-local-check');
 const workerButton=document.getElementById('jwt-worker-check');
 workerButton.disabled=!user;
+const masterButton=document.getElementById('master-worker-check');
+masterButton.disabled=!user;
 async function obtainJwt(){
  let jwt=typeof result?.data?.session?.access_token==='string'?result.data.session.access_token:null;
  if(jwt?.split('.').length===3)return jwt;
@@ -75,6 +77,21 @@ workerButton.addEventListener('click',async()=>{
    'Worker não validou a credencial (HTTP '+response.status+'). Etapa: '+(typeof data?.diagnostic_stage==='string'?data.diagnostic_stage:'não informada')+'.'+issuerDiagnostic+' Nenhuma operação de escrita realizada.';
  }catch(e){output.textContent='Teste no Worker indisponível: '+(e instanceof TypeError?'Falha de conexão ou CORS.':e.message);}
  finally{workerButton.disabled=false;}
+});
+masterButton.addEventListener('click',async()=>{
+ const output=document.getElementById('master-worker-result');
+ masterButton.disabled=true;output.textContent='Verificando autorização Master no servidor…';
+ try{
+  const jwt=await obtainJwt();
+  const response=await fetch(worker+'/v1/admin/authorize',{method:'GET',headers:{Authorization:'Bearer '+jwt},cache:'no-store'});
+  const data=await response.json();
+  output.textContent=response.ok&&data?.authenticated===true&&data?.admin_authorized===true?
+   'Autorização Master confirmada pelo Worker e pelo banco Neon. Nenhuma operação de escrita realizada.':
+   response.ok&&data?.authenticated===true&&data?.admin_authorized===false?
+   'Identidade autenticada, mas acesso Master não autorizado no banco. Nenhuma operação de escrita realizada.':
+   'Verificação Master indisponível (HTTP '+response.status+'). Nenhuma operação de escrita realizada.';
+ }catch{output.textContent='Não foi possível consultar a autorização Master. Nenhuma operação de escrita realizada.';}
+ finally{masterButton.disabled=false;}
 });
 jwtButton.disabled=!user;
 jwtButton.addEventListener('click',async()=>{

@@ -80,6 +80,17 @@ export default {
         return json({ items: rows }, 200, cors);
       } catch { return json({ error: "Consulta administrativa indisponível" }, 503, cors); }
     }
+    if(url.pathname==="/v1/admin/institution-admins"&&request.method==="GET"){
+      let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
+      if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
+      try{
+        const sql=neon(env.DATABASE_URL);
+        const allowed=await sql`SELECT EXISTS(SELECT 1 FROM public.platform_admins WHERE user_id=${identity.userId}::uuid) AS ok`;
+        if(!allowed[0]?.ok)return json({error:"Acesso Master negado"},403,cors);
+        const rows=await sql`SELECT m.institution_id,i.name AS institution_name,i.parent_institution_id,m.user_id,u.email,u.display_name,m.role,m.active,m.created_at FROM public.memberships m JOIN public.institutions i ON i.id=m.institution_id JOIN public.app_users u ON u.id=m.user_id WHERE m.role='institution_admin' ORDER BY i.name,u.email LIMIT 1000`;
+        return json({items:rows},200,cors);
+      }catch(error){console.error("admin list failed",error?.code||"db_error");return json({error:"Consulta de administradores indisponível"},503,cors);}
+    }
     if (/^\/v1\/admin\/institutions\/[0-9a-f-]{36}\/profile$/i.test(url.pathname) && ["GET","PUT"].includes(request.method)) {
       let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
       if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);

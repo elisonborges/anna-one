@@ -80,6 +80,37 @@ export default {
         return json({ items: rows }, 200, cors);
       } catch { return json({ error: "Consulta administrativa indisponível" }, 503, cors); }
     }
+    if(url.pathname==="/v1/admin/institution-admin-invitations"&&["GET","POST"].includes(request.method)){
+      let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
+      if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
+      try{
+        const sql=neon(env.DATABASE_URL);
+        const allowed=await sql`SELECT EXISTS(SELECT 1 FROM public.platform_admins WHERE user_id=${identity.userId}::uuid) AS ok`;
+        if(!allowed[0]?.ok)return json({error:"Acesso Master negado"},403,cors);
+        if(request.method==="GET"){
+          const rows=await sql`SELECT inv.id,inv.institution_id,i.name AS institution_name,inv.email,inv.status,inv.created_at FROM public.institution_admin_invitations inv JOIN public.institutions i ON i.id=inv.institution_id ORDER BY inv.created_at DESC LIMIT 200`;
+          return json({items:rows},200,cors);
+        }
+        if(!(request.headers.get("content-type")||"").toLowerCase().startsWith("application/json"))return json({error:"Envie JSON"},415,cors);
+        const raw=await request.text();if(raw.length>2048)return json({error:"Dados excedem o limite"},413,cors);
+        let data;try{data=JSON.parse(raw);}catch{return json({error:"JSON inválido"},400,cors);}
+        const institutionId=typeof data?.institution_id==="string"?data.institution_id:"",email=typeof data?.email==="string"?data.email.trim().toLowerCase():"";
+        if(!/^[0-9a-f-]{36}$/i.test(institutionId)||email.length>254||! /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json({error:"Instituição ou e-mail inválido"},422,cors);
+        const rows=await sql`
+          WITH created AS (
+            INSERT INTO public.institution_admin_invitations(institution_id,email,invited_by)
+            SELECT i.id,${email},${identity.userId}::uuid FROM public.institutions i
+            WHERE i.id=${institutionId}::uuid AND i.status='active'
+              AND NOT EXISTS(SELECT 1 FROM public.memberships m JOIN public.app_users u ON u.id=m.user_id WHERE m.institution_id=i.id AND lower(u.email)=${email} AND m.role='institution_admin' AND m.active)
+            ON CONFLICT DO NOTHING RETURNING id,institution_id,email,status
+          ), logged AS (
+            INSERT INTO anna_audit.audit_logs(actor_user_id,institution_id,action,entity_type,entity_id,details)
+            SELECT ${identity.userId}::uuid,institution_id,'institution.admin.invitation.pending','institution_admin_invitation',id::text,jsonb_build_object('email',email,'status',status) FROM created RETURNING entity_id
+          ) SELECT created.id,created.institution_id,created.email,created.status FROM created JOIN logged ON logged.entity_id=created.id::text`;
+        if(!rows.length)return json({error:"Instituição inativa, administrador já vinculado ou convite pendente existente"},409,cors);
+        return json({item:rows[0],email_sent:false,access_granted:false},201,cors);
+      }catch(error){console.error("admin invitation failed",error?.code||"db_error");return json({error:"Operação de convite indisponível"},503,cors);}
+    }
     if(url.pathname==="/v1/admin/institution-admins"&&request.method==="POST"){
       let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
       if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);

@@ -39,8 +39,10 @@ export async function verifyBearer(request, env) {
   if (claims.exp - claims.iat > 900) invalid("claims_lifetime");
   if (claims.nbf !== undefined && (!Number.isInteger(claims.nbf) || claims.nbf > now + 30)) invalid("claims_not_before");
   let response;
-  try { response = await fetch(jwksUrl.toString(), { redirect: "error" }); }
+  try { response = await fetch(jwksUrl.toString(), { redirect: "follow" }); }
   catch { invalid("jwks_network"); }
+  // Nunca aceitar chaves vindas de um destino fora do endpoint Neon configurado.
+  if (new URL(response.url).origin !== jwksUrl.origin) invalid("jwks_redirect_origin");
   if (!response.ok) invalid("jwks");
   let jwks;
   try { jwks = await response.json(); }

@@ -63,6 +63,23 @@ export default {
         return json({ authenticated: true, admin_authorized: false, error: "Consulta de autorização indisponível" }, 503, cors);
       }
     }
+    if ((url.pathname === "/v1/admin/institutions" || url.pathname === "/v1/admin/modules") && request.method === "GET") {
+      let identity;
+      try { identity = await verifyBearer(request, env); }
+      catch { return json({ error: "Autenticação necessária" }, 401, cors); }
+      if (!env.DATABASE_URL) return json({ error: "Banco indisponível" }, 503, cors);
+      try {
+        const sql = neon(env.DATABASE_URL);
+        const authorized = await sql`SELECT EXISTS (SELECT 1 FROM public.platform_admins WHERE user_id = ${identity.userId}::uuid) AS ok`;
+        if (authorized[0]?.ok !== true) return json({ error: "Acesso Master negado" }, 403, cors);
+        if (url.pathname === "/v1/admin/institutions") {
+          const rows = await sql`SELECT id, name, slug, status FROM public.institutions ORDER BY name LIMIT 1000`;
+          return json({ items: rows }, 200, cors);
+        }
+        const rows = await sql`SELECT id, code, name, status FROM public.modules ORDER BY name LIMIT 1000`;
+        return json({ items: rows }, 200, cors);
+      } catch { return json({ error: "Consulta administrativa indisponível" }, 503, cors); }
+    }
     if (url.pathname === "/v1/admin/institutions" && request.method === "POST") {
       let identity;
       try { identity = await verifyBearer(request, env); }

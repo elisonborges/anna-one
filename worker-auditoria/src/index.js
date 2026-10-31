@@ -80,6 +80,42 @@ export default {
         return json({ items: rows }, 200, cors);
       } catch { return json({ error: "Consulta administrativa indisponível" }, 503, cors); }
     }
+    if(url.pathname==="/v1/admin/institution-admins"&&request.method==="POST"){
+      let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
+      if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
+      if(!(request.headers.get("content-type")||"").toLowerCase().startsWith("application/json"))return json({error:"Envie JSON"},415,cors);
+      const raw=await request.text();if(raw.length>2048)return json({error:"Dados excedem o limite"},413,cors);
+      let data;try{data=JSON.parse(raw);}catch{return json({error:"JSON inválido"},400,cors);}
+      const institutionId=typeof data?.institution_id==="string"?data.institution_id:"";
+      const email=typeof data?.email==="string"?data.email.trim().toLowerCase():"";
+      if(!/^[0-9a-f-]{36}$/i.test(institutionId)||! /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)return json({error:"Instituição ou e-mail inválido"},422,cors);
+      try{
+        const sql=neon(env.DATABASE_URL);
+        const allowed=await sql`SELECT EXISTS(SELECT 1 FROM public.platform_admins WHERE user_id=${identity.userId}::uuid) AS ok`;
+        if(!allowed[0]?.ok)return json({error:"Acesso Master negado"},403,cors);
+        const institution=await sql`SELECT id,status FROM public.institutions WHERE id=${institutionId}::uuid`;
+        if(!institution.length)return json({error:"Instituição não encontrada"},404,cors);
+        if(institution[0].status!=="active")return json({error:"Instituição não está ativa"},409,cors);
+        const users=await sql`SELECT id FROM public.app_users WHERE lower(email)=${email} LIMIT 2`;
+        if(users.length!==1)return json({error:"Usuário não encontrado. Cadastre e autentique o usuário antes de vinculá-lo."},404,cors);
+        const userId=users[0].id;
+        const existing=await sql`SELECT role,active FROM public.memberships WHERE institution_id=${institutionId}::uuid AND user_id=${userId}::uuid`;
+        if(existing.length)return json({error:"Usuário já possui vínculo com esta instituição. Nenhuma permissão foi alterada."},409,cors);
+        const rows=await sql`
+          WITH inserted AS (
+            INSERT INTO public.memberships(institution_id,user_id,role,active)
+            VALUES(${institutionId}::uuid,${userId}::uuid,'institution_admin',true)
+            ON CONFLICT (institution_id,user_id) DO NOTHING
+            RETURNING institution_id,user_id,role,active
+          ), logged AS (
+            INSERT INTO anna_audit.audit_logs(actor_user_id,institution_id,action,entity_type,entity_id,details)
+            SELECT ${identity.userId}::uuid,institution_id,'membership.admin.created','membership',user_id::text,
+              jsonb_build_object('role',role,'active',active) FROM inserted RETURNING institution_id,user_id
+          ) SELECT inserted.institution_id,inserted.user_id,inserted.role,inserted.active FROM inserted JOIN logged USING(institution_id,user_id)`;
+        if(!rows.length)return json({error:"Vínculo já existente ou não foi possível concluir"},409,cors);
+        return json({item:rows[0]},201,cors);
+      }catch(error){console.error("admin link failed",error?.code||"db_error");return json({error:"Não foi possível vincular o administrador"},503,cors);}
+    }
     if(url.pathname==="/v1/admin/institution-admins"&&request.method==="GET"){
       let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
       if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);

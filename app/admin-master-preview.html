@@ -11,8 +11,8 @@
 <label>Nome da instituição <input name="name" required maxlength="150" placeholder="Nome completo" style="display:block;width:100%;padding:10px;margin:6px 0 14px"></label>
 <input name="slug" type="hidden">
 <label>Instituição principal <select id="institution-parent" name="parent_institution_id" style="display:block;width:100%;padding:10px;margin:6px 0 14px"><option value="">Nova matriz</option></select></label><button type="submit">Cadastrar instituição</button><p id="form-feedback" role="status" class="muted">O cadastro será confirmado e enviado ao servidor com autorização Master.</p></form>
-<div id="institution-detail" class="status" hidden aria-live="polite"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><h3 style="margin:0">Gerenciar instituição</h3><button type="button" id="institution-detail-close">Fechar</button></div><dl style="display:grid;grid-template-columns:max-content 1fr;gap:10px 18px"><dt>Nome</dt><dd id="detail-name"></dd><dt>Código</dt><dd id="detail-slug"></dd><dt>Situação</dt><dd id="detail-status"></dd><dt>Vínculo</dt><dd id="detail-parent"></dd></dl><form id="institution-edit-form"><h4>Editar instituição</h4><label>Nome <input id="institution-edit-name" required minlength="2" maxlength="160" style="display:block;width:100%;padding:10px;margin:6px 0 12px"></label><label>Situação <select id="institution-edit-status" style="display:block;width:100%;padding:10px;margin:6px 0 12px"><option value="active">Ativa</option><option value="suspended">Suspensa</option></select></label><button type="submit">Salvar alterações</button><p id="institution-edit-feedback" role="status" class="master-note">A alteração exige confirmação e autorização Master no servidor.</p></form><p class="master-note">A suspensão ainda não garante bloqueio de acesso em todos os módulos; essa integração será validada separadamente.</p><p><a href="#usuarios">👥 Usuários</a> · <a href="#permissoes">🛡️ Permissões</a> · <a href="#modulos-master">🧩 Módulos</a></p></div><div id="institutions-status" role="status">Carregando instituições…</div>
-<table><thead><tr><th>Instituição</th><th>Código</th><th>Situação</th><th>Ação</th></tr></thead><tbody id="institutions-rows"></tbody></table></section>
+<div id="institution-detail" class="status" hidden aria-live="polite"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><h3 style="margin:0">Gerenciar instituição</h3><button type="button" id="institution-detail-close">Fechar</button></div><dl style="display:grid;grid-template-columns:max-content 1fr;gap:10px 18px"><dt>Nome</dt><dd id="detail-name"></dd><dt>Situação</dt><dd id="detail-status"></dd><dt>Vínculo</dt><dd id="detail-parent"></dd></dl><form id="institution-edit-form"><h4>Editar instituição</h4><label>Nome <input id="institution-edit-name" required minlength="2" maxlength="160" style="display:block;width:100%;padding:10px;margin:6px 0 12px"></label><label>Situação <select id="institution-edit-status" style="display:block;width:100%;padding:10px;margin:6px 0 12px"><option value="active">Ativa</option><option value="suspended">Suspensa</option></select></label><button type="submit">Salvar alterações</button><p id="institution-edit-feedback" role="status" class="master-note">A alteração exige confirmação e autorização Master no servidor.</p></form><p class="master-note">A suspensão ainda não garante bloqueio de acesso em todos os módulos; essa integração será validada separadamente.</p><p><a href="#usuarios">👥 Usuários</a> · <a href="#permissoes">🛡️ Permissões</a> · <a href="#modulos-master">🧩 Módulos</a></p></div><div id="institutions-status" role="status">Carregando instituições…</div>
+<table><thead><tr><th>Instituição</th><th>Situação</th><th>Ação</th></tr></thead><tbody id="institutions-rows"></tbody></table></section>
 <section id="modulos-master"><h2>🧩 Catálogo central de módulos</h2><p>Lista consultada no Neon com a sessão atual. O acesso operacional a cada módulo depende da autorização específica do servidor.</p><div id="catalog-status" role="status">Carregando catálogo…</div><table><thead><tr><th>Módulo</th><th>Código</th><th>Estado</th><th>Gerenciamento</th></tr></thead><tbody id="modules"></tbody></table></section>
 <section id="usuarios"><h2>👥 Usuários</h2><div class="status"><p>Cadastro de usuários e vínculos institucionais em integração. Nenhum convite é enviado nesta tela.</p></div></section><section id="permissoes"><h2>🛡️ Perfis e Permissões</h2><div class="status"><p>Liberação de acesso por instituição e usuário em integração com o servidor.</p></div></section><section id="auditoria"><h2>📋 Auditoria</h2><div class="status"><p>Histórico administrativo protegido em preparação.</p></div></section></div></main></div></div>
 <script>
@@ -192,13 +192,13 @@ document.getElementById('institution-edit-form').addEventListener('submit',async
 });
 for(const institution of [...institutions].sort((a,b)=>(a.parent_institution_id?1:0)-(b.parent_institution_id?1:0))){
  const tr=document.createElement('tr');
- for(const value of [(institution.parent_institution_id?'↳ ':'')+institution.name,institution.slug,institution.status==='active'?'Ativa':'Suspensa']){const td=document.createElement('td');td.textContent=value||'—';tr.append(td);}
+ for(const value of [(institution.parent_institution_id?'↳ ':'')+institution.name,institution.status==='active'?'Ativa':'Suspensa']){const td=document.createElement('td');td.textContent=value||'—';tr.append(td);}
  const cell=document.createElement('td'),button=document.createElement('button');button.type='button';button.textContent='Gerenciar';button.setAttribute('aria-label','Gerenciar '+institution.name);
  button.addEventListener('click',()=>{
   selectedInstitution=institution;document.getElementById('institution-edit-name').value=institution.name;document.getElementById('institution-edit-status').value=institution.status==='active'?'active':'suspended';document.getElementById('institution-edit-feedback').textContent='A alteração exige confirmação e autorização Master no servidor.';
   const parent=institutions.find(i=>i.id===institution.parent_institution_id);
   document.getElementById('detail-name').textContent=institution.name;
-  document.getElementById('detail-slug').textContent=institution.slug;
+  
   document.getElementById('detail-status').textContent=institution.status==='active'?'Ativa':'Suspensa';
   document.getElementById('detail-parent').textContent=parent?parent.name:'Instituição principal';
   detail.hidden=false;detail.scrollIntoView({behavior:'smooth',block:'start'});
@@ -207,11 +207,11 @@ for(const institution of [...institutions].sort((a,b)=>(a.parent_institution_id?
 document.getElementById('institutions-status').textContent=institutions.length+' instituição(ões) cadastrada(s).';
 document.getElementById('institution-form').addEventListener('submit',async event=>{
  event.preventDefault();
- const form=event.currentTarget, name=form.elements.name.value.trim(),slug=name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,70);form.elements.slug.value=slug;
+ const form=event.currentTarget, name=form.elements.name.value.trim(),base=name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,70).replace(/-+$/,'');let slug=base,suffix=2;const existingCodes=new Set(institutions.map(i=>i.slug));while(existingCodes.has(slug)){slug=base.slice(0,70-String(suffix).length-1)+'-'+suffix;suffix++;}form.elements.slug.value=slug;
  const feedback=document.getElementById('form-feedback'),button=form.querySelector('button[type=submit]'),parent_institution_id=form.elements.parent_institution_id.value||null;
  if(name.length<2||!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)){feedback.textContent='Confira nome e código.';return;}
- if(institutions.some(i=>i.slug===slug)){feedback.textContent='Já existe uma instituição com este nome/código. Confira o cadastro antes de continuar.';return;}
- if(!confirm('Confirmar cadastro de '+name+' ('+slug+')?'))return;
+ 
+ if(!confirm('Confirmar cadastro da instituição '+name+'?'))return;
  button.disabled=true;feedback.textContent='Gravando instituição…';
  try{
   const jwt=await obtainJwt();

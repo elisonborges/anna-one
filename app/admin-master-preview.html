@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AnnA One | Administração Master (prévia)</title>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AnnA One | Administração Master</title>
 <style>:root{font:15px system-ui,Arial;color:#19324c;background:#f2f6fb}body{margin:0}header{background:#102f55;color:#fff;padding:22px max(20px,calc((100vw - 1100px)/2))}header a{color:#c7e6ff}main{max-width:1100px;margin:auto;padding:24px 16px}h1{margin:8px 0}p{line-height:1.5}.status,.card{background:white;border:1px solid #d7e3ee;border-radius:12px;padding:18px}.status{margin-bottom:18px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}.card h2{font-size:17px;margin:0 0 10px}.card p{color:#52677c;font-size:13px}.card a{color:#135a96;font-weight:700}.pill{display:inline-block;vertical-align:middle;font-size:13px;font-weight:700;line-height:1.35;border-radius:20px;background:#60a5fa;color:#102f55;padding:6px 12px;white-space:nowrap}.muted{color:#60748b}button{border:0;border-radius:8px;background:#135a96;color:white;padding:9px 12px;cursor:pointer}button:disabled{background:#a1afbc}table{width:100%;border-collapse:collapse;background:white}td,th{text-align:left;border-bottom:1px solid #e4ebf2;padding:11px}section{margin-top:24px}#app[hidden]{display:none}</style></head><body>
-<header><div>AnnA One · Ambiente administrativo de testes</div><h1>Administração Master <span class="pill">Prévia v1.0</span></h1><a href="./admin-geral-preview.html">← Administração Geral aprovada</a></header>
+<header><div>AnnA One · Administração institucional</div><h1>Administração Master</h1><a href="./admin-geral-preview.html">← Administração Geral aprovada</a></header>
 <main><div class="status" id="status" role="status">Verificando autenticação e perfil…</div>
 <section class="status"><h2>Diagnóstico de autenticação Master</h2><p>Verificação local, sem exibir nem transmitir credenciais.</p><div id="auth-diagnostic" role="status">Aguardando verificação…</div><p><button type="button" id="jwt-local-check" disabled>Verificar JWT localmente</button> <button type="button" id="jwt-worker-check" disabled>Validar assinatura no Worker</button> <button type="button" id="master-worker-check" disabled>Verificar autorização Master</button></p><p id="jwt-worker-result" role="status" class="muted">Validação no servidor ainda não executada.</p><p id="master-worker-result" role="status" class="muted">Autorização Master no servidor ainda não testada.</p><p id="jwt-local-result" role="status" class="muted">Nenhum JWT será exibido, armazenado ou enviado ao Worker neste teste.</p></section>
-<div id="app" hidden><p class="muted">Central de acesso e consulta. Nenhuma operação de escrita está habilitada nesta prévia.</p>
+<div id="app" hidden><p class="muted">Gestão central de instituições e módulos. Cadastros exigem autorização Master.</p>
 <div class="grid">
 <article class="card"><h2>🏫 Instituições</h2><p>Consultar instituições e preparar o fluxo de cadastro.</p><a href="./admin-geral-preview.html#instituicoes">Abrir consulta</a></article>
 <article class="card"><h2>👥 Usuários</h2><p>Consultar usuários e vínculos.</p><a href="./admin-geral-preview.html#usuarios">Abrir consulta</a></article>
@@ -16,7 +16,7 @@
 <form id="institution-form" class="status">
 <label>Nome da instituição <input name="name" required maxlength="150" placeholder="Nome completo" style="display:block;width:100%;padding:10px;margin:6px 0 14px"></label>
 <label>Código exclusivo <input name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" maxlength="80" placeholder="exemplo-escola" style="display:block;width:100%;padding:10px;margin:6px 0 14px"></label>
-<button type="submit">Revisar cadastro</button><p id="form-feedback" role="status" class="muted">O envio ao servidor permanece desabilitado até validação do JWT Master.</p></form>
+<button type="submit">Cadastrar instituição</button><p id="form-feedback" role="status" class="muted">O cadastro será confirmado e enviado ao servidor com autorização Master.</p></form>
 <div id="institutions-status" role="status">Carregando instituições…</div>
 <table><thead><tr><th>Instituição</th><th>Código</th><th>Situação</th><th>Ação</th></tr></thead><tbody id="institutions-rows"></tbody></table></section>
 <section><h2>🧩 Catálogo central de módulos</h2><p>Lista consultada no Neon com a sessão atual. O acesso operacional a cada módulo depende da autorização específica do servidor.</p><div id="catalog-status" role="status">Carregando catálogo…</div><table><thead><tr><th>Módulo</th><th>Código</th><th>Estado</th><th>Gerenciamento</th></tr></thead><tbody id="modules"></tbody></table></section>
@@ -171,17 +171,22 @@ const td=document.createElement('td');td.textContent=value||'—';tr.append(td);
 }body.append(tr);
 }
 document.getElementById('institutions-status').textContent=institutions.length+' instituição(ões) cadastrada(s).';
-document.getElementById('institution-form').addEventListener('submit',event=>{
-event.preventDefault();
-const form=event.currentTarget, name=form.elements.name.value.trim(),slug=form.elements.slug.value.trim().toLowerCase();
-const feedback=document.getElementById('form-feedback');
-if(name.length<3){feedback.textContent='Informe um nome com pelo menos 3 caracteres.';return;}
-if(institutions.some(i=>i.slug===slug)){feedback.textContent='Código já cadastrado. Escolha outro.';return;}
-feedback.replaceChildren();
-const strong=document.createElement('strong');strong.textContent='Cadastro revisado: ';
-const details=document.createTextNode(name+' ('+slug+'). ');
-const note=document.createTextNode('Nenhum dado foi gravado. O cadastro permanece em modo de revisão, sem gravação.');
-feedback.append(strong,details,note);
+document.getElementById('institution-form').addEventListener('submit',async event=>{
+ event.preventDefault();
+ const form=event.currentTarget, name=form.elements.name.value.trim(),slug=form.elements.slug.value.trim().toLowerCase();
+ const feedback=document.getElementById('form-feedback'),button=form.querySelector('button[type=submit]');
+ if(name.length<2||!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)){feedback.textContent='Confira nome e código.';return;}
+ if(institutions.some(i=>i.slug===slug)){feedback.textContent='Código já cadastrado. Escolha outro.';return;}
+ if(!confirm('Confirmar cadastro de '+name+' ('+slug+')?'))return;
+ button.disabled=true;feedback.textContent='Gravando instituição…';
+ try{
+  const jwt=await obtainJwt();
+  const response=await fetch(worker+'/v1/admin/institutions',{method:'POST',headers:{Authorization:'Bearer '+jwt,'Content-Type':'application/json'},body:JSON.stringify({name,slug})});
+  const data=await response.json();
+  if(!response.ok)throw Error(data?.error||'Erro HTTP '+response.status);
+  feedback.textContent='Instituição cadastrada. Atualizando a lista…';
+  location.reload();
+ }catch(e){feedback.textContent='Cadastro não concluído: '+(e?.message||'Erro de conexão');button.disabled=false;}
 });
 }catch(e){document.getElementById('institutions-status').textContent='Consulta indisponível: '+e.message;}
 try{

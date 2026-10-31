@@ -14,7 +14,7 @@ export default {
     const allowed = env.APP_ORIGIN || "https://annaone.com.br";
     const cors = origin === allowed
       ? { "access-control-allow-origin": allowed, "access-control-allow-headers": "authorization, content-type",
-          "access-control-allow-methods": "GET, POST, PATCH, OPTIONS", "vary": "Origin" }
+          "access-control-allow-methods": "GET, POST, PUT, PATCH, OPTIONS", "vary": "Origin" }
       : {};
     if (request.method === "OPTIONS") {
       return origin === allowed
@@ -79,6 +79,42 @@ export default {
         const rows = await sql`SELECT id, code, name, status FROM public.modules ORDER BY name LIMIT 1000`;
         return json({ items: rows }, 200, cors);
       } catch { return json({ error: "Consulta administrativa indisponível" }, 503, cors); }
+    }
+    if (/^\/v1\/admin\/institutions\/[0-9a-f-]{36}\/profile$/i.test(url.pathname) && ["GET","PUT"].includes(request.method)) {
+      let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
+      if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
+      const id=url.pathname.split("/")[4];
+      try {
+        const sql=neon(env.DATABASE_URL);
+        const allowed=await sql`SELECT EXISTS(SELECT 1 FROM public.platform_admins WHERE user_id=${identity.userId}::uuid) AS ok`;
+        if(!allowed[0]?.ok)return json({error:"Acesso Master negado"},403,cors);
+        const exists=await sql`SELECT EXISTS(SELECT 1 FROM public.institutions WHERE id=${id}::uuid) AS ok`;
+        if(!exists[0]?.ok)return json({error:"Instituição não encontrada"},404,cors);
+        if(request.method==="GET"){
+          const rows=await sql`SELECT legal_name,tax_id,email,phone,website,address_street,address_number,address_complement,address_district,address_city,address_state,address_postal_code FROM public.institution_profiles WHERE institution_id=${id}::uuid`;
+          return json({item:rows[0]||{}},200,cors);
+        }
+        if(!(request.headers.get("content-type")||"").toLowerCase().startsWith("application/json"))return json({error:"Envie JSON"},415,cors);
+        const raw=await request.text();if(raw.length>8192)return json({error:"Dados excedem o limite"},413,cors);
+        let data;try{data=JSON.parse(raw);}catch{return json({error:"JSON inválido"},400,cors);}
+        const fields=["legal_name","tax_id","email","phone","website","address_street","address_number","address_complement","address_district","address_city","address_state","address_postal_code"];
+        if(!data||typeof data!=="object"||Array.isArray(data)||Object.keys(data).some(k=>!fields.includes(k)))return json({error:"Campos inválidos"},422,cors);
+        const v={};for(const key of fields){if(data[key]!=null&&typeof data[key]!=="string")return json({error:"Formato inválido: "+key},422,cors);v[key]=(data[key]||"").trim();if(v[key].length>200)return json({error:"Campo muito longo: "+key},422,cors);}
+        if(v.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email))return json({error:"E-mail inválido"},422,cors);
+        if(v.tax_id&&v.tax_id.replace(/\D/g,"").length!==14)return json({error:"CNPJ deve conter 14 dígitos"},422,cors);
+        if(v.address_state&&!/^[A-Za-z]{2}$/.test(v.address_state))return json({error:"UF inválida"},422,cors);
+        const rows=await sql`
+          WITH saved AS (
+            INSERT INTO public.institution_profiles(institution_id,legal_name,tax_id,email,phone,website,address_street,address_number,address_complement,address_district,address_city,address_state,address_postal_code,updated_at)
+            VALUES (${id}::uuid,${v.legal_name},${v.tax_id},${v.email},${v.phone},${v.website},${v.address_street},${v.address_number},${v.address_complement},${v.address_district},${v.address_city},${v.address_state.toUpperCase()},${v.address_postal_code},now())
+            ON CONFLICT (institution_id) DO UPDATE SET legal_name=EXCLUDED.legal_name,tax_id=EXCLUDED.tax_id,email=EXCLUDED.email,phone=EXCLUDED.phone,website=EXCLUDED.website,address_street=EXCLUDED.address_street,address_number=EXCLUDED.address_number,address_complement=EXCLUDED.address_complement,address_district=EXCLUDED.address_district,address_city=EXCLUDED.address_city,address_state=EXCLUDED.address_state,address_postal_code=EXCLUDED.address_postal_code,updated_at=now()
+            RETURNING institution_id
+          ), logged AS (
+            INSERT INTO anna_audit.audit_logs(actor_user_id,institution_id,action,entity_type,entity_id,details)
+            SELECT ${identity.userId}::uuid,institution_id,'institution.profile.updated','institution',institution_id::text,jsonb_build_object('fields',${fields.join(",")}) FROM saved RETURNING institution_id
+          ) SELECT institution_id FROM logged`;
+        return json({saved:rows.length===1},200,cors);
+      }catch(error){console.error("institution profile failed",error?.code||"db_error");return json({error:"Operação de cadastro indisponível"},503,cors);}
     }
     if (/^\/v1\/admin\/institutions\/[0-9a-f-]{36}$/i.test(url.pathname) && request.method === "PATCH") {
       let identity;

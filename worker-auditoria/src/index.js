@@ -73,7 +73,7 @@ export default {
         const authorized = await sql`SELECT EXISTS (SELECT 1 FROM public.platform_admins WHERE user_id = ${identity.userId}::uuid) AS ok`;
         if (authorized[0]?.ok !== true) return json({ error: "Acesso Master negado" }, 403, cors);
         if (url.pathname === "/v1/admin/institutions") {
-          const rows = await sql`SELECT id, name, slug, status FROM public.institutions ORDER BY name LIMIT 1000`;
+          const rows = await sql`SELECT id, name, slug, status, parent_institution_id FROM public.institutions ORDER BY name LIMIT 1000`;
           return json({ items: rows }, 200, cors);
         }
         const rows = await sql`SELECT id, code, name, status FROM public.modules ORDER BY name LIMIT 1000`;
@@ -93,6 +93,8 @@ export default {
       catch { return json({ error: "JSON inválido" }, 400, cors); }
       const name = typeof data?.name === "string" ? data.name.trim() : "";
       const slug = typeof data?.slug === "string" ? data.slug.trim() : "";
+      const parentId = typeof data?.parent_institution_id === "string" && /^[0-9a-f-]{36}$/i.test(data.parent_institution_id) ? data.parent_institution_id : null;
+      if (data?.parent_institution_id && !parentId) return json({error:"Instituição principal inválida"},422,cors);
       if (name.length < 2 || name.length > 160 || slug.length > 80 ||
           !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug))
         return json({ error: "Nome ou código inválido" }, 422, cors);
@@ -103,11 +105,11 @@ export default {
         // O actor vem exclusivamente do JWT validado, nunca do corpo enviado.
         const result = await sql`
           WITH created AS (
-            INSERT INTO public.institutions (name, slug, status)
-            SELECT ${name}, ${slug}, 'active'
+            INSERT INTO public.institutions (name, slug, status, parent_institution_id)
+            SELECT ${name}, ${slug}, 'active', ${parentId}::uuid
             WHERE EXISTS (
               SELECT 1 FROM public.platform_admins WHERE user_id = ${identity.userId}::uuid
-            )
+            ) AND (${parentId}::uuid IS NULL OR EXISTS (SELECT 1 FROM public.institutions WHERE id = ${parentId}::uuid AND parent_institution_id IS NULL))
             RETURNING id
           ), logged AS (
             INSERT INTO anna_audit.audit_logs

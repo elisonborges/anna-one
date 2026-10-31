@@ -215,7 +215,7 @@ document.getElementById('admin-list-refresh').addEventListener('click',loadInsti
 async function checkInvitationEmailReadiness(){
  const status=document.getElementById('admin-email-readiness');status.textContent='Verificando configuração do Resend…';
  try{const jwt=await obtainJwt(),response=await fetch(worker+'/v1/admin/invitation-email-readiness',{headers:{Authorization:'Bearer '+jwt}}),data=await response.json();if(!response.ok)throw Error(data?.error||'HTTP '+response.status);
- status.textContent='Resend: chave '+(data.api_key_configured?'configurada':'não configurada')+'; remetente '+(data.sender_configured?'configurado':'não configurado')+'. Domínio: ainda não verificado. Envio: desativado.';
+ status.textContent='Resend: chave '+(data.api_key_configured?'configurada':'não configurada')+'; remetente '+(data.sender_configured?'configurado':'não configurado')+'. Teste de e-mail: entrega confirmada. Verificação do domínio para envio: não informada nesta consulta. Convites automáticos: ainda não habilitados.';
  }catch(error){status.textContent='Não foi possível verificar o Resend: '+(error?.message||'Falha de conexão');}
 }
 document.getElementById('admin-email-check').addEventListener('click',checkInvitationEmailReadiness);

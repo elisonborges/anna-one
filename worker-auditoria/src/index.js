@@ -80,6 +80,35 @@ export default {
         return json({ items: rows }, 200, cors);
       } catch { return json({ error: "Consulta administrativa indisponível" }, 503, cors); }
     }
+    if (/^\/v1\/admin\/institutions\/[0-9a-f-]{36}$/i.test(url.pathname) && request.method === "PATCH") {
+      let identity;
+      try { identity=await verifyBearer(request,env); } catch {return json({error:"Autenticação necessária"},401,cors);}
+      if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
+      if(!(request.headers.get("content-type")||"").toLowerCase().startsWith("application/json"))return json({error:"Envie JSON"},415,cors);
+      const raw=await request.text();
+      if(raw.length>2048)return json({error:"Dados excedem o limite"},413,cors);
+      let data;try{data=JSON.parse(raw);}catch{return json({error:"JSON inválido"},400,cors);}
+      const name=typeof data?.name==="string"?data.name.trim():"";
+      const status=data?.status;
+      if(name.length<2||name.length>160||!["active","suspended"].includes(status))return json({error:"Nome ou situação inválidos"},422,cors);
+      const id=url.pathname.split("/").pop();
+      try{
+        const sql=neon(env.DATABASE_URL);
+        const rows=await sql`
+          WITH updated AS (
+            UPDATE public.institutions SET name=${name},status=${status}
+            WHERE id=${id}::uuid AND EXISTS(SELECT 1 FROM public.platform_admins WHERE user_id=${identity.userId}::uuid)
+            RETURNING id,name,slug,status
+          ), logged AS (
+            INSERT INTO anna_audit.audit_logs(actor_user_id,institution_id,action,entity_type,entity_id,details)
+            SELECT ${identity.userId}::uuid,id,'institution.updated','institution',id::text,
+              jsonb_build_object('name',name,'status',status) FROM updated RETURNING institution_id
+          )
+          SELECT updated.id,updated.name,updated.slug,updated.status FROM updated JOIN logged ON logged.institution_id=updated.id`;
+        if(!rows.length)return json({error:"Instituição não encontrada ou acesso negado"},403,cors);
+        return json({item:rows[0]},200,cors);
+      }catch(error){console.error("institution update failed",error?.code||"db_error");return json({error:"Não foi possível atualizar a instituição"},503,cors);}
+    }
     if (url.pathname === "/v1/admin/institutions" && request.method === "POST") {
       let identity;
       try { identity = await verifyBearer(request, env); }

@@ -225,8 +225,8 @@ document.getElementById('institution-copy-parent').addEventListener('click',asyn
  finally{button.disabled=false;}
 });
 const profileForm=document.getElementById('institution-profile-form');
-const digits=value=>String(value||'').replace(/\\D/g,'');
-function formatProfileField(name,value){const d=digits(value);if(name==='tax_id'){const x=d.slice(0,14);return x.replace(/^(\\d{2})(\\d)/,'$1.$2').replace(/^(\\d{2}\\.\\d{3})(\\d)/,'$1.$2').replace(/\\.(\\d{3})(\\d)/,'.$1/$2').replace(/(\\d{4})(\\d)/,'$1-$2');}if(name==='address_postal_code'){return d.slice(0,8).replace(/^(\\d{5})(\\d)/,'$1-$2');}if(name==='phone'){const x=d.slice(0,11);return x.length>10?x.replace(/^(\\d{2})(\\d{5})(\\d{0,4})/,'($1) $2-$3'):x.replace(/^(\\d{2})(\\d{4})(\\d{0,4})/,'($1) $2-$3');}return value;}
+const digits=value=>String(value||'').replace(/\D/g,'');
+function formatProfileField(name,value){const d=digits(value);if(name==='tax_id'){const x=d.slice(0,14);return x.replace(/^(\d{2})(\d)/,'$1.$2').replace(/^(\d{2}\.\d{3})(\d)/,'$1.$2').replace(/\.(\d{3})(\d)/,'.$1/$2').replace(/(\d{4})(\d)/,'$1-$2');}if(name==='address_postal_code'){return d.slice(0,8).replace(/^(\d{5})(\d)/,'$1-$2');}if(name==='phone'){const x=d.slice(0,11);return x.length>10?x.replace(/^(\d{2})(\d{5})(\d{0,4})/,'($1) $2-$3'):x.replace(/^(\d{2})(\d{4})(\d{0,4})/,'($1) $2-$3');}return value;}
 for(const key of ['tax_id','phone','address_postal_code']){const input=profileForm.elements[key];input.addEventListener('input',()=>{input.value=formatProfileField(key,input.value);input.removeAttribute('aria-invalid');});}
 profileForm.elements.address_state.addEventListener('input',event=>{event.target.value=event.target.value.replace(/[^a-z]/gi,'').slice(0,2).toUpperCase();});
 let cepRequest=0;

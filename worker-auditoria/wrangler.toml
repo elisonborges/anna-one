@@ -8,4 +8,4 @@ APP_ORIGIN = "https://annaone.com.br"
 AUTH_ISSUER = "https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech"
 AUTH_JWKS_URL = "https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth/.well-known/jwks.json"
 # AUTH_ISSUER e AUTH_JWKS_URL são URLs públicas de autenticação, não segredos.
-# DATABASE_URL permanece secret no Cloudflare; nunca registrar neste arquivo.
+# DATABASE_URL e RESEND_API_KEY permanecem secrets no Cloudflare; nunca registrar neste arquivo.\n# IMPORTANTE: [vars] define a lista de variáveis não secretas do deploy.\n# Declare aqui o remetente (não secreto) para que o deploy via GitHub o preserve.\nRESEND_FROM_EMAIL = "convites@annaone.com.br"\n# O segredo RESEND_API_KEY precisa ser cadastrado como Worker Secret no ambiente\n# de produção, não como variável de texto. Não coloque a chave neste arquivo.

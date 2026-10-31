@@ -80,6 +80,28 @@ export default {
         return json({ items: rows }, 200, cors);
       } catch { return json({ error: "Consulta administrativa indisponível" }, 503, cors); }
     }
+    if(/^\/v1\/admin\/institution-admin-invitations\/[0-9a-f-]{36}\/cancel$/i.test(url.pathname)&&request.method==="POST"){
+      let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
+      if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
+      const id=url.pathname.split("/")[4];
+      try{
+        const sql=neon(env.DATABASE_URL);
+        const rows=await sql`
+          WITH changed AS (
+            UPDATE public.institution_admin_invitations SET status='cancelled',updated_at=now()
+            WHERE id=${id}::uuid AND status='pending'
+              AND EXISTS(SELECT 1 FROM public.platform_admins WHERE user_id=${identity.userId}::uuid)
+            RETURNING id,institution_id,email
+          ), logged AS (
+            INSERT INTO anna_audit.audit_logs(actor_user_id,institution_id,action,entity_type,entity_id,details)
+            SELECT ${identity.userId}::uuid,institution_id,'institution.admin.invitation.cancelled','institution_admin_invitation',id::text,jsonb_build_object('email',email,'status','cancelled') FROM changed RETURNING entity_id
+          ) SELECT changed.id FROM changed JOIN logged ON logged.entity_id=changed.id::text`;
+        if(rows.length)return json({cancelled:true},200,cors);
+        const allowed=await sql`SELECT EXISTS(SELECT 1 FROM public.platform_admins WHERE user_id=${identity.userId}::uuid) AS ok`;
+        if(!allowed[0]?.ok)return json({error:"Acesso Master negado"},403,cors);
+        return json({error:"Convite não encontrado ou não está pendente"},409,cors);
+      }catch(error){console.error("invitation cancel failed",error?.code||"db_error");return json({error:"Não foi possível cancelar o convite"},503,cors);}
+    }
     if(url.pathname==="/v1/admin/institution-admin-invitations"&&["GET","POST"].includes(request.method)){
       let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
       if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);

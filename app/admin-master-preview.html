@@ -11,7 +11,7 @@
 <label>Nome da instituição <input name="name" required maxlength="150" placeholder="Nome completo" style="display:block;width:100%;padding:10px;margin:6px 0 14px"></label>
 <label>Código exclusivo <input name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" maxlength="80" placeholder="exemplo-escola" style="display:block;width:100%;padding:10px;margin:6px 0 14px"></label>
 <label>Instituição principal <select id="institution-parent" name="parent_institution_id" style="display:block;width:100%;padding:10px;margin:6px 0 14px"><option value="">Nova matriz</option></select></label><button type="submit">Cadastrar instituição</button><p id="form-feedback" role="status" class="muted">O cadastro será confirmado e enviado ao servidor com autorização Master.</p></form>
-<div id="institutions-status" role="status">Carregando instituições…</div>
+<div id="institution-detail" class="status" hidden aria-live="polite"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><h3 style="margin:0">Gerenciar instituição</h3><button type="button" id="institution-detail-close">Fechar</button></div><dl style="display:grid;grid-template-columns:max-content 1fr;gap:10px 18px"><dt>Nome</dt><dd id="detail-name"></dd><dt>Código</dt><dd id="detail-slug"></dd><dt>Situação</dt><dd id="detail-status"></dd><dt>Vínculo</dt><dd id="detail-parent"></dd></dl><p class="master-note">Edição, suspensão e liberação de módulos ainda não estão disponíveis nesta interface. Nenhum dado será alterado.</p><p><a href="#usuarios">👥 Usuários</a> · <a href="#permissoes">🛡️ Permissões</a> · <a href="#modulos-master">🧩 Módulos</a></p></div><div id="institutions-status" role="status">Carregando instituições…</div>
 <table><thead><tr><th>Instituição</th><th>Código</th><th>Situação</th><th>Ação</th></tr></thead><tbody id="institutions-rows"></tbody></table></section>
 <section id="modulos-master"><h2>🧩 Catálogo central de módulos</h2><p>Lista consultada no Neon com a sessão atual. O acesso operacional a cada módulo depende da autorização específica do servidor.</p><div id="catalog-status" role="status">Carregando catálogo…</div><table><thead><tr><th>Módulo</th><th>Código</th><th>Estado</th><th>Gerenciamento</th></tr></thead><tbody id="modules"></tbody></table></section>
 <section id="usuarios"><h2>👥 Usuários</h2><div class="status"><p>Cadastro de usuários e vínculos institucionais em integração. Nenhum convite é enviado nesta tela.</p></div></section><section id="permissoes"><h2>🛡️ Perfis e Permissões</h2><div class="status"><p>Liberação de acesso por instituição e usuário em integração com o servidor.</p></div></section><section id="auditoria"><h2>📋 Auditoria</h2><div class="status"><p>Histórico administrativo protegido em preparação.</p></div></section></div></main></div></div>
@@ -178,11 +178,20 @@ document.getElementById('app').hidden=false;
 try{
 const institutions=await load('/v1/admin/institutions');
 const body=document.getElementById('institutions-rows');const parentSelect=document.getElementById('institution-parent');for(const i of institutions.filter(x=>!x.parent_institution_id)){const option=document.createElement('option');option.value=i.id;option.textContent=i.name;parentSelect.append(option);}
+const detail=document.getElementById('institution-detail');
+document.getElementById('institution-detail-close').addEventListener('click',()=>{detail.hidden=true;});
 for(const institution of [...institutions].sort((a,b)=>(a.parent_institution_id?1:0)-(b.parent_institution_id?1:0))){
-const tr=document.createElement('tr');
-for(const value of [(institution.parent_institution_id?'↳ ':'')+institution.name,institution.slug,institution.status==='active'?'Ativa':'Suspensa','Edição e bloqueio: aguardando backend']){
-const td=document.createElement('td');td.textContent=value||'—';tr.append(td);
-}body.append(tr);
+ const tr=document.createElement('tr');
+ for(const value of [(institution.parent_institution_id?'↳ ':'')+institution.name,institution.slug,institution.status==='active'?'Ativa':'Suspensa']){const td=document.createElement('td');td.textContent=value||'—';tr.append(td);}
+ const cell=document.createElement('td'),button=document.createElement('button');button.type='button';button.textContent='Gerenciar';button.setAttribute('aria-label','Gerenciar '+institution.name);
+ button.addEventListener('click',()=>{
+  const parent=institutions.find(i=>i.id===institution.parent_institution_id);
+  document.getElementById('detail-name').textContent=institution.name;
+  document.getElementById('detail-slug').textContent=institution.slug;
+  document.getElementById('detail-status').textContent=institution.status==='active'?'Ativa':'Suspensa';
+  document.getElementById('detail-parent').textContent=parent?parent.name:'Instituição principal';
+  detail.hidden=false;detail.scrollIntoView({behavior:'smooth',block:'start'});
+ });cell.append(button);tr.append(cell);body.append(tr);
 }
 document.getElementById('institutions-status').textContent=institutions.length+' instituição(ões) cadastrada(s).';
 document.getElementById('institution-form').addEventListener('submit',async event=>{

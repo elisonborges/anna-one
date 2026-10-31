@@ -102,6 +102,24 @@ export default {
         return json({error:"Convite não encontrado ou não está pendente"},409,cors);
       }catch(error){console.error("invitation cancel failed",error?.code||"db_error");return json({error:"Não foi possível cancelar o convite"},503,cors);}
     }
+    if(url.pathname==="/v1/admin/invitation-email-test"&&request.method==="POST"){
+      let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
+      if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
+      if(!env.RESEND_API_KEY||!env.RESEND_FROM_EMAIL)return json({error:"Resend não configurado"},503,cors);
+      const recipient="elisonborg@gmail.com";
+      try{
+        const sql=neon(env.DATABASE_URL);
+        const allowed=await sql`SELECT EXISTS(SELECT 1 FROM public.platform_admins WHERE user_id=${identity.userId}::uuid) AS ok`;
+        if(!allowed[0]?.ok)return json({error:"Acesso Master negado"},403,cors);
+        const recent=await sql`SELECT EXISTS(SELECT 1 FROM anna_audit.audit_logs WHERE actor_user_id=${identity.userId}::uuid AND action='institution.admin.invitation.email_test_sent' AND occurred_at>now()-interval '15 minutes') AS ok`;
+        if(recent[0]?.ok)return json({error:"Aguarde 15 minutos antes de repetir o teste"},429,cors);
+        const response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Authorization":"Bearer "+env.RESEND_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({from:env.RESEND_FROM_EMAIL,to:[recipient],subject:"AnnA One — teste de envio de convite",text:"Este é um teste controlado de entrega de e-mail da AnnA One. Nenhuma conta ou permissão foi criada ou alterada. Se você recebeu esta mensagem, o envio pelo Resend está funcionando."})});
+        if(!response.ok){console.error("resend test failed",response.status);return json({error:"O Resend não aceitou o envio",provider_status:response.status},502,cors);}
+        const result=await response.json();
+        await sql`INSERT INTO anna_audit.audit_logs(actor_user_id,action,entity_type,entity_id,details) VALUES(${identity.userId}::uuid,'institution.admin.invitation.email_test_sent','email_test',${String(result.id||"unknown")},jsonb_build_object('recipient',${recipient},'provider','resend'))`;
+        return json({accepted:true,recipient,provider:"resend",message_id:result.id||null,access_granted:false},200,cors);
+      }catch(error){console.error("resend test error",error?.code||"runtime_error");return json({error:"Não foi possível concluir o teste de envio"},503,cors);}
+    }
     if(url.pathname==="/v1/admin/invitation-email-readiness"&&request.method==="GET"){
       let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
       if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);

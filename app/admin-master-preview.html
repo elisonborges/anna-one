@@ -327,7 +327,7 @@ for(const institution of [...institutions].sort((a,b)=>(a.parent_institution_id?
  });cell.append(button);tr.append(cell);body.append(tr);
 }
 const adminFilter=document.getElementById('admin-institution-filter'),adminLinkSelect=document.getElementById('admin-link-institution'),adminInviteSelect=document.getElementById('admin-invite-institution');for(const institution of institutions){const option=document.createElement('option');option.value=institution.id;option.textContent=institution.name;adminFilter.append(option);if(institution.status==='active'){const linkOption=document.createElement('option');linkOption.value=institution.id;linkOption.textContent=institution.name;adminLinkSelect.append(linkOption);const inviteOption=document.createElement('option');inviteOption.value=institution.id;inviteOption.textContent=institution.name;adminInviteSelect.append(inviteOption);}}
-loadInstitutionAdmins();
+loadInstitutionAdmins();loadAdminInvitations();
 document.getElementById('institutions-status').textContent=institutions.length+' instituição(ões) cadastrada(s).';
 document.getElementById('institution-form').addEventListener('submit',async event=>{
  event.preventDefault();

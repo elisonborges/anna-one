@@ -145,18 +145,24 @@ const connection=await checkWorker();
 diagnostic.textContent='Sessão: '+(user?'presente':'ausente')+' · SDK JWT: '+(jwtMethods.length?jwtMethods.join(', '):'método não identificado')+' · '+connection+'. Teste JWT assinado: pendente.';
 
 if(!user||!token)throw Error('Sessão não autenticada. Entre pelo login da AnnA One.');
-const base='https://ep-spring-snow-b6mci3yx.apirest.c-2.sa-east-1.aws.neon.tech/neondb/rest/v1/';
-const load=async path=>{
- const response=await fetch(base+path,{headers:{Authorization:'Bearer '+token,Accept:'application/json'},cache:'no-store'});
- if(!response.ok)throw Error('Consulta indisponível (HTTP '+response.status+')');
- const data=await response.json();if(!Array.isArray(data))throw Error('Resposta inválida');return data;
+const jwt=await obtainJwt();
+const serverRequest=async path=>{
+ const response=await fetch(worker+path,{method:'GET',headers:{Authorization:'Bearer '+jwt},cache:'no-store'});
+ const data=await response.json();
+ if(!response.ok)throw Error('Consulta protegida indisponível (HTTP '+response.status+').');
+ return data;
 };
-const admins=await load('platform_admins?select=user_id&limit=1000');
-if(!admins.some(a=>a.user_id===user.id))throw Error('Acesso restrito ao administrador geral.');
+const permission=await serverRequest('/v1/admin/authorize');
+if(permission?.authenticated!==true||permission?.admin_authorized!==true)throw Error('Acesso Master não autorizado pelo servidor.');
+const load=async path=>{
+ const data=await serverRequest(path);
+ if(!Array.isArray(data?.items))throw Error('Resposta administrativa inválida');
+ return data.items;
+};
 status.textContent='Administrador geral reconhecido: '+(user.name||user.email||'usuário')+'. Prévia Master em modo consulta.';
 document.getElementById('app').hidden=false;
 try{
-const institutions=await load('institutions?select=id,name,slug,status&order=name.asc&limit=1000');
+const institutions=await load('/v1/admin/institutions');
 const body=document.getElementById('institutions-rows');
 for(const institution of institutions){
 const tr=document.createElement('tr');
@@ -174,12 +180,12 @@ if(institutions.some(i=>i.slug===slug)){feedback.textContent='Código já cadast
 feedback.replaceChildren();
 const strong=document.createElement('strong');strong.textContent='Cadastro revisado: ';
 const details=document.createTextNode(name+' ('+slug+'). ');
-const note=document.createTextNode('Nenhum dado foi gravado. A confirmação final será liberada após o teste de autenticação JWT do Worker.');
+const note=document.createTextNode('Nenhum dado foi gravado. O cadastro permanece em modo de revisão, sem gravação.');
 feedback.append(strong,details,note);
 });
 }catch(e){document.getElementById('institutions-status').textContent='Consulta indisponível: '+e.message;}
 try{
-const modules=await load('modules?select=id,code,name,status&order=name.asc&limit=1000');
+const modules=await load('/v1/admin/modules');
 const body=document.getElementById('modules');
 for(const mod of modules){
 const row=document.createElement('tr');

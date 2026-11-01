@@ -10,7 +10,7 @@ export async function handleInstitutionInvitation(request,env,cors={}){
  if(request.method!=="POST"||(!send&&!accept))return null;
  if(!(request.headers.get("content-type")||"").toLowerCase().startsWith("application/json"))return reply({error:"Envie JSON"},415,cors);
  let identity;
- try{identity=await verifyBearer(request,env);}catch{return reply({error:"Autenticação necessária"},401,cors);}
+ try{identity=await verifyBearer(request,accept?{...env,AUTH_ISSUER:"https://ep-square-field-b64vxfr0.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth",AUTH_JWKS_URL:"https://ep-square-field-b64vxfr0.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth/.well-known/jwks.json",AUTH_AUDIENCE:undefined}:env);}catch{return reply({error:"Autenticação necessária"},401,cors);}
  if(!env.DATABASE_URL)return reply({error:"Banco indisponível"},503,cors);
  const sql=neon(env.DATABASE_URL);
  try{

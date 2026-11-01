@@ -154,6 +154,18 @@ const createInvitation=document.getElementById('invitation-create');
 const sendInvitation=document.getElementById('invitation-send');
 let invitationJwt=null;
 let invitationId=null;
+const testInstitutionId='2766ba9f-d6c0-473d-98f3-e46eef50159d';
+const testEmail='francisco.borges@dombarreto.g12.br';
+async function recoverPendingInvitation(){
+ const result=await stagingApi('/v1/admin/institution-admin-invitations');
+ const matches=(result.items||[]).filter(item=>item.institution_id===testInstitutionId&&String(item.email||'').toLowerCase()===testEmail&&item.status==='pending');
+ if(matches.length!==1)throw Error('Não foi possível identificar um único convite pendente. Consulte os registros antes de enviar.');
+ invitationId=matches[0].id;
+ createInvitation.disabled=true;
+ sendInvitation.disabled=false;
+ invitationResult.textContent='Convite pendente recuperado. Nenhum e-mail foi enviado por esta operação.';
+}
+
 async function stagingApi(path,method='GET',payload){
  if(!invitationJwt)throw Error('Verifique a autorização Master primeiro.');
  const response=await fetch(stagingWorker+path,{
@@ -173,8 +185,8 @@ verifyInvitation.addEventListener('click',async()=>{
   invitationJwt=await obtainJwt();
   const result=await stagingApi('/v1/admin/authorize');
   if(result.admin_authorized!==true)throw Error('Acesso Master não autorizado na homologação.');
-  invitationResult.textContent='Master autorizado na homologação. Convite ainda não criado.';
-  createInvitation.disabled=false;
+  invitationResult.textContent='Master autorizado. Consultando convites pendentes…';
+  try{await recoverPendingInvitation();}catch(recoveryError){invitationResult.textContent='Master autorizado. '+recoveryError.message;createInvitation.disabled=false;}
  }catch(error){invitationJwt=null;invitationResult.textContent=error.message+' Não repita a verificação se o Neon Auth estiver limitando requisições.';}
  finally{verifyInvitation.disabled=false;}
 });
@@ -183,15 +195,17 @@ createInvitation.addEventListener('click',async()=>{
  invitationResult.textContent='Criando convite pendente na homologação…';
  try{
   const result=await stagingApi('/v1/admin/institution-admin-invitations','POST',{
-   institution_id:'2766ba9f-d6c0-473d-98f3-e46eef50159d',
-   email:'francisco.borges@dombarreto.g12.br'
+   institution_id:testInstitutionId,
+   email:testEmail
   });
   if(!result?.item?.id||result.email_sent!==false||result.access_granted!==false)throw Error('Resposta de criação não corresponde a um convite pendente seguro.');
   invitationId=result.item.id;
   invitationResult.textContent='Convite pendente criado. E-mail ainda não enviado.';
   sendInvitation.disabled=false;
  }catch(error){
-  invitationResult.textContent=error.message+' Não repita automaticamente; verifique o diagnóstico.';
+  if(error.message.includes('[pending_invitation]')){
+   try{await recoverPendingInvitation();return;}catch(recoveryError){invitationResult.textContent=recoveryError.message;}
+  }else invitationResult.textContent=error.message+' Não repita automaticamente; verifique o diagnóstico.';
   createInvitation.disabled=false;
  }
 });

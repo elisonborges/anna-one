@@ -1,3 +1,4 @@
+import { activationPage } from "./activation-page.js";
 import { handleInstitutionInvitation } from "./institution-invitations.js";
 import { neon } from "@neondatabase/serverless";
 import { verifyBearer } from "./auth.js";
@@ -11,6 +12,9 @@ const json = (data, status = 200, headers = {}) =>
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (request.method === "GET" && url.pathname === "/activate-invitation") {
+      return new Response(activationPage, { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer", "x-content-type-options": "nosniff" } });
+    }
     const origin = request.headers.get("Origin");
     const allowed = env.APP_ORIGIN || "https://annaone.com.br";
     const cors = origin === allowed

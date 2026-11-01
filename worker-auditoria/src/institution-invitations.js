@@ -30,9 +30,9 @@ export async function handleInstitutionInvitation(request,env,cors={}){
     RETURNING inv.id,inv.email,inv.institution_id,(SELECT name FROM public.institutions WHERE id=inv.institution_id) AS institution_name`;
    if(!rows.length)return reply({error:"Convite não disponível para envio"},409,cors);
    const item=rows[0];
-   const origin=new URL(env.APP_ORIGIN||"https://annaone.com.br");
-   if(origin.protocol!=="https:")return reply({error:"Origem inválida"},503,cors);
-   const link=new URL("/app/activate-invitation.html?token="+token,origin).toString();
+   const origin=new URL(request.url).origin;
+   if(!origin.startsWith("https://")||!origin.includes("anna-one-auditoria-homolog."))return reply({error:"Ambiente de homologação inválido"},503,cors);
+   const link=new URL("/activate-invitation?token="+token,origin).toString();
    const html='<div style="font:16px Arial;padding:24px"><h1>AnnA One</h1><p>Convite para administrar '+escape(item.institution_name)+'</p><p><a href="'+escape(link)+'">Ativar convite</a></p><p>Válido por 48 horas, uso único.</p></div>';
    let response;
    try{response=await fetch("https://api.resend.com/emails",{method:"POST",headers:{"Authorization":"Bearer "+env.RESEND_API_KEY,"Content-Type":"application/json"},body:JSON.stringify({from:env.RESEND_FROM_EMAIL,to:[item.email],subject:"AnnA One — convite institucional",html,text:"Ative seu convite: "+link})});}

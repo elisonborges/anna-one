@@ -81,7 +81,21 @@ try{
   if(typeof v==="string"&&v.split(".").length===3)return v;
   throw Error("JWT indisponível na sessão Neon Auth");
  };
- button.disabled=false;status.textContent="Conta autenticada: "+user.email+". Clique para concluir o vínculo institucional.";
- button.onclick=async()=>{button.disabled=true;status.textContent="Validando convite…";try{const jwt=await getJwt();const response=await fetch("https://anna-one-auditoria-homolog.elisonborg.workers.dev/v1/invitations/accept",{method:"POST",headers:{"Authorization":"Bearer "+jwt,"Content-Type":"application/json"},body:JSON.stringify({token})});const body=await response.json().catch(()=>({}));status.textContent=response.ok&&body.activated?"Convite ativado. Você já pode acessar o Portal AnnA One.":("HTTP "+response.status+": "+(body.error||"Não foi possível ativar."));if(response.ok&&body.activated){sessionStorage.removeItem("anna_invitation_token");history.replaceState(null,"",location.pathname);button.textContent="Convite ativado";}else button.disabled=false;}catch(error){status.textContent="Falha na ativação: "+(error?.message||"conexão indisponível");button.disabled=false;}};
+ const activateInvitation=async()=>{
+  button.disabled=true;status.textContent="Ativando vínculo institucional…";
+  try{
+   const jwt=await getJwt();
+   const response=await fetch("https://anna-one-auditoria-homolog.elisonborg.workers.dev/v1/invitations/accept",{method:"POST",headers:{"Authorization":"Bearer "+jwt,"Content-Type":"application/json"},body:JSON.stringify({token})});
+   const body=await response.json().catch(()=>({}));
+   if(!response.ok||!body.activated)throw Error("HTTP "+response.status+": "+(body.error||"Não foi possível ativar o convite."));
+   sessionStorage.removeItem("anna_invitation_token");
+   history.replaceState(null,"",location.pathname);
+   status.textContent="Convite ativado! Acesso institucional vinculado.";
+   button.textContent="Convite ativado";
+   const link=document.createElement("a");link.href="./";link.textContent="Abrir Portal AnnA One";link.style.display="inline-block";link.style.marginTop="16px";link.style.fontWeight="bold";button.after(link);
+  }catch(error){status.textContent="Não foi possível ativar automaticamente: "+(error?.message||"conexão indisponível");button.disabled=false;button.textContent="Tentar ativar novamente";}
+ };
+ button.onclick=activateInvitation;
+ await activateInvitation();
 }catch(e){if(e.message!=="no session"&&e.message!=="invalid token"&&e.message!=="wrong account")status.textContent="Não foi possível validar a sessão. Tente novamente.";}
 </script></body></html>

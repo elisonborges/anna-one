@@ -1,0 +1,17 @@
+# Configuração isolada de homologação. NÃO executar wrangler deploy sem -c.
+name = "anna-one-auditoria-homolog"
+main = "src/index.js"
+compatibility_date = "2026-10-28"
+workers_dev = true
+
+[vars]
+APP_ORIGIN = "https://annaone.com.br"
+AUTH_ISSUER = "https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech"
+AUTH_JWKS_URL = "https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth/.well-known/jwks.json"
+RESEND_FROM_EMAIL = "convites@annaone.com.br"
+
+# Configurar somente como secrets do Worker de homologação:
+# DATABASE_URL = conexão da branch Neon br-round-darkness-b6vaswf6 (NUNCA produção)
+# RESEND_API_KEY = chave Resend autorizada
+# Antes de testar, revisar se APP_ORIGIN e a página de ativação apontam para
+# o Worker de homologação, não para anna-one-auditoria de produção.

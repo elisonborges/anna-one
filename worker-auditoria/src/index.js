@@ -1,3 +1,4 @@
+import { handleInstitutionInvitation } from "./institution-invitations.js";
 import { neon } from "@neondatabase/serverless";
 import { verifyBearer } from "./auth.js";
 
@@ -21,6 +22,8 @@ export default {
         ? new Response(null, { status: 204, headers: cors })
         : json({ error: "Origem não permitida" }, 403);
     }
+    const invitationResponse = await handleInstitutionInvitation(request, env, cors);
+    if (invitationResponse) return invitationResponse;
     // Não expor diagnóstico do banco a sites não autorizados.
     // Respostas de saúde podem ser consultadas pela origem aprovada.
     if (url.pathname === "/health" && request.method === "GET") {

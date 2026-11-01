@@ -162,7 +162,7 @@ async function stagingApi(path,method='GET',payload){
   ...(method!=='GET'?{body:JSON.stringify(payload||{})}:{})
  });
  const data=await response.json().catch(()=>null);
- if(!response.ok)throw Error('HTTP '+response.status+' em '+path+': '+(data?.error||'Resposta indisponível'));
+ if(!response.ok)throw Error('HTTP '+response.status+' em '+path+': '+(data?.error||'Resposta indisponível')+(data?.reason?' ['+data.reason+']':'')+(data?.diagnostic?' | '+JSON.stringify(data.diagnostic):''));
  if(!data||typeof data!=='object')throw Error('Resposta inválida do Worker de homologação.');
  return data;
 }
@@ -190,7 +190,10 @@ createInvitation.addEventListener('click',async()=>{
   invitationId=result.item.id;
   invitationResult.textContent='Convite pendente criado. E-mail ainda não enviado.';
   sendInvitation.disabled=false;
- }catch(error){invitationResult.textContent=error.message+' Verifique antes de repetir.';}
+ }catch(error){
+  invitationResult.textContent=error.message+' Não repita automaticamente; verifique o diagnóstico.';
+  createInvitation.disabled=false;
+ }
 });
 sendInvitation.addEventListener('click',async()=>{
  if(!invitationId)return;

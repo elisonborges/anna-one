@@ -34,22 +34,21 @@ const sdk = await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');
 const auth = sdk.createAuthClient(authUrl);
 
 async function getJwt() {
-  const session = await auth.getSession();
-  const direct = session?.data?.session?.access_token;
-  if (typeof direct === 'string' && direct.split('.').length === 3)
-    return direct;
-
+  // O domínio workers.dev não compartilha necessariamente a sessão do Portal Master.
+  // Consulte primeiro os métodos de JWT, sem chamar getSession repetidamente.
+  const errors = [];
   for (const method of ['getJWTToken','getJwtToken','token']) {
     if (typeof auth[method] !== 'function') continue;
-    const result = await auth[method]();
-    const jwt = typeof result === 'string'
-      ? result
-      : result?.token || result?.data?.token || result?.data?.jwt;
-
-    if (typeof jwt === 'string' && jwt.split('.').length === 3)
-      return jwt;
+    try {
+      const result = await auth[method]();
+      const jwt = typeof result === 'string'
+        ? result
+        : result?.token || result?.data?.token || result?.data?.jwt
+          || result?.data?.access_token || result?.data?.session?.access_token;
+      if (typeof jwt === 'string' && jwt.split('.').length === 3) return jwt;
+    } catch (error) { errors.push(method + ': ' + error.message); }
   }
-  throw Error('JWT indisponível. Entre no Portal Master.');
+  throw Error('Sessão Master não disponível neste domínio. O login em annaone.com.br não é compartilhado automaticamente com workers.dev. ' + errors.join('; '));
 }
 
 async function api(path, method = 'GET', body) {
@@ -84,7 +83,7 @@ verifyButton.onclick = async () => {
     button.disabled = false;
   } catch (error) {
     verifiedJwt = null;
-    status.textContent = 'Falha na verificação: ' + error.message + '. Se houver limite de requisições, aguarde antes de tentar novamente.';
+    status.textContent = 'Falha na verificação: ' + error.message + '. Não repita a verificação se o Neon Auth estiver limitando requisições.';
   } finally {
     checking = false;
     verifyButton.disabled = false;

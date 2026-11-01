@@ -8,7 +8,7 @@
 <h2>Convite institucional — homologação</h2>
 <p>INSTITUTO DOM BARRETO — CENTRO · francisco.borges@dombarreto.g12.br</p>
 <p>Esta operação utiliza exclusivamente o Worker de homologação. Nenhuma permissão será concedida antes da aceitação autenticada pelo destinatário.</p>
-<button type="button" id="invitation-verify">Verificar autorização Master (homologação)</button>
+<button type="button" id="invitation-verify">Atualizar autorização e convite</button>
 <button type="button" id="invitation-create" disabled>Criar convite de teste</button>
 <button type="button" id="invitation-send" disabled>Enviar convite criado</button>
 <p id="invitation-result" role="status">Nenhuma operação executada.</p>
@@ -178,7 +178,7 @@ async function stagingApi(path,method='GET',payload){
  if(!data||typeof data!=='object')throw Error('Resposta inválida do Worker de homologação.');
  return data;
 }
-verifyInvitation.addEventListener('click',async()=>{
+async function initializeInvitationFlow(){
  verifyInvitation.disabled=true;createInvitation.disabled=true;sendInvitation.disabled=true;
  invitationResult.textContent='Validando autorização no Worker de homologação…';
  try{
@@ -189,7 +189,9 @@ verifyInvitation.addEventListener('click',async()=>{
   try{await recoverPendingInvitation();}catch(recoveryError){invitationResult.textContent='Master autorizado. '+recoveryError.message;createInvitation.disabled=false;}
  }catch(error){invitationJwt=null;invitationResult.textContent=error.message+' Não repita a verificação se o Neon Auth estiver limitando requisições.';}
  finally{verifyInvitation.disabled=false;}
-});
+}
+verifyInvitation.addEventListener('click',initializeInvitationFlow);
+initializeInvitationFlow();
 createInvitation.addEventListener('click',async()=>{
  createInvitation.disabled=true;
  invitationResult.textContent='Criando convite pendente na homologação…';

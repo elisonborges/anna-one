@@ -1,4 +1,4 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ativar convite | AnnA One</title><style>body{font:16px Arial;background:#f3f7fc;color:#173553;margin:0}main{max-width:560px;margin:9vh auto;background:white;border-radius:16px;padding:30px;box-shadow:0 4px 22px #17355316}button{background:#147bd1;color:white;border:0;border-radius:8px;padding:13px 20px;cursor:pointer}button:disabled{opacity:.5}#status{margin:16px 0;padding:12px;border-radius:8px;background:#eaf3ff;white-space:pre-wrap;line-height:1.5}label{display:block;margin:14px 0 5px;font-weight:600}label input{display:block;box-sizing:border-box;width:100%;padding:11px;margin-top:6px;border:1px solid #bacada;border-radius:7px;font:inherit}form button{margin-top:12px}#registration{margin:20px 0}</style></head><body><main><h1>AnnA One</h1><h2>Ativar convite institucional</h2><p>Entre na sua conta AnnA One e confirme o e-mail antes de ativar este convite.</p><p id="status" role="status" aria-live="polite">Verificando sessão…</p><section id="registration" hidden><p>Primeiro acesso do administrador convidado</p><form id="signup"><label>E-mail convidado<input id="email" type="email" readonly value="francisco.borges@dombarreto.g12.br"></label><label>Nome completo<input id="name" type="text" autocomplete="name" minlength="2" maxlength="120" required></label><label>Crie uma senha<input id="password" type="password" minlength="8" autocomplete="new-password" required></label><label>Confirme a senha<input id="confirm" type="password" minlength="8" autocomplete="new-password" required></label><button type="submit">Cadastrar e continuar</button></form></section><p><a id="login" href="#" >Já tenho uma conta: entrar</a></p><section id="existing-login" hidden><form id="login-form"><label>E-mail<input id="login-email" type="email" readonly value="francisco.borges@dombarreto.g12.br"></label><label>Senha<input id="login-password" type="password" autocomplete="current-password" required></label><button type="submit">Entrar e continuar</button></form></section><button id="activate" disabled>Ativar convite</button></main><script type="module">
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ativar convite | AnnA One</title><style>body{font:16px Arial;background:#f3f7fc;color:#173553;margin:0}main{max-width:560px;margin:9vh auto;background:white;border-radius:16px;padding:30px;box-shadow:0 4px 22px #17355316}button{background:#147bd1;color:white;border:0;border-radius:8px;padding:13px 20px;cursor:pointer}button:disabled{opacity:.5}#status{margin:16px 0;padding:12px;border-radius:8px;background:#eaf3ff;white-space:pre-wrap;line-height:1.5}label{display:block;margin:14px 0 5px;font-weight:600}label input{display:block;box-sizing:border-box;width:100%;padding:11px;margin-top:6px;border:1px solid #bacada;border-radius:7px;font:inherit}form button{margin-top:12px}#registration{margin:20px 0}</style></head><body><main><h1>AnnA One</h1><h2>Ativar convite institucional</h2><p>Entre na sua conta AnnA One e confirme o e-mail antes de ativar este convite.</p><p id="status" role="status" aria-live="polite">Verificando sessão…</p><section id="registration" hidden><p>Primeiro acesso do administrador convidado</p><form id="signup"><label>E-mail convidado<input id="email" type="email" readonly value="francisco.borges@dombarreto.g12.br"></label><label>Nome completo<input id="name" type="text" autocomplete="name" minlength="2" maxlength="120" required></label><label>Crie uma senha<input id="password" type="password" minlength="8" autocomplete="new-password" required></label><label>Confirme a senha<input id="confirm" type="password" minlength="8" autocomplete="new-password" required></label><button type="submit">Cadastrar e continuar</button></form></section><section id="verify-section" hidden><h3>Confirme seu e-mail</h3><p>Digite o código recebido no e-mail convidado.</p><form id="verify-form"><label>Código de verificação<input id="otp" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></label><button type="submit">Confirmar código</button></form><button id="resend-otp" type="button">Reenviar código</button></section><p><a id="login" href="#" >Já tenho uma conta: entrar</a></p><section id="existing-login" hidden><form id="login-form"><label>E-mail<input id="login-email" type="email" readonly value="francisco.borges@dombarreto.g12.br"></label><label>Senha<input id="login-password" type="password" autocomplete="current-password" required></label><button type="submit">Entrar e continuar</button></form></section><button id="activate" disabled>Ativar convite</button></main><script type="module">
 const status=document.getElementById("status"),button=document.getElementById("activate");
 const url=new URL(location.href);
 const incoming=url.searchParams.get("token");
@@ -21,6 +21,28 @@ try{
    location.reload();
   }catch(error){status.textContent="Não foi possível entrar: "+(error?.message||"verifique as credenciais");submit.disabled=false;}
  };
+ const emailConvidado=document.getElementById("email").value;
+ const verifySection=document.getElementById("verify-section");
+ document.getElementById("verify-form").onsubmit=async e=>{
+  e.preventDefault();const submit=e.target.querySelector("button");submit.disabled=true;status.textContent="Verificando código…";
+  try{
+   const otp=document.getElementById("otp").value.trim();
+   const result=await auth.emailOtp.verifyEmail({email:emailConvidado,otp});
+   if(result?.error)throw result.error;
+   status.textContent="E-mail confirmado. Verificando sessão para ativar o convite…";
+   const verified=await auth.getSession();
+   if(verified?.data?.user||verified?.data?.session?.user){location.reload();return;}
+   verifySection.hidden=true;document.getElementById("existing-login").hidden=false;
+   status.textContent="E-mail confirmado. Entre com a senha cadastrada para ativar o convite.";
+  }catch(error){status.textContent="Não foi possível confirmar o código: "+(error?.message||"código inválido ou expirado");}
+  finally{submit.disabled=false;}
+ };
+ document.getElementById("resend-otp").onclick=async e=>{
+  const btn=e.currentTarget;btn.disabled=true;status.textContent="Solicitando novo código…";
+  try{const result=await auth.emailOtp.sendVerificationOtp({email:emailConvidado,type:"email-verification"});if(result?.error)throw result.error;status.textContent="Novo código enviado. Verifique seu e-mail.";}
+  catch(error){status.textContent="Não foi possível reenviar o código: "+(error?.message||"tente novamente mais tarde");}
+  finally{btn.disabled=false;}
+ };
  const session=await auth.getSession();
  const user=session?.data?.user||session?.data?.session?.user;
  if(!user){
@@ -38,10 +60,12 @@ try{
     if(result?.error)throw result.error;
     const updated=await auth.getSession();
     if(updated?.data?.user||updated?.data?.session?.user){location.reload();return;}
-    status.textContent="Cadastro solicitado. Confira o e-mail de confirmação e depois abra novamente este mesmo link para ativar o convite.";
+    document.getElementById("registration").hidden=true;verifySection.hidden=false;
+    status.textContent="Cadastro criado. Digite abaixo o código de verificação enviado ao e-mail.";
    }catch(error){status.textContent="Cadastro não concluído: "+(error?.message||"verifique os dados.");}
    finally{submit.disabled=false;submit.textContent="Cadastrar e continuar";status.scrollIntoView({behavior:"smooth",block:"center"});}
   };
+  verifySection.hidden=false;
   throw Error("no session");
  }
  if(String(user.email||"").toLowerCase()!=="francisco.borges@dombarreto.g12.br"){status.textContent="Outra conta está conectada ("+(user.email||"sem e-mail")+"). Abra o convite em janela anônima e cadastre a conta convidada.";throw Error("wrong account");}

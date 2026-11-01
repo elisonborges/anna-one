@@ -1,8 +1,14 @@
 <!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ativar convite | AnnA One</title><style>body{font:16px Arial;background:#f3f7fc;color:#173553;margin:0}main{max-width:560px;margin:9vh auto;background:white;border-radius:16px;padding:30px;box-shadow:0 4px 22px #17355316}button{background:#147bd1;color:white;border:0;border-radius:8px;padding:13px 20px;cursor:pointer}button:disabled{opacity:.5}#status{margin-top:16px;white-space:pre-wrap}</style></head><body><main><h1>AnnA One</h1><h2>Ativar convite institucional</h2><p>Entre na sua conta AnnA One e confirme o e-mail antes de ativar este convite.</p><section id="registration" hidden><p>Primeiro acesso do administrador convidado</p><form id="signup"><label>E-mail convidado<input id="email" type="email" readonly value="francisco.borges@dombarreto.g12.br"></label><label>Crie uma senha<input id="password" type="password" minlength="8" autocomplete="new-password" required></label><label>Confirme a senha<input id="confirm" type="password" minlength="8" autocomplete="new-password" required></label><button type="submit">Cadastrar e continuar</button></form></section><p><a id="login" href="./login-neon.html">Já tenho uma conta: entrar</a></p><button id="activate" disabled>Ativar convite</button><p id="status" role="status">Verificando sessão…</p></main><script type="module">
 const status=document.getElementById("status"),button=document.getElementById("activate");
-const token=new URL(location.href).searchParams.get("token");
-// Preserva o token no link até a ativação, inclusive após confirmação por e-mail.
-if(!token||!/^[a-f0-9]{64}$/i.test(token)){status.textContent="Link inválido.";throw Error("invalid token");}
+const url=new URL(location.href);
+const incoming=url.searchParams.get("token");
+if(incoming&&/^[a-f0-9]{64}$/i.test(incoming))sessionStorage.setItem("anna_invitation_token",incoming);
+const token=incoming||sessionStorage.getItem("anna_invitation_token");
+if(!incoming&&token&&/^[a-f0-9]{64}$/i.test(token)){
+ url.searchParams.set("token",token);
+ history.replaceState(null,"",url.pathname+url.search);
+}
+if(!token||!/^[a-f0-9]{64}$/i.test(token)){status.textContent="Link sem código de convite. Abra o botão do e-mail original; não é necessário novo cadastro.";throw Error("invalid token");}
 try{
  const sdk=await import("https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle");
  const auth=sdk.createAuthClient("https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth");
@@ -42,7 +48,7 @@ try{
   if(typeof v==="string"&&v.split(".").length===3)return v;
   throw Error("JWT indisponível na sessão Neon Auth");
  };
- button.disabled=false;status.textContent="Sessão encontrada. Confirme para ativar.";
- button.onclick=async()=>{button.disabled=true;status.textContent="Validando convite…";try{const jwt=await getJwt();const response=await fetch("https://anna-one-auditoria-homolog.elisonborg.workers.dev/v1/invitations/accept",{method:"POST",headers:{"Authorization":"Bearer "+jwt,"Content-Type":"application/json"},body:JSON.stringify({token})});const body=await response.json().catch(()=>({}));status.textContent=response.ok&&body.activated?"Convite ativado. Você já pode acessar o Portal AnnA One.":("HTTP "+response.status+": "+(body.error||"Não foi possível ativar."));if(!response.ok)button.disabled=false;}catch(error){status.textContent="Falha na ativação: "+(error?.message||"conexão indisponível");button.disabled=false;}};
+ button.disabled=false;status.textContent="Conta autenticada: "+user.email+". Clique para concluir o vínculo institucional.";
+ button.onclick=async()=>{button.disabled=true;status.textContent="Validando convite…";try{const jwt=await getJwt();const response=await fetch("https://anna-one-auditoria-homolog.elisonborg.workers.dev/v1/invitations/accept",{method:"POST",headers:{"Authorization":"Bearer "+jwt,"Content-Type":"application/json"},body:JSON.stringify({token})});const body=await response.json().catch(()=>({}));status.textContent=response.ok&&body.activated?"Convite ativado. Você já pode acessar o Portal AnnA One.":("HTTP "+response.status+": "+(body.error||"Não foi possível ativar."));if(response.ok&&body.activated){sessionStorage.removeItem("anna_invitation_token");history.replaceState(null,"",location.pathname);button.textContent="Convite ativado";}else button.disabled=false;}catch(error){status.textContent="Falha na ativação: "+(error?.message||"conexão indisponível");button.disabled=false;}};
 }catch(e){if(e.message!=="no session"&&e.message!=="invalid token"&&e.message!=="wrong account")status.textContent="Não foi possível validar a sessão. Tente novamente.";}
 </script></body></html>

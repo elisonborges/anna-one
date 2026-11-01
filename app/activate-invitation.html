@@ -29,8 +29,20 @@ try{
   throw Error("no session");
  }
  if(String(user.email||"").toLowerCase()!=="francisco.borges@dombarreto.g12.br"){status.textContent="Outra conta está conectada ("+(user.email||"sem e-mail")+"). Abra o convite em janela anônima e cadastre a conta convidada.";throw Error("wrong account");}
- const getJwt=async()=>{for(const method of ["getJWTToken","getJwtToken","token"]){if(typeof auth[method]==="function"){const r=await auth[method]();const v=typeof r==="string"?r:r?.token||r?.data?.token||r?.data?.jwt;if(typeof v==="string"&&v.split(".").length===3)return v;}}const v=session?.data?.session?.access_token;if(typeof v==="string"&&v.split(".").length===3)return v;throw Error("JWT indisponível");};
+ const getJwt=async()=>{
+  for(const method of ["getJWTToken","getJwtToken","token"]){
+   if(typeof auth[method]!=="function")continue;
+   try{
+    const r=await auth[method]();
+    const v=typeof r==="string"?r:r?.token||r?.data?.token||r?.data?.jwt||r?.data?.access_token||r?.data?.session?.access_token||r?.data?.session?.token;
+    if(typeof v==="string"&&v.split(".").length===3)return v;
+   }catch{}
+  }
+  const v=session?.data?.session?.access_token;
+  if(typeof v==="string"&&v.split(".").length===3)return v;
+  throw Error("JWT indisponível na sessão Neon Auth");
+ };
  button.disabled=false;status.textContent="Sessão encontrada. Confirme para ativar.";
- button.onclick=async()=>{button.disabled=true;status.textContent="Validando convite…";try{const jwt=await getJwt();const response=await fetch("https://anna-one-auditoria-homolog.elisonborg.workers.dev/v1/invitations/accept",{method:"POST",headers:{"Authorization":"Bearer "+jwt,"Content-Type":"application/json"},body:JSON.stringify({token})});const body=await response.json();status.textContent=response.ok&&body.activated?"Convite ativado. Você já pode acessar o Portal AnnA One.":body.error||"Não foi possível ativar.";if(!response.ok)button.disabled=false;}catch{status.textContent="Falha de autenticação ou conexão.";button.disabled=false;}};
+ button.onclick=async()=>{button.disabled=true;status.textContent="Validando convite…";try{const jwt=await getJwt();const response=await fetch("https://anna-one-auditoria-homolog.elisonborg.workers.dev/v1/invitations/accept",{method:"POST",headers:{"Authorization":"Bearer "+jwt,"Content-Type":"application/json"},body:JSON.stringify({token})});const body=await response.json().catch(()=>({}));status.textContent=response.ok&&body.activated?"Convite ativado. Você já pode acessar o Portal AnnA One.":("HTTP "+response.status+": "+(body.error||"Não foi possível ativar."));if(!response.ok)button.disabled=false;}catch(error){status.textContent="Falha na ativação: "+(error?.message||"conexão indisponível");button.disabled=false;}};
 }catch(e){if(e.message!=="no session"&&e.message!=="invalid token"&&e.message!=="wrong account")status.textContent="Não foi possível validar a sessão. Tente novamente.";}
 </script></body></html>

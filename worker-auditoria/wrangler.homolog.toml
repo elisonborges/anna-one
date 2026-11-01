@@ -1,5 +1,5 @@
 # Configuração isolada de homologação do Portal Master.
-# Atualização para acionar um novo build a partir desta branch.
+# Novo build após correção dos comandos de instalação de dependências no Cloudflare.
 name = "anna-one-auditoria-homolog"
 main = "src/index.js"
 compatibility_date = "2026-10-28"

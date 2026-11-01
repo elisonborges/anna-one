@@ -54,14 +54,14 @@ async function api(path, method = 'GET', body) {
     method,
     headers: {
       Authorization: 'Bearer ' + await getJwt(),
-      ...(body ? {'Content-Type':'application/json'} : {})
+      ...(method !== 'GET' ? {'Content-Type':'application/json'} : {})
     },
     body: body ? JSON.stringify(body) : undefined
   });
 
   const data = await response.json();
   if (!response.ok)
-    throw Error(data.error || 'Falha HTTP ' + response.status);
+    throw Error('HTTP ' + response.status + ' em ' + path + ': ' + (data.error || 'Falha na requisição'));
   return data;
 }
 

@@ -11,7 +11,7 @@ if(!incoming&&token&&/^[a-f0-9]{64}$/i.test(token)){
 if(!token||!/^[a-f0-9]{64}$/i.test(token)){status.textContent="Link sem código de convite. Abra o botão do e-mail original; não é necessário novo cadastro.";throw Error("invalid token");}
 try{
  const sdk=await import("https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle");
- const auth=sdk.createAuthClient("https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth");
+ const auth=sdk.createAuthClient("https://ep-square-field-b64vxfr0.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth");
  const session=await auth.getSession();
  const user=session?.data?.user||session?.data?.session?.user;
  if(!user){

@@ -181,7 +181,15 @@ export default {
             INSERT INTO anna_audit.audit_logs(actor_user_id,institution_id,action,entity_type,entity_id,details)
             SELECT ${identity.userId}::uuid,institution_id,'institution.admin.invitation.pending','institution_admin_invitation',id::text,jsonb_build_object('email',email,'status',status) FROM created RETURNING entity_id
           ) SELECT created.id,created.institution_id,created.email,created.status FROM created JOIN logged ON logged.entity_id=created.id::text`;
-        if(!rows.length)return json({error:"Instituição inativa, administrador já vinculado ou convite pendente existente"},409,cors);
+        if(!rows.length){
+          const diagnostic=await sql`SELECT
+            EXISTS(SELECT 1 FROM public.institutions WHERE id=${institutionId}::uuid AND status='active') AS institution_active,
+            EXISTS(SELECT 1 FROM public.memberships m JOIN public.app_users u ON u.id=m.user_id WHERE m.institution_id=${institutionId}::uuid AND lower(u.email)=${email} AND m.role='institution_admin' AND m.active) AS already_admin,
+            EXISTS(SELECT 1 FROM public.institution_admin_invitations WHERE institution_id=${institutionId}::uuid AND lower(email)=${email} AND status='pending') AS pending_invitation,
+            EXISTS(SELECT 1 FROM public.app_users WHERE id=${identity.userId}::uuid) AS master_user_exists`;
+          const d=diagnostic[0]||{};
+          return json({error:"Convite não criado",reason:!d.institution_active?"institution_inactive":d.already_admin?"already_admin":d.pending_invitation?"pending_invitation":!d.master_user_exists?"master_identity_missing":"creation_conflict",diagnostic:{institution_active:!!d.institution_active,already_admin:!!d.already_admin,pending_invitation:!!d.pending_invitation,master_user_exists:!!d.master_user_exists}},409,cors);
+        }
         return json({item:rows[0],email_sent:false,access_granted:false},201,cors);
       }catch(error){console.error("admin invitation failed",error?.code||"db_error");return json({error:"Operação de convite indisponível"},503,cors);}
     }

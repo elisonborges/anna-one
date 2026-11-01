@@ -4,6 +4,15 @@
 <header><div>AnnA One · Ambiente administrativo de testes</div><h1>Administração Master <span class="pill">Prévia v1.0</span></h1><a href="./admin-geral-preview.html">← Administração Geral aprovada</a></header>
 <main><div class="status" id="status" role="status">Verificando autenticação e perfil…</div>
 <section class="status"><h2>Diagnóstico de autenticação Master</h2><p>Verificação local, sem exibir nem transmitir credenciais.</p><div id="auth-diagnostic" role="status">Aguardando verificação…</div><p><button type="button" id="jwt-local-check" disabled>Verificar JWT localmente</button> <button type="button" id="jwt-worker-check" disabled>Validar assinatura no Worker</button></p><p id="jwt-worker-result" role="status" class="muted">Validação no servidor ainda não executada.</p><p id="jwt-local-result" role="status" class="muted">Nenhum JWT será exibido, armazenado ou enviado ao Worker neste teste.</p></section>
+<section class="status" id="invitation-homolog" hidden>
+<h2>Convite institucional — homologação</h2>
+<p>INSTITUTO DOM BARRETO — CENTRO · francisco.borges@dombarreto.g12.br</p>
+<p>Esta operação utiliza exclusivamente o Worker de homologação. Nenhuma permissão será concedida antes da aceitação autenticada pelo destinatário.</p>
+<button type="button" id="invitation-verify">Verificar autorização Master (homologação)</button>
+<button type="button" id="invitation-create" disabled>Criar convite de teste</button>
+<button type="button" id="invitation-send" disabled>Enviar convite criado</button>
+<p id="invitation-result" role="status">Nenhuma operação executada.</p>
+</section>
 <div id="app" hidden><p class="muted">Central de acesso e consulta. Nenhuma operação de escrita está habilitada nesta prévia.</p>
 <div class="grid">
 <article class="card"><h2>🏫 Instituições</h2><p>Consultar instituições e preparar o fluxo de cadastro.</p><a href="./admin-geral-preview.html#instituicoes">Abrir consulta</a></article>
@@ -136,6 +145,63 @@ const load=async path=>{
 };
 const admins=await load('platform_admins?select=user_id&limit=1000');
 if(!admins.some(a=>a.user_id===user.id))throw Error('Acesso restrito ao administrador geral.');
+const stagingWorker='https://anna-one-auditoria-homolog.elisonborg.workers.dev';
+const invitationPanel=document.getElementById('invitation-homolog');
+invitationPanel.hidden=false;
+const invitationResult=document.getElementById('invitation-result');
+const verifyInvitation=document.getElementById('invitation-verify');
+const createInvitation=document.getElementById('invitation-create');
+const sendInvitation=document.getElementById('invitation-send');
+let invitationJwt=null;
+let invitationId=null;
+async function stagingApi(path,method='GET',payload){
+ if(!invitationJwt)throw Error('Verifique a autorização Master primeiro.');
+ const response=await fetch(stagingWorker+path,{
+  method,cache:'no-store',
+  headers:{Authorization:'Bearer '+invitationJwt,...(method!=='GET'?{'Content-Type':'application/json'}:{})},
+  ...(method!=='GET'?{body:JSON.stringify(payload||{})}:{})
+ });
+ const data=await response.json();
+ if(!response.ok)throw Error('HTTP '+response.status+' em '+path+': '+(data.error||'falha'));
+ return data;
+}
+verifyInvitation.addEventListener('click',async()=>{
+ verifyInvitation.disabled=true;createInvitation.disabled=true;sendInvitation.disabled=true;
+ invitationResult.textContent='Validando autorização no Worker de homologação…';
+ try{
+  invitationJwt=await obtainJwt();
+  const result=await stagingApi('/v1/admin/authorize');
+  if(result.admin_authorized!==true)throw Error('Acesso Master não autorizado na homologação.');
+  invitationResult.textContent='Master autorizado na homologação. Convite ainda não criado.';
+  createInvitation.disabled=false;
+ }catch(error){invitationJwt=null;invitationResult.textContent=error.message;}
+ finally{verifyInvitation.disabled=false;}
+});
+createInvitation.addEventListener('click',async()=>{
+ createInvitation.disabled=true;
+ invitationResult.textContent='Criando convite pendente na homologação…';
+ try{
+  const result=await stagingApi('/v1/admin/institution-admin-invitations','POST',{
+   institution_id:'2766ba9f-d6c0-473d-98f3-e46eef50159d',
+   email:'francisco.borges@dombarreto.g12.br'
+  });
+  if(!result?.item?.id)throw Error('Resposta sem identificador do convite.');
+  invitationId=result.item.id;
+  invitationResult.textContent='Convite pendente criado. E-mail ainda não enviado.';
+  sendInvitation.disabled=false;
+ }catch(error){invitationResult.textContent=error.message+' Verifique antes de repetir.';}
+});
+sendInvitation.addEventListener('click',async()=>{
+ if(!invitationId)return;
+ sendInvitation.disabled=true;
+ invitationResult.textContent='Solicitando envio do convite criado…';
+ try{
+  const result=await stagingApi('/v1/admin/institution-admin-invitations/'+invitationId+'/send','POST',{});
+  invitationResult.textContent=result.accepted_by_provider===true
+   ?'Provedor aceitou o envio. Verifique a entrega separadamente.'
+   :'Solicitação concluída; verifique o status de entrega antes de repetir.';
+ }catch(error){invitationResult.textContent=error.message+' Não repita o envio sem verificar o status.';}
+});
 status.textContent='Administrador geral reconhecido: '+(user.name||user.email||'usuário')+'. Prévia Master em modo consulta.';
 document.getElementById('app').hidden=false;
 try{

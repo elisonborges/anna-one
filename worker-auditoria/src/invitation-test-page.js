@@ -19,21 +19,22 @@ button:disabled{opacity:.5}
 <h2>Convite institucional — Homologação</h2>
 <p><strong>Instituição:</strong> INSTITUTO DOM BARRETO — CENTRO</p>
 <p><strong>Destinatário:</strong> francisco.borges@dombarreto.g12.br</p>
-<button id="send" disabled>Criar e enviar convite</button>
-<p id="status" role="status">Verificando autorização Master…</p>
+<button id="verify">Verificar acesso Master</button>\n<button id="send" disabled>Criar e enviar convite</button>
+<p id="status" role="status">Clique em Verificar acesso Master quando estiver pronto.</p>
 </main>
 <script type="module">
 const status = document.getElementById('status');
 const button = document.getElementById('send');
+const verifyButton = document.getElementById('verify');
+let verifiedJwt = null;
+let checking = false;
 
 const authUrl = 'https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth';
 const sdk = await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');
 const auth = sdk.createAuthClient(authUrl);
 
 async function getJwt() {
-  let session;
-  try { session = await auth.getSession(); }
-  catch (error) { throw Error('Falha no Neon Auth ao consultar sessão: ' + error.message + '. O login do Portal Master pode não estar disponível neste domínio.'); }
+  const session = await auth.getSession();
   const direct = session?.data?.session?.access_token;
   if (typeof direct === 'string' && direct.split('.').length === 3)
     return direct;
@@ -55,7 +56,7 @@ async function api(path, method = 'GET', body) {
   const response = await fetch(path, {
     method,
     headers: {
-      Authorization: 'Bearer ' + await getJwt(),
+      Authorization: 'Bearer ' + verifiedJwt,
       ...(method !== 'GET' ? {'Content-Type':'application/json'} : {})
     },
     body: body ? JSON.stringify(body) : undefined
@@ -67,19 +68,32 @@ async function api(path, method = 'GET', body) {
   return data;
 }
 
-try {
-  const result = await api('/v1/admin/authorize');
-  if (!result.admin_authorized)
-    throw Error('Acesso Master não autorizado.');
-
-  status.textContent = 'Master autorizado. Pronto para enviar.';
-  button.disabled = false;
-} catch (error) {
-  status.textContent = error.message;
-}
+verifyButton.onclick = async () => {
+  if (checking) return;
+  checking = true;
+  verifyButton.disabled = true;
+  button.disabled = true;
+  verifiedJwt = null;
+  status.textContent = 'Verificando acesso Master…';
+  try {
+    const jwt = await getJwt();
+    verifiedJwt = jwt;
+    const result = await api('/v1/admin/authorize');
+    if (!result.admin_authorized) throw Error('Acesso Master não autorizado.');
+    status.textContent = 'Master autorizado. Pronto para enviar.';
+    button.disabled = false;
+  } catch (error) {
+    verifiedJwt = null;
+    status.textContent = 'Falha na verificação: ' + error.message + '. Se houver limite de requisições, aguarde antes de tentar novamente.';
+  } finally {
+    checking = false;
+    verifyButton.disabled = false;
+  }
+};
 
 button.onclick = async () => {
   button.disabled = true;
+  if (!verifiedJwt) { status.textContent = 'Verifique o acesso Master primeiro.'; return; }
   try {
     status.textContent = 'Criando convite…';
 

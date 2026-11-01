@@ -161,8 +161,9 @@ async function stagingApi(path,method='GET',payload){
   headers:{Authorization:'Bearer '+invitationJwt,...(method!=='GET'?{'Content-Type':'application/json'}:{})},
   ...(method!=='GET'?{body:JSON.stringify(payload||{})}:{})
  });
- const data=await response.json();
- if(!response.ok)throw Error('HTTP '+response.status+' em '+path+': '+(data.error||'falha'));
+ const data=await response.json().catch(()=>null);
+ if(!response.ok)throw Error('HTTP '+response.status+' em '+path+': '+(data?.error||'Resposta indisponível'));
+ if(!data||typeof data!=='object')throw Error('Resposta inválida do Worker de homologação.');
  return data;
 }
 verifyInvitation.addEventListener('click',async()=>{
@@ -174,7 +175,7 @@ verifyInvitation.addEventListener('click',async()=>{
   if(result.admin_authorized!==true)throw Error('Acesso Master não autorizado na homologação.');
   invitationResult.textContent='Master autorizado na homologação. Convite ainda não criado.';
   createInvitation.disabled=false;
- }catch(error){invitationJwt=null;invitationResult.textContent=error.message;}
+ }catch(error){invitationJwt=null;invitationResult.textContent=error.message+' Não repita a verificação se o Neon Auth estiver limitando requisições.';}
  finally{verifyInvitation.disabled=false;}
 });
 createInvitation.addEventListener('click',async()=>{
@@ -185,7 +186,7 @@ createInvitation.addEventListener('click',async()=>{
    institution_id:'2766ba9f-d6c0-473d-98f3-e46eef50159d',
    email:'francisco.borges@dombarreto.g12.br'
   });
-  if(!result?.item?.id)throw Error('Resposta sem identificador do convite.');
+  if(!result?.item?.id||result.email_sent!==false||result.access_granted!==false)throw Error('Resposta de criação não corresponde a um convite pendente seguro.');
   invitationId=result.item.id;
   invitationResult.textContent='Convite pendente criado. E-mail ainda não enviado.';
   sendInvitation.disabled=false;
@@ -197,9 +198,9 @@ sendInvitation.addEventListener('click',async()=>{
  invitationResult.textContent='Solicitando envio do convite criado…';
  try{
   const result=await stagingApi('/v1/admin/institution-admin-invitations/'+invitationId+'/send','POST',{});
-  invitationResult.textContent=result.accepted_by_provider===true
-   ?'Provedor aceitou o envio. Verifique a entrega separadamente.'
-   :'Solicitação concluída; verifique o status de entrega antes de repetir.';
+  invitationResult.textContent=result.accepted_by_provider===true&&result.invitation_id===invitationId
+   ?'Resend aceitou o convite de homologação. A entrega e a aceitação pelo destinatário ainda precisam ser confirmadas.'
+   :'Resultado do envio não confirmado. Verifique o registro antes de repetir.';
  }catch(error){invitationResult.textContent=error.message+' Não repita o envio sem verificar o status.';}
 });
 status.textContent='Administrador geral reconhecido: '+(user.name||user.email||'usuário')+'. Prévia Master em modo consulta.';

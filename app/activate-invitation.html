@@ -65,7 +65,6 @@ try{
    }catch(error){status.textContent="Cadastro não concluído: "+(error?.message||"verifique os dados.");}
    finally{submit.disabled=false;submit.textContent="Cadastrar e continuar";status.scrollIntoView({behavior:"smooth",block:"center"});}
   };
-  verifySection.hidden=false;
   throw Error("no session");
  }
  if(String(user.email||"").toLowerCase()!=="francisco.borges@dombarreto.g12.br"){status.textContent="Outra conta está conectada ("+(user.email||"sem e-mail")+"). Abra o convite em janela anônima e cadastre a conta convidada.";throw Error("wrong account");}

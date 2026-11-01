@@ -28,7 +28,11 @@ export default {
   });
 }
     if (request.method === "GET" && url.pathname === "/activate-invitation") {
-      return new Response(activationPage, { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer", "x-content-type-options": "nosniff" } });
+      const token=url.searchParams.get("token");
+      if(!token||!/^[a-f0-9]{64}$/i.test(token))return json({error:"Link inválido"},400);
+      const target=new URL("/app/activate-invitation.html",env.APP_ORIGIN||"https://annaone.com.br");
+      target.searchParams.set("token",token);
+      return new Response(null,{status:302,headers:{"location":target.toString(),"cache-control":"no-store","referrer-policy":"no-referrer"}});
     }
     const origin = request.headers.get("Origin");
     const allowed = env.APP_ORIGIN || "https://annaone.com.br";

@@ -31,7 +31,9 @@ const sdk = await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');
 const auth = sdk.createAuthClient(authUrl);
 
 async function getJwt() {
-  const session = await auth.getSession();
+  let session;
+  try { session = await auth.getSession(); }
+  catch (error) { throw Error('Falha no Neon Auth ao consultar sessão: ' + error.message + '. O login do Portal Master pode não estar disponível neste domínio.'); }
   const direct = session?.data?.session?.access_token;
   if (typeof direct === 'string' && direct.split('.').length === 3)
     return direct;

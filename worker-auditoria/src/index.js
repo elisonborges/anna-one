@@ -108,6 +108,77 @@ export default {
         return json({ items: rows }, 200, cors);
       } catch { return json({ error: "Consulta administrativa indisponível" }, 503, cors); }
     }
+    // Master Principal: somente esta identidade pode convidar e revogar outros Masters.
+    // Convites não concedem acesso antes de aceite autenticado.
+    if(url.pathname==="/v1/admin/masters"&&["GET","POST","DELETE"].includes(request.method)){
+      let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
+      if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
+      try{
+        const sql=neon(env.DATABASE_URL);
+        const principal=await sql`SELECT EXISTS(
+          SELECT 1 FROM public.platform_admins pa JOIN public.app_users u ON u.id=pa.user_id
+          WHERE pa.user_id=${identity.userId}::uuid AND lower(u.email)='elisonborg@gmail.com'
+        ) AS ok`;
+        if(!principal[0]?.ok)return json({error:"Somente o Master Principal pode gerenciar Masters"},403,cors);
+        if(request.method==="GET"){
+          const masters=await sql`SELECT u.id,u.email,u.display_name FROM public.platform_admins pa
+            JOIN public.app_users u ON u.id=pa.user_id ORDER BY u.email`;
+          const invitations=await sql`SELECT id,email,created_at,expires_at FROM public.master_invitations
+            WHERE accepted_at IS NULL AND revoked_at IS NULL AND expires_at>now() ORDER BY created_at DESC LIMIT 100`;
+          return json({masters,invitations},200,cors);
+        }
+        if(!(request.headers.get("content-type")||"").toLowerCase().startsWith("application/json"))return json({error:"Envie JSON"},415,cors);
+        const raw=await request.text();if(raw.length>1024)return json({error:"Dados excedem o limite"},413,cors);
+        let data;try{data=JSON.parse(raw);}catch{return json({error:"JSON inválido"},400,cors);}
+        if(request.method==="POST"){
+          const email=typeof data?.email==="string"?data.email.trim().toLowerCase():"";
+          if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254||email==="elisonborg@gmail.com")return json({error:"E-mail inválido"},422,cors);
+          const exists=await sql`SELECT EXISTS(SELECT 1 FROM public.platform_admins pa JOIN public.app_users u ON u.id=pa.user_id WHERE lower(u.email)=${email}) AS ok`;
+          if(exists[0]?.ok)return json({error:"Este usuário já é Master"},409,cors);
+          const invitation=await sql`INSERT INTO public.master_invitations(email,invited_by)
+            VALUES(${email},${identity.userId}::uuid)
+            ON CONFLICT (email) WHERE accepted_at IS NULL AND revoked_at IS NULL
+            DO UPDATE SET created_at=now(),expires_at=now()+interval '7 days'
+            RETURNING id,email,expires_at`;
+          return json({ok:true,invitation:invitation[0],notice:"Convite criado. O usuário deve entrar com esta conta e aceitar o convite."},201,cors);
+        }
+        const target=typeof data?.user_id==="string"?data.user_id:"";
+        const inviteId=typeof data?.invitation_id==="string"?data.invitation_id:"";
+        if(/^[0-9a-f-]{36}$/i.test(inviteId)){
+          const revoked=await sql`UPDATE public.master_invitations SET revoked_at=now()
+            WHERE id=${inviteId}::uuid AND accepted_at IS NULL AND revoked_at IS NULL RETURNING id`;
+          return json({ok:revoked.length>0},revoked.length?200:404,cors);
+        }
+        if(!/^[0-9a-f-]{36}$/i.test(target)||target===identity.userId)return json({error:"Master inválido"},422,cors);
+        const removed=await sql`DELETE FROM public.platform_admins pa USING public.app_users u
+          WHERE pa.user_id=u.id AND pa.user_id=${target}::uuid
+          AND lower(u.email)<>'elisonborg@gmail.com' RETURNING pa.user_id`;
+        return json({ok:removed.length>0},removed.length?200:404,cors);
+      }catch(error){console.error("masters management failed",error?.code||"db_error");return json({error:"Gerenciamento de Masters indisponível"},503,cors);}
+    }
+    if(url.pathname==="/v1/master-invitation"&&["GET","POST"].includes(request.method)){
+      let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
+      if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
+      try{
+        const sql=neon(env.DATABASE_URL);
+        const rows=await sql`SELECT mi.id,mi.email,mi.expires_at FROM public.master_invitations mi
+          JOIN public.app_users u ON lower(u.email)=mi.email
+          WHERE u.id=${identity.userId}::uuid AND mi.accepted_at IS NULL AND mi.revoked_at IS NULL
+          AND mi.expires_at>now() ORDER BY mi.created_at DESC LIMIT 1`;
+        if(request.method==="GET")return json({invitation:rows[0]||null},200,cors);
+        if(!rows.length)return json({error:"Não há convite válido para esta conta"},404,cors);
+        const accepted=await sql`WITH accepted AS (
+          UPDATE public.master_invitations mi SET accepted_at=now()
+          WHERE mi.id=${rows[0].id}::uuid AND mi.accepted_at IS NULL AND mi.revoked_at IS NULL AND mi.expires_at>now()
+          RETURNING mi.id
+        ), granted AS (
+          INSERT INTO public.platform_admins(user_id)
+          SELECT ${identity.userId}::uuid FROM accepted
+          ON CONFLICT(user_id) DO NOTHING RETURNING user_id
+        ) SELECT (SELECT count(*) FROM accepted)::int AS accepted`;
+        return json({ok:accepted[0]?.accepted===1},accepted[0]?.accepted===1?200:409,cors);
+      }catch(error){console.error("master invitation failed",error?.code||"db_error");return json({error:"Convite indisponível"},503,cors);}
+    }
     // Auditoria Master: consulta paginada, sem expor detalhes sensíveis.
     if(url.pathname==="/v1/admin/audit-logs"&&request.method==="GET"){
       let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}

@@ -1,6 +1,6 @@
 import {createRemoteJWKSet,jwtVerify} from 'jose';
 const AUTH_BASE='https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth';
-const jwks=createRemoteJWKSet(new URL(AUTH_BASE+'/jwks'));
+const jwks=createRemoteJWKSet(new URL(AUTH_BASE+'/.well-known/jwks.json'));
 export function mountSso(app,pool,sign,secret){
  app.post('/api/sso',async(req,res,next)=>{
   try{

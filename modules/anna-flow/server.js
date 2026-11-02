@@ -25,10 +25,10 @@ case 'demo': {if(s.queue.length||s.current)throw Error('Limpe a fila primeiro');
 case 'reset': {Object.assign(s,{queue:[],current:null,history:[],counters:{},completed:0,calls:0});return {ok:true}}
 default:throw Error('Ação inválida')}}
 async function auth(req){return !!(await centralAuth.session(req,pool))}
+const institutionLookups=new Map();
 const server=http.createServer(async(req,res)=>{const url=new URL(req.url,'http://localhost');
 if(url.pathname.startsWith('/api/central/'))return centralAuth.handle(req,res,{pool,send,legacyAuth});
-if(url.pathname.startsWith('/api/device/'))return deviceApi.handle(req,res,{pool,auth,send,userAuth});
-const institutionLookups=new Map();
+
 if(url.pathname==='/api/institutions-by-email'&&req.method==='POST'){
 let raw='';try{const ip=String(req.socket.remoteAddress||'unknown'),now=Date.now();if(institutionLookups.size>2000){for(const [k,v] of institutionLookups)if(v.until<now)institutionLookups.delete(k)}const prior=institutionLookups.get(ip),rate=prior&&prior.until>now?prior:{count:0,until:now+600000};if(rate.count>=15)return send(res,429,{error:'Limite de consultas atingido. Tente novamente mais tarde'});rate.count++;institutionLookups.set(ip,rate);
 for await(const chunk of req){raw+=chunk;if(raw.length>512)return send(res,413,{error:'Solicitação muito grande'})}
@@ -43,7 +43,7 @@ if(url.pathname==='/api/login'&&req.method==='POST'){
  const {Readable}=require('node:stream');const replay=Readable.from([raw]);replay.headers=req.headers;replay.method=req.method;replay.url=req.url;
  return userAuth.login(replay,res,{pool,send});
 }
-if(url.pathname==='/api/tenant'||url.pathname==='/api/panel'||url.pathname.startsWith('/api/device/')||url.pathname==='/api/catalog'||url.pathname==='/api/me'||url.pathname==='/api/institution-staff'||url.pathname==='/api/manage-users'||url.pathname==='/api/users'||url.pathname==='/api/client-panels'||url.pathname==='/api/admin-page-access'){
+if(url.pathname==='/api/tenant'||url.pathname==='/api/catalog'||url.pathname==='/api/me'||url.pathname==='/api/institution-staff'||url.pathname==='/api/manage-users'||url.pathname==='/api/users'||url.pathname==='/api/client-panels'||url.pathname==='/api/admin-page-access'){
  let clientId=null;
  const user=await userAuth.session(req,pool).catch(()=>null);
  const cookieUser=await userAuth.adminPageSession(req,pool).catch(()=>null);
@@ -57,6 +57,21 @@ if(url.pathname==='/api/tenant'||url.pathname==='/api/panel'||url.pathname.start
  }
  if(!clientId)return send(res,403,{error:'Identidade institucional necessária'});
  if(!(await portalGuard.check(clientId)))return send(res,403,{error:'Instituição sem autorização no Portal AnnA One'});
+}
+if(url.pathname.startsWith('/api/device/')){
+ const publicEnrollment=url.pathname==='/api/device/request'||url.pathname==='/api/device/status';
+ if(!publicEnrollment){
+  const u=await userAuth.session(req,pool).catch(()=>null);
+  const d=await deviceApi.device(req,pool).catch(()=>null);
+  const central=await auth(req).catch(()=>false);
+  const clientId=u?.client_id||d?.client_id;
+  if(u&&d&&Number(u.client_id)!==Number(d.client_id))return send(res,403,{error:'Instituições divergentes'});
+  if(clientId&&!(await portalGuard.check(clientId)))return send(res,403,{error:'Instituição não autorizada no Portal'});
+  if(!clientId&&!central)return send(res,403,{error:'Identidade institucional necessária'});
+  // Master central sem cliente: operações de listagem/gerenciamento permanecem legadas
+  // até migração completa da autenticação Master.
+ }
+ return deviceApi.handle(req,res,{pool,auth,send,userAuth});
 }
 if(url.pathname==='/api/admin-page-logout'&&req.method==='POST'){const central=await centralAuth.session(req,pool);if(central)await pool.query('UPDATE flow_master_sessions SET revoked_at=now() WHERE id=$1',[central.session_id]);res.setHeader('Set-Cookie',['flow_central_access=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0','flow_admin_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0','flow_central_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0']);return send(res,200,{ok:true})}
 if(url.pathname==='/api/admin-page-access'&&req.method==='GET'){const institutional=await userAuth.adminPageSession(req,pool).catch(()=>null);return send(res,200,{authorized:(await auth(req))||institutional?.role==='admin',central:await auth(req),clientId:institutional?.client_id||null})}

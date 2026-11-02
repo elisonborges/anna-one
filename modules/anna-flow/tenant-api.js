@@ -8,7 +8,7 @@ async function handle(req,res,{pool,auth,send}){
  if(!user&&!auth(req))return send(res,401,{error:'Autorização necessária'});
  try{
  const u=new URL(req.url,'http://localhost');const unit=id(u.searchParams.get('unit'));
- if(user){const access=await pool.query('SELECT 1 FROM flow_user_units WHERE user_id=$1 AND client_id=$2 AND unit_id=$3',[user.id,user.client_id,unit]);if(!access.rowCount)return send(res,403,{error:'Unidade não autorizada'})}
+ if(user){if(!['admin','atendente'].includes(user.role))return send(res,403,{error:'Perfil sem permissão operacional'});const access=await pool.query('SELECT 1 FROM flow_user_units a JOIN flow_client_units u ON u.id=a.unit_id JOIN flow_clients c ON c.id=u.client_id WHERE a.user_id=$1 AND a.client_id=$2 AND a.unit_id=$3 AND u.active=true AND c.active=true',[user.id,user.client_id,unit]);if(!access.rowCount)return send(res,403,{error:'Unidade não autorizada ou inativa'})}
  if(req.method==='GET'){
  const q=await pool.query('SELECT r.revision,r.state FROM flow_client_runtime r JOIN flow_client_units u ON u.id=r.unit_id WHERE u.id=$1',[unit]);
  if(q.rowCount)return send(res,200,q.rows[0]);
@@ -19,7 +19,7 @@ async function handle(req,res,{pool,auth,send}){
  const a=await read(req),client=await pool.connect();
  try{
  await client.query('BEGIN');
- const unitResult=await client.query('SELECT id,client_id FROM flow_client_units WHERE id=$1 AND active=true',[unit]);
+ const unitResult=await client.query('SELECT u.id,u.client_id FROM flow_client_units u JOIN flow_clients c ON c.id=u.client_id WHERE u.id=$1 AND u.active=true AND c.active=true',[unit]);
  if(!unitResult.rowCount)throw Error('Unidade inexistente');
  const serviceResult=await client.query('SELECT id,name FROM flow_client_services WHERE unit_id=$1 AND active=true ORDER BY id',[unit]);
  await client.query('INSERT INTO flow_client_runtime(unit_id) VALUES($1) ON CONFLICT DO NOTHING',[unit]);

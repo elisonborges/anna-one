@@ -32,7 +32,7 @@
 @media(max-width:650px){.email-status-grid{grid-template-columns:1fr}}
 </style></head><body><div class="layout"><aside class="master-side"><a class="master-brand" href="./"><img src="../assets/anna-symbol.svg" alt=""><span>AnnA One<small>TECNOLOGIA E EDUCAÇÃO JUNTAS</small></span></a><nav aria-label="Menu Administração Master"><a href="#visao-geral" class="active">🏠 Visão Geral</a><a href="#instituicoes">🏫 Instituições</a><a href="#usuarios">👥 Usuários</a><a href="#masters">🔑 Masters</a><a href="#permissoes">🛡️ Perfis e Permissões</a><a href="#modulos-master">🧩 Módulos</a><a href="#auditoria">📋 Auditoria</a><span class="side-label">NAVEGAÇÃO</span><a href="./">↩ Voltar ao Painel</a></nav></aside><div class="master-body"><header class="master-top"><div><h1>Administração Master</h1><p>Gestão central da plataforma AnnA One</p><p id="master-identity" role="status" style="font-size:.85rem;margin-top:5px">Verificando administrador geral…</p></div><a href="./">← Painel principal</a></header><main><section id="visao-geral"><h2>Visão Geral</h2><p class="master-note">Acompanhe instituições e serviços cadastrados, com informações reais.</p><div class="status" id="status" role="status">Verificando autenticação e perfil…</div>
 <details class="master-diagnostics"><summary>Diagnóstico técnico de autenticação</summary><section class="status"><h2>Diagnóstico de autenticação Master</h2><p>Verificação local, sem exibir nem transmitir credenciais.</p><div id="auth-diagnostic" role="status">Aguardando verificação…</div><p><button type="button" id="jwt-local-check" disabled>Verificar JWT localmente</button> <button type="button" id="jwt-worker-check" disabled>Validar assinatura no Worker</button> <button type="button" id="master-worker-check" disabled>Verificar autorização Master</button></p><p id="jwt-worker-result" role="status" class="muted">Validação no servidor ainda não executada.</p><p id="master-worker-result" role="status" class="muted">Autorização Master no servidor ainda não testada.</p><p id="jwt-local-result" role="status" class="muted">Nenhum JWT será exibido, armazenado ou enviado ao Worker neste teste.</p></section></details></section>
-<div id="app" hidden><p class="muted">Gestão central de instituições e módulos. Cadastros exigem autorização Master.</p>
+<div id="master-public-invite" class="institution-form-card" hidden><h3>Convite para Master adicional</h3><p id="master-public-invite-info"></p><button id="master-public-accept" type="button">Aceitar convite Master</button><p id="master-public-result" role="status"></p></div><div id="app" hidden><p class="muted">Gestão central de instituições e módulos. Cadastros exigem autorização Master.</p>
 <div class="grid" id="master-overview-cards"><article class="card"><h2>🏫 Instituições</h2><p>Cadastro de matrizes e unidades.</p><a href="#instituicoes">Gerenciar instituições</a></article><article class="card"><h2>👥 Usuários</h2><p>Contas e vínculos institucionais.</p><a href="#usuarios">Ver usuários</a></article><article class="card"><h2>🛡️ Permissões</h2><p>Perfis e acesso aos módulos.</p><a href="#permissoes">Ver permissões</a></article><article class="card"><h2>🧩 Módulos</h2><p>Catálogo central.</p><a href="#modulos-master">Ver catálogo</a></article></div>
 <section id="instituicoes"><h2>🏫 Instituições</h2><p>Mesmo fluxo dos módulos Agenda e Service Desk: cadastro central, situação e administração por instituição.</p>
 <form id="institution-form" class="status">
@@ -194,6 +194,26 @@ const serverRequest=async path=>{
  if(!response.ok)throw Error('Consulta protegida indisponível (HTTP '+response.status+').');
  return data;
 };
+// O aceite deve estar acessível também a usuários autenticados que ainda não são Masters.
+try{
+ const invitationResponse=await fetch(worker+'/v1/master-invitation',{headers:{Authorization:'Bearer '+jwt},cache:'no-store'});
+ if(invitationResponse.ok){
+  const invitationData=await invitationResponse.json();
+  if(invitationData.invitation){
+   const box=document.getElementById('master-public-invite');box.hidden=false;
+   document.getElementById('master-public-invite-info').textContent='Convite para '+invitationData.invitation.email+' · válido até '+new Date(invitationData.invitation.expires_at).toLocaleString('pt-BR');
+   document.getElementById('master-public-accept').addEventListener('click',async()=>{
+    const button=document.getElementById('master-public-accept');button.disabled=true;
+    try{
+     const response=await fetch(worker+'/v1/master-invitation',{method:'POST',headers:{Authorization:'Bearer '+await obtainJwt()}});
+     const data=await response.json();if(!response.ok)throw Error(data?.error||'Falha no aceite');
+     document.getElementById('master-public-result').textContent='Convite aceito. Recarregue a página para acessar o painel Master.';
+     button.hidden=true;
+    }catch(e){document.getElementById('master-public-result').textContent=e.message;button.disabled=false;}
+   });
+  }
+ }
+}catch{}
 const permission=await serverRequest('/v1/admin/authorize');
 if(permission?.authenticated!==true||permission?.admin_authorized!==true)throw Error('Acesso Master não autorizado pelo servidor.');
 const load=async path=>{

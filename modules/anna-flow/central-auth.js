@@ -14,6 +14,7 @@ if(path==='/api/central/bootstrap'&&req.method==='POST'){
 // Initial account creation is possible only with the existing server-side central secret.
 if(!legacyAuth(req))return send(res,401,{error:'Não autorizado'});
 const a=await body(req),mail=email(a.email),password=String(a.password||'');
+if(mail!=='elisonborg@gmail.com')return send(res,403,{error:'E-mail não autorizado para ativação inicial'});
 if(!/^\S+@\S+\.\S+$/.test(mail)||password.length<14||password.length>128)return send(res,400,{error:'E-mail válido e senha de 14 a 128 caracteres necessários'});
 const cx=await pool.connect();try{await cx.query('BEGIN');await cx.query('SELECT pg_advisory_xact_lock(71001844)');const existing=await cx.query('SELECT COUNT(*)::int AS count FROM flow_central_admins');if(existing.rows[0].count!==0){await cx.query('ROLLBACK');return send(res,409,{error:'Conta central já configurada'})}await cx.query('INSERT INTO flow_central_admins(email,password_hash) VALUES($1,$2)',[mail,hash(password)]);await cx.query('COMMIT');return send(res,201,{created:true})}catch(e){await cx.query('ROLLBACK');throw e}finally{cx.release()}}
 if(path==='/api/central/login'&&req.method==='POST'){

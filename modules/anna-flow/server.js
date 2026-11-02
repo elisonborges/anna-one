@@ -5,6 +5,7 @@ const adminApi=require('./admin-api');
 const tenantApi=require('./tenant-api');
 const panelApi=require('./panel-api');
 const userAuth=require('./auth-api');
+const deviceApi=require('./device-api');
 const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:true},max:5});
 const token=process.env.FLOW_ADMIN_TOKEN||'';
 if(!process.env.DATABASE_URL||token.length<24){console.error('Configure DATABASE_URL e FLOW_ADMIN_TOKEN (mínimo 24 caracteres).');process.exit(1)}
@@ -22,6 +23,7 @@ case 'demo': {if(s.queue.length||s.current)throw Error('Limpe a fila primeiro');
 case 'reset': {Object.assign(s,{queue:[],current:null,history:[],counters:{},completed:0,calls:0});return {ok:true}}
 default:throw Error('Ação inválida')}}
 const server=http.createServer(async(req,res)=>{const url=new URL(req.url,'http://localhost');
+if(url.pathname.startsWith('/api/device/'))return deviceApi.handle(req,res,{pool,auth,send,userAuth});
 if(url.pathname==='/api/manage-users')return userAuth.manageUsers(req,res,{pool,auth,send});
 if(url.pathname==='/api/me'&&req.method==='GET')return userAuth.me(req,res,{pool,send});
 if(url.pathname==='/api/catalog'&&req.method==='GET')return userAuth.unitCatalog(req,res,{pool,send});
@@ -30,7 +32,7 @@ if(url.pathname==='/api/logout'&&req.method==='POST')return userAuth.logout(req,
 if(url.pathname==='/api/users'&&req.method==='POST')return userAuth.createUser(req,res,{pool,auth,send});
 if(url.pathname==='/api/client-panels'&&req.method==='GET'){try{const u=await userAuth.session(req,pool);if(!u||u.role!=='admin')return send(res,403,{error:'Administrador necessário'});const q=await pool.query('SELECT p.id,p.name,p.public_key FROM flow_signage_profiles p WHERE p.client_id=$1 AND p.active=true AND EXISTS(SELECT 1 FROM flow_user_units lu WHERE lu.user_id=$2 AND lu.client_id=$1 AND lu.unit_id=p.unit_id) ORDER BY p.name',[u.client_id,u.id]);return send(res,200,{panels:q.rows})}catch{return send(res,503,{error:'Consulta indisponível'})}}
 if(url.pathname==='/api/panel')return panelApi(req,res,{pool,send});
-if(url.pathname==='/api/tenant')return tenantApi(req,res,{pool,auth,send});
+if(url.pathname==='/api/tenant')return tenantApi(req,res,{pool,auth,send,deviceApi});
 if(url.pathname==='/api/admin')return adminApi(req,res,{pool,auth,send});
 if(url.pathname==='/health')return send(res,200,{ok:true,service:'anna-flow'});
 if(url.pathname==='/api/state'&&req.method==='GET'){try{const q=await pool.query('SELECT revision,state FROM flow_runtime WHERE id=1');return send(res,200,q.rows[0]||{revision:0,state:defaults})}catch{return send(res,503,{error:'Banco indisponível'})}}
@@ -42,6 +44,6 @@ const client=await pool.connect().catch(()=>null);if(!client)return send(res,503
 try{await client.query('BEGIN');const q=await client.query('SELECT revision,state FROM flow_runtime WHERE id=1 FOR UPDATE');if(!q.rowCount)throw Error('Banco não inicializado');const state=q.rows[0].state;let result=act(state,a);const rev=Number(q.rows[0].revision)+1;await client.query('UPDATE flow_runtime SET state=$1::jsonb,revision=$2,updated_at=now() WHERE id=1',[JSON.stringify(state),rev]);await client.query('COMMIT');return send(res,200,{revision:rev,state,result})}catch(e){await client.query('ROLLBACK').catch(()=>{});return send(res,400,{error:e.message})}finally{client.release()}}
 if(url.pathname.startsWith('/api/'))return send(res,404,{error:'Rota inexistente'});
 if(req.method!=='GET')return send(res,405,{error:'Método inválido'});
-const name=url.pathname==='/'?'index.html':url.pathname.slice(1);if(!['index.html','app.js','anna-symbol.svg','admin.html','admin.js','tenant-console.js','panel.html','panel.js','panel-config.js','operator.html','operator.js','users-admin.js','manage-users.js','admin-layout.js','issue.html','issue.js','communication-admin.js','local-media.html','local-media.js','local-player.js','access.html'].includes(name))return send(res,404,{error:'Arquivo não encontrado'});
+const name=url.pathname==='/'?'index.html':url.pathname.slice(1);if(!['index.html','app.js','anna-symbol.svg','admin.html','admin.js','tenant-console.js','panel.html','panel.js','panel-config.js','operator.html','operator.js','users-admin.js','manage-users.js','admin-layout.js','issue.html','issue.js','communication-admin.js','local-media.html','local-media.js','local-player.js','access.html','device.html','device.js','device-admin.js'].includes(name))return send(res,404,{error:'Arquivo não encontrado'});
 try{const data=fs.readFileSync(path.join(__dirname,name));res.writeHead(200,{'Content-Type':name.endsWith('.js')?'text/javascript; charset=utf-8':name.endsWith('.svg')?'image/svg+xml':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self' https: blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"});res.end(data)}catch{return send(res,404,{error:'Arquivo inexistente'})}});
 server.listen(port,'0.0.0.0',()=>console.log('AnnA Flow online escutando na porta '+port));

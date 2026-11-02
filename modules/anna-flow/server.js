@@ -24,10 +24,11 @@ case 'reset': {Object.assign(s,{queue:[],current:null,history:[],counters:{},com
 default:throw Error('Ação inválida')}}
 const server=http.createServer(async(req,res)=>{const url=new URL(req.url,'http://localhost');
 if(url.pathname.startsWith('/api/device/'))return deviceApi.handle(req,res,{pool,auth,send,userAuth});
-const adminCookie=()=>/(?:^|;\\s*)flow_central_access=([a-f0-9]{64})\\.([0-9]{10})(?:;|$)/.exec(req.headers.cookie||'');
+const adminCookie=()=>/(?:^|;\s*)flow_central_access=([a-f0-9]{64})\.([0-9]{10})(?:;|$)/.exec(req.headers.cookie||'');
 function centralAllowed(){const v=adminCookie();if(!v)return false;const expiry=Number(v[2]);if(expiry<Date.now()/1000||expiry>Date.now()/1000+28810)return false;const mac=crypto.createHmac('sha256',token).update('flow-central:'+v[2]).digest('hex');return crypto.timingSafeEqual(Buffer.from(mac),Buffer.from(v[1]))}
 if(url.pathname==='/api/admin-gate'&&req.method==='POST'){
 let raw='';try{for await(const chunk of req){raw+=chunk;if(raw.length>2048)return send(res,413,{error:'Dados excessivos'})}const a=JSON.parse(raw);if(typeof a.token!=='string'||!auth({headers:{authorization:'Bearer '+a.token}}))return send(res,401,{error:'Credencial administrativa inválida'});const exp=String(Math.floor(Date.now()/1000)+28800),signature=crypto.createHmac('sha256',token).update('flow-central:'+exp).digest('hex');res.setHeader('Set-Cookie','flow_central_access='+signature+'.'+exp+'; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=28800');return send(res,200,{ok:true})}catch{return send(res,400,{error:'Solicitação inválida'})}}
+if(url.pathname==='/api/admin-page-logout'&&req.method==='POST'){res.setHeader('Set-Cookie',['flow_central_access=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0','flow_admin_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0']);return send(res,200,{ok:true})}
 if(url.pathname==='/api/admin-page-access'&&req.method==='GET'){const institutional=await userAuth.adminPageSession(req,pool).catch(()=>null);return send(res,200,{authorized:centralAllowed()||institutional?.role==='admin',central:centralAllowed(),clientId:institutional?.client_id||null})}
 if(url.pathname==='/api/manage-users')return userAuth.manageUsers(req,res,{pool,auth,send});
 if(url.pathname==='/api/me'&&req.method==='GET')return userAuth.me(req,res,{pool,send});

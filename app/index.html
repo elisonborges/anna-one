@@ -7,7 +7,23 @@ try {
  document.documentElement.classList.add('anna-authenticated');
  const currentUser=session.data.user||session.data.session.user;
  document.getElementById('anna-account-email').textContent=currentUser.email||'Usuário autenticado';
- document.getElementById('anna-account-role').textContent='Conta autenticada · permissões institucionais pendentes';
+ document.getElementById('anna-account-role').textContent='Verificando vínculo institucional…';
+ try {
+  let tokenResult=typeof auth.token==='function'?await auth.token():null;
+  const jwt=typeof tokenResult==='string'?tokenResult:tokenResult?.data?.token||tokenResult?.token;
+  if(typeof jwt==='string'&&jwt.split('.').length===3){
+   const response=await fetch('https://anna-one-auditoria.elisonborg.workers.dev/v1/institution/me',{headers:{Authorization:'Bearer '+jwt},cache:'no-store'});
+   if(response.ok){
+    const data=await response.json();
+    if(data?.authorized===true&&Array.isArray(data.institutions)&&data.institutions.length){
+     const institution=data.institutions[0];
+     document.getElementById('anna-account-role').textContent='Administrador Institucional · '+institution.name;
+     document.documentElement.dataset.institutionAuthorized='true';
+     window.annaInstitution={id:institution.id,name:institution.name,role:institution.role};
+    }else document.getElementById('anna-account-role').textContent='Conta autenticada · sem vínculo institucional ativo';
+   }else document.getElementById('anna-account-role').textContent='Conta autenticada · verificação institucional indisponível';
+  }else document.getElementById('anna-account-role').textContent='Conta autenticada · verificação institucional indisponível';
+ }catch{document.getElementById('anna-account-role').textContent='Conta autenticada · verificação institucional indisponível';}
  try{
   let jwt=session?.data?.session?.access_token;
   if(typeof jwt!=='string'||jwt.split('.').length!==3){

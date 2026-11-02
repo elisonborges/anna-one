@@ -1,0 +1,21 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0c2646"><title>AnnA One | Área institucional</title><link rel="icon" href="../assets/anna-symbol.svg"><style>*{box-sizing:border-box}html,body{margin:0;min-height:100%;font:15px system-ui,Arial;color:#173451}body{min-height:100dvh;display:flex;flex-direction:column;background:linear-gradient(155deg,#e9f3ff,#f7faff 65%)}header,footer{background:#0c2646;color:white;padding:15px clamp(16px,5vw,55px)}header a{color:white;text-decoration:none;display:flex;align-items:center;gap:12px;font-size:23px;font-weight:700}header img{width:43px}header span span{color:#5db8ff}main{width:min(92%,540px);margin:auto;background:white;border:1px solid #d7e3ee;border-top:5px solid #087cff;border-radius:18px;padding:25px;box-shadow:0 12px 35px #1232}h1{margin:0;color:#123965}p{line-height:1.6}button{border:0;background:#b42332;color:white;border-radius:9px;padding:11px 17px;font:inherit;font-weight:700;cursor:pointer}button:disabled{opacity:.6}footer{text-align:center;font-size:12px;line-height:1.5}@media(max-height:540px){main{margin:12px auto;padding:15px}header,footer{padding:8px 16px}}</style></head><body><header><a href="../"><img src="../assets/anna-symbol.svg" alt=""><span>AnnA <span>One</span></span></a></header><main><h1>Área institucional</h1><p id="state" role="status">Verificando acesso…</p><p id="account" hidden></p><p id="notice" hidden>Seu acesso institucional está autenticado no ambiente de homologação. Os módulos de gestão institucional ainda não estão disponíveis nesta página.</p><button id="signout" type="button" hidden>Sair da conta</button></main><footer>AnnA One · Tecnologia e Educação Juntas<br>© 2026 AnnA One. Todos os direitos reservados.</footer><script type="module">
+const state=document.getElementById('state'),account=document.getElementById('account'),notice=document.getElementById('notice'),button=document.getElementById('signout');
+try{
+ const {createAuthClient}=await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');
+ const auth=createAuthClient('https://ep-square-field-b64vxfr0.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth');
+ const session=await auth.getSession(),user=session?.data?.user||session?.data?.session?.user;
+ if(!user){location.replace('./login-institutional.html');}
+ else{
+  state.textContent='Sessão institucional autenticada.';
+  account.textContent=user.email||'Conta institucional';account.hidden=false;notice.hidden=false;button.hidden=false;
+  button.onclick=async()=>{
+   button.disabled=true;state.textContent='Encerrando sessão…';
+   try{
+    const result=await auth.signOut();if(result?.error)throw result.error;
+    const check=await auth.getSession();if(check?.data?.user||check?.data?.session?.user)throw Error('Sessão ainda ativa');
+    location.replace('./login-institutional.html?signed_out=1');
+   }catch{button.disabled=false;state.textContent='Não foi possível encerrar a sessão. Tente novamente.';}
+  };
+ }
+}catch{state.textContent='Não foi possível verificar a autenticação. Atualize a página.';}
+</script></body></html>

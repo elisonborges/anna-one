@@ -67,8 +67,11 @@ export default {
           JOIN public.modules mo ON mo.id=im.module_id
           JOIN public.memberships mb ON mb.institution_id=im.institution_id
           JOIN public.institutions ins ON ins.id=mb.institution_id
+          LEFT JOIN public.institutions parent ON parent.id=ins.parent_institution_id
+          LEFT JOIN public.institution_modules pim ON pim.institution_id=parent.id AND pim.module_id=mo.id
           WHERE mb.user_id=${identity.userId}::uuid AND mb.active=true
             AND mb.role='institution_admin' AND ins.status='active'
+            AND (parent.id IS NULL OR (parent.status='active' AND pim.enabled=true))
             AND im.enabled=true AND mo.status='available'
           ORDER BY mo.name` : [];
         return json({ authorized: rows.length > 0, institutions: rows, modules }, 200, cors);
@@ -142,12 +145,17 @@ export default {
         const sql=neon(env.DATABASE_URL);
         const master=await sql`SELECT EXISTS(SELECT 1 FROM public.platform_admins WHERE user_id=${identity.userId}::uuid) AS ok`;
         if(!master[0]?.ok)return json({error:"Acesso Master negado"},403,cors);
-        const institutions=await sql`SELECT id,name,status FROM public.institutions WHERE id=${institutionId}::uuid`;
+        const institutions=await sql`SELECT id,name,status,parent_institution_id FROM public.institutions WHERE id=${institutionId}::uuid`;
         if(!institutions.length)return json({error:"Instituição não encontrada"},404,cors);
         if(request.method==="GET"){
-          const modules=await sql`SELECT mo.id,mo.code,mo.name,mo.status,COALESCE(im.enabled,false) AS enabled
-            FROM public.modules mo LEFT JOIN public.institution_modules im
-            ON im.module_id=mo.id AND im.institution_id=${institutionId}::uuid ORDER BY mo.name`;
+          const modules=await sql`SELECT mo.id,mo.code,mo.name,mo.status,COALESCE(im.enabled,false) AS enabled,
+            CASE WHEN parent.id IS NULL THEN true ELSE (parent.status='active' AND COALESCE(pim.enabled,false)) END AS parent_allowed
+            FROM public.modules mo
+            CROSS JOIN public.institutions ins
+            LEFT JOIN public.institutions parent ON parent.id=ins.parent_institution_id
+            LEFT JOIN public.institution_modules im ON im.module_id=mo.id AND im.institution_id=ins.id
+            LEFT JOIN public.institution_modules pim ON pim.module_id=mo.id AND pim.institution_id=parent.id
+            WHERE ins.id=${institutionId}::uuid ORDER BY mo.name`;
           return json({institution:institutions[0],modules},200,cors);
         }
         if(institutions[0].status!=="active")return json({error:"Instituição suspensa"},409,cors);
@@ -156,9 +164,18 @@ export default {
         let data;try{data=JSON.parse(raw);}catch{return json({error:"JSON inválido"},400,cors);}
         const moduleId=typeof data?.module_id==="string"?data.module_id:"";
         if(!/^[0-9a-f-]{36}$/i.test(moduleId)||typeof data?.enabled!=="boolean")return json({error:"Módulo ou permissão inválidos"},422,cors);
-        const moduleRows=await sql`SELECT id,status FROM public.modules WHERE id=${moduleId}::uuid`;
+        const moduleRows=await sql`SELECT id,status,code FROM public.modules WHERE id=${moduleId}::uuid`;
         if(!moduleRows.length)return json({error:"Módulo não encontrado"},404,cors);
         if(data.enabled&&moduleRows[0].status!=="available")return json({error:"Módulo ainda não disponível"},409,cors);
+        if(data.enabled&&institutions[0].parent_institution_id){
+          const permitted=await sql`SELECT EXISTS(
+            SELECT 1 FROM public.institutions parent
+            JOIN public.institution_modules im ON im.institution_id=parent.id AND im.module_id=${moduleId}::uuid
+            WHERE parent.id=${institutions[0].parent_institution_id}::uuid AND parent.status='active' AND im.enabled=true
+          ) AS ok`;
+          if(!permitted[0]?.ok)return json({error:"Libere primeiro o módulo na matriz"},409,cors);
+        }
+        if(data.enabled&&moduleRows[0].code==="service-desk")return json({error:"Service Desk é gerenciado no próprio módulo"},409,cors);
         const changed=await sql`WITH changed AS (
           INSERT INTO public.institution_modules(institution_id,module_id,enabled)
           VALUES(${institutionId}::uuid,${moduleId}::uuid,${data.enabled})

@@ -7,6 +7,7 @@ const panelApi=require('./panel-api');
 const userAuth=require('./auth-api');
 const deviceApi=require('./device-api');
 const centralAuth=require('./central-auth');
+const portalGuard=require('./portal-guard');
 const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:true},max:5});
 const token=process.env.FLOW_ADMIN_TOKEN||'';
 if(!process.env.DATABASE_URL||token.length<24){console.error('Configure DATABASE_URL e FLOW_ADMIN_TOKEN (mínimo 24 caracteres).');process.exit(1)}
@@ -34,6 +35,29 @@ for await(const chunk of req){raw+=chunk;if(raw.length>512)return send(res,413,{
 const a=JSON.parse(raw),email=String(a.email||'').trim().toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)return send(res,400,{error:'Informe um e-mail válido'});
 const q=await pool.query("SELECT DISTINCT c.id,c.name FROM flow_users u JOIN flow_clients c ON c.id=u.client_id WHERE u.email=$1 AND u.active=true AND u.role=$2 AND c.active=true ORDER BY c.name,c.id LIMIT 30",[email,a.mode==='production'?'atendente':'admin']);return send(res,200,{institutions:q.rows});
 }catch{return send(res,503,{error:'Não foi possível consultar as instituições'})}}
+// Acesso institucional: negar por padrão quando Portal não confirma habilitação.
+if(url.pathname==='/api/login'&&req.method==='POST'){
+ const chunks=[];let size=0;for await(const c of req){size+=c.length;if(size>4096)return send(res,413,{error:'Solicitação excessiva'});chunks.push(c);}
+ const raw=Buffer.concat(chunks);let loginData;try{loginData=JSON.parse(raw.toString('utf8'))}catch{return send(res,400,{error:'JSON inválido'})}
+ if(!(await portalGuard.check(loginData.clientId)))return send(res,403,{error:'AnnA Flow não habilitado para esta instituição'});
+ const {Readable}=require('node:stream');const replay=Readable.from([raw]);replay.headers=req.headers;replay.method=req.method;replay.url=req.url;
+ return userAuth.login(replay,res,{pool,send});
+}
+if(url.pathname==='/api/tenant'||url.pathname==='/api/panel'||url.pathname.startsWith('/api/device/')||url.pathname==='/api/catalog'||url.pathname==='/api/me'||url.pathname==='/api/institution-staff'||url.pathname==='/api/manage-users'||url.pathname==='/api/users'||url.pathname==='/api/client-panels'||url.pathname==='/api/admin-page-access'){
+ let clientId=null;
+ const user=await userAuth.session(req,pool).catch(()=>null);
+ const cookieUser=await userAuth.adminPageSession(req,pool).catch(()=>null);
+ const device=await deviceApi.device(req,pool).catch(()=>null);
+ if(user&&cookieUser&&Number(user.client_id)!==Number(cookieUser.client_id))return send(res,403,{error:'Sessões institucionais divergentes'});
+ if(user&&device&&Number(user.client_id)!==Number(device.client_id))return send(res,403,{error:'Dispositivo de outra instituição'});
+ clientId=user?.client_id||cookieUser?.client_id||device?.client_id;
+ if(!clientId&&url.pathname==='/api/tenant'){
+  const unit=Number(url.searchParams.get('unit'));
+  if(Number.isSafeInteger(unit)&&unit>0){const q=await pool.query('SELECT client_id FROM flow_client_units WHERE id=$1',[unit]).catch(()=>({rows:[]}));clientId=q.rows[0]?.client_id;}
+ }
+ if(!clientId)return send(res,403,{error:'Identidade institucional necessária'});
+ if(!(await portalGuard.check(clientId)))return send(res,403,{error:'Instituição sem autorização no Portal AnnA One'});
+}
 if(url.pathname==='/api/admin-page-logout'&&req.method==='POST'){const central=await centralAuth.session(req,pool);if(central)await pool.query('UPDATE flow_master_sessions SET revoked_at=now() WHERE id=$1',[central.session_id]);res.setHeader('Set-Cookie',['flow_central_access=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0','flow_admin_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0','flow_central_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0']);return send(res,200,{ok:true})}
 if(url.pathname==='/api/admin-page-access'&&req.method==='GET'){const institutional=await userAuth.adminPageSession(req,pool).catch(()=>null);return send(res,200,{authorized:(await auth(req))||institutional?.role==='admin',central:await auth(req),clientId:institutional?.client_id||null})}
 if(url.pathname==='/api/institution-staff')return userAuth.institutionStaff(req,res,{pool,send});

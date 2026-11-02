@@ -65,6 +65,44 @@ app.patch('/api/usuarios/:id',auth,role('admin'),route(async(req,res)=>{
  }catch(e){await c.query('ROLLBACK');throw e}finally{c.release()}
 }));
 app.post('/api/logout',auth,(req,res)=>{res.set('Set-Cookie',['reception_session=; Path=/; Secure; HttpOnly; Max-Age=0','reception_csrf=; Path=/; Secure; Max-Age=0']);res.json({ok:true})});
+
+const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const nameOk=x=>typeof x==='string'&&x.trim().length>=2&&x.trim().length<=150;
+app.get('/api/cadastros',auth,role('admin'),route(async(req,res)=>{
+ const [t,a,r,l]=await Promise.all([
+  pool.query('SELECT id,identificacao,ano_letivo,turno,setor_apoio FROM reception.turmas ORDER BY ano_letivo DESC,identificacao LIMIT 500'),
+  pool.query('SELECT id,nome,matricula,turma_id,ativo FROM reception.alunos ORDER BY nome LIMIT 500'),
+  pool.query('SELECT id,nome,telefone FROM reception.responsaveis ORDER BY nome LIMIT 500'),
+  pool.query('SELECT aluno_id,responsavel_id,autorizada,exige_conferencia,referencia_documental,valida_de,valida_ate FROM reception.autorizacoes_retirada ORDER BY atualizado_em DESC LIMIT 1000')
+ ]);
+ res.set('Cache-Control','no-store');res.json({turmas:t.rows,alunos:a.rows,responsaveis:r.rows,autorizacoes:l.rows});
+}));
+app.post('/api/turmas',auth,role('admin'),route(async(req,res)=>{
+ const {identificacao,ano_letivo,turno}=req.body||{};
+ if(!nameOk(identificacao)||!Number.isInteger(ano_letivo)||ano_letivo<2020||ano_letivo>2100||!['Manhã','Tarde','Noite','Integral'].includes(turno))return fail(res,400,'Dados de turma inválidos');
+ const x=await pool.query('INSERT INTO reception.turmas(identificacao,ano_letivo,turno) VALUES($1,$2,$3) RETURNING id',[identificacao.trim(),ano_letivo,turno]);res.status(201).json(x.rows[0])
+}));
+app.post('/api/alunos-cadastro',auth,role('admin'),route(async(req,res)=>{
+ const {nome,matricula,turma_id}=req.body||{};
+ if(!nameOk(nome)||!uuid.test(String(turma_id||''))||typeof matricula!=='string'||matricula.length>60)return fail(res,400,'Dados de aluno inválidos');
+ const x=await pool.query('INSERT INTO reception.alunos(nome,matricula,turma_id) VALUES($1,$2,$3) RETURNING id',[nome.trim(),matricula.trim()||null,turma_id]);res.status(201).json(x.rows[0])
+}));
+app.post('/api/responsaveis-cadastro',auth,role('admin'),route(async(req,res)=>{
+ const {nome,telefone}=req.body||{};
+ if(!nameOk(nome)||typeof telefone!=='string'||telefone.length>30)return fail(res,400,'Dados de responsável inválidos');
+ const x=await pool.query('INSERT INTO reception.responsaveis(nome,telefone) VALUES($1,$2) RETURNING id',[nome.trim(),telefone.trim()||null]);res.status(201).json(x.rows[0])
+}));
+app.post('/api/autorizacoes-cadastro',auth,role('admin'),route(async(req,res)=>{
+ const {aluno_id,responsavel_id,referencia_documental,exige_conferencia}=req.body||{};
+ if(!uuid.test(String(aluno_id||''))||!uuid.test(String(responsavel_id||''))||typeof referencia_documental!=='string'||referencia_documental.trim().length<5||referencia_documental.length>300||typeof exige_conferencia!=='boolean')return fail(res,400,'Referência documental e vínculo válidos são obrigatórios');
+ const x=await pool.query("INSERT INTO reception.autorizacoes_retirada(aluno_id,responsavel_id,autorizada,exige_conferencia,referencia_documental,atualizado_por) VALUES($1,$2,false,$3,$4,$5) ON CONFLICT(aluno_id,responsavel_id) DO UPDATE SET autorizada=false,exige_conferencia=EXCLUDED.exige_conferencia,referencia_documental=EXCLUDED.referencia_documental,atualizado_por=EXCLUDED.atualizado_por,atualizado_em=now() RETURNING id,autorizada",[aluno_id,responsavel_id,exige_conferencia,referencia_documental.trim(),req.user.id]);res.status(201).json(x.rows[0])
+}));
+app.patch('/api/autorizacoes-cadastro',auth,role('admin'),route(async(req,res)=>{
+ const {aluno_id,responsavel_id,autorizada}=req.body||{};
+ if(!uuid.test(String(aluno_id||''))||!uuid.test(String(responsavel_id||''))||typeof autorizada!=='boolean')return fail(res,400,'Dados inválidos');
+ const x=await pool.query('UPDATE reception.autorizacoes_retirada SET autorizada=$3,atualizado_por=$4,atualizado_em=now() WHERE aluno_id=$1 AND responsavel_id=$2 AND referencia_documental IS NOT NULL RETURNING id,autorizada',[aluno_id,responsavel_id,autorizada,req.user.id]);
+ if(!x.rows[0])return fail(res,404,'Vínculo sem documentação não encontrado');res.json(x.rows[0])
+}));
 app.get('/api/alunos',auth,role('apoio','admin','recepcao'),route(async(req,res)=>{const q=String(req.query.q||'').trim();if(q.length<2)return res.json([]);const x=await pool.query('SELECT a.id,a.nome,t.identificacao turma FROM reception.alunos a LEFT JOIN reception.turmas t ON t.id=a.turma_id WHERE a.ativo=true AND a.nome ILIKE $1 ORDER BY a.nome LIMIT 20',['%'+q+'%']);res.json(x.rows)}));
 app.get('/api/responsaveis/:id',auth,role('apoio','admin','recepcao'),route(async(req,res)=>{const x=await pool.query("SELECT r.id,r.nome,ar.exige_conferencia FROM reception.autorizacoes_retirada ar JOIN reception.responsaveis r ON r.id=ar.responsavel_id WHERE ar.aluno_id=$1 AND ar.autorizada AND (ar.valida_de IS NULL OR ar.valida_de<=CURRENT_DATE) AND (ar.valida_ate IS NULL OR ar.valida_ate>=CURRENT_DATE) ORDER BY r.nome",[req.params.id]);res.json(x.rows)}));
 app.post('/api/liberacoes',auth,role('apoio','admin'),route(async(req,res)=>{const {aluno_id,responsavel_id,motivo,presencial}=req.body||{};if(!presencial||!String(motivo||'').trim()||String(motivo).length>500)return fail(res,400,'Conferência presencial e motivo obrigatórios');const c=await pool.connect(),code=randomBytes(9).toString('base64url').toUpperCase();try{await c.query('BEGIN');const ar=await c.query("SELECT ar.id FROM reception.autorizacoes_retirada ar JOIN reception.alunos a ON a.id=ar.aluno_id WHERE a.ativo AND ar.aluno_id=$1 AND ar.responsavel_id=$2 AND ar.autorizada AND NOT ar.exige_conferencia AND (ar.valida_de IS NULL OR ar.valida_de<=CURRENT_DATE) AND (ar.valida_ate IS NULL OR ar.valida_ate>=CURRENT_DATE) FOR UPDATE OF ar",[aluno_id,responsavel_id]);if(!ar.rows[0]){await c.query('ROLLBACK');return fail(res,409,'Responsável sem autorização válida')}const x=await c.query("INSERT INTO reception.liberacoes(aluno_id,responsavel_id,autorizacao_id,emitida_por,codigo_hash,motivo,expira_em) VALUES($1,$2,$3,$4,$5,$6,now()+interval '2 hours') RETURNING id,expira_em",[aluno_id,responsavel_id,ar.rows[0].id,req.user.id,sign(code),String(motivo).trim()]);await c.query("INSERT INTO reception.historico_operacoes(liberacao_id,usuario_id,acao) VALUES($1,$2,'emissao')",[x.rows[0].id,req.user.id]);await c.query('COMMIT');res.json({...x.rows[0],code})}catch(e){await c.query('ROLLBACK');throw e}finally{c.release()}}));

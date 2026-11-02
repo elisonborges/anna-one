@@ -119,7 +119,7 @@ try{
    history.replaceState(null,"",location.pathname);
    status.textContent="Convite ativado! Acesso institucional vinculado.";
    button.textContent="Convite ativado";
-   const link=document.createElement("a");link.href="./";link.textContent="Abrir Portal AnnA One";link.style.display="inline-block";link.style.marginTop="16px";link.style.fontWeight="bold";button.after(link);
+   const link=document.createElement("a");link.href="./institutional.html";link.textContent="Abrir área institucional";link.style.display="inline-block";link.style.marginTop="16px";link.style.fontWeight="bold";button.after(link);
   }catch(error){status.textContent="Não foi possível ativar automaticamente: "+(error?.message||"conexão indisponível");button.disabled=false;button.textContent="Tentar ativar novamente";}
  };
  button.onclick=activateInvitation;

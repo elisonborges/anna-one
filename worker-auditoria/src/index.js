@@ -203,11 +203,14 @@ export default {
       try{
         const sql=neon(env.DATABASE_URL);
         const rows=await sql`SELECT mi.id,mi.email,mi.expires_at FROM public.master_invitations mi
-          JOIN public.app_users u ON lower(u.email)=mi.email
+          JOIN neon_auth."user" u ON lower(u.email)=mi.email
           WHERE u.id=${identity.userId}::uuid AND mi.accepted_at IS NULL AND mi.revoked_at IS NULL
           AND mi.expires_at>now() ORDER BY mi.created_at DESC LIMIT 1`;
         if(request.method==="GET")return json({invitation:rows[0]||null},200,cors);
         if(!rows.length)return json({error:"Não há convite válido para esta conta"},404,cors);
+        const synced=await sql`INSERT INTO public.app_users(id,email)
+          SELECT id,lower(email) FROM neon_auth."user" WHERE id=${identity.userId}::uuid
+          ON CONFLICT(id) DO NOTHING RETURNING id`;
         const accepted=await sql`WITH accepted AS (
           UPDATE public.master_invitations mi SET accepted_at=now()
           WHERE mi.id=${rows[0].id}::uuid AND mi.accepted_at IS NULL AND mi.revoked_at IS NULL AND mi.expires_at>now()

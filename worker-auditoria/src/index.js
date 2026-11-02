@@ -135,11 +135,21 @@ export default {
           if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254||email==="elisonborg@gmail.com")return json({error:"E-mail inválido"},422,cors);
           const exists=await sql`SELECT EXISTS(SELECT 1 FROM public.platform_admins pa JOIN public.app_users u ON u.id=pa.user_id WHERE lower(u.email)=${email}) AS ok`;
           if(exists[0]?.ok)return json({error:"Este usuário já é Master"},409,cors);
-          const invitation=await sql`INSERT INTO public.master_invitations(email,invited_by)
-            VALUES(${email},${identity.userId}::uuid)
-            ON CONFLICT (email) WHERE accepted_at IS NULL AND revoked_at IS NULL
-            DO UPDATE SET created_at=now(),expires_at=now()+interval '7 days'
-            RETURNING id,email,expires_at`;
+          const resend=data?.resend===true;
+          let invitation;
+          if(resend){
+            invitation=await sql`UPDATE public.master_invitations SET last_resent_at=now()
+              WHERE email=${email} AND accepted_at IS NULL AND revoked_at IS NULL
+              AND expires_at>now() AND (last_resent_at IS NULL OR last_resent_at<now()-interval '60 seconds')
+              RETURNING id,email,expires_at`;
+            if(!invitation.length)return json({error:"Convite pendente não encontrado ou reenvio disponível somente após 60 segundos."},409,cors);
+          }else{
+            invitation=await sql`INSERT INTO public.master_invitations(email,invited_by)
+              VALUES(${email},${identity.userId}::uuid)
+              ON CONFLICT (email) WHERE accepted_at IS NULL AND revoked_at IS NULL
+              DO UPDATE SET created_at=now(),expires_at=now()+interval '7 days'
+              RETURNING id,email,expires_at`;
+          }
           let delivery="not_configured";
           if(env.RESEND_API_KEY&&env.RESEND_FROM_EMAIL){
             try{
@@ -171,7 +181,7 @@ export default {
             }catch(error){delivery="failed";console.error("master invite email unavailable");}
           }
           return json({ok:true,invitation:invitation[0],email_delivery:delivery,
-            notice:delivery==="sent"?"Convite registrado e e-mail enviado.":delivery==="failed"?"Convite registrado, mas o e-mail não foi enviado. Avise o destinatário manualmente.":"Convite registrado. Configure RESEND_API_KEY e RESEND_FROM_EMAIL no Worker para enviar e-mails automaticamente."},201,cors);
+            notice:delivery==="sent"?(resend?"Convite reenviado por e-mail.":"Convite registrado e e-mail enviado."):delivery==="failed"?"Convite registrado, mas o e-mail não foi enviado. Avise o destinatário manualmente.":"Convite registrado. Configure RESEND_API_KEY e RESEND_FROM_EMAIL no Worker para enviar e-mails automaticamente."},201,cors);
         }
         const target=typeof data?.user_id==="string"?data.user_id:"";
         const inviteId=typeof data?.invitation_id==="string"?data.invitation_id:"";

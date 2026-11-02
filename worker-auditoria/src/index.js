@@ -49,6 +49,25 @@ export default {
         return json({ authenticated: false, error: "Credencial inválida ou autenticação não configurada", diagnostic_stage: stage }, 401, cors);
       }
     }
+    // Consulta institucional: JWT validado e vinculo ativo no banco de producao.
+    if (url.pathname === "/v1/institution/me" && request.method === "GET") {
+      let identity;
+      try { identity = await verifyBearer(request, env); }
+      catch { return json({ authorized: false, error: "Autenticacao necessaria" }, 401, cors); }
+      if (!env.DATABASE_URL) return json({ authorized: false, error: "Banco indisponivel" }, 503, cors);
+      try {
+        const sql = neon(env.DATABASE_URL);
+        const rows = await sql`SELECT i.id, i.name, m.role FROM public.memberships m
+          JOIN public.institutions i ON i.id=m.institution_id
+          JOIN public.app_users u ON u.id=m.user_id
+          JOIN neon_auth."user" au ON au.id=u.id
+          WHERE m.user_id=${identity.userId}::uuid AND m.active=true
+            AND i.status='active' AND m.role='institution_admin'
+            AND au."emailVerified"=true AND au.banned IS NOT TRUE
+          ORDER BY i.name LIMIT 50`;
+        return json({ authorized: rows.length > 0, institutions: rows }, 200, cors);
+      } catch { return json({ authorized: false, error: "Consulta institucional indisponivel" }, 503, cors); }
+    }
     // Consulta de autorização Master: somente leitura, com identidade validada pelo JWT.
     if (url.pathname === "/v1/admin/authorize" && request.method === "GET") {
       let identity;

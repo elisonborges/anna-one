@@ -140,7 +140,24 @@ export default {
             ON CONFLICT (email) WHERE accepted_at IS NULL AND revoked_at IS NULL
             DO UPDATE SET created_at=now(),expires_at=now()+interval '7 days'
             RETURNING id,email,expires_at`;
-          return json({ok:true,invitation:invitation[0],notice:"Convite criado. O usuário deve entrar com esta conta e aceitar o convite."},201,cors);
+          let delivery="not_configured";
+          if(env.RESEND_API_KEY&&env.RESEND_FROM_EMAIL){
+            try{
+              const emailResponse=await fetch("https://api.resend.com/emails",{
+                method:"POST",
+                headers:{"Authorization":"Bearer "+env.RESEND_API_KEY,"Content-Type":"application/json","Idempotency-Key":"master-invite-"+invitation[0].id+"-"+Date.now()},
+                body:JSON.stringify({
+                  from:env.RESEND_FROM_EMAIL,to:[email],
+                  subject:"Convite para Master adicional — AnnA One",
+                  text:"Você foi convidado para atuar como Master adicional da AnnA One. Acesse https://annaone.com.br/app/admin-master-preview.html, entre com este e-mail e aceite o convite na página. O convite expira em 7 dias. Se não reconhece este convite, ignore esta mensagem."
+                })
+              });
+              delivery=emailResponse.ok?"sent":"failed";
+              if(!emailResponse.ok)console.error("master invite email failed",emailResponse.status);
+            }catch(error){delivery="failed";console.error("master invite email unavailable");}
+          }
+          return json({ok:true,invitation:invitation[0],email_delivery:delivery,
+            notice:delivery==="sent"?"Convite registrado e e-mail enviado.":delivery==="failed"?"Convite registrado, mas o e-mail não foi enviado. Avise o destinatário manualmente.":"Convite registrado. Configure RESEND_API_KEY e RESEND_FROM_EMAIL no Worker para enviar e-mails automaticamente."},201,cors);
         }
         const target=typeof data?.user_id==="string"?data.user_id:"";
         const inviteId=typeof data?.invitation_id==="string"?data.invitation_id:"";

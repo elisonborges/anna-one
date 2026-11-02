@@ -311,7 +311,13 @@ async function refreshMasters(){
    const button=document.createElement('button');button.type='button';button.textContent='Cancelar convite';button.addEventListener('click',async()=>{
     if(!confirm('Cancelar convite de '+item.email+'?'))return;
     button.disabled=true;try{await mastersRequest('/v1/admin/masters','DELETE',{invitation_id:item.id});await refreshMasters();}catch(e){mastersStatus.textContent=e.message;button.disabled=false;}
-   });row.append(button);pending.append(row);
+   });const resendButton=document.createElement('button');resendButton.type='button';resendButton.textContent='Reenviar convite';resendButton.addEventListener('click',async()=>{
+    resendButton.disabled=true;
+    try{const result=await mastersRequest('/v1/admin/masters','POST',{email:item.email,resend:true});mastersStatus.textContent=result.notice||'Solicitação de reenvio concluída.';}
+    catch(e){mastersStatus.textContent='Não foi possível reenviar: '+e.message;}
+    finally{resendButton.disabled=false;}
+   });
+   const actions=document.createElement('span');actions.style.cssText='display:flex;gap:8px;flex-wrap:wrap';actions.append(resendButton,button);row.append(actions);pending.append(row);
   }
   mastersStatus.textContent=data.masters.length+' Master(s) ativo(s) · '+data.invitations.length+' convite(s) pendente(s). O envio automático depende da configuração do Resend no Worker.';
  }catch(e){mastersStatus.textContent='Não foi possível consultar Masters: '+e.message;}

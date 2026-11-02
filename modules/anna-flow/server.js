@@ -30,7 +30,7 @@ const institutionLookups=new Map();
 if(url.pathname==='/api/institutions-by-email'&&req.method==='POST'){
 let raw='';try{const ip=String(req.socket.remoteAddress||'unknown'),now=Date.now();if(institutionLookups.size>2000){for(const [k,v] of institutionLookups)if(v.until<now)institutionLookups.delete(k)}const prior=institutionLookups.get(ip),rate=prior&&prior.until>now?prior:{count:0,until:now+600000};if(rate.count>=15)return send(res,429,{error:'Limite de consultas atingido. Tente novamente mais tarde'});rate.count++;institutionLookups.set(ip,rate);
 for await(const chunk of req){raw+=chunk;if(raw.length>512)return send(res,413,{error:'Solicitação muito grande'})}
-const a=JSON.parse(raw),email=String(a.email||'').trim().toLowerCase();if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)||email.length>254)return send(res,400,{error:'Informe um e-mail válido'});
+const a=JSON.parse(raw),email=String(a.email||'').trim().toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)return send(res,400,{error:'Informe um e-mail válido'});
 const q=await pool.query("SELECT DISTINCT c.id,c.name FROM flow_users u JOIN flow_clients c ON c.id=u.client_id WHERE u.email=$1 AND u.active=true AND u.role='admin' AND c.active=true ORDER BY c.name,c.id LIMIT 30",[email]);return send(res,200,{institutions:q.rows});
 }catch{return send(res,503,{error:'Não foi possível consultar as instituições'})}}
 if(url.pathname==='/api/admin-gate'&&req.method==='POST'){

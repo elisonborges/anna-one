@@ -108,6 +108,32 @@ export default {
         return json({ items: rows }, 200, cors);
       } catch { return json({ error: "Consulta administrativa indisponível" }, 503, cors); }
     }
+    // Auditoria Master: consulta paginada, sem expor detalhes sensíveis.
+    if(url.pathname==="/v1/admin/audit-logs"&&request.method==="GET"){
+      let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
+      if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
+      const limit=50, beforeRaw=url.searchParams.get("before"),before=beforeRaw&&/^\d+$/.test(beforeRaw)?beforeRaw:null;
+      if(beforeRaw&&!before)return json({error:"Cursor inválido"},422,cors);
+      const action=(url.searchParams.get("action")||"").trim();
+      const institution=(url.searchParams.get("institution_id")||"").trim();
+      if(action.length>100||(institution&&!/^[0-9a-f-]{36}$/i.test(institution)))return json({error:"Filtro inválido"},422,cors);
+      try{
+        const sql=neon(env.DATABASE_URL);
+        const allowed=await sql`SELECT EXISTS(SELECT 1 FROM public.platform_admins WHERE user_id=${identity.userId}::uuid) AS ok`;
+        if(!allowed[0]?.ok)return json({error:"Acesso Master negado"},403,cors);
+        const rows=await sql`SELECT a.id::text AS id,a.occurred_at,a.action,a.entity_type,a.entity_id,
+          a.institution_id,i.name AS institution_name,u.email AS actor_email
+          FROM anna_audit.audit_logs a
+          LEFT JOIN public.institutions i ON i.id=a.institution_id
+          LEFT JOIN public.app_users u ON u.id=a.actor_user_id
+          WHERE (${before}::bigint IS NULL OR a.id<${before}::bigint)
+          AND (${action}='' OR a.action ILIKE '%'||${action}||'%')
+          AND (${institution}='' OR a.institution_id=${institution||null}::uuid)
+          ORDER BY a.id DESC LIMIT ${limit+1}`;
+        const more=rows.length>limit,items=rows.slice(0,limit);
+        return json({items,next_cursor:more?items[items.length-1].id:null},200,cors);
+      }catch(error){console.error("audit list failed",error?.code||"db_error");return json({error:"Consulta de auditoria indisponível"},503,cors);}
+    }
     // Catálogo central: somente Master pode alterar estados; Service Desk é gerido separadamente.
     if(/^\/v1\/admin\/modules\/[0-9a-f-]{36}$/i.test(url.pathname)&&request.method==="PATCH"){
       let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}

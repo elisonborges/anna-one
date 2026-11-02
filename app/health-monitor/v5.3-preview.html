@@ -80,9 +80,26 @@ body:not(.login-mode)>header.anna-module-header{background:#0c2646;min-height:75
 
 .anna-module-header .header-logout{background:transparent;color:#e5f3ff;font-size:13px;font-weight:700;padding:8px 12px;border:1px solid #537496;border-radius:9px}
 .anna-module-header .header-logout:hover{background:#244c78}
+
+/* Login Health Monitor — identidade visual alinhada ao AnnA Service Desk */
+body.login-mode{background:#f1f5fb;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;min-height:100vh;padding:28px 16px}
+body.login-mode #authPanel{width:min(100%,390px);margin:0;padding:22px;border:1px solid #dce6f1;border-radius:18px;background:#fff;box-shadow:0 18px 45px #15345416}
+body.login-mode .login-brand{align-items:center;gap:13px;margin-bottom:19px}
+body.login-mode .login-brand img{height:38px;width:38px;object-fit:contain;flex:none}
+body.login-mode .login-brand strong{font-size:19px;color:#102d50}
+body.login-mode .login-brand small{color:#526f95;font-size:12px;font-weight:650}
+body.login-mode #authPanel h2{font-size:21px;margin:0 0 17px}
+body.login-mode #authPanel .login-description{font-size:14px;color:#526f95;line-height:1.7;margin:0 0 18px}
+body.login-mode #loginForm{display:flex;flex-direction:column;align-items:stretch;gap:0}
+body.login-mode #loginForm label{min-width:0;width:100%;margin:0 0 13px;font-size:13px;font-weight:700}
+body.login-mode #loginForm input{width:100%;height:40px;margin-top:7px;border-radius:9px;background:#fff}
+body.login-mode #loginForm button{width:100%;height:41px;background:#087ee3;border-color:#087ee3;margin-top:0}
+#loginFooter{display:none}
+body.login-mode #loginFooter{display:block;max-width:480px;text-align:center;margin-top:16px;color:#526f95;font-size:11px;line-height:1.55}
+body.login-mode #loginFooter small{font-size:10px}
 </style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script></head><body class="login-mode">
 <header class="anna-module-header"><a class="anna-module-brand" href="../../" aria-label="AnnA One — página inicial"><img src="../../assets/anna-symbol.svg" alt="" width="43" height="43"><span class="anna-brand-copy"><strong>AnnA <span>One</span></strong><small>TECNOLOGIA E EDUCAÇÃO JUNTAS</small></span></a><div class="header-tools"><label for="orgSelect">Organização <select id="orgSelect" disabled><option>Entre para consultar</option></select></label><span class="badge">v5.3 · Testes</span><a class="back" href="../">← Voltar ao portal</a><button type="button" id="logout" class="header-logout" hidden>Sair</button></div></header>
-<section class="panel" id="authPanel"><div class="login-brand"><span class="login-logo" aria-hidden="true">A</span><div><strong>AnnA Health Monitor</strong><small>AnnA One</small></div></div><h2>Acessar sua conta</h2><p class="login-description">Entre com as credenciais cadastradas no Health Monitor.</p><form id="loginForm"><label>E-mail<input name="email" type="email" autocomplete="username" required></label><label>Senha<input name="password" type="password" autocomplete="current-password" required></label><button type="submit">Entrar</button></form><p id="authMessage" role="status">Conectando...</p></section><main id="workspace" hidden><div class="workspace-heading"><div><h1>Health Monitor <span class="version">v5.3</span></h1><p>Visão geral e gestão de serviços da organização selecionada.</p></div><div class="heading-summary"><div class="summary-item"><strong id="summaryMonitors">0</strong><small>Monitores cadastrados</small></div><div class="summary-item"><strong id="summaryOrg">1</strong><small>Organização ativa</small></div><div class="summary-item"><strong>Prévia</strong><small>Sem checagens reais</small></div></div></div><nav class="panel" aria-label="Navegação">
+<section class="panel" id="authPanel"><div class="login-brand"><img src="../../assets/anna-symbol.svg" alt="" width="38" height="38"><div><strong>AnnA Health Monitor</strong><small>AnnA One</small></div></div><h2>Acessar sua conta</h2><p class="login-description">Entre com as credenciais cadastradas no Health Monitor.</p><form id="loginForm"><label>E-mail<input name="email" type="email" autocomplete="username" required></label><label>Senha<input name="password" type="password" autocomplete="current-password" required></label><button type="submit">Entrar</button></form><p id="authMessage" role="status">Conectando...</p></section><footer id="loginFooter">© 2026 AnnA One. Todos os direitos reservados.<div>Health Monitor · Projeto e desenvolvimento original.</div></footer><main id="workspace" hidden><div class="workspace-heading"><div><h1>Health Monitor <span class="version">v5.3</span></h1><p>Visão geral e gestão de serviços da organização selecionada.</p></div><div class="heading-summary"><div class="summary-item"><strong id="summaryMonitors">0</strong><small>Monitores cadastrados</small></div><div class="summary-item"><strong id="summaryOrg">1</strong><small>Organização ativa</small></div><div class="summary-item"><strong>Prévia</strong><small>Sem checagens reais</small></div></div></div><nav class="panel" aria-label="Navegação">
 <button type="button" data-view="monitors" aria-pressed="true">Meus monitores</button>
 <button type="button" data-view="dashboards" aria-pressed="false">Meus dashboards</button>
 <button type="button" data-view="shared" aria-pressed="false">Infraestrutura AnnA One</button><button type="button" id="adminNav" data-view="admin" aria-pressed="false" hidden>Administrar acessos</button>

@@ -38,7 +38,32 @@ app.all('/central-auth/{*path}',rateLimit({windowMs:60000,limit:30}),route(async
 mountSso(app,pool,sign,secret);
 app.get('/api/health',(_req,res)=>res.json({status:'online'}));
 app.get('/api/me',auth,(req,res)=>res.json({user:req.user}));
-app.get('/api/usuarios',auth,role('admin'),route(async(req,res)=>{const x=await pool.query('SELECT id,nome,perfil,ativo,criado_em FROM reception.usuarios ORDER BY nome LIMIT 250');res.json(x.rows)}));
+app.get('/api/usuarios',auth,role('admin'),route(async(req,res)=>{const x=await pool.query('SELECT id,nome,perfil,ativo,criado_em,email_convite,identidade_externa IS NOT NULL AS vinculado FROM reception.usuarios ORDER BY nome LIMIT 250');res.json(x.rows)}));
+const staffRoles=['recepcao','apoio','portaria'];
+app.post('/api/usuarios',auth,role('admin'),route(async(req,res)=>{
+ const email=String(req.body?.email||'').trim().toLowerCase(),nome=String(req.body?.nome||'').trim(),perfil=req.body?.perfil;
+ if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254||nome.length<2||nome.length>150||!staffRoles.includes(perfil))return fail(res,400,'Dados de convite inválidos');
+ try{const x=await pool.query("INSERT INTO reception.usuarios(nome,perfil,ativo,email_convite) VALUES($1,$2,true,$3) RETURNING id,nome,perfil,ativo,email_convite",[nome,perfil,email]);res.status(201).json(x.rows[0])}
+ catch(e){if(e.code==='23505')return fail(res,409,'Conta já convidada');throw e}
+}));
+app.patch('/api/usuarios/:id',auth,role('admin'),route(async(req,res)=>{
+ const perfil=req.body?.perfil,ativo=req.body?.ativo;
+ if(!['admin',...staffRoles].includes(perfil)||typeof ativo!=='boolean')return fail(res,400,'Perfil ou situação inválidos');
+ const c=await pool.connect();
+ try{
+  await c.query('BEGIN');
+  await c.query('SELECT pg_advisory_xact_lock(923476)');
+  const old=(await c.query("SELECT id,perfil,ativo FROM reception.usuarios WHERE id=$1 FOR UPDATE",[req.params.id])).rows[0];
+  if(!old){await c.query('ROLLBACK');return fail(res,404,'Usuário não encontrado')}
+  if(old.id===req.user.id&&(!ativo||perfil!=='admin')){await c.query('ROLLBACK');return fail(res,409,'Não é permitido remover seu próprio acesso administrativo')}
+  if(old.perfil==='admin'&&old.ativo&&(perfil!=='admin'||!ativo)){
+   const total=(await c.query("SELECT count(*)::int n FROM reception.usuarios WHERE perfil='admin' AND ativo AND id<>$1",[old.id])).rows[0].n;
+   if(total===0){await c.query('ROLLBACK');return fail(res,409,'Mantenha pelo menos um administrador ativo')}
+  }
+  const x=(await c.query("UPDATE reception.usuarios SET perfil=$2,ativo=$3 WHERE id=$1 RETURNING id,nome,perfil,ativo,email_convite",[old.id,perfil,ativo])).rows[0];
+  await c.query('COMMIT');res.json(x);
+ }catch(e){await c.query('ROLLBACK');throw e}finally{c.release()}
+}));
 app.post('/api/logout',auth,(req,res)=>{res.set('Set-Cookie',['reception_session=; Path=/; Secure; HttpOnly; Max-Age=0','reception_csrf=; Path=/; Secure; Max-Age=0']);res.json({ok:true})});
 app.get('/api/alunos',auth,role('apoio','admin','recepcao'),route(async(req,res)=>{const q=String(req.query.q||'').trim();if(q.length<2)return res.json([]);const x=await pool.query('SELECT a.id,a.nome,t.identificacao turma FROM reception.alunos a LEFT JOIN reception.turmas t ON t.id=a.turma_id WHERE a.ativo=true AND a.nome ILIKE $1 ORDER BY a.nome LIMIT 20',['%'+q+'%']);res.json(x.rows)}));
 app.get('/api/responsaveis/:id',auth,role('apoio','admin','recepcao'),route(async(req,res)=>{const x=await pool.query("SELECT r.id,r.nome,ar.exige_conferencia FROM reception.autorizacoes_retirada ar JOIN reception.responsaveis r ON r.id=ar.responsavel_id WHERE ar.aluno_id=$1 AND ar.autorizada AND (ar.valida_de IS NULL OR ar.valida_de<=CURRENT_DATE) AND (ar.valida_ate IS NULL OR ar.valida_ate>=CURRENT_DATE) ORDER BY r.nome",[req.params.id]);res.json(x.rows)}));

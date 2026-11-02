@@ -6,7 +6,7 @@ import {randomBytes, scryptSync, timingSafeEqual, createHmac} from 'node:crypto'
 const app=express(); const secret=process.env.SESSION_SECRET||'';
 if(!process.env.DATABASE_URL||secret.length<48)throw Error('Missing secure database and session configuration');
 const pool=new pg.Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:true},max:5});
-app.disable('x-powered-by');app.use(helmet());app.use(express.json({limit:'16kb'}));
+app.disable('x-powered-by');app.set('trust proxy',1);app.use(helmet());app.use(express.json({limit:'16kb'}));
 app.use('/api',rateLimit({windowMs:60000,limit:90,standardHeaders:'draft-8',legacyHeaders:false}));
 const sign=v=>createHmac('sha256',secret).update(v).digest('hex');
 const hash=p=>{const salt=randomBytes(16).toString('hex');return salt+':'+scryptSync(p,salt,64).toString('hex')};

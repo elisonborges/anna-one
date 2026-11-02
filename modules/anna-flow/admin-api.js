@@ -4,7 +4,7 @@ const str=(v,n=120)=>typeof v==='string'?v.trim().slice(0,n):'';
 const id=v=>{const n=Number(v);if(!Number.isSafeInteger(n)||n<=0)throw Error('Identificador inválido');return n};
 const names={clients:'flow_clients',units:'flow_client_units',services:'flow_client_services',destinations:'flow_client_destinations',panels:'flow_signage_profiles'};
 async function handle(req,res,{pool,auth,send}){
-if(!auth(req))return send(res,401,{error:'Não autorizado'});
+if(!(await auth(req)))return send(res,401,{error:'Não autorizado'});
 try{
 if(req.method==='GET'){
 const mediaPanel=new URL(req.url,'http://localhost').searchParams.get('media_panel');if(mediaPanel){const panelId=id(mediaPanel);const q=await pool.query('SELECT m.video_url,m.enabled FROM flow_signage_media m JOIN flow_signage_profiles p ON p.id=m.panel_id WHERE p.id=$1',[panelId]);return send(res,200,{media:q.rows[0]||{video_url:'',enabled:false}})}

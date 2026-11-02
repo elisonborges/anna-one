@@ -3,12 +3,14 @@ const id=v=>{const n=Number(v);if(!Number.isSafeInteger(n)||n<1)throw Error('Ide
 const safe=(v,n=100)=>typeof v==='string'?v.trim().slice(0,n):'';
 const read=async req=>{let body='';for await(const c of req){body+=c;if(body.length>10000)throw Error('Corpo muito grande')}return JSON.parse(body)};
 const initial=()=>({counters:{},queue:[],current:null,history:[],completed:0,calls:0});
-async function handle(req,res,{pool,auth,send}){
+async function handle(req,res,{pool,auth,send,deviceApi}){
  const user=await require('./auth-api').session(req,pool);
- if(!user&&!auth(req))return send(res,401,{error:'Autorização necessária'});
+ const linked=await deviceApi.device(req,pool);
+ if(!user&&!auth(req)&&!linked)return send(res,401,{error:'Autorização necessária'});
  try{
  const u=new URL(req.url,'http://localhost');const unit=id(u.searchParams.get('unit'));
  if(user){if(!['admin','atendente'].includes(user.role))return send(res,403,{error:'Perfil sem permissão operacional'});const access=await pool.query('SELECT 1 FROM flow_user_units a JOIN flow_client_units u ON u.id=a.unit_id JOIN flow_clients c ON c.id=u.client_id WHERE a.user_id=$1 AND a.client_id=$2 AND a.unit_id=$3 AND u.active=true AND c.active=true',[user.id,user.client_id,unit]);if(!access.rowCount)return send(res,403,{error:'Unidade não autorizada ou inativa'})}
+ if(linked&&Number(linked.unit_id)!==unit)return send(res,403,{error:'Equipamento de outra unidade'});
  if(req.method==='GET'){
  const q=await pool.query('SELECT r.revision,r.state FROM flow_client_runtime r JOIN flow_client_units u ON u.id=r.unit_id WHERE u.id=$1',[unit]);
  if(q.rowCount)return send(res,200,q.rows[0]);
@@ -16,7 +18,9 @@ async function handle(req,res,{pool,auth,send}){
  return valid.rowCount?send(res,200,{revision:0,state:initial()}):send(res,404,{error:'Unidade não encontrada'});
  }
  if(req.method!=='POST')return send(res,405,{error:'Método não permitido'});
- const a=await read(req),client=await pool.connect();
+ const a=await read(req);
+ if(linked){if(linked.kind==='tv')return send(res,403,{error:'TV somente leitura'});if(linked.kind==='terminal'){if(!user||!['admin','atendente'].includes(user.role))return send(res,403,{error:'Atendente precisa entrar com sua conta'});if(!['call','finish'].includes(a.type))return send(res,403,{error:'Operação não autorizada ao terminal'});if(a.type==='call'&&Number(a.destinationId)!==Number(linked.destination_id))return send(res,403,{error:'Guichê diferente do equipamento vinculado'})}else if(!['totem','recepcao'].includes(linked.kind)||a.type!=='issue')return send(res,403,{error:'Dispositivo permite somente emissão'});}else if(!user&&!auth(req))return send(res,401,{error:'Vincule o dispositivo ou faça login'});
+ const client=await pool.connect();
  try{
  await client.query('BEGIN');
  const unitResult=await client.query('SELECT u.id,u.client_id FROM flow_client_units u JOIN flow_clients c ON c.id=u.client_id WHERE u.id=$1 AND u.active=true AND c.active=true',[unit]);

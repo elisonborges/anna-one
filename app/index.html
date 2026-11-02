@@ -1,4 +1,4 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0c2646"><title>AnnA One | Plataforma</title><link rel="icon" href="../assets/anna-symbol.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css?v=dashboard083"><style>html:not(.anna-authenticated) body{visibility:hidden}#master-nav{display:none}html[data.master-authorized="true"] #master-nav{display:block}.dash-tile{display:none!important}.dash-group{display:none!important}html[data.modules-authorized="true"] .dash-tile:not([hidden]){display:block!important}html[data.modules-authorized="true"] .dash-group:not([hidden]){display:block!important}</style><script type="module">
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0c2646"><title>AnnA One | Plataforma</title><link rel="icon" href="../assets/anna-symbol.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css?v=dashboard083"><style>html:not(.anna-authenticated) body{visibility:hidden}#master-nav{display:none}html[data.master-authorized="true"] #master-nav{display:block!important}.dash-tile[hidden],.dash-group[hidden]{display:none!important}html:not([data.modules-authorized="true"]) .dash-tile,html:not([data.modules-authorized="true"]) .dash-group{display:none!important}</style><script type="module">
 try {
  const {createAuthClient}=await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');
  const auth=createAuthClient('https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth');
@@ -70,29 +70,33 @@ const tiles=[...document.querySelectorAll('.dash-tile[data-module]')];
 const search=document.getElementById('module-search');
 const summary=document.getElementById('access-summary');
 const status=document.getElementById('favoritos');
-const allowedModules=new Set(window.annaAuthorizedModules||[]);
-window.addEventListener('anna-permissions-ready',()=>{allowedModules.clear();for(const name of window.annaAuthorizedModules||[])allowedModules.add(name);renderAuthorizedModules();});
+let authorizedNames=new Set(window.annaAuthorizedModules||[]);
 function renderAuthorizedModules(){
+ const master=document.documentElement.dataset.masterAuthorized==='true';
  const q=(search?.value||'').trim().toLocaleLowerCase('pt-BR');
  let visible=0;
- document.querySelectorAll('.dash-group').forEach(group=>{
+ for(const group of document.querySelectorAll('.dash-group')){
   let count=0;
-  group.querySelectorAll('.dash-tile[data-module]').forEach(tile=>{
-   const allowed=document.documentElement.dataset.masterAuthorized==='true'||allowedModules.has(tile.dataset.module);
+  for(const tile of group.querySelectorAll('.dash-tile[data-module]')){
+   const allowed=master||authorizedNames.has(tile.dataset.module);
    const show=allowed&&tile.textContent.toLocaleLowerCase('pt-BR').includes(q);
    tile.hidden=!show;
-   const fav=tile.querySelector('.fav-toggle');if(fav)fav.hidden=true;
-   if(show){count++;visible++}
-  });
+   tile.style.setProperty('display',show?'':'none',show?'':'important');
+   if(show){count++;visible++;}
+   const fav=tile.querySelector('.fav-toggle');if(fav)fav.hidden=!master;
+  }
   group.hidden=count===0;
- });
- const isMaster=document.documentElement.dataset.masterAuthorized==='true';
- document.documentElement.dataset.modulesAuthorized=(isMaster||allowedModules.size)?'true':'false';
- summary.textContent=isMaster?'Catálogo geral da Administração Master.':allowedModules.size?'Módulos autorizados para sua conta.':document.documentElement.dataset.institutionAuthorized==='true'?'Instituição reconhecida. Nenhum módulo habilitado para esta instituição.':'Nenhum módulo liberado: aguardando confirmação das permissões institucionais.';
- status.hidden=visible>0;
- status.textContent=visible?'':isMaster?'Nenhum módulo encontrado.':allowedModules.size?'Nenhum módulo encontrado.':'O catálogo permanece oculto até a validação de acesso.';
+  group.style.setProperty('display',count?'':'none',count?'':'important');
+ }
+ document.documentElement.dataset.modulesAuthorized=(master||authorizedNames.size>0)?'true':'false';
+ if(summary)summary.textContent=master?'Catálogo geral da Administração Master.':authorizedNames.size?'Módulos autorizados para sua conta.':'Nenhum módulo liberado: aguardando confirmação das permissões institucionais.';
+ if(status){status.hidden=visible>0;status.textContent=visible?'':master?'Nenhum módulo encontrado.':'O catálogo permanece oculto até a validação de acesso.';}
 }
+window.addEventListener('anna-permissions-ready',()=>{
+ authorizedNames=new Set(window.annaAuthorizedModules||[]);
+ renderAuthorizedModules();
+});
 search?.addEventListener('input',renderAuthorizedModules);
-document.querySelectorAll('[data-view]').forEach(link=>link.addEventListener('click',()=>{if(search)search.value='';renderAuthorizedModules()}));
+document.querySelectorAll('[data-view]').forEach(link=>link.addEventListener('click',()=>{if(search)search.value='';renderAuthorizedModules();}));
 renderAuthorizedModules();
 </script></body></html>

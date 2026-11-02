@@ -313,13 +313,13 @@ async function refreshMasters(){
     button.disabled=true;try{await mastersRequest('/v1/admin/masters','DELETE',{invitation_id:item.id});await refreshMasters();}catch(e){mastersStatus.textContent=e.message;button.disabled=false;}
    });row.append(button);pending.append(row);
   }
-  mastersStatus.textContent=data.masters.length+' Master(s) ativo(s) · '+data.invitations.length+' convite(s) pendente(s). Convites devem ser comunicados ao destinatário; o envio automático de e-mail ainda não está integrado.';
+  mastersStatus.textContent=data.masters.length+' Master(s) ativo(s) · '+data.invitations.length+' convite(s) pendente(s). O envio automático depende da configuração do Resend no Worker.';
  }catch(e){mastersStatus.textContent='Não foi possível consultar Masters: '+e.message;}
 }
 document.getElementById('masters-invite').addEventListener('click',async()=>{
  const email=document.getElementById('masters-email').value.trim();if(!email)return;
  const button=document.getElementById('masters-invite');button.disabled=true;
- try{await mastersRequest('/v1/admin/masters','POST',{email});document.getElementById('masters-email').value='';await refreshMasters();mastersStatus.textContent='Convite registrado. Informe ao destinatário que entre na AnnA One com este e-mail para aceitar na seção Masters. Não há envio automático de e-mail.';}catch(e){mastersStatus.textContent=e.message;}finally{button.disabled=false;}
+ try{const created=await mastersRequest('/v1/admin/masters','POST',{email});document.getElementById('masters-email').value='';await refreshMasters();mastersStatus.textContent=created.notice||'Convite registrado.';}catch(e){mastersStatus.textContent=e.message;}finally{button.disabled=false;}
 });
 document.getElementById('masters-refresh').addEventListener('click',refreshMasters);
 document.getElementById('masters-accept').addEventListener('click',async()=>{

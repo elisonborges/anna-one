@@ -239,9 +239,9 @@ catalogClient.addEventListener('change',async()=>{
   catalogClientStatus.textContent=data.institution.name+' · '+data.modules.length+' módulo(s) cadastrados.';
   for(const module of data.modules){
    const line=document.createElement('label');line.style.cssText='display:flex;align-items:center;gap:12px;padding:10px;border:1px solid #d7e3f0;border-radius:9px';
-   const check=document.createElement('input');check.type='checkbox';check.checked=module.enabled&&module.status==='available';check.disabled=module.status!=='available'||data.institution.status!=='active'||module.code==='service-desk';
+   const check=document.createElement('input');check.type='checkbox';check.checked=module.enabled&&module.status==='available'&&module.parent_allowed;check.disabled=module.status!=='available'||data.institution.status!=='active'||!module.parent_allowed||module.code==='service-desk';
    check.style.cssText='width:20px;height:20px';
-   const name=document.createElement('span');name.textContent=module.name+' · '+(module.status==='available'?'Disponível':module.status==='planned'?'Planejado':'Desativado')+(module.code==='service-desk'?' · Gerenciado separadamente':'');
+   const name=document.createElement('span');name.textContent=module.name+' · '+(module.status==='available'?'Disponível':module.status==='planned'?'Planejado':'Desativado')+(module.code==='service-desk'?' · Gerenciado separadamente':!module.parent_allowed?' · Bloqueado pela matriz':'');
    line.append(check,name);catalogClientModules.append(line);
    check.addEventListener('change',async()=>{
     const desired=check.checked;check.disabled=true;catalogClientStatus.textContent='Salvando permissão…';
@@ -250,7 +250,7 @@ catalogClient.addEventListener('change',async()=>{
      const result=await r.json();if(!r.ok)throw Error(result?.error||'HTTP '+r.status);
      catalogClientStatus.textContent='Permissão salva para '+data.institution.name+'.';
     }catch(error){check.checked=!desired;catalogClientStatus.textContent='Falha ao salvar: '+(error?.message||'Erro de conexão');}
-    finally{check.disabled=module.status!=='available'||data.institution.status!=='active'||module.code==='service-desk';}
+    finally{check.disabled=module.status!=='available'||data.institution.status!=='active'||!module.parent_allowed||module.code==='service-desk';}
    });
   }
  }catch(error){catalogClientStatus.textContent='Falha ao consultar: '+(error?.message||'Erro de conexão');}

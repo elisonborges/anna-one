@@ -38,6 +38,7 @@ app.all('/central-auth/{*path}',rateLimit({windowMs:60000,limit:30}),route(async
 mountSso(app,pool,sign,secret);
 app.get('/api/health',(_req,res)=>res.json({status:'online'}));
 app.get('/api/me',auth,(req,res)=>res.json({user:req.user}));
+app.get('/api/usuarios',auth,role('admin'),route(async(req,res)=>{const x=await pool.query('SELECT id,nome,perfil,ativo,criado_em FROM reception.usuarios ORDER BY nome LIMIT 250');res.json(x.rows)}));
 app.post('/api/logout',auth,(req,res)=>{res.set('Set-Cookie',['reception_session=; Path=/; Secure; HttpOnly; Max-Age=0','reception_csrf=; Path=/; Secure; Max-Age=0']);res.json({ok:true})});
 app.get('/api/alunos',auth,role('apoio','admin','recepcao'),route(async(req,res)=>{const q=String(req.query.q||'').trim();if(q.length<2)return res.json([]);const x=await pool.query('SELECT a.id,a.nome,t.identificacao turma FROM reception.alunos a LEFT JOIN reception.turmas t ON t.id=a.turma_id WHERE a.ativo=true AND a.nome ILIKE $1 ORDER BY a.nome LIMIT 20',['%'+q+'%']);res.json(x.rows)}));
 app.get('/api/responsaveis/:id',auth,role('apoio','admin','recepcao'),route(async(req,res)=>{const x=await pool.query("SELECT r.id,r.nome,ar.exige_conferencia FROM reception.autorizacoes_retirada ar JOIN reception.responsaveis r ON r.id=ar.responsavel_id WHERE ar.aluno_id=$1 AND ar.autorizada AND (ar.valida_de IS NULL OR ar.valida_de<=CURRENT_DATE) AND (ar.valida_ate IS NULL OR ar.valida_ate>=CURRENT_DATE) ORDER BY r.nome",[req.params.id]);res.json(x.rows)}));

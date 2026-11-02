@@ -16,5 +16,8 @@
     "@neondatabase/auth": "0.7.0-beta",
     "esbuild": "0.25.12"
   },
-  "devDependencies": {}
+  "devDependencies": {},
+  "overrides": {
+    "better-auth": "1.7.15"
+  }
 }

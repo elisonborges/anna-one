@@ -20,7 +20,7 @@ app.use('/api',(req,res,next)=>{if(['GET','HEAD'].includes(req.method))return ne
 // Proxy restrito ao Neon Auth central: mantém a autenticação no mesmo domínio do navegador.
 const CENTRAL_AUTH='https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth';
 app.all('/central-auth/{*path}',rateLimit({windowMs:60000,limit:30}),route(async(req,res)=>{
- const sub=req.params.path||'';
+ const sub=Array.isArray(req.params.path)?req.params.path.join('/'):String(req.params.path||'');
  const allowed=/^(get-session|sign-in\/email|sign-out|token|refresh-token|\.well-known\/jwks\.json)$/;
  if(!allowed.test(sub)||!['GET','POST'].includes(req.method))return fail(res,404,'Rota não disponível');
  const target=CENTRAL_AUTH+'/'+sub+(req.url.includes('?')?'?'+req.url.split('?').slice(1).join('?'):'');

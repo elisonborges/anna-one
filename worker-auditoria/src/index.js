@@ -108,6 +108,36 @@ export default {
         return json({ items: rows }, 200, cors);
       } catch { return json({ error: "Consulta administrativa indisponível" }, 503, cors); }
     }
+    // Endpoint exclusivamente servidor-servidor para o backend Flow.
+    // Nunca invocar do navegador. Token independente do login dos usuários.
+    if(url.pathname==="/v1/internal/flow/access"&&request.method==="POST"){
+      const configured=env.FLOW_SERVICE_TOKEN;
+      const provided=request.headers.get("X-Flow-Service-Token")||"";
+      if(typeof configured!=="string"||configured.length<32||provided.length!==configured.length)
+        return json({error:"Não autorizado"},401,cors);
+      const enc=new TextEncoder(),a=enc.encode(provided),b=enc.encode(configured);
+      let mismatch=0;for(let i=0;i<a.length;i++)mismatch|=a[i]^b[i];
+      if(mismatch!==0)return json({error:"Não autorizado"},401,cors);
+      if(!env.DATABASE_URL)return json({authorized:false,error:"Banco indisponível"},503,cors);
+      const body=await request.json().catch(()=>null),flowId=body?.flow_client_id;
+      if(!Number.isSafeInteger(flowId)||flowId<=0)return json({authorized:false,error:"Cliente inválido"},400,cors);
+      try{
+        const sql=neon(env.DATABASE_URL);
+        const result=await sql`SELECT l.institution_id,i.status AS institution_status,im.enabled AS module_enabled,
+          mo.status AS module_status,p.status AS parent_status,pim.enabled AS parent_module_enabled
+          FROM public.flow_institution_links l
+          JOIN public.institutions i ON i.id=l.institution_id
+          JOIN public.modules mo ON mo.code='anna-flow'
+          LEFT JOIN public.institution_modules im ON im.institution_id=i.id AND im.module_id=mo.id
+          LEFT JOIN public.institutions p ON p.id=i.parent_institution_id
+          LEFT JOIN public.institution_modules pim ON pim.institution_id=p.id AND pim.module_id=mo.id
+          WHERE l.flow_client_id=${flowId}::bigint`;
+        const x=result[0];
+        const authorized=!!x&&x.institution_status==="active"&&x.module_enabled===true&&x.module_status==="available"
+          &&(x.parent_status===null||(x.parent_status==="active"&&x.parent_module_enabled===true));
+        return json({authorized,institution_id:authorized?x.institution_id:null},200,cors);
+      }catch{return json({authorized:false,error:"Verificação indisponível"},503,cors);}
+    }
     // Integração Portal → Flow. Vínculo não concede acesso sem habilitação do módulo.
     const flowLinkMatch=url.pathname.match(/^\\/v1\\/admin\\/flow-links\\/([0-9a-f-]{36})$/i);
     if(flowLinkMatch&&["GET","PUT"].includes(request.method)){

@@ -23,6 +23,7 @@ if(row.id)return send(res,200,{status:'active',kind:row.kind,unitId:row.unit_id,
 if(new Date(row.expires_at)<new Date())return send(res,410,{status:'expired'});
 return send(res,200,{status:'pending'});
 }
+if(action==='/api/device/catalog'&&req.method==='GET'){const d=await device(req,pool);if(!d||!['totem','recepcao','terminal'].includes(d.kind))return send(res,403,{error:'Dispositivo não autorizado'});const q=await pool.query('SELECT id,name FROM flow_client_services WHERE unit_id=$1 AND client_id=$2 AND active=true ORDER BY name',[d.unit_id,d.client_id]);const ds=await pool.query('SELECT id,name FROM flow_client_destinations WHERE unit_id=$1 AND client_id=$2 AND active=true ORDER BY name',[d.unit_id,d.client_id]);await pool.query('UPDATE flow_devices SET last_seen=now() WHERE id=$1',[d.id]);return send(res,200,{kind:d.kind,unitId:d.unit_id,destinationId:d.destination_id,services:q.rows,destinations:ds.rows})}
 if(action==='/api/device/me'&&req.method==='GET'){const d=await device(req,pool);if(!d)return send(res,401,{error:'Dispositivo sem autorização'});await pool.query('UPDATE flow_devices SET last_seen=now() WHERE id=$1',[d.id]);return send(res,200,{device:d})}
 const user=await userAuth.session(req,pool);const central=auth(req);
 if(action==='/api/device/list'&&req.method==='GET'){

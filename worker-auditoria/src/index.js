@@ -131,10 +131,17 @@ export default {
         const moduleRows=await sql`SELECT id,status FROM public.modules WHERE id=${moduleId}::uuid`;
         if(!moduleRows.length)return json({error:"Módulo não encontrado"},404,cors);
         if(data.enabled&&moduleRows[0].status!=="available")return json({error:"Módulo ainda não disponível"},409,cors);
-        const changed=await sql`INSERT INTO public.institution_modules(institution_id,module_id,enabled)
+        const changed=await sql`WITH changed AS (
+          INSERT INTO public.institution_modules(institution_id,module_id,enabled)
           VALUES(${institutionId}::uuid,${moduleId}::uuid,${data.enabled})
           ON CONFLICT(institution_id,module_id) DO UPDATE SET enabled=EXCLUDED.enabled
-          RETURNING institution_id,module_id,enabled`;
+          RETURNING institution_id,module_id,enabled
+        ), logged AS (
+          INSERT INTO anna_audit.audit_logs(actor_user_id,institution_id,action,entity_type,entity_id,details)
+          SELECT ${identity.userId}::uuid,institution_id,'institution.module.permission.updated','module',module_id::text,
+            jsonb_build_object('enabled',enabled) FROM changed
+          RETURNING id
+        ) SELECT changed.institution_id,changed.module_id,changed.enabled FROM changed CROSS JOIN logged`;
         return json({ok:true,item:changed[0]},200,cors);
       }catch(error){console.error("institution modules failed",error?.code||"db_error");return json({error:"Permissões indisponíveis"},503,cors);}
     }

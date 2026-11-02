@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "postinstall": "esbuild auth-client-entry.js --bundle --format=esm --platform=browser --target=es2022 --outfile=public/auth-bundle.js"
+    "postinstall": "esbuild auth-client-entry.js --bundle --format=esm --platform=browser --target=es2022 --outfile=public/auth-bundle.js && node -e \"const c=require('child_process');const r=c.spawnSync('npm',['audit','--json'],{encoding:'utf8'});try{const a=JSON.parse(r.stdout);console.log('AUDIT_DETAILS',JSON.stringify(Object.entries(a.vulnerabilities||{}).map(([k,v])=>({name:k,severity:v.severity,via:v.via.map(q=>typeof q==='string'?q:q.name),fix:v.fixAvailable}))))}catch{console.log('Audit details unavailable')}\""
   },
   "dependencies": {
     "express": "5.1.0",

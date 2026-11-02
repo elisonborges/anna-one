@@ -14,7 +14,7 @@ export default {
     const allowed = env.APP_ORIGIN || "https://annaone.com.br";
     const cors = origin === allowed
       ? { "access-control-allow-origin": allowed, "access-control-allow-headers": "authorization, content-type",
-          "access-control-allow-methods": "GET, POST, PUT, PATCH, OPTIONS", "vary": "Origin" }
+          "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS", "vary": "Origin" }
       : {};
     if (request.method === "OPTIONS") {
       return origin === allowed
@@ -104,6 +104,34 @@ export default {
         const rows = await sql`SELECT id, code, name, status FROM public.modules ORDER BY name LIMIT 1000`;
         return json({ items: rows }, 200, cors);
       } catch { return json({ error: "Consulta administrativa indisponível" }, 503, cors); }
+    }
+    // Catálogo central: somente Master pode alterar estados; Service Desk é gerido separadamente.
+    if(/^\/v1\/admin\/modules\/[0-9a-f-]{36}$/i.test(url.pathname)&&request.method==="PATCH"){
+      let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
+      if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
+      if(!(request.headers.get("content-type")||"").toLowerCase().startsWith("application/json"))return json({error:"Envie JSON"},415,cors);
+      const raw=await request.text();if(raw.length>256)return json({error:"Dados excedem o limite"},413,cors);
+      let data;try{data=JSON.parse(raw);}catch{return json({error:"JSON inválido"},400,cors);}
+      if(!["planned","available","retired"].includes(data?.status))return json({error:"Estado inválido"},422,cors);
+      const id=url.pathname.split("/")[4];
+      try{
+        const sql=neon(env.DATABASE_URL);
+        const authorized=await sql`SELECT EXISTS(SELECT 1 FROM public.platform_admins WHERE user_id=${identity.userId}::uuid) AS ok`;
+        if(!authorized[0]?.ok)return json({error:"Acesso Master negado"},403,cors);
+        const existing=await sql`SELECT id,code,status FROM public.modules WHERE id=${id}::uuid`;
+        if(!existing.length)return json({error:"Módulo não encontrado"},404,cors);
+        if(existing[0].code==="service-desk")return json({error:"Service Desk é administrado separadamente"},409,cors);
+        const updated=await sql`WITH changed AS (
+          UPDATE public.modules SET status=${data.status} WHERE id=${id}::uuid
+          RETURNING id,code,name,status
+        ), logged AS (
+          INSERT INTO anna_audit.audit_logs(actor_user_id,action,entity_type,entity_id,details)
+          SELECT ${identity.userId}::uuid,'module.status.updated','module',id::text,
+            jsonb_build_object('previous_status',${existing[0].status},'status',status) FROM changed
+          RETURNING id
+        ) SELECT changed.id,changed.code,changed.name,changed.status FROM changed CROSS JOIN logged`;
+        return json({ok:true,item:updated[0]},200,cors);
+      }catch(error){console.error("module status update failed",error?.code||"db_error");return json({error:"Alteração indisponível"},503,cors);}
     }
     // Perfis e permissões: lista de módulos por instituição, protegida por Master.
     if(/^\/v1\/admin\/institutions\/[0-9a-f-]{36}\/modules$/i.test(url.pathname)&&["GET","PUT"].includes(request.method)){

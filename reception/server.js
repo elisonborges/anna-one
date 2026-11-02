@@ -3,25 +3,22 @@ import express from 'express';
 import pg from 'pg';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import {randomBytes, scryptSync, timingSafeEqual, createHmac} from 'node:crypto';
+import {timingSafeEqual, createHmac} from 'node:crypto';
 const app=express(); const secret=process.env.SESSION_SECRET||'';
 if(!process.env.DATABASE_URL||secret.length<48)throw Error('Missing secure database and session configuration');
 const pool=new pg.Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:true},max:5});
 app.disable('x-powered-by');app.set('trust proxy',1);app.use(helmet());app.use(express.json({limit:'16kb'}));
 app.use('/api',rateLimit({windowMs:60000,limit:90,standardHeaders:'draft-8',legacyHeaders:false}));
 const sign=v=>createHmac('sha256',secret).update(v).digest('hex');
-const hash=p=>{const salt=randomBytes(16).toString('hex');return salt+':'+scryptSync(p,salt,64).toString('hex')};
-const eq=(p,h)=>{try{const [salt,digest]=h.split(':');return timingSafeEqual(scryptSync(p,salt,64),Buffer.from(digest,'hex'))}catch{return false}};
 const cookies=req=>Object.fromEntries((req.headers.cookie||'').split(';').map(x=>x.trim().split('=')));
 const fail=(res,code,message)=>res.status(code).json({error:message});
 const route=f=>(req,res,next)=>Promise.resolve(f(req,res)).catch(next);
 function session(req){try{const [b,s]=String(cookies(req).reception_session||'').split('.');if(!b||!s||!timingSafeEqual(Buffer.from(sign(b),'hex'),Buffer.from(s,'hex')))return null;const x=JSON.parse(Buffer.from(b,'base64url'));return x.exp>Date.now()?x:null}catch{return null}}
 async function auth(req,res,next){const s=session(req);if(!s)return fail(res,401,'Faça login');const x=await pool.query('SELECT id,nome,perfil FROM reception.usuarios WHERE id=$1 AND ativo=true',[s.id]);if(!x.rows[0])return fail(res,401,'Acesso não autorizado');req.user=x.rows[0];next()}
 function role(...roles){return(req,res,next)=>roles.includes(req.user.perfil)?next():fail(res,403,'Perfil não autorizado')}
-app.use('/api',(req,res,next)=>{if(['GET','HEAD'].includes(req.method))return next();const origin=req.get('origin');if(origin&&origin!==req.protocol+'://'+req.get('host'))return fail(res,403,'Origem inválida');if(req.path==='/sso')return next();if(req.get('x-csrf-token')!==cookies(req).reception_csrf)return fail(res,403,'Sessão inválida');next()});
+app.use('/api',(req,res,next)=>{if(['GET','HEAD'].includes(req.method))return next();const origin=req.get('origin');if(origin&&origin!==req.protocol+'://'+req.get('host'))return fail(res,403,'Origem inválida');if(req.path==='/sso')return next();if(!cookies(req).reception_csrf || !req.get('x-csrf-token') || req.get('x-csrf-token')!==cookies(req).reception_csrf)return fail(res,403,'Sessão inválida');next()});
 mountSso(app,pool,sign,secret);
 app.get('/api/health',(_req,res)=>res.json({status:'online'}));
-app.post('/api/login-local-disabled',rateLimit({windowMs:900000,limit:10}),route(async(req,res)=>{const {login,password}=req.body||{};if(typeof login!=='string'||typeof password!=='string')return fail(res,400,'Credenciais inválidas');const x=await pool.query('SELECT u.id,u.nome,u.perfil,c.senha_hash FROM reception.usuarios u JOIN reception.credenciais c ON c.usuario_id=u.id WHERE c.login=$1 AND u.ativo=true',[login.trim().toLowerCase()]);const u=x.rows[0];if(!u||!eq(password,u.senha_hash))return fail(res,401,'Credenciais inválidas');const b=Buffer.from(JSON.stringify({id:u.id,exp:Date.now()+28800000})).toString('base64url'),csrf=randomBytes(20).toString('hex');const flags='Path=/; Secure; SameSite=Strict; Max-Age=28800';res.set('Set-Cookie',[`reception_session=${b}.${sign(b)}; HttpOnly; ${flags}`,`reception_csrf=${csrf}; ${flags}`]);res.json({user:{nome:u.nome,perfil:u.perfil},csrf})}));
 app.get('/api/me',auth,(req,res)=>res.json({user:req.user}));
 app.post('/api/logout',auth,(req,res)=>{res.set('Set-Cookie',['reception_session=; Path=/; Secure; HttpOnly; Max-Age=0','reception_csrf=; Path=/; Secure; Max-Age=0']);res.json({ok:true})});
 app.get('/api/alunos',auth,role('apoio','admin','recepcao'),route(async(req,res)=>{const q=String(req.query.q||'').trim();if(q.length<2)return res.json([]);const x=await pool.query('SELECT a.id,a.nome,t.identificacao turma FROM reception.alunos a LEFT JOIN reception.turmas t ON t.id=a.turma_id WHERE a.ativo=true AND a.nome ILIKE $1 ORDER BY a.nome LIMIT 20',['%'+q+'%']);res.json(x.rows)}));

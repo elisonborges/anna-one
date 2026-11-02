@@ -127,9 +127,27 @@ export default {
         const body=await request.json().catch(()=>null);
         const id=body?.flow_client_id;
         if(!Number.isSafeInteger(id)||id<=0)return json({error:"ID do cliente Flow inválido"},400,cors);
-        // Exige verificação externa do cliente antes de efetivar um novo vínculo.
-        // Não confiar em ID digitado: integração backend-to-backend ainda não configurada.
-        return json({error:"Vinculação pendente: configurar validação segura do cliente no backend Neon Flow antes de gravar."},503,cors);
+        // Consulta servidor-servidor ao Neon Flow. Nunca envia credenciais ao navegador.
+        if(!env.FLOW_DATABASE_URL)return json({error:"Integração Flow não configurada no servidor"},503,cors);
+        const flowSql=neon(env.FLOW_DATABASE_URL);
+        const [portalInstitution]=await sql`SELECT name,status FROM public.institutions WHERE id=${institutionId}::uuid`;
+        const flowClients=await flowSql`SELECT id,name,active FROM public.flow_clients WHERE id=${id}::bigint`;
+        if(!flowClients.length)return json({error:"Cliente não encontrado no banco Flow"},404,cors);
+        if(!flowClients[0].active)return json({error:"Cliente Flow está inativo"},409,cors);
+        // Nomes divergentes exigem conciliação explícita, não associação automática.
+        const normalizeName=x=>String(x||"").normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").trim().replace(/\\s+/g," ").toLowerCase();
+        if(normalizeName(portalInstitution.name)!==normalizeName(flowClients[0].name))
+          return json({error:"Nome do cliente Flow difere do cadastro do Portal; concilie os cadastros antes de vincular"},409,cors);
+        const existing=await sql`SELECT institution_id,flow_client_id FROM public.flow_institution_links
+          WHERE institution_id=${institutionId}::uuid OR flow_client_id=${id}::bigint`;
+        if(existing.length&&existing.some(x=>x.institution_id!==institutionId||Number(x.flow_client_id)!==id))
+          return json({error:"Instituição ou cliente Flow já possui outro vínculo; reatribuição bloqueada"},409,cors);
+        if(existing.length)return json({flow_client_id:id,unchanged:true},200,cors);
+        const inserted=await sql`INSERT INTO public.flow_institution_links(institution_id,flow_client_id,linked_by)
+          VALUES(${institutionId}::uuid,${id}::bigint,${identity.userId}::uuid)
+          ON CONFLICT DO NOTHING RETURNING institution_id,flow_client_id`;
+        if(!inserted.length)return json({error:"Vínculo concorrente detectado; atualize e verifique novamente"},409,cors);
+        return json({flow_client_id:id,created:true},201,cors);
       }catch{return json({error:"Consulta de vínculo Flow indisponível; verifique a migração no Neon Portal"},503,cors);}
     }
     // Master Principal: somente esta identidade pode convidar e revogar outros Masters.

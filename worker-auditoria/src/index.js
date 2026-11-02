@@ -224,6 +224,33 @@ export default {
         return json({item:rows[0]},201,cors);
       }catch(error){console.error("admin link failed",error?.code||"db_error");return json({error:"Não foi possível vincular o administrador"},503,cors);}
     }
+    // Administração Master: desativar, reativar ou remover somente o vínculo institucional.
+    if(/^\/v1\/admin\/institution-admins\/[0-9a-f-]{36}\/[0-9a-f-]{36}$/i.test(url.pathname)&&["PATCH","DELETE"].includes(request.method)){
+      let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
+      if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
+      const parts=url.pathname.split("/"),institutionId=parts[4],userId=parts[5];
+      if(identity.userId.toLowerCase()===userId.toLowerCase())return json({error:"Não é permitido alterar seu próprio vínculo por esta tela"},409,cors);
+      let active=false;
+      if(request.method==="PATCH"){
+        if(!(request.headers.get("content-type")||"").toLowerCase().startsWith("application/json"))return json({error:"Envie JSON"},415,cors);
+        const raw=await request.text();if(raw.length>256)return json({error:"Dados excedem o limite"},413,cors);
+        let data;try{data=JSON.parse(raw);}catch{return json({error:"JSON inválido"},400,cors);}
+        if(typeof data?.active!=="boolean")return json({error:"Informe active como booleano"},422,cors);
+        active=data.active;
+      }
+      try{
+        const sql=neon(env.DATABASE_URL);
+        const allowed=await sql`SELECT EXISTS(SELECT 1 FROM public.platform_admins WHERE user_id=${identity.userId}::uuid) AS ok`;
+        if(!allowed[0]?.ok)return json({error:"Acesso Master negado"},403,cors);
+        const rows=request.method==="DELETE"
+          ?await sql`DELETE FROM public.memberships WHERE institution_id=${institutionId}::uuid AND user_id=${userId}::uuid AND role='institution_admin' RETURNING institution_id,user_id`
+          :await sql`UPDATE public.memberships SET active=${active} WHERE institution_id=${institutionId}::uuid AND user_id=${userId}::uuid AND role='institution_admin' RETURNING institution_id,user_id`;
+        if(!rows.length)return json({error:"Vínculo não encontrado"},404,cors);
+        await sql`INSERT INTO anna_audit.audit_logs(actor_user_id,institution_id,action,entity_type,entity_id,details)
+          VALUES(${identity.userId}::uuid,${institutionId}::uuid,${request.method==="DELETE"?"membership.admin.removed":active?"membership.admin.activated":"membership.admin.deactivated"},'membership',${userId},${JSON.stringify({active:request.method==="DELETE"?null:active})}::jsonb)`;
+        return json({ok:true},200,cors);
+      }catch(error){console.error("admin membership update failed",error?.code||"db_error");return json({error:"Alteração do vínculo indisponível"},503,cors);}
+    }
     if(url.pathname==="/v1/admin/institution-admins"&&request.method==="GET"){
       let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
       if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);

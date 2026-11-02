@@ -26,6 +26,25 @@ async function session(req,pool){const secret=/^Bearer (fc_[a-f0-9]{64})$/i.exec
 function cookie(res,secret){res.setHeader('Set-Cookie','flow_central_session='+secret+'; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=28800')}
 async function handle(req,res,{pool,send,legacyAuth}){try{
 const path=new URL(req.url,'http://localhost').pathname;
+if(path==='/api/central/login'&&req.method==='POST'){
+const a=await body(req),mail=email(a.email),password=String(a.password||'');
+if(!/^\S+@\S+\.\S+$/.test(mail)||!password||password.length>128)return send(res,401,{error:'Credenciais inválidas'});
+const key=String(req.socket.remoteAddress||'')+':'+mail,now=Date.now();
+if(attempts.size>2000)for(const [k,v] of attempts)if(v.until<now)attempts.delete(k);
+const prior=attempts.get(key),rate=prior?.until>now?prior:{count:0,until:now+900000};
+if(rate.count>=5)return send(res,429,{error:'Muitas tentativas. Tente novamente mais tarde'});
+rate.count++;attempts.set(key,rate);
+const base='https://tnvghprwltbziivlxeod.supabase.co',keyPublic='sb_publishable_yI9_7tD4RwGrjolPjiq9vg_oSGpxxFR';
+const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),8000);
+let result;
+try{const r=await fetch(base+'/auth/v1/token?grant_type=password',{method:'POST',headers:{apikey:keyPublic,'Content-Type':'application/json'},body:JSON.stringify({email:mail,password}),signal:ctrl.signal});if(!r.ok)return send(res,401,{error:'Credenciais inválidas ou perfil Master ausente'});result=await r.json()}finally{clearTimeout(timer)}
+const master=await verifyMaster(result.access_token);
+if(!master||master.email!==mail)return send(res,403,{error:'Acesso exclusivo ao Administrador Geral da AnnA One'});
+attempts.delete(key);
+const secret='fc_'+crypto.randomBytes(32).toString('hex');
+await pool.query("INSERT INTO flow_master_sessions(supabase_user_id,token_hash,expires_at) VALUES($1,$2,now()+interval '8 hours')",[master.id,digest(secret)]);
+cookie(res,secret);return send(res,200,{authorized:true});
+}
 if(path==='/api/central/exchange'&&req.method==='POST'){
 const a=await body(req);const master=await verifyMaster(a.accessToken);
 if(!master)return send(res,403,{error:'Faça login como Administrador Geral na AnnA One'});

@@ -1,1 +1,60 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AnnA Flow · Central de acesso</title><style>*{box-sizing:border-box}body{margin:0;background:#08182e;color:#eef7ff;font:16px system-ui}main{max-width:1020px;margin:6vh auto;padding:24px}header{display:flex;align-items:center;gap:14px;margin-bottom:25px}header img{width:54px;height:54px}h1{margin:0;font-size:29px}p{color:#bbd2e8;line-height:1.5}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.card{display:block;background:#142d4b;border:1px solid #355a7b;border-radius:16px;padding:23px;text-decoration:none;color:inherit;min-height:150px}.card:hover,.card:focus-visible{border-color:#34dcca;outline:2px solid #34dcca}.card b{font-size:21px}.card p{margin-bottom:0}small{color:#a9c1d8}@media(max-width:650px){.grid{grid-template-columns:1fr}main{margin:0;padding:16px}}</style></head><body><main><header><img src="anna-symbol.svg" alt=""><div><h1>AnnA Flow</h1><p>Central de acesso · Selecione o ambiente</p></div></header><div class="grid"><a class="card" href="/admin.html"><b>Administração central</b><p>Clientes, unidades, serviços, TVs, comunicação institucional e usuários. Acesso administrativo necessário.</p></a><a class="card" href="/operator.html"><b>Atendimento</b><p>Login individual, chamada de senhas e conclusão de atendimentos por unidade.</p></a><a class="card" href="/issue.html"><b>Emissão de senhas</b><p>Login individual e emissão de senhas normais e preferenciais.</p></a><a class="card" href="/local-media.html"><b>Mídia local da TV</b><p>Importar vídeos e sequências de imagens no dispositivo do painel, com login de administrador do cliente.</p></a></div><p><a href="/" style="color:#85ceff">Abrir painel público demonstrativo</a></p><small>AnnA One · Homologação. Cada módulo aplica suas próprias verificações de acesso.</small></main></body></html>
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Central de Acesso · AnnA Flow</title>
+<style>
+:root{font-family:system-ui,-apple-system,sans-serif;color:#eaf4ff;background:#081627}
+*{box-sizing:border-box}body{margin:0;min-height:100dvh}
+.layout{display:grid;grid-template-columns:242px minmax(0,1fr);min-height:100dvh}
+.sidebar{background:#0d223a;border-right:1px solid #28445e;padding:22px 13px;display:flex;flex-direction:column;gap:28px}
+.brand{display:flex;align-items:center;gap:10px;padding:0 9px;text-decoration:none;color:inherit}
+.brand img{width:38px;height:38px}.brand strong{display:block;font-size:20px}.brand small{color:#91a9c4;font-size:12px}
+.nav{display:grid;gap:6px}.nav a{display:block;color:#bdd0e4;text-decoration:none;font-size:14px;font-weight:650;padding:12px;border-radius:10px;border:1px solid transparent}
+.nav a:hover,.nav a:focus-visible{color:#fff;background:#203c59;border-color:#2876ce;outline:none}.nav a.active{color:#fff;background:#123f74;border-color:#2876ce}
+.sidefoot{margin-top:auto;padding:9px;color:#839bb5;font-size:12px}
+.workspace{min-width:0}.topbar{background:#0c1f35;border-bottom:1px solid #263f5a;min-height:69px;padding:18px 30px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.topbar strong{font-size:19px}.topbar a{color:#85c7ff;text-decoration:none;font-size:14px}
+main{max-width:1190px;margin:0 auto;padding:29px 30px}
+h1{font-size:27px;margin:0 0 7px;font-weight:800}h1 span{color:#4ca8ff}
+.lead{color:#9eb6cc;font-size:14px;margin:0 0 26px;line-height:1.6}
+.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.card{display:flex;flex-direction:column;gap:10px;text-decoration:none;color:#eaf4ff;background:#122b46;border:1px solid #284762;border-radius:14px;padding:23px;min-height:178px;transition:border-color .15s,background .15s}
+.card:hover,.card:focus-visible{border-color:#34dcca;background:#193a59;outline:2px solid #34dcca;outline-offset:1px}
+.card .glyph{color:#34dcca;font-size:23px;line-height:1}.card h2{font-size:20px;margin:0;font-weight:800}.card p{color:#b5cadf;font-size:14px;line-height:1.55;margin:0}
+.note{font-size:13px;color:#9eb6cc;line-height:1.6;margin-top:25px}
+@media(max-width:850px){.layout{grid-template-columns:76px minmax(0,1fr)}.sidebar{padding:14px 7px}.brand{padding:0;justify-content:center}.brand span,.sidefoot{display:none}.nav a{text-align:center;font-size:11px;padding:10px 4px}main{padding:20px}.topbar{padding:17px 20px}}
+@media(max-width:600px){.layout{display:block}.sidebar{gap:12px;padding:12px;position:static}.brand{justify-content:start}.brand span{display:block}.nav{display:flex;gap:7px;overflow-x:auto}.nav a{white-space:nowrap;padding:9px;font-size:12px}.cards{grid-template-columns:1fr}.topbar{padding:15px}main{padding:18px}.card{min-height:135px}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+<a class="brand" href="/"><img src="anna-symbol.svg" alt=""><span><strong>AnnA <span style="color:#4ca8ff">Flow</span></strong><small>Central de Acesso</small></span></a>
+<nav class="nav" aria-label="Módulos do AnnA Flow">
+<a class="active" href="/access.html" aria-current="page">▦ Central</a>
+<a href="/admin.html">▤ Administração</a>
+<a href="/operator.html">◉ Atendimento</a>
+<a href="/issue.html">▧ Emissão</a>
+<a href="/local-media.html">▣ Mídias</a>
+</nav>
+<div class="sidefoot">AnnA One · Homologação</div>
+</aside>
+<div class="workspace">
+<header class="topbar"><strong>AnnA Flow · Central de Acesso</strong><a href="/">Painel público</a></header>
+<main>
+<h1>Bem-vindo ao <span>AnnA Flow</span></h1>
+<p class="lead">Selecione o ambiente de trabalho. Cada módulo mantém suas próprias regras de acesso e permissões.</p>
+<div class="cards">
+<a class="card" href="/admin.html"><span class="glyph" aria-hidden="true">▤</span><h2>Administração central</h2><p>Clientes, unidades, serviços, painéis de TV, comunicação institucional e usuários.</p></a>
+<a class="card" href="/operator.html"><span class="glyph" aria-hidden="true">◉</span><h2>Atendimento</h2><p>Chamada e conclusão de senhas conforme as unidades autorizadas para cada usuário.</p></a>
+<a class="card" href="/issue.html"><span class="glyph" aria-hidden="true">▧</span><h2>Emissão de senhas</h2><p>Emissão de senhas normais e preferenciais com login individual.</p></a>
+<a class="card" href="/local-media.html"><span class="glyph" aria-hidden="true">▣</span><h2>Mídia institucional</h2><p>Importação local de vídeos e sequências de imagens para o painel de TV selecionado.</p></a>
+</div>
+<p class="note">As áreas de atendimento, emissão e mídia exigem autenticação. A administração central utiliza o acesso administrativo configurado na homologação.</p>
+</main>
+</div>
+</div>
+</body>
+</html>

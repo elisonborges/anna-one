@@ -6,7 +6,7 @@ export function mountSso(app,pool,sign,secret){
   try{
    const token=typeof req.body?.token==='string'?req.body.token:'';
    if(token.length>8192||token.split('.').length!==3)return res.status(401).json({error:'Token inválido'});
-   const {payload}=await jwtVerify(token,jwks,{issuer:AUTH_BASE,algorithms:['EdDSA','ES256','RS256']});
+   const {payload}=await jwtVerify(token,jwks,{issuer:[AUTH_BASE,new URL(AUTH_BASE).origin],algorithms:['EdDSA','ES256','RS256']});
    const identity=String(payload.sub||payload.id||'');
    if(!identity||identity.length>160)return res.status(401).json({error:'Identidade inválida'});
    let user=(await pool.query('SELECT id,nome,perfil,ativo FROM reception.usuarios WHERE identidade_externa=$1',[identity])).rows[0];

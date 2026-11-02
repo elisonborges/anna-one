@@ -15,4 +15,39 @@ async function logout(req,res,{pool,send}){const u=await session(req,pool);if(!u
 async function me(req,res,{pool,send}){try{const u=await session(req,pool);if(!u)return send(res,401,{error:'Sessão inválida'});const rows=await pool.query('SELECT un.id,un.name FROM flow_user_units a JOIN flow_client_units un ON un.id=a.unit_id JOIN flow_clients c ON c.id=un.client_id WHERE a.user_id=$1 AND un.active=true AND c.active=true ORDER BY un.name',[u.id]);return send(res,200,{role:u.role,clientId:u.client_id,units:rows.rows})}catch{return send(res,503,{error:'Consulta indisponível'})}}
 async function unitCatalog(req,res,{pool,send}){try{const u=await session(req,pool);if(!u)return send(res,401,{error:'Sessão inválida'});const url=new URL(req.url,'http://localhost');const unit=Number(url.searchParams.get('unit'));if(!Number.isSafeInteger(unit)||unit<1)return send(res,400,{error:'Unidade inválida'});const link=await pool.query('SELECT 1 FROM flow_user_units a JOIN flow_client_units un ON un.id=a.unit_id JOIN flow_clients c ON c.id=un.client_id WHERE a.user_id=$1 AND a.client_id=$2 AND a.unit_id=$3 AND un.active=true AND c.active=true',[u.id,u.client_id,unit]);if(!link.rowCount)return send(res,403,{error:'Unidade não autorizada'});const [services,destinations]=await Promise.all([pool.query('SELECT id,name FROM flow_client_services WHERE unit_id=$1 AND active=true ORDER BY name',[unit]),pool.query('SELECT id,name FROM flow_client_destinations WHERE unit_id=$1 AND active=true ORDER BY name',[unit])]);return send(res,200,{services:services.rows,destinations:destinations.rows})}catch{return send(res,503,{error:'Consulta indisponível'})}}
 async function manageUsers(req,res,{pool,auth,send}){if(!(await auth(req)))return send(res,401,{error:'Administração central necessária'});try{if(req.method==='GET'){const url=new URL(req.url,'http://localhost'),cid=Number(url.searchParams.get('client'));if(!Number.isSafeInteger(cid)||cid<1)return send(res,400,{error:'Cliente inválido'});const q=await pool.query('SELECT id,email,role,active FROM flow_users WHERE client_id=$1 ORDER BY email',[cid]);return send(res,200,{users:q.rows})}if(req.method!=='POST')return send(res,405,{error:'Método inválido'});const a=await body(req),cid=Number(a.clientId),uid=Number(a.userId);if(!Number.isSafeInteger(cid)||cid<1||!Number.isSafeInteger(uid)||uid<1)return send(res,400,{error:'Identificação inválida'});if(!['reset_password','set_active'].includes(a.type))return send(res,400,{error:'Ação inválida'});const cx=await pool.connect();try{await cx.query('BEGIN');let result;if(a.type==='reset_password'){const password=String(a.password||'');if(password.length<12||password.length>128)throw Error('Senha deve ter 12 a 128 caracteres');result=await cx.query('UPDATE flow_users SET password_hash=$1 WHERE id=$2 AND client_id=$3 RETURNING id,email',[hashPassword(password),uid,cid])}else{if(typeof a.active!=='boolean')throw Error('Status inválido');result=await cx.query('UPDATE flow_users SET active=$1 WHERE id=$2 AND client_id=$3 RETURNING id,email,active',[a.active,uid,cid])}if(!result.rowCount)throw Error('Usuário não encontrado');await cx.query('UPDATE flow_sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL',[uid]);await cx.query('INSERT INTO flow_admin_audit(action,client_id,details) VALUES($1,$2,$3::jsonb)',[a.type,cid,JSON.stringify({userId:uid})]);await cx.query('COMMIT');return send(res,200,{updated:result.rows[0],sessionsRevoked:true})}catch(e){await cx.query('ROLLBACK');throw e}finally{cx.release()}}catch(e){return send(res,400,{error:e.message||'Falha na operação'})}}
-module.exports={session,adminPageSession,login,logout,createUser,me,unitCatalog,manageUsers};
+
+async function institutionStaff(req,res,{pool,send}){
+try{
+const actor=await session(req,pool);
+if(!actor||actor.role!=='admin')return send(res,403,{error:'Administrador institucional necessário'});
+const cid=actor.client_id;
+if(req.method==='GET'){
+const [users,units]=await Promise.all([
+pool.query("SELECT u.id,u.email,u.active,COALESCE(array_agg(l.unit_id) FILTER (WHERE l.unit_id IS NOT NULL),'{}') AS units FROM flow_users u LEFT JOIN flow_user_units l ON l.user_id=u.id AND l.client_id=u.client_id WHERE u.client_id=$1 AND u.role='atendente' GROUP BY u.id,u.email,u.active ORDER BY u.email",[cid]),
+pool.query('SELECT id,name FROM flow_client_units WHERE client_id=$1 AND active=true ORDER BY name',[cid])]);
+return send(res,200,{users:users.rows,units:units.rows})}
+if(req.method!=='POST')return send(res,405,{error:'Método não permitido'});
+const a=await body(req);
+if(a.type==='create'){
+const mail=email(a.email),password=String(a.password||''),unit=Number(a.unitId);
+if(!/^\S+@\S+\.\S+$/.test(mail)||password.length<12||password.length>128||!Number.isSafeInteger(unit)||unit<1)return send(res,400,{error:'E-mail, senha ou unidade inválidos'});
+const cx=await pool.connect();try{await cx.query('BEGIN');const ok=await cx.query('SELECT 1 FROM flow_client_units WHERE id=$1 AND client_id=$2 AND active=true',[unit,cid]);if(!ok.rowCount){await cx.query('ROLLBACK');return send(res,403,{error:'Unidade não autorizada'})}
+const user=await cx.query("INSERT INTO flow_users(client_id,email,password_hash,role) VALUES($1,$2,$3,'atendente') RETURNING id,email",[cid,mail,hashPassword(password)]);
+await cx.query('INSERT INTO flow_user_units(user_id,client_id,unit_id) VALUES($1,$2,$3)',[user.rows[0].id,cid,unit]);
+await cx.query('INSERT INTO flow_admin_audit(action,client_id,details) VALUES($1,$2,$3::jsonb)',['staff_created',cid,JSON.stringify({actorId:actor.id,userId:user.rows[0].id,unitId:unit})]);await cx.query('COMMIT');return send(res,201,{user:user.rows[0]})}catch(e){await cx.query('ROLLBACK');if(e.code==='23505')return send(res,409,{error:'Funcionário já cadastrado'});throw e}finally{cx.release()}}
+const uid=Number(a.userId);if(!Number.isSafeInteger(uid)||uid<1)return send(res,400,{error:'Funcionário inválido'});
+const cx=await pool.connect();try{await cx.query('BEGIN');
+let result;
+if(a.type==='set_active'&&typeof a.active==='boolean')result=await cx.query("UPDATE flow_users SET active=$1 WHERE id=$2 AND client_id=$3 AND role='atendente' RETURNING id,active",[a.active,uid,cid]);
+else if(a.type==='reset_password'&&String(a.password||'').length>=12&&String(a.password||'').length<=128)result=await cx.query("UPDATE flow_users SET password_hash=$1 WHERE id=$2 AND client_id=$3 AND role='atendente' RETURNING id",[hashPassword(a.password),uid,cid]);
+else if(a.type==='set_unit'){const unit=Number(a.unitId);if(!Number.isSafeInteger(unit)||unit<1){await cx.query('ROLLBACK');return send(res,400,{error:'Unidade inválida'})}const permitted=await cx.query('SELECT 1 FROM flow_client_units WHERE id=$1 AND client_id=$2 AND active=true',[unit,cid]);if(!permitted.rowCount){await cx.query('ROLLBACK');return send(res,403,{error:'Unidade não autorizada'})}
+const exists=await cx.query("SELECT 1 FROM flow_users WHERE id=$1 AND client_id=$2 AND role='atendente'",[uid,cid]);if(!exists.rowCount){await cx.query('ROLLBACK');return send(res,404,{error:'Funcionário não encontrado'})}
+await cx.query('DELETE FROM flow_user_units WHERE user_id=$1 AND client_id=$2',[uid,cid]);await cx.query('INSERT INTO flow_user_units(user_id,client_id,unit_id) VALUES($1,$2,$3)',[uid,cid,unit]);result={rows:[{id:uid,unitId:unit}],rowCount:1}
+}else{await cx.query('ROLLBACK');return send(res,400,{error:'Operação inválida'})}
+if(!result.rowCount){await cx.query('ROLLBACK');return send(res,404,{error:'Funcionário não encontrado'})}
+await cx.query('UPDATE flow_sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL',[uid]);
+await cx.query('INSERT INTO flow_admin_audit(action,client_id,details) VALUES($1,$2,$3::jsonb)',[a.type,cid,JSON.stringify({actorId:actor.id,userId:uid})]);
+await cx.query('COMMIT');return send(res,200,{updated:result.rows[0]})}catch(e){await cx.query('ROLLBACK');throw e}finally{cx.release()}
+}catch{return send(res,503,{error:'Não foi possível gerenciar funcionários'})}}
+
+module.exports={institutionStaff,session,adminPageSession,login,logout,createUser,me,unitCatalog,manageUsers};

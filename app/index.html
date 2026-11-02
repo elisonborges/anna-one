@@ -28,6 +28,8 @@ try {
      document.getElementById('anna-account-role').textContent='Administrador Institucional · '+institution.name;
      document.documentElement.dataset.institutionAuthorized='true';
      window.annaInstitution={id:institution.id,name:institution.name,role:institution.role};
+     window.annaAuthorizedModules=Array.isArray(data.modules)?data.modules.filter(m=>typeof m?.name==='string').map(m=>m.name):[];
+     window.dispatchEvent(new Event('anna-permissions-ready'));
     }else document.getElementById('anna-account-role').textContent='Conta autenticada · sem vínculo institucional ativo';
    }else document.getElementById('anna-account-role').textContent='Conta autenticada · verificação institucional indisponível';
   }else document.getElementById('anna-account-role').textContent='Conta autenticada · verificação institucional indisponível';
@@ -66,7 +68,8 @@ const tiles=[...document.querySelectorAll('.dash-tile[data-module]')];
 const search=document.getElementById('module-search');
 const summary=document.getElementById('access-summary');
 const status=document.getElementById('favoritos');
-const allowedModules=new Set();
+const allowedModules=new Set(window.annaAuthorizedModules||[]);
+window.addEventListener('anna-permissions-ready',()=>{allowedModules.clear();for(const name of window.annaAuthorizedModules||[])allowedModules.add(name);renderAuthorizedModules();});
 function renderAuthorizedModules(){
  const q=(search?.value||'').trim().toLocaleLowerCase('pt-BR');
  let visible=0;
@@ -82,7 +85,7 @@ function renderAuthorizedModules(){
   group.hidden=count===0;
  });
  document.documentElement.dataset.modulesAuthorized=allowedModules.size?'true':'false';
- summary.textContent=allowedModules.size?'Módulos autorizados para sua conta.':'Nenhum módulo liberado: aguardando confirmação das permissões institucionais.';
+ summary.textContent=allowedModules.size?'Módulos autorizados para sua conta.':document.documentElement.dataset.institutionAuthorized==='true'?'Instituição reconhecida. Nenhum módulo habilitado para esta instituição.':'Nenhum módulo liberado: aguardando confirmação das permissões institucionais.';
  status.hidden=visible>0;
  status.textContent=visible?'':allowedModules.size?'Nenhum módulo encontrado.':'O catálogo permanece oculto até a validação de acesso.';
 }

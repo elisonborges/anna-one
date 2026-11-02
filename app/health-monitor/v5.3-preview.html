@@ -175,7 +175,7 @@ async function loadAudit(append=false){
   if(action)params.set('action',action);if(institution)params.set('institution_id',institution);
   if(append&&cursor)params.set('before',cursor);
   const response=await fetch(auditWorker+'/v1/admin/audit-logs?'+params,{headers:{Authorization:'Bearer '+jwt},cache:'no-store'});
-  if(!response.ok){if(response.status===401||response.status===403)throw Error('Acesso à auditoria não autorizado pelo servidor.');if(response.status===404)throw Error('Endpoint de auditoria não encontrado no Worker.');throw Error('Falha HTTP '+response.status);}
+  if(!response.ok){if(response.status===401)throw Error('Sessão Neon Auth inválida ou expirada. Faça login novamente na Administração Master.');if(response.status===403)throw Error('O servidor negou acesso: somente administradores Master autorizados podem consultar auditoria.');if(response.status===404)throw Error('Endpoint de auditoria não encontrado no Worker.');if(response.status===429)throw Error('Limite temporário de consultas atingido. Tente novamente mais tarde.');throw Error('Falha HTTP '+response.status);}
   const data=await response.json();
   if(!Array.isArray(data?.items))throw Error('Formato de resposta inesperado.');
   if(document.getElementById('auditNav').hidden)return;
@@ -187,7 +187,7 @@ async function loadAudit(append=false){
   }
   cursor=typeof data.next_cursor==='string'&&data.next_cursor?data.next_cursor:null;
   more.hidden=!cursor;status.textContent=rows.children.length+' evento(s) exibido(s).'+(cursor?' Há mais resultados.':'');
- }catch(e){status.textContent=e?.message||'Erro na consulta.';more.hidden=true;}
+ }catch(e){status.textContent=e instanceof TypeError?'Não foi possível conectar ao Worker de Auditoria. Verifique implantação, rede e CORS.':(e?.message||'Erro na consulta.');more.hidden=true;}
  finally{busy=false;search.disabled=false;more.disabled=false;}
 }
 search.addEventListener('click',()=>loadAudit(false));more.addEventListener('click',()=>loadAudit(true));

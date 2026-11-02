@@ -85,7 +85,7 @@ if(url.pathname==='/api/users'&&req.method==='POST')return userAuth.createUser(r
 if(url.pathname==='/api/client-panels'&&req.method==='GET'){try{const u=await userAuth.session(req,pool);if(!u||u.role!=='admin')return send(res,403,{error:'Administrador necessário'});const q=await pool.query('SELECT p.id,p.name,p.public_key FROM flow_signage_profiles p WHERE p.client_id=$1 AND p.active=true AND EXISTS(SELECT 1 FROM flow_user_units lu WHERE lu.user_id=$2 AND lu.client_id=$1 AND lu.unit_id=p.unit_id) ORDER BY p.name',[u.client_id,u.id]);return send(res,200,{panels:q.rows})}catch{return send(res,503,{error:'Consulta indisponível'})}}
 if(url.pathname==='/api/panel')return panelApi(req,res,{pool,send,deviceApi});
 if(url.pathname==='/api/tenant')return tenantApi(req,res,{pool,auth,send,deviceApi});
-if(url.pathname==='/api/admin')return adminApi(req,res,{pool,auth,send});
+if(url.pathname==='/api/admin'){if(!(await auth(req)))return send(res,403,{error:'Acesso Master necessário'});return adminApi(req,res,{pool,auth,send});}
 if(url.pathname==='/health')return send(res,200,{ok:true,service:'anna-flow'});
 if(url.pathname==='/api/state'&&req.method==='GET'){try{const q=await pool.query('SELECT revision,state FROM flow_runtime WHERE id=1');return send(res,200,q.rows[0]||{revision:0,state:defaults})}catch{return send(res,503,{error:'Banco indisponível'})}}
 if(url.pathname==='/api/action'&&req.method==='POST'){

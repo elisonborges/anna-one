@@ -17,6 +17,24 @@ function session(req){try{const [b,s]=String(cookies(req).reception_session||'')
 async function auth(req,res,next){const s=session(req);if(!s)return fail(res,401,'Faça login');const x=await pool.query('SELECT id,nome,perfil FROM reception.usuarios WHERE id=$1 AND ativo=true',[s.id]);if(!x.rows[0])return fail(res,401,'Acesso não autorizado');req.user=x.rows[0];next()}
 function role(...roles){return(req,res,next)=>roles.includes(req.user.perfil)?next():fail(res,403,'Perfil não autorizado')}
 app.use('/api',(req,res,next)=>{if(['GET','HEAD'].includes(req.method))return next();const origin=req.get('origin');if(origin&&origin!==req.protocol+'://'+req.get('host'))return fail(res,403,'Origem inválida');if(req.path==='/sso')return next();if(!cookies(req).reception_csrf || !req.get('x-csrf-token') || req.get('x-csrf-token')!==cookies(req).reception_csrf)return fail(res,403,'Sessão inválida');next()});
+// Proxy restrito ao Neon Auth central: mantém a autenticação no mesmo domínio do navegador.
+const CENTRAL_AUTH='https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth';
+app.all('/central-auth/{*path}',rateLimit({windowMs:60000,limit:30}),route(async(req,res)=>{
+ const sub=req.params.path||'';
+ const allowed=/^(get-session|sign-in\/email|sign-out|token|refresh-token|\.well-known\/jwks\.json)$/;
+ if(!allowed.test(sub)||!['GET','POST'].includes(req.method))return fail(res,404,'Rota não disponível');
+ const target=CENTRAL_AUTH+'/'+sub+(req.url.includes('?')?'?'+req.url.split('?').slice(1).join('?'):'');
+ const headers={'accept':'application/json','origin':'https://annaone.com.br'};
+ if(req.method==='POST')headers['content-type']='application/json';
+ if(req.headers.cookie)headers.cookie=req.headers.cookie;
+ let remote;
+ try{remote=await fetch(target,{method:req.method,headers,body:req.method==='POST'?JSON.stringify(req.body||{}):undefined,redirect:'manual',signal:AbortSignal.timeout(12000)})}
+ catch{return fail(res,502,'Neon Auth indisponível para o servidor')}
+ for(const raw of remote.headers.getSetCookie?.()||[]){res.append('Set-Cookie',raw.replace(/;\s*Domain=[^;]*/ig,''))}
+ res.status(remote.status);
+ const ct=remote.headers.get('content-type');if(ct)res.set('Content-Type',ct);
+ res.send(Buffer.from(await remote.arrayBuffer()));
+}));
 mountSso(app,pool,sign,secret);
 app.get('/api/health',(_req,res)=>res.json({status:'online'}));
 app.get('/api/me',auth,(req,res)=>res.json({user:req.user}));

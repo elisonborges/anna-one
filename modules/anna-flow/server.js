@@ -6,13 +6,14 @@ const tenantApi=require('./tenant-api');
 const panelApi=require('./panel-api');
 const userAuth=require('./auth-api');
 const deviceApi=require('./device-api');
+const centralAuth=require('./central-auth');
 const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:true},max:5});
 const token=process.env.FLOW_ADMIN_TOKEN||'';
 if(!process.env.DATABASE_URL||token.length<24){console.error('Configure DATABASE_URL e FLOW_ADMIN_TOKEN (mínimo 24 caracteres).');process.exit(1)}
 const port=Number(process.env.PORT)||3000;
 const defaults={services:['Matrículas','Financeiro','Vendas','Informações'],counters:{},queue:[],current:null,history:[],completed:0,calls:0,messages:['Bem-vindo ao atendimento.','Seu tempo é importante. Obrigado por aguardar.'],notice:'Tenha os documentos em mãos.'};
 const send=(res,status,obj)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(obj))};
-function auth(req){let given=(req.headers.authorization||'').replace(/^Bearer /,'');const a=Buffer.from(given),b=Buffer.from(token);return a.length===b.length&&crypto.timingSafeEqual(a,b)}
+function legacyAuth(req){let given=(req.headers.authorization||'').replace(/^Bearer /,'');const a=Buffer.from(given),b=Buffer.from(token);return a.length===b.length&&crypto.timingSafeEqual(a,b)}
 function act(s,a){const str=(v,n=80)=>typeof v==='string'?v.trim().slice(0,n):'';switch(a.type){
 case 'issue': {const service=str(a.service),priority=a.priority==='preferencial'?'preferencial':'normal';const i=s.services.indexOf(service);if(i<0)throw Error('Serviço inválido');const k=(i+1)+'-'+priority;s.counters[k]=(s.counters[k]||0)+1;const code=(priority==='preferencial'?'P':'A')+(i+1)+'-'+String(s.counters[k]).padStart(3,'0');s.queue.push({code,service,priority});return {code}}
 case 'call': {const service=str(a.service),desk=str(a.desk,15);if(!s.services.includes(service)||!/^[0-9]{1,3}$/.test(desk))throw Error('Serviço ou guichê inválido');if(s.current)throw Error('Conclua a chamada anterior');let i=s.queue.findIndex(q=>q.service===service&&q.priority==='preferencial');if(i<0)i=s.queue.findIndex(q=>q.service===service);if(i<0)throw Error('Fila vazia');s.current={...s.queue.splice(i,1)[0],desk};s.calls++;s.history.unshift({...s.current,done:false});s.history=s.history.slice(0,30);return {code:s.current.code}}
@@ -22,7 +23,9 @@ case 'communication': {s.notice=str(a.notice,180)||defaults.notice;s.messages=Ar
 case 'demo': {if(s.queue.length||s.current)throw Error('Limpe a fila primeiro');for(const name of s.services.slice(0,4))act(s,{type:'issue',service:name,priority:'normal'});return {ok:true}}
 case 'reset': {Object.assign(s,{queue:[],current:null,history:[],counters:{},completed:0,calls:0});return {ok:true}}
 default:throw Error('Ação inválida')}}
+async function auth(req){return !!(await centralAuth.session(req,pool))}
 const server=http.createServer(async(req,res)=>{const url=new URL(req.url,'http://localhost');
+if(url.pathname.startsWith('/api/central/'))return centralAuth.handle(req,res,{pool,send,legacyAuth});
 if(url.pathname.startsWith('/api/device/'))return deviceApi.handle(req,res,{pool,auth,send,userAuth});
 const adminCookie=()=>/(?:^|;\s*)flow_central_access=([a-f0-9]{64})\.([0-9]{10})(?:;|$)/.exec(req.headers.cookie||'');
 function centralAllowed(){const v=adminCookie();if(!v)return false;const expiry=Number(v[2]);if(expiry<Date.now()/1000||expiry>Date.now()/1000+28810)return false;const mac=crypto.createHmac('sha256',token).update('flow-central:'+v[2]).digest('hex');return crypto.timingSafeEqual(Buffer.from(mac),Buffer.from(v[1]))}
@@ -33,10 +36,11 @@ for await(const chunk of req){raw+=chunk;if(raw.length>512)return send(res,413,{
 const a=JSON.parse(raw),email=String(a.email||'').trim().toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)return send(res,400,{error:'Informe um e-mail válido'});
 const q=await pool.query("SELECT DISTINCT c.id,c.name FROM flow_users u JOIN flow_clients c ON c.id=u.client_id WHERE u.email=$1 AND u.active=true AND u.role='admin' AND c.active=true ORDER BY c.name,c.id LIMIT 30",[email]);return send(res,200,{institutions:q.rows});
 }catch{return send(res,503,{error:'Não foi possível consultar as instituições'})}}
-if(url.pathname==='/api/admin-gate'&&req.method==='POST'){
-let raw='';try{for await(const chunk of req){raw+=chunk;if(raw.length>2048)return send(res,413,{error:'Dados excessivos'})}const a=JSON.parse(raw);if(typeof a.token!=='string'||!auth({headers:{authorization:'Bearer '+a.token}}))return send(res,401,{error:'Credencial administrativa inválida'});const exp=String(Math.floor(Date.now()/1000)+28800),signature=crypto.createHmac('sha256',token).update('flow-central:'+exp).digest('hex');res.setHeader('Set-Cookie','flow_central_access='+signature+'.'+exp+'; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=28800');return send(res,200,{ok:true})}catch{return send(res,400,{error:'Solicitação inválida'})}}
-if(url.pathname==='/api/admin-page-logout'&&req.method==='POST'){res.setHeader('Set-Cookie',['flow_central_access=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0','flow_admin_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0']);return send(res,200,{ok:true})}
-if(url.pathname==='/api/admin-page-access'&&req.method==='GET'){const institutional=await userAuth.adminPageSession(req,pool).catch(()=>null);return send(res,200,{authorized:centralAllowed()||institutional?.role==='admin',central:centralAllowed(),clientId:institutional?.client_id||null})}
+if(url.pathname==='/api/admin-gate'&&req.method==='POST')return send(res,410,{error:'Use o login individual da Administração Central'});
+if(false){
+let raw='';try{for await(const chunk of req){raw+=chunk;if(raw.length>2048)return send(res,413,{error:'Dados excessivos'})}const a=JSON.parse(raw);if(typeof a.token!=='string'||!legacyAuth({headers:{authorization:'Bearer '+a.token}}))return send(res,401,{error:'Credencial administrativa inválida'});const exp=String(Math.floor(Date.now()/1000)+28800),signature=crypto.createHmac('sha256',token).update('flow-central:'+exp).digest('hex');res.setHeader('Set-Cookie','flow_central_access='+signature+'.'+exp+'; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=28800');return send(res,200,{ok:true})}catch{return send(res,400,{error:'Solicitação inválida'})}}
+if(url.pathname==='/api/admin-page-logout'&&req.method==='POST'){const central=await centralAuth.session(req,pool);if(central)await pool.query('UPDATE flow_central_sessions SET revoked_at=now() WHERE id=$1',[central.session_id]);res.setHeader('Set-Cookie',['flow_central_access=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0','flow_admin_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0','flow_central_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0']);return send(res,200,{ok:true})}
+if(url.pathname==='/api/admin-page-access'&&req.method==='GET'){const institutional=await userAuth.adminPageSession(req,pool).catch(()=>null);return send(res,200,{authorized:(await auth(req))||institutional?.role==='admin',central:await auth(req),clientId:institutional?.client_id||null})}
 if(url.pathname==='/api/manage-users')return userAuth.manageUsers(req,res,{pool,auth,send});
 if(url.pathname==='/api/me'&&req.method==='GET')return userAuth.me(req,res,{pool,send});
 if(url.pathname==='/api/catalog'&&req.method==='GET')return userAuth.unitCatalog(req,res,{pool,send});
@@ -50,7 +54,7 @@ if(url.pathname==='/api/admin')return adminApi(req,res,{pool,auth,send});
 if(url.pathname==='/health')return send(res,200,{ok:true,service:'anna-flow'});
 if(url.pathname==='/api/state'&&req.method==='GET'){try{const q=await pool.query('SELECT revision,state FROM flow_runtime WHERE id=1');return send(res,200,q.rows[0]||{revision:0,state:defaults})}catch{return send(res,503,{error:'Banco indisponível'})}}
 if(url.pathname==='/api/action'&&req.method==='POST'){
-if(!auth(req))return send(res,401,{error:'Não autorizado'});
+if(!(await auth(req)))return send(res,401,{error:'Não autorizado'});
 let body='';try{for await(const chunk of req){body+=chunk;if(body.length>12000)return send(res,413,{error:'Requisição muito grande'})}}catch{return send(res,400,{error:'Leitura inválida'})}
 let a;try{a=JSON.parse(body)}catch{return send(res,400,{error:'JSON inválido'})}
 const client=await pool.connect().catch(()=>null);if(!client)return send(res,503,{error:'Banco indisponível'});
@@ -58,7 +62,7 @@ try{await client.query('BEGIN');const q=await client.query('SELECT revision,stat
 if(url.pathname.startsWith('/api/'))return send(res,404,{error:'Rota inexistente'});
 if(req.method!=='GET')return send(res,405,{error:'Método inválido'});
 const name=url.pathname==='/'?'index.html':url.pathname.slice(1);
-if(name==='admin.html'){const institutional=await userAuth.adminPageSession(req,pool).catch(()=>null);if(!centralAllowed()&&institutional?.role!=='admin'){res.writeHead(302,{'Location':'/flow-login.html','Cache-Control':'no-store'});return res.end()}}
+if(name==='admin.html'){const institutional=await userAuth.adminPageSession(req,pool).catch(()=>null);if(!(await auth(req))&&institutional?.role!=='admin'){res.writeHead(302,{'Location':'/flow-login.html','Cache-Control':'no-store'});return res.end()}}
 if(!['index.html','app.js','anna-symbol.svg','admin.html','admin.js','tenant-console.js','panel.html','panel.js','panel-config.js','operator.html','operator.js','users-admin.js','manage-users.js','admin-layout.js','issue.html','issue.js','communication-admin.js','local-media.html','local-media.js','local-player.js','access.html','flow-login.html','flow-login.js','admin-gate.js','device.html','device.js','device-admin.js'].includes(name))return send(res,404,{error:'Arquivo não encontrado'});
 try{const data=fs.readFileSync(path.join(__dirname,name));res.writeHead(200,{'Content-Type':name.endsWith('.js')?'text/javascript; charset=utf-8':name.endsWith('.svg')?'image/svg+xml':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self' https: blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"});res.end(data)}catch{return send(res,404,{error:'Arquivo inexistente'})}});
 server.listen(port,'0.0.0.0',()=>console.log('AnnA Flow online escutando na porta '+port));

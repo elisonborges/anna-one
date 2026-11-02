@@ -6,12 +6,13 @@ const tokenOk=s=>/^fd_[a-f0-9]{64}$/.test(String(s||''));
 const id=s=>{const n=Number(s);if(!Number.isSafeInteger(n)||n<1)throw Error('Identificador inválido');return n};
 async function read(req){let s='';for await(const c of req){s+=c;if(s.length>4096)throw Error('Conteúdo excedido')}return JSON.parse(s)}
 const scopes={tv:['tv'],totem:['totem'],recepcao:['recepcao'],terminal:['terminal']};
+const requestRates=new Map();
 async function device(req,pool){const token=req.headers['x-flow-device']||'';if(!tokenOk(token))return null;const q=await pool.query("SELECT d.id,d.client_id,d.unit_id,d.kind,d.panel_id,d.destination_id FROM flow_devices d JOIN flow_clients c ON c.id=d.client_id JOIN flow_client_units u ON u.id=d.unit_id AND u.client_id=d.client_id WHERE d.credential_hash=$1 AND d.active=true AND d.revoked_at IS NULL AND c.active=true AND u.active=true",[hash(token)]);return q.rows[0]||null}
 async function handle(req,res,{pool,auth,send,userAuth}){
 const url=new URL(req.url,'http://localhost');const action=url.pathname;
 try{
 if(action==='/api/device/request'&&req.method==='POST'){
-const data=await read(req);if(!tokenOk(data.credential))return send(res,400,{error:'Credencial inválida'});
+const ip=req.socket.remoteAddress||'unknown',now=Date.now(),prior=requestRates.get(ip)||{count:0,until:0};if(requestRates.size>2000){for(const [k,v] of requestRates)if(v.until<now)requestRates.delete(k)}const rate=prior.until>now?prior:{count:0,until:now+600000};if(rate.count>=6)return send(res,429,{error:'Muitas ativações. Tente novamente mais tarde'});rate.count++;requestRates.set(ip,rate);const data=await read(req);if(!tokenOk(data.credential))return send(res,400,{error:'Credencial inválida'});
 const code=String(crypto.randomInt(0,100000000)).padStart(8,'0');const q=await pool.query('INSERT INTO flow_device_requests(code_hash,claim_hash) VALUES($1,$2) RETURNING id,expires_at',[hash(code),hash(data.credential)]);return send(res,201,{requestId:q.rows[0].id,code,expiresAt:q.rows[0].expires_at});
 }
 if(action==='/api/device/status'&&req.method==='GET'){

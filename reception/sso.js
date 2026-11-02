@@ -11,6 +11,14 @@ export function mountSso(app,pool,sign,secret){
    if(!identity||identity.length>160)return res.status(401).json({error:'Identidade inválida'});
    let user=(await pool.query('SELECT id,nome,perfil,ativo FROM reception.usuarios WHERE identidade_externa=$1',[identity])).rows[0];
    if(!user){
+    // O convite só vincula uma identidade após autenticação com e-mail verificado.
+    const email=String(payload.email||'').trim().toLowerCase();
+    const verified=payload.email_verified===true||payload.emailVerified===true;
+    if(verified&&email&&email.length<=254){
+     user=(await pool.query("UPDATE reception.usuarios SET identidade_externa=$1 WHERE id=(SELECT id FROM reception.usuarios WHERE lower(email_convite)=$2 AND identidade_externa IS NULL AND ativo=true FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING id,nome,perfil,ativo",[identity,email])).rows[0];
+    }
+   }
+   if(!user){
     // Somente o administrador Master confirmado pelo serviço de autorização do portal pode iniciar a administração.
     const response=await fetch('https://anna-one-auditoria.elisonborg.workers.dev/v1/admin/authorize',{headers:{Authorization:'Bearer '+token},signal:AbortSignal.timeout(6000)});
     if(!response.ok||(await response.json()).admin_authorized!==true)return res.status(403).json({error:'Conta AnnA One válida, mas sem permissão no Reception'});

@@ -139,7 +139,7 @@ export default {
       }catch{return json({authorized:false,error:"Verificação indisponível"},503,cors);}
     }
     // Integração Portal → Flow. Vínculo não concede acesso sem habilitação do módulo.
-    const flowLinkMatch=url.pathname.match(/^\\/v1\\/admin\\/flow-links\\/([0-9a-f-]{36})$/i);
+    const flowLinkMatch=url.pathname.match(new RegExp("^/v1/admin/flow-links/([0-9a-f-]{36})$","i"));
     if(flowLinkMatch&&["GET","PUT"].includes(request.method)){
       let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
       if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);

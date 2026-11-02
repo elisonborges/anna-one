@@ -10,12 +10,14 @@ try {
  document.getElementById('anna-account-role').textContent='Verificando permissões…';
   let jwt=session?.data?.session?.access_token;
   if(typeof jwt!=='string'||jwt.split('.').length!==3){
-   for(const method of ['getJWTToken','getJwtToken','token']){
-    if(typeof auth[method]!=='function')continue;
-    try{const result=await auth[method]();const candidate=typeof result==='string'?result:result?.token||result?.data?.token||result?.data?.jwt||result?.data?.access_token||result?.data?.session?.access_token;
-     if(typeof candidate==='string'&&candidate.split('.').length===3){jwt=candidate;break;}}
-    catch{}
-   }
+   try{
+    const tokenResponse=await fetch('https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth/token',{credentials:'include',cache:'no-store'});
+    if(tokenResponse.ok){
+     const tokenData=await tokenResponse.json();
+     const candidate=typeof tokenData==='string'?tokenData:tokenData?.token||tokenData?.data?.token||tokenData?.access_token;
+     if(typeof candidate==='string'&&candidate.split('.').length===3)jwt=candidate;
+    }
+   }catch{}
   }
 
  try{

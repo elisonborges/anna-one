@@ -105,6 +105,39 @@ export default {
         return json({ items: rows }, 200, cors);
       } catch { return json({ error: "Consulta administrativa indisponível" }, 503, cors); }
     }
+    // Perfis e permissões: lista de módulos por instituição, protegida por Master.
+    if(/^\/v1\/admin\/institutions\/[0-9a-f-]{36}\/modules$/i.test(url.pathname)&&["GET","PUT"].includes(request.method)){
+      let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
+      if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
+      const institutionId=url.pathname.split("/")[4];
+      try{
+        const sql=neon(env.DATABASE_URL);
+        const master=await sql`SELECT EXISTS(SELECT 1 FROM public.platform_admins WHERE user_id=${identity.userId}::uuid) AS ok`;
+        if(!master[0]?.ok)return json({error:"Acesso Master negado"},403,cors);
+        const institutions=await sql`SELECT id,name,status FROM public.institutions WHERE id=${institutionId}::uuid`;
+        if(!institutions.length)return json({error:"Instituição não encontrada"},404,cors);
+        if(request.method==="GET"){
+          const modules=await sql`SELECT mo.id,mo.code,mo.name,mo.status,COALESCE(im.enabled,false) AS enabled
+            FROM public.modules mo LEFT JOIN public.institution_modules im
+            ON im.module_id=mo.id AND im.institution_id=${institutionId}::uuid ORDER BY mo.name`;
+          return json({institution:institutions[0],modules},200,cors);
+        }
+        if(institutions[0].status!=="active")return json({error:"Instituição suspensa"},409,cors);
+        if(!(request.headers.get("content-type")||"").toLowerCase().startsWith("application/json"))return json({error:"Envie JSON"},415,cors);
+        const raw=await request.text();if(raw.length>4096)return json({error:"Dados excedem o limite"},413,cors);
+        let data;try{data=JSON.parse(raw);}catch{return json({error:"JSON inválido"},400,cors);}
+        const moduleId=typeof data?.module_id==="string"?data.module_id:"";
+        if(!/^[0-9a-f-]{36}$/i.test(moduleId)||typeof data?.enabled!=="boolean")return json({error:"Módulo ou permissão inválidos"},422,cors);
+        const moduleRows=await sql`SELECT id,status FROM public.modules WHERE id=${moduleId}::uuid`;
+        if(!moduleRows.length)return json({error:"Módulo não encontrado"},404,cors);
+        if(data.enabled&&moduleRows[0].status!=="available")return json({error:"Módulo ainda não disponível"},409,cors);
+        const changed=await sql`INSERT INTO public.institution_modules(institution_id,module_id,enabled)
+          VALUES(${institutionId}::uuid,${moduleId}::uuid,${data.enabled})
+          ON CONFLICT(institution_id,module_id) DO UPDATE SET enabled=EXCLUDED.enabled
+          RETURNING institution_id,module_id,enabled`;
+        return json({ok:true,item:changed[0]},200,cors);
+      }catch(error){console.error("institution modules failed",error?.code||"db_error");return json({error:"Permissões indisponíveis"},503,cors);}
+    }
     if(/^\/v1\/admin\/institution-admin-invitations\/[0-9a-f-]{36}\/cancel$/i.test(url.pathname)&&request.method==="POST"){
       let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
       if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);

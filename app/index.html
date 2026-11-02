@@ -1,4 +1,4 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0c2646"><title>AnnA One | Plataforma</title><link rel="icon" href="../assets/anna-symbol.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css?v=dashboard083"><style>html:not(.anna-authenticated) body{visibility:hidden}#master-nav{display:none}html[data.master-authorized="true"] #master-nav{display:block!important}.dash-tile[hidden],.dash-group[hidden]{display:none!important}html:not([data.modules-authorized="true"]) .dash-tile,html:not([data.modules-authorized="true"]) .dash-group{display:none!important}</style><script type="module">
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0c2646"><title>AnnA One | Plataforma</title><link rel="icon" href="../assets/anna-symbol.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css?v=dashboard083"><style>html:not(.anna-authenticated) body{visibility:hidden}#master-nav{display:none!important}html[data.master-authorized="true"] #master-nav{display:block!important;visibility:visible!important}.dash-tile[hidden],.dash-group[hidden]{display:none!important}html:not([data.modules-authorized="true"]) .dash-tile,html:not([data.modules-authorized="true"]) .dash-group{display:none!important}</style><script type="module">
 try {
  const {createAuthClient}=await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');
  const auth=createAuthClient('https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth');
@@ -23,7 +23,7 @@ try {
  try{
   if(typeof jwt==='string'&&jwt.split('.').length===3){
    const response=await fetch('https://anna-one-auditoria.elisonborg.workers.dev/v1/admin/authorize',{headers:{Authorization:'Bearer '+jwt},cache:'no-store'});
-   if(response.ok&&(await response.json()).admin_authorized===true){document.documentElement.dataset.masterAuthorized='true';document.getElementById('master-nav').hidden=false;document.getElementById('anna-account-role').textContent='Administrador Master · AnnA One';window.dispatchEvent(new Event('anna-permissions-ready'));}
+   if(response.ok&&(await response.json()).admin_authorized===true){document.documentElement.dataset.masterAuthorized='true';document.getElementById('master-nav').hidden=false;document.getElementById('master-nav').style.setProperty('display','block','important');document.getElementById('anna-account-role').textContent='Administrador Master · AnnA One';window.dispatchEvent(new Event('anna-permissions-ready'));}
   }
  }catch{ /* A administração Master permanece oculta sem autorização confirmada. */ }
  try {

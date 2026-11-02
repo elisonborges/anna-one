@@ -7,7 +7,7 @@ try {
  document.documentElement.classList.add('anna-authenticated');
  const currentUser=session.data.user||session.data.session.user;
  document.getElementById('anna-account-email').textContent=currentUser.email||'Usuário autenticado';
- document.getElementById('anna-account-role').textContent='Verificando vínculo institucional…';
+ document.getElementById('anna-account-role').textContent='Verificando permissões…';
   let jwt=session?.data?.session?.access_token;
   if(typeof jwt!=='string'||jwt.split('.').length!==3){
    for(const method of ['getJWTToken','getJwtToken','token']){
@@ -18,6 +18,12 @@ try {
    }
   }
 
+ try{
+  if(typeof jwt==='string'&&jwt.split('.').length===3){
+   const response=await fetch('https://anna-one-auditoria.elisonborg.workers.dev/v1/admin/authorize',{headers:{Authorization:'Bearer '+jwt},cache:'no-store'});
+   if(response.ok&&(await response.json()).admin_authorized===true){document.documentElement.dataset.masterAuthorized='true';document.getElementById('master-nav').hidden=false;document.getElementById('anna-account-role').textContent='Administrador Master · AnnA One';window.dispatchEvent(new Event('anna-permissions-ready'));}
+  }
+ }catch{ /* A administração Master permanece oculta sem autorização confirmada. */ }
  try {
   if(typeof jwt==='string'&&jwt.split('.').length===3){
    const response=await fetch('https://anna-one-auditoria.elisonborg.workers.dev/v1/institution/me',{headers:{Authorization:'Bearer '+jwt},cache:'no-store'});
@@ -25,21 +31,15 @@ try {
     const data=await response.json();
     if(data?.authorized===true&&Array.isArray(data.institutions)&&data.institutions.length){
      const institution=data.institutions[0];
-     document.getElementById('anna-account-role').textContent='Administrador Institucional · '+institution.name;
+     if(document.documentElement.dataset.masterAuthorized!=='true')document.getElementById('anna-account-role').textContent='Administrador Institucional · '+institution.name;
      document.documentElement.dataset.institutionAuthorized='true';
      window.annaInstitution={id:institution.id,name:institution.name,role:institution.role};
      window.annaAuthorizedModules=Array.isArray(data.modules)?data.modules.filter(m=>typeof m?.name==='string').map(m=>m.name):[];
      window.dispatchEvent(new Event('anna-permissions-ready'));
-    }else document.getElementById('anna-account-role').textContent='Conta autenticada · sem vínculo institucional ativo';
-   }else document.getElementById('anna-account-role').textContent='Conta autenticada · verificação institucional indisponível';
-  }else document.getElementById('anna-account-role').textContent='Conta autenticada · verificação institucional indisponível';
- }catch{document.getElementById('anna-account-role').textContent='Conta autenticada · verificação institucional indisponível';}
- try{
-  if(typeof jwt==='string'&&jwt.split('.').length===3){
-   const response=await fetch('https://anna-one-auditoria.elisonborg.workers.dev/v1/admin/authorize',{headers:{Authorization:'Bearer '+jwt},cache:'no-store'});
-   if(response.ok&&(await response.json()).admin_authorized===true){document.documentElement.dataset.masterAuthorized='true';document.getElementById('master-nav').hidden=false;document.getElementById('anna-account-role').textContent='Administrador Master · AnnA One';}
-  }
- }catch{ /* A administração Master permanece oculta sem autorização confirmada. */ }
+    }else if(document.documentElement.dataset.masterAuthorized!=='true')document.getElementById('anna-account-role').textContent='Conta autenticada · sem vínculo institucional ativo';
+   }else if(document.documentElement.dataset.masterAuthorized!=='true')document.getElementById('anna-account-role').textContent='Conta autenticada · verificação institucional indisponível';
+  }else if(document.documentElement.dataset.masterAuthorized!=='true')document.getElementById('anna-account-role').textContent='Conta autenticada · verificação institucional indisponível';
+ }catch{if(document.documentElement.dataset.masterAuthorized!=='true')document.getElementById('anna-account-role').textContent='Conta autenticada · verificação institucional indisponível';}
  const bindSignout=()=>{
   const button=document.getElementById('anna-signout');
   if(!button)return;
@@ -76,7 +76,7 @@ function renderAuthorizedModules(){
  document.querySelectorAll('.dash-group').forEach(group=>{
   let count=0;
   group.querySelectorAll('.dash-tile[data-module]').forEach(tile=>{
-   const allowed=allowedModules.has(tile.dataset.module);
+   const allowed=document.documentElement.dataset.masterAuthorized==='true'||allowedModules.has(tile.dataset.module);
    const show=allowed&&tile.textContent.toLocaleLowerCase('pt-BR').includes(q);
    tile.hidden=!show;
    const fav=tile.querySelector('.fav-toggle');if(fav)fav.hidden=true;
@@ -84,10 +84,11 @@ function renderAuthorizedModules(){
   });
   group.hidden=count===0;
  });
- document.documentElement.dataset.modulesAuthorized=allowedModules.size?'true':'false';
- summary.textContent=allowedModules.size?'Módulos autorizados para sua conta.':document.documentElement.dataset.institutionAuthorized==='true'?'Instituição reconhecida. Nenhum módulo habilitado para esta instituição.':'Nenhum módulo liberado: aguardando confirmação das permissões institucionais.';
+ const isMaster=document.documentElement.dataset.masterAuthorized==='true';
+ document.documentElement.dataset.modulesAuthorized=(isMaster||allowedModules.size)?'true':'false';
+ summary.textContent=isMaster?'Catálogo geral da Administração Master.':allowedModules.size?'Módulos autorizados para sua conta.':document.documentElement.dataset.institutionAuthorized==='true'?'Instituição reconhecida. Nenhum módulo habilitado para esta instituição.':'Nenhum módulo liberado: aguardando confirmação das permissões institucionais.';
  status.hidden=visible>0;
- status.textContent=visible?'':allowedModules.size?'Nenhum módulo encontrado.':'O catálogo permanece oculto até a validação de acesso.';
+ status.textContent=visible?'':isMaster?'Nenhum módulo encontrado.':allowedModules.size?'Nenhum módulo encontrado.':'O catálogo permanece oculto até a validação de acesso.';
 }
 search?.addEventListener('input',renderAuthorizedModules);
 document.querySelectorAll('[data-view]').forEach(link=>link.addEventListener('click',()=>{if(search)search.value='';renderAuthorizedModules()}));

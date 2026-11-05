@@ -518,7 +518,23 @@ export default {
             SELECT ${identity.userId}::uuid,institution_id,'institution.admin.invitation.pending','institution_admin_invitation',id::text,jsonb_build_object('email',email,'status',status) FROM created RETURNING entity_id
           ) SELECT created.id,created.institution_id,created.email,created.status FROM created JOIN logged ON logged.entity_id=created.id::text`;
         if(!rows.length)return json({error:"Instituição inativa, administrador já vinculado ou convite pendente existente"},409,cors);
-        return json({item:rows[0],email_sent:false,access_granted:false},201,cors);
+        let emailSent=false;
+         if(env.RESEND_API_KEY&&env.RESEND_FROM_EMAIL){
+           try{
+             const emailResponse=await fetch("https://api.resend.com/emails",{
+               method:"POST",
+               headers:{"Authorization":"Bearer "+env.RESEND_API_KEY,"Content-Type":"application/json","Idempotency-Key":"institution-admin-"+rows[0].id},
+               body:JSON.stringify({
+                 from:env.RESEND_FROM_EMAIL,to:[email],
+                 subject:"Ative seu acesso institucional | AnnA One",
+                 html:'<p>Você foi convidado para administrar uma instituição no AnnA One.</p><p><a href="https://annaone.com.br/app/convite-institucional.html">Criar senha e aceitar convite</a></p><p>Use o mesmo e-mail deste convite. Se não esperava esta mensagem, ignore-a.</p>',
+                 text:"Convite institucional AnnA One. Acesse https://annaone.com.br/app/convite-institucional.html e use este e-mail para criar sua senha e aceitar o convite."
+               })
+             });emailSent=emailResponse.ok;
+             if(!emailSent)console.error("institution invite email failed",emailResponse.status);
+           }catch(error){console.error("institution invite email unavailable");}
+         }
+         return json({item:rows[0],email_sent:emailSent,access_granted:false},201,cors);
       }catch(error){console.error("admin invitation failed",error?.code||"db_error");return json({error:"Operação de convite indisponível"},503,cors);}
     }
     if(url.pathname==="/v1/admin/institution-admins"&&request.method==="POST"){

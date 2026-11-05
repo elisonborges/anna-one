@@ -397,11 +397,13 @@ export default {
       let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
       if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
       try{
+        const inviteId=url.searchParams.get("convite");
+        if(!inviteId||!/^[0-9a-f-]{36}$/i.test(inviteId))return json({error:"Abra o link individual do convite recebido por e-mail."},400,cors);
         const sql=neon(env.DATABASE_URL);
         const items=await sql`SELECT inv.id,inv.email,i.name AS institution_name FROM public.institution_admin_invitations inv
           JOIN public.institutions i ON i.id=inv.institution_id AND i.status='active'
-          JOIN neon_auth."user" u ON u.id=${identity.userId}::uuid AND lower(u.email)=lower(inv.email) AND u."emailVerified"=true
-          WHERE inv.status='pending' ORDER BY inv.created_at DESC LIMIT 1`;
+          JOIN neon_auth."user" u ON u.id=${identity.userId}::uuid AND lower(u.email)=lower(inv.email) AND (u."emailVerified"=true OR inv.id=${inviteId}::uuid)
+          WHERE inv.status='pending' AND inv.id=${inviteId}::uuid ORDER BY inv.created_at DESC LIMIT 1`;
         return json({invitation:items[0]||null},200,cors);
       }catch(error){return json({error:"Consulta do convite indisponível"},503,cors);}
     }
@@ -410,13 +412,15 @@ export default {
       let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Entre na sua conta para aceitar o convite"},401,cors);}
       if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
       try{
+        const inviteId=url.searchParams.get("convite");
+        if(!inviteId||!/^[0-9a-f-]{36}$/i.test(inviteId))return json({error:"Abra o link individual do convite recebido por e-mail."},400,cors);
         const sql=neon(env.DATABASE_URL);
         const rows=await sql`
           WITH invited AS (
             SELECT inv.id,inv.institution_id,inv.email,inv.display_name FROM public.institution_admin_invitations inv
             JOIN public.institutions i ON i.id=inv.institution_id AND i.status='active'
-            JOIN neon_auth."user" au ON au.id=${identity.userId}::uuid AND lower(au.email)=lower(inv.email) AND au."emailVerified"=true
-            WHERE inv.status='pending'
+            JOIN neon_auth."user" au ON au.id=${identity.userId}::uuid AND lower(au.email)=lower(inv.email) AND (au."emailVerified"=true OR inv.id=${inviteId}::uuid)
+            WHERE inv.status='pending' AND inv.id=${inviteId}::uuid
           ), synced AS (
             INSERT INTO public.app_users(id,email)
             SELECT ${identity.userId}::uuid,email FROM invited LIMIT 1

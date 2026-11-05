@@ -56,4 +56,4 @@ if(path==='/api/central/me'&&req.method==='GET'){const u=await session(req,pool)
 if(path==='/api/central/logout'&&req.method==='POST'){const u=await session(req,pool);if(u)await pool.query('UPDATE flow_master_sessions SET revoked_at=now() WHERE id=$1',[u.session_id]);res.setHeader('Set-Cookie','flow_central_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0');return send(res,200,{ok:true})}
 return send(res,405,{error:'Método não permitido'});
 }catch{return send(res,503,{error:'Não foi possível concluir a operação'})}}
-module.exports={session,handle};
+module.exports={session,handle,verifyMaster};

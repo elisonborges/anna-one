@@ -641,7 +641,7 @@ for(const mod of modules){
    select.disabled=true;document.getElementById('catalog-status').textContent='Salvando '+mod.name+'…';
    try{
     const token=await obtainJwt(),response=await fetch(worker+'/v1/admin/modules/'+encodeURIComponent(mod.id),{method:'PATCH',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({status:desired})});
-    const data=await response.json();if(!response.ok)throw Error(data?.error||'HTTP '+response.status);
+    const data=await response.json();if(!response.ok)throw Error((data?.error||'HTTP '+response.status)+(data?.code?' (código '+data.code+')':''));
     mod.status=desired;row.children[2].textContent=statusLabels[desired];document.getElementById('catalog-status').textContent='Estado atualizado: '+mod.name+'.';
    }catch(error){select.value=previous;document.getElementById('catalog-status').textContent='Falha ao atualizar '+mod.name+': '+(error?.message||'Erro de conexão')+'. Nenhuma alteração foi aplicada.';}
    finally{select.disabled=false;}

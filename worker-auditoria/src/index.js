@@ -462,7 +462,7 @@ export default {
         const sql=neon(env.DATABASE_URL);
         const items=await sql`SELECT inv.id,inv.email,i.name AS institution_name FROM public.institution_admin_invitations inv
           JOIN public.institutions i ON i.id=inv.institution_id AND i.status='active'
-          JOIN neon_auth."user" u ON u.id=${identity.userId}::uuid AND lower(u.email)=lower(inv.email)
+          JOIN neon_auth."user" u ON u.id=${identity.userId}::uuid AND lower(u.email)=lower(inv.email) AND u."emailVerified"=true
           WHERE inv.status='pending' ORDER BY inv.created_at DESC LIMIT 1`;
         return json({invitation:items[0]||null},200,cors);
       }catch(error){return json({error:"Consulta do convite indisponível"},503,cors);}
@@ -477,7 +477,7 @@ export default {
           WITH invited AS (
             SELECT inv.id,inv.institution_id,inv.email,inv.display_name FROM public.institution_admin_invitations inv
             JOIN public.institutions i ON i.id=inv.institution_id AND i.status='active'
-            JOIN neon_auth."user" au ON au.id=${identity.userId}::uuid AND lower(au.email)=lower(inv.email)
+            JOIN neon_auth."user" au ON au.id=${identity.userId}::uuid AND lower(au.email)=lower(inv.email) AND au."emailVerified"=true
             WHERE inv.status='pending'
           ), synced AS (
             INSERT INTO public.app_users(id,email)

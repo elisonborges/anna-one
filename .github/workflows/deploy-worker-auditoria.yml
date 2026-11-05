@@ -1,0 +1,23 @@
+name: Publicar Worker AnnA One
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Obter código corrigido do Worker
+        uses: actions/checkout@v4
+        with:
+          ref: feature/auditoria-integracao-v090
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Publicar Worker no Cloudflare
+        working-directory: worker-auditoria
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4 deploy

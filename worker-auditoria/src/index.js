@@ -383,6 +383,16 @@ export default {
         return json({provider:"resend",api_key_configured:apiKeyReady,sender_configured:fromReady,domain_verified:"not_checked",sending_enabled:false,reason:"Envio ainda não habilitado. É necessário validar domínio, entrega e fluxo de aceite."},200,cors);
       }catch{return json({error:"Não foi possível verificar a configuração"},503,cors);}
     }
+    if(/^\/v1\/institution-admin-invitation\/public\/[0-9a-f-]{36}$/i.test(url.pathname)&&request.method==="GET"){
+      if(!env.DATABASE_URL)return json({error:"Serviço indisponível"},503,cors);
+      try{
+        const sql=neon(env.DATABASE_URL),id=url.pathname.split("/").pop();
+        const items=await sql`SELECT email,display_name FROM public.institution_admin_invitations
+          WHERE id=${id}::uuid AND status='pending' AND created_at>now()-interval '7 days' LIMIT 1`;
+        if(!items.length)return json({error:"Convite inválido ou expirado"},404,cors);
+        return json({invitation:items[0]},200,cors);
+      }catch{return json({error:"Consulta indisponível"},503,cors);}
+    }
     if(url.pathname==="/v1/institution-admin-invitation"&&request.method==="GET"){
       let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
       if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
@@ -478,7 +488,7 @@ export default {
                  <p style="font-size:15px;line-height:1.7;color:#38516c;margin:0 0 18px">Olá, <strong>${name.replace(/[&<>"']/g,"")}</strong>!</p>
                  <p style="font-size:15px;line-height:1.7;color:#38516c;margin:0 0 18px">Você foi convidado para administrar uma instituição na plataforma <strong>AnnA One</strong>.</p>
                  <p style="font-size:15px;line-height:1.7;color:#38516c;margin:0 0 25px">Para ativar seu acesso, confirme seu e-mail e crie sua senha pessoal.</p>
-                 <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="#177bd2" style="border-radius:9px"><a href="https://annaone.com.br/app/convite-institucional.html" style="display:inline-block;padding:15px 24px;font-size:15px;font-weight:700;color:#fff;text-decoration:none">Criar senha e ativar acesso</a></td></tr></table>
+                 <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="#177bd2" style="border-radius:9px"><a href="https://annaone.com.br/app/convite-institucional.html?convite=${rows[0].id}" style="display:inline-block;padding:15px 24px;font-size:15px;font-weight:700;color:#fff;text-decoration:none">Criar senha e ativar acesso</a></td></tr></table>
                  <p style="font-size:13px;line-height:1.6;color:#627b94;margin:26px 0 0">Use o mesmo e-mail que recebeu este convite. Se não reconhece esta solicitação, ignore a mensagem.</p>
                  </td></tr><tr><td style="background:#f7faff;border-top:1px solid #e1eaf4;padding:20px 34px;color:#6b829b;font-size:12px;line-height:1.6">AnnA One · Tecnologia e Educação Juntas<br><a href="https://annaone.com.br" style="color:#177bd2;text-decoration:none">annaone.com.br</a><br>Mensagem automática. Não é necessário responder.</td></tr>
                  </table></td></tr></table></body></html>`,

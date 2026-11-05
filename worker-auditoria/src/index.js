@@ -383,6 +383,53 @@ export default {
         return json({provider:"resend",api_key_configured:apiKeyReady,sender_configured:fromReady,domain_verified:"not_checked",sending_enabled:false,reason:"Envio ainda não habilitado. É necessário validar domínio, entrega e fluxo de aceite."},200,cors);
       }catch{return json({error:"Não foi possível verificar a configuração"},503,cors);}
     }
+    if(url.pathname==="/v1/institution-admin-invitation"&&request.method==="GET"){
+      let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
+      if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
+      try{
+        const sql=neon(env.DATABASE_URL);
+        const items=await sql`SELECT inv.id,inv.email,i.name AS institution_name FROM public.institution_admin_invitations inv
+          JOIN public.institutions i ON i.id=inv.institution_id AND i.status='active'
+          JOIN neon_auth."user" u ON u.id=${identity.userId}::uuid AND lower(u.email)=lower(inv.email) AND u."emailVerified"=true
+          WHERE inv.status='pending' ORDER BY inv.created_at DESC LIMIT 1`;
+        return json({invitation:items[0]||null},200,cors);
+      }catch(error){return json({error:"Consulta do convite indisponível"},503,cors);}
+    }
+    // Aceite institucional: somente o titular autenticado do e-mail convidado.
+    if(url.pathname==="/v1/institution-admin-invitation/accept"&&request.method==="POST"){
+      let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Entre na sua conta para aceitar o convite"},401,cors);}
+      if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
+      try{
+        const sql=neon(env.DATABASE_URL);
+        const rows=await sql`
+          WITH invited AS (
+            SELECT inv.id,inv.institution_id,inv.email,inv.display_name FROM public.institution_admin_invitations inv
+            JOIN public.institutions i ON i.id=inv.institution_id AND i.status='active'
+            JOIN neon_auth."user" au ON au.id=${identity.userId}::uuid AND lower(au.email)=lower(inv.email) AND au."emailVerified"=true
+            WHERE inv.status='pending'
+          ), synced AS (
+            INSERT INTO public.app_users(id,email)
+            SELECT ${identity.userId}::uuid,email FROM invited LIMIT 1
+            ON CONFLICT(id) DO UPDATE SET email=EXCLUDED.email RETURNING id
+          ), granted AS (
+            INSERT INTO public.memberships(institution_id,user_id,role,active)
+            SELECT institution_id,${identity.userId}::uuid,'institution_admin',true FROM invited
+            WHERE EXISTS(SELECT 1 FROM synced)
+            ON CONFLICT(institution_id,user_id) DO UPDATE SET active=true
+            RETURNING institution_id,user_id
+          ), accepted AS (
+            UPDATE public.institution_admin_invitations inv SET status='accepted',updated_at=now()
+            FROM invited,granted WHERE inv.id=invited.id AND inv.institution_id=granted.institution_id
+            RETURNING inv.id,inv.institution_id
+          ), logged AS (
+            INSERT INTO anna_audit.audit_logs(actor_user_id,institution_id,action,entity_type,entity_id,details)
+            SELECT ${identity.userId}::uuid,institution_id,'institution.admin.invitation.accepted','institution_admin_invitation',id::text,'{}'::jsonb FROM accepted RETURNING institution_id
+          )
+          SELECT institution_id FROM logged`;
+        if(!rows.length)return json({error:"Nenhum convite pendente para sua conta autenticada"},404,cors);
+        return json({ok:true,institutions:rows.map(r=>r.institution_id)},200,cors);
+      }catch(error){console.error("institution invitation accept failed",error?.code||"db_error");return json({error:"Não foi possível ativar o acesso institucional"},503,cors);}
+    }
     if(url.pathname==="/v1/admin/institution-admin-invitations"&&["GET","POST"].includes(request.method)){
       let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
       if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
@@ -397,21 +444,37 @@ export default {
         if(!(request.headers.get("content-type")||"").toLowerCase().startsWith("application/json"))return json({error:"Envie JSON"},415,cors);
         const raw=await request.text();if(raw.length>2048)return json({error:"Dados excedem o limite"},413,cors);
         let data;try{data=JSON.parse(raw);}catch{return json({error:"JSON inválido"},400,cors);}
-        const institutionId=typeof data?.institution_id==="string"?data.institution_id:"",email=typeof data?.email==="string"?data.email.trim().toLowerCase():"";
-        if(!/^[0-9a-f-]{36}$/i.test(institutionId)||email.length>254||! /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json({error:"Instituição ou e-mail inválido"},422,cors);
+        const institutionId=typeof data?.institution_id==="string"?data.institution_id:"",email=typeof data?.email==="string"?data.email.trim().toLowerCase():"",name=typeof data?.name==="string"?data.name.trim():"";
+        if(!/^[0-9a-f-]{36}$/i.test(institutionId)||!name||name.length>100||email.length>254||! /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json({error:"Instituição ou e-mail inválido"},422,cors);
         const rows=await sql`
           WITH created AS (
-            INSERT INTO public.institution_admin_invitations(institution_id,email,invited_by)
-            SELECT i.id,${email},${identity.userId}::uuid FROM public.institutions i
+            INSERT INTO public.institution_admin_invitations(institution_id,email,display_name,invited_by)
+            SELECT i.id,${email}::text,${name}::text,${identity.userId}::uuid FROM public.institutions i
             WHERE i.id=${institutionId}::uuid AND i.status='active'
               AND NOT EXISTS(SELECT 1 FROM public.memberships m JOIN public.app_users u ON u.id=m.user_id WHERE m.institution_id=i.id AND lower(u.email)=${email} AND m.role='institution_admin' AND m.active)
-            ON CONFLICT DO NOTHING RETURNING id,institution_id,email,status
+            ON CONFLICT DO NOTHING RETURNING id,institution_id,email,status,display_name
           ), logged AS (
             INSERT INTO anna_audit.audit_logs(actor_user_id,institution_id,action,entity_type,entity_id,details)
             SELECT ${identity.userId}::uuid,institution_id,'institution.admin.invitation.pending','institution_admin_invitation',id::text,jsonb_build_object('email',email,'status',status) FROM created RETURNING entity_id
-          ) SELECT created.id,created.institution_id,created.email,created.status FROM created JOIN logged ON logged.entity_id=created.id::text`;
+          ) SELECT created.id,created.institution_id,created.email,created.status,created.display_name FROM created JOIN logged ON logged.entity_id=created.id::text`;
         if(!rows.length)return json({error:"Instituição inativa, administrador já vinculado ou convite pendente existente"},409,cors);
-        return json({item:rows[0],email_sent:false,access_granted:false},201,cors);
+        let emailSent=false;
+         if(env.RESEND_API_KEY&&env.RESEND_FROM_EMAIL){
+           try{
+             const emailResponse=await fetch("https://api.resend.com/emails",{
+               method:"POST",
+               headers:{"Authorization":"Bearer "+env.RESEND_API_KEY,"Content-Type":"application/json","Idempotency-Key":"institution-admin-"+rows[0].id},
+               body:JSON.stringify({
+                 from:env.RESEND_FROM_EMAIL,to:[email],
+                 subject:"Ative seu acesso institucional | AnnA One",
+                 html:'<p>Você foi convidado para administrar uma instituição no AnnA One.</p><p><a href="https://annaone.com.br/app/convite-institucional.html">Criar senha e aceitar convite</a></p><p>Use o mesmo e-mail deste convite. Se não esperava esta mensagem, ignore-a.</p>',
+                 text:"Convite institucional AnnA One. Acesse https://annaone.com.br/app/convite-institucional.html e use este e-mail para criar sua senha e aceitar o convite."
+               })
+             });emailSent=emailResponse.ok;
+             if(!emailSent)console.error("institution invite email failed",emailResponse.status);
+           }catch(error){console.error("institution invite email unavailable");}
+         }
+         return json({item:rows[0],email_sent:emailSent,access_granted:false},201,cors);
       }catch(error){console.error("admin invitation failed",error?.code||"db_error");return json({error:"Operação de convite indisponível"},503,cors);}
     }
     if(url.pathname==="/v1/admin/institution-admins"&&request.method==="POST"){

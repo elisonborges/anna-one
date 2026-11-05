@@ -29,3 +29,13 @@ A tabela `flow_licenses` armazena:
 - Casos puros de status: sem licença, ativa, expirada, suspensa e agendada: OK.
 - Consulta ao Neon: 0 licenças cadastradas.
 - Não executar testes de criação de licenças em dados reais sem autorização.
+
+## Integração Portal AnnA One (fase 2 — branch, não publicada)
+- Página Master: `app/flow-licencas.html`, com entrada em `app/instituicoes.html`. Ambas na branch `feature/anna-flow-online`, sem alteração na `main`.
+- API Cross-Origin: `GET/POST/PUT https://flow.annaone.com.br/api/master-licenses`. Apenas origens `https://annaone.com.br` e `https://www.annaone.com.br`. Autenticação com token Supabase Auth da sessão Master; a API verifica `platform_admins` no servidor e a instituição informada no Supabase.
+- Mapeamento Neon: tabela `flow_portal_institution_links` com `portal_institution_id` (UUID no Supabase) e `client_id` (BIGINT no Neon); ambos exclusivos e sem reatribuição automática. Registra Master e auditoria.
+- GET lista clientes Flow, vínculos e licenças, somente para Master validado; POST cria vínculo apenas após confirmação explícita; PUT configura licença somente para par Portal/Flow previamente vinculado.
+- **Nunca presumir igualdade entre IDs de Neon e Supabase.**
+- Sem contas, clientes Flow ou vínculos criados automaticamente. Última consulta encontrou **zero clientes Flow, zero vínculos e zero licenças**. Para testar a vinculação real, será necessário cadastrar ou sincronizar um cliente Flow, mediante autorização específica.
+- Licenciamento ainda não impõe bloqueios e não há modo offline funcional.
+- Antes de ativar o recurso no público: testar o CORS real, permissões com Master e usuário comum, vínculo duplicado, operações com dois clientes diferentes, datas/validade e reversão segura. Publicar Portal e Flow de maneira coordenada, somente após autorização.

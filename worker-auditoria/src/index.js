@@ -563,9 +563,12 @@ export default {
         const institution=await sql`SELECT id,status FROM public.institutions WHERE id=${institutionId}::uuid`;
         if(!institution.length)return json({error:"Instituição não encontrada"},404,cors);
         if(institution[0].status!=="active")return json({error:"Instituição não está ativa"},409,cors);
-        const users=await sql`SELECT id FROM public.app_users WHERE lower(email)=${email} LIMIT 2`;
-        if(users.length!==1)return json({error:"Usuário não encontrado. Cadastre e autentique o usuário antes de vinculá-lo."},404,cors);
-        const userId=users[0].id;
+        const authUsers=await sql`SELECT id,"emailVerified" AS verified,name FROM neon_auth."user" WHERE lower(email)=${email} LIMIT 2`;
+        if(authUsers.length!==1)return json({error:"Conta não encontrada no Neon Auth. O administrador deve criar sua conta pelo convite."},404,cors);
+        if(!authUsers[0].verified)return json({error:"E-mail ainda não verificado no Neon Auth. Confirme pelo link recebido antes de vincular."},409,cors);
+        const userId=authUsers[0].id;
+        await sql`INSERT INTO public.app_users(id,email,display_name) VALUES(${userId}::uuid,${email},${authUsers[0].name||email})
+          ON CONFLICT(id) DO UPDATE SET email=EXCLUDED.email`;
         const existing=await sql`SELECT role,active FROM public.memberships WHERE institution_id=${institutionId}::uuid AND user_id=${userId}::uuid`;
         if(existing.length)return json({error:"Usuário já possui vínculo com esta instituição. Nenhuma permissão foi alterada."},409,cors);
         const rows=await sql`

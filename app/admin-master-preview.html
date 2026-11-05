@@ -447,7 +447,8 @@ async function loadAdminInvitations(){
 document.getElementById('admin-invite-form').addEventListener('submit',async event=>{
  event.preventDefault();const form=event.currentTarget,button=form.querySelector('button[type=submit]'),feedback=document.getElementById('admin-invite-feedback'),institutionId=document.getElementById('admin-invite-institution').value,email=document.getElementById('admin-invite-email').value.trim(),institution=institutions.find(i=>i.id===institutionId);
  if(!institution||institution.status!=='active'){feedback.textContent='Selecione uma instituição ativa.';return;}
- if(!name||name.length>100){feedback.textContent='Informe o nome completo.';return;}\n if(!confirm('Cadastrar '+name+' e enviar convite para '+email+' em '+institution.name+'?'))return;
+ if(!name||name.length>100){feedback.textContent='Informe o nome completo.';return;}
+ if(!confirm('Cadastrar '+name+' e enviar convite para '+email+' em '+institution.name+'?'))return;
  button.disabled=true;feedback.textContent='Registrando solicitação…';
  try{const jwt=await obtainJwt(),response=await fetch(worker+'/v1/admin/institution-admin-invitations',{method:'POST',headers:{Authorization:'Bearer '+jwt,'Content-Type':'application/json'},body:JSON.stringify({institution_id:institutionId,email,name})}),data=await response.json();if(!response.ok)throw Error(data?.error||'HTTP '+response.status);
  feedback.textContent=data.email_sent?'Convite enviado. Aguardando ativação.':'Cadastro pendente registrado, mas o e-mail não foi enviado.';if(data.email_sent)form.reset();await loadAdminInvitations();

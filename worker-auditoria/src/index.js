@@ -467,7 +467,21 @@ export default {
                body:JSON.stringify({
                  from:env.RESEND_FROM_EMAIL,to:[email],
                  subject:"Ative seu acesso institucional | AnnA One",
-                 html:'<p>Você foi convidado para administrar uma instituição no AnnA One.</p><p><a href="https://annaone.com.br/app/convite-institucional.html">Criar senha e aceitar convite</a></p><p>Use o mesmo e-mail deste convite. Se não esperava esta mensagem, ignore-a.</p>',
+                 html:`<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+                 <body style="margin:0;padding:0;background:#f2f6fc;font-family:Arial,Helvetica,sans-serif;color:#173553">
+                 <div style="display:none;font-size:1px;color:#f2f6fc;max-height:0;overflow:hidden">Seu convite de acesso institucional AnnA One está disponível.</div>
+                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f2f6fc;padding:36px 14px"><tr><td align="center">
+                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;background:#fff;border:1px solid #dbe6f3;border-radius:16px;overflow:hidden">
+                 <tr><td style="background:#102f55;padding:26px 34px;color:#fff"><div style="font-size:26px;font-weight:800;letter-spacing:-.5px">AnnA <span style="color:#71c5ff">One</span></div><div style="font-size:11px;letter-spacing:1.6px;color:#c7ddf3;margin-top:6px">TECNOLOGIA E EDUCAÇÃO JUNTAS</div></td></tr>
+                 <tr><td style="padding:34px"><div style="font-size:12px;font-weight:700;letter-spacing:1.3px;color:#177bd2;text-transform:uppercase">Convite institucional</div>
+                 <h1 style="font-size:25px;line-height:1.3;color:#102f55;margin:12px 0 16px">Ative seu acesso ao AnnA One</h1>
+                 <p style="font-size:15px;line-height:1.7;color:#38516c;margin:0 0 18px">Olá, <strong>${name.replace(/[&<>"']/g,"")}</strong>!</p>
+                 <p style="font-size:15px;line-height:1.7;color:#38516c;margin:0 0 18px">Você foi convidado para administrar uma instituição na plataforma <strong>AnnA One</strong>.</p>
+                 <p style="font-size:15px;line-height:1.7;color:#38516c;margin:0 0 25px">Para ativar seu acesso, confirme seu e-mail e crie sua senha pessoal.</p>
+                 <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="#177bd2" style="border-radius:9px"><a href="https://annaone.com.br/app/convite-institucional.html" style="display:inline-block;padding:15px 24px;font-size:15px;font-weight:700;color:#fff;text-decoration:none">Criar senha e ativar acesso</a></td></tr></table>
+                 <p style="font-size:13px;line-height:1.6;color:#627b94;margin:26px 0 0">Use o mesmo e-mail que recebeu este convite. Se não reconhece esta solicitação, ignore a mensagem.</p>
+                 </td></tr><tr><td style="background:#f7faff;border-top:1px solid #e1eaf4;padding:20px 34px;color:#6b829b;font-size:12px;line-height:1.6">AnnA One · Tecnologia e Educação Juntas<br><a href="https://annaone.com.br" style="color:#177bd2;text-decoration:none">annaone.com.br</a><br>Mensagem automática. Não é necessário responder.</td></tr>
+                 </table></td></tr></table></body></html>`,
                  text:"Convite institucional AnnA One. Acesse https://annaone.com.br/app/convite-institucional.html e use este e-mail para criar sua senha e aceitar o convite."
                })
              });emailSent=emailResponse.ok;

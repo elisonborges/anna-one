@@ -443,24 +443,6 @@ function renderInstitutionAdmins(){
 }
 document.getElementById('admin-institution-filter').addEventListener('change',renderInstitutionAdmins);
 document.getElementById('admin-list-refresh').addEventListener('click',loadInstitutionAdmins);
-async function checkInvitationEmailReadiness(){
- const status=document.getElementById('admin-email-readiness');status.textContent='Verificando configuração do Resend…';
- try{const jwt=await obtainJwt(),response=await fetch(worker+'/v1/admin/invitation-email-readiness',{headers:{Authorization:'Bearer '+jwt}}),data=await response.json();if(!response.ok)throw Error(data?.error||'HTTP '+response.status);
- for(const [id,configured] of [['email-key',data.api_key_configured],['email-sender',data.sender_configured]]){document.getElementById(id+'-card').dataset.state=configured?'ok':'error';document.getElementById(id+'-status').textContent=configured?'Configurado':'Não configurado';}
- status.textContent='Configuração consultada. O status do domínio não é retornado por esta verificação.';
- }catch(error){status.textContent='Não foi possível verificar o Resend: '+(error?.message||'Falha de conexão');}
-}
-document.getElementById('admin-email-check').addEventListener('click',checkInvitationEmailReadiness);
-document.getElementById('admin-email-test').addEventListener('click',async event=>{
- const button=event.currentTarget,status=document.getElementById('admin-email-test-status');
- if(!confirm('Enviar agora um único e-mail de teste para elisonborg@gmail.com? Nenhuma permissão será alterada.'))return;
- button.disabled=true;status.textContent='Solicitando envio ao Resend…';
- try{const jwt=await obtainJwt(),response=await fetch(worker+'/v1/admin/invitation-email-test',{method:'POST',headers:{Authorization:'Bearer '+jwt}}),data=await response.json();if(!response.ok)throw Error(data?.error||'HTTP '+response.status);
- status.textContent='Resend aceitou o e-mail de teste para '+data.recipient+'. Verifique sua caixa de entrada e spam.';
- }catch(error){status.textContent='Falha no teste: '+(error?.message||'Erro de conexão');}
- finally{button.disabled=false;}
-});
-
 async function loadAdminInvitations(){
  const status=document.getElementById('admin-invitations-status'),body=document.getElementById('admin-invitations-rows');status.textContent='Consultando convites…';body.replaceChildren();
  try{const jwt=await obtainJwt(),response=await fetch(worker+'/v1/admin/institution-admin-invitations',{headers:{Authorization:'Bearer '+jwt}}),data=await response.json();if(!response.ok)throw Error(data?.error||'HTTP '+response.status);
@@ -489,7 +471,7 @@ document.getElementById('admin-link-form').addEventListener('submit',async event
  button.disabled=true;feedback.textContent='Vinculando administrador…';
  try{const jwt=await obtainJwt(),response=await fetch(worker+'/v1/admin/institution-admins',{method:'POST',headers:{Authorization:'Bearer '+jwt,'Content-Type':'application/json'},body:JSON.stringify({institution_id:institutionId,email})}),data=await response.json();
  if(!response.ok)throw Error(data?.error||'HTTP '+response.status);
- feedback.textContent='Administrador vinculado com sucesso.';form.reset();await loadInstitutionAdmins();loadAdminInvitations();checkInvitationEmailReadiness();
+ feedback.textContent='Administrador vinculado com sucesso.';form.reset();await loadInstitutionAdmins();loadAdminInvitations();
  }catch(error){feedback.textContent='Não foi possível vincular: '+(error?.message||'Falha de conexão');}
  finally{button.disabled=false;}
 });

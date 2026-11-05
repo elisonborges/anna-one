@@ -685,8 +685,9 @@ export default {
         return json({ id: result[0].id, name, slug, status: "active" }, 201, cors);
       } catch (error) {
         if (error?.code === "23505") continue;
-        console.error("master institution create failed", error?.code || "db_error");
-        return json({ error: "Não foi possível cadastrar a instituição" }, 503, cors);
+        console.error("master institution create failed", {code:error?.code||"db_error",constraint:error?.constraint||null,detail:error?.message||null});
+        const known={23503:"O usuário Master ou a instituição principal não possui vínculo válido no banco",23502:"O cadastro exige um campo obrigatório que não foi preenchido",23514:"Os dados não atendem às regras de validação do banco",42501:"A credencial do servidor não tem permissão para cadastrar a instituição ou registrar auditoria",42P01:"Tabela necessária para o cadastro ou auditoria não encontrada",42703:"Estrutura do banco incompatível com o cadastro",22P02:"Identificador inválido"};
+        return json({error:known[error?.code]||"Não foi possível cadastrar a instituição",code:typeof error?.code==="string"&&/^[A-Z0-9]{5}$/.test(error.code)?error.code:"DB_ERROR"},503,cors);
       }
       }
       return json({ error: "Não foi possível gerar um código exclusivo. Tente novamente." }, 409, cors);

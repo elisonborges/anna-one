@@ -7,6 +7,7 @@ const panelApi=require('./panel-api');
 const userAuth=require('./auth-api');
 const deviceApi=require('./device-api');
 const centralAuth=require('./central-auth');
+const licenseApi=require('./license-api');
 const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:true},max:5});
 const token=process.env.FLOW_ADMIN_TOKEN||'';
 if(!process.env.DATABASE_URL||token.length<24){console.error('Configure DATABASE_URL e FLOW_ADMIN_TOKEN (mínimo 24 caracteres).');process.exit(1)}
@@ -36,6 +37,7 @@ const q=await pool.query("SELECT DISTINCT c.id,c.name FROM flow_users u JOIN flo
 }catch{return send(res,503,{error:'Não foi possível consultar as instituições'})}}
 if(url.pathname==='/api/admin-page-logout'&&req.method==='POST'){const central=await centralAuth.session(req,pool);if(central)await pool.query('UPDATE flow_master_sessions SET revoked_at=now() WHERE id=$1',[central.session_id]);res.setHeader('Set-Cookie',['flow_central_access=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0','flow_admin_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0','flow_central_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0']);return send(res,200,{ok:true})}
 if(url.pathname==='/api/admin-page-access'&&req.method==='GET'){const institutional=await userAuth.adminPageSession(req,pool).catch(()=>null);return send(res,200,{authorized:(await auth(req))||institutional?.role==='admin',central:await auth(req),clientId:institutional?.client_id||null})}
+if(url.pathname==='/api/license')return licenseApi.handle(req,res,{pool,send,auth,userAuth});
 if(url.pathname==='/api/institution-staff')return userAuth.institutionStaff(req,res,{pool,send});
 if(url.pathname==='/api/manage-users')return userAuth.manageUsers(req,res,{pool,auth,send});
 if(url.pathname==='/api/me'&&req.method==='GET')return userAuth.me(req,res,{pool,send});

@@ -24,4 +24,19 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx --yes wrangler@4 deploy
+        run: |
+          # O GitHub pode receber o token com espaços/quebras de linha ao copiar.
+          # Normaliza sem imprimir o segredo e interrompe se ainda estiver inválido.
+          CLEAN_TOKEN="$(printf '%s' "$CLOUDFLARE_API_TOKEN" | tr -d '\r\n\t ')"
+          CLEAN_ACCOUNT="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | tr -d '\r\n\t ')"
+          if [ -z "$CLEAN_TOKEN" ] || [ -z "$CLEAN_ACCOUNT" ]; then
+            echo "::error::Credenciais Cloudflare não configuradas nos Secrets do GitHub."
+            exit 1
+          fi
+          if ! [[ "$CLEAN_ACCOUNT" =~ ^[a-fA-F0-9]{32}$ ]]; then
+            echo "::error::CLOUDFLARE_ACCOUNT_ID inválido: deve conter 32 caracteres hexadecimais."
+            exit 1
+          fi
+          export CLOUDFLARE_API_TOKEN="$CLEAN_TOKEN"
+          export CLOUDFLARE_ACCOUNT_ID="$CLEAN_ACCOUNT"
+          npx --yes wrangler@4 deploy

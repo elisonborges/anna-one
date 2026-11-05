@@ -455,6 +455,41 @@ export default {
         return json({provider:"resend",api_key_configured:apiKeyReady,sender_configured:fromReady,domain_verified:"not_checked",sending_enabled:false,reason:"Envio ainda não habilitado. É necessário validar domínio, entrega e fluxo de aceite."},200,cors);
       }catch{return json({error:"Não foi possível verificar a configuração"},503,cors);}
     }
+    // Aceite institucional: somente o titular autenticado do e-mail convidado.
+    if(url.pathname==="/v1/institution-admin-invitation/accept"&&request.method==="POST"){
+      let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Entre na sua conta para aceitar o convite"},401,cors);}
+      if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
+      try{
+        const sql=neon(env.DATABASE_URL);
+        const rows=await sql`
+          WITH invited AS (
+            SELECT inv.id,inv.institution_id,inv.email FROM public.institution_admin_invitations inv
+            JOIN public.institutions i ON i.id=inv.institution_id AND i.status='active'
+            JOIN neon_auth."user" au ON au.id=${identity.userId}::uuid AND lower(au.email)=lower(inv.email)
+            WHERE inv.status='pending'
+          ), synced AS (
+            INSERT INTO public.app_users(id,email)
+            SELECT ${identity.userId}::uuid,email FROM invited LIMIT 1
+            ON CONFLICT(id) DO UPDATE SET email=EXCLUDED.email RETURNING id
+          ), granted AS (
+            INSERT INTO public.memberships(institution_id,user_id,role,active)
+            SELECT institution_id,${identity.userId}::uuid,'institution_admin',true FROM invited
+            WHERE EXISTS(SELECT 1 FROM synced)
+            ON CONFLICT(institution_id,user_id) DO UPDATE SET active=true
+            RETURNING institution_id,user_id
+          ), accepted AS (
+            UPDATE public.institution_admin_invitations inv SET status='accepted',updated_at=now()
+            FROM invited,granted WHERE inv.id=invited.id AND inv.institution_id=granted.institution_id
+            RETURNING inv.id,inv.institution_id
+          ), logged AS (
+            INSERT INTO anna_audit.audit_logs(actor_user_id,institution_id,action,entity_type,entity_id,details)
+            SELECT ${identity.userId}::uuid,institution_id,'institution.admin.invitation.accepted','institution_admin_invitation',id::text,'{}'::jsonb FROM accepted RETURNING institution_id
+          )
+          SELECT institution_id FROM logged`;
+        if(!rows.length)return json({error:"Nenhum convite pendente para sua conta autenticada"},404,cors);
+        return json({ok:true,institutions:rows.map(r=>r.institution_id)},200,cors);
+      }catch(error){console.error("institution invitation accept failed",error?.code||"db_error");return json({error:"Não foi possível ativar o acesso institucional"},503,cors);}
+    }
     if(url.pathname==="/v1/admin/institution-admin-invitations"&&["GET","POST"].includes(request.method)){
       let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
       if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);

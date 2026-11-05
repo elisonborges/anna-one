@@ -463,7 +463,7 @@ export default {
         const sql=neon(env.DATABASE_URL);
         const rows=await sql`
           WITH invited AS (
-            SELECT inv.id,inv.institution_id,inv.email FROM public.institution_admin_invitations inv
+            SELECT inv.id,inv.institution_id,inv.email,inv.display_name FROM public.institution_admin_invitations inv
             JOIN public.institutions i ON i.id=inv.institution_id AND i.status='active'
             JOIN neon_auth."user" au ON au.id=${identity.userId}::uuid AND lower(au.email)=lower(inv.email)
             WHERE inv.status='pending'
@@ -504,19 +504,19 @@ export default {
         if(!(request.headers.get("content-type")||"").toLowerCase().startsWith("application/json"))return json({error:"Envie JSON"},415,cors);
         const raw=await request.text();if(raw.length>2048)return json({error:"Dados excedem o limite"},413,cors);
         let data;try{data=JSON.parse(raw);}catch{return json({error:"JSON inválido"},400,cors);}
-        const institutionId=typeof data?.institution_id==="string"?data.institution_id:"",email=typeof data?.email==="string"?data.email.trim().toLowerCase():"";
-        if(!/^[0-9a-f-]{36}$/i.test(institutionId)||email.length>254||! /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json({error:"Instituição ou e-mail inválido"},422,cors);
+        const institutionId=typeof data?.institution_id==="string"?data.institution_id:"",email=typeof data?.email==="string"?data.email.trim().toLowerCase():"",name=typeof data?.name==="string"?data.name.trim():"";
+        if(!/^[0-9a-f-]{36}$/i.test(institutionId)||!name||name.length>100||email.length>254||! /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json({error:"Instituição ou e-mail inválido"},422,cors);
         const rows=await sql`
           WITH created AS (
-            INSERT INTO public.institution_admin_invitations(institution_id,email,invited_by)
-            SELECT i.id,${email},${identity.userId}::uuid FROM public.institutions i
+            INSERT INTO public.institution_admin_invitations(institution_id,email,display_name,invited_by)
+            SELECT i.id,${email}::text,${name}::text,${identity.userId}::uuid FROM public.institutions i
             WHERE i.id=${institutionId}::uuid AND i.status='active'
               AND NOT EXISTS(SELECT 1 FROM public.memberships m JOIN public.app_users u ON u.id=m.user_id WHERE m.institution_id=i.id AND lower(u.email)=${email} AND m.role='institution_admin' AND m.active)
-            ON CONFLICT DO NOTHING RETURNING id,institution_id,email,status
+            ON CONFLICT DO NOTHING RETURNING id,institution_id,email,status,display_name
           ), logged AS (
             INSERT INTO anna_audit.audit_logs(actor_user_id,institution_id,action,entity_type,entity_id,details)
             SELECT ${identity.userId}::uuid,institution_id,'institution.admin.invitation.pending','institution_admin_invitation',id::text,jsonb_build_object('email',email,'status',status) FROM created RETURNING entity_id
-          ) SELECT created.id,created.institution_id,created.email,created.status FROM created JOIN logged ON logged.entity_id=created.id::text`;
+          ) SELECT created.id,created.institution_id,created.email,created.status,created.display_name FROM created JOIN logged ON logged.entity_id=created.id::text`;
         if(!rows.length)return json({error:"Instituição inativa, administrador já vinculado ou convite pendente existente"},409,cors);
         let emailSent=false;
          if(env.RESEND_API_KEY&&env.RESEND_FROM_EMAIL){

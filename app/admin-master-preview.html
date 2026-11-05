@@ -437,6 +437,7 @@ function renderInstitutionAdmins(){
 }
 document.getElementById('admin-institution-filter').addEventListener('change',renderInstitutionAdmins);
 document.getElementById('admin-list-refresh').addEventListener('click',loadInstitutionAdmins);
+function showAdminActionFeedback(element,message,type='success'){element.textContent=(type==='success'?'✓  ':type==='error'?'⚠  ':'')+message;element.setAttribute('role','status');element.setAttribute('aria-live','polite');element.style.cssText='display:block;width:100%;margin:16px 0 8px;padding:16px 18px;border-radius:12px;border:2px solid '+(type==='success'?'#238454':type==='error'?'#c2413b':'#2476bd')+';background:'+(type==='success'?'#e8f7ef':type==='error'?'#fff0ee':'#edf5ff')+';color:'+(type==='success'?'#125435':type==='error'?'#8b2723':'#164b7e')+';font-size:16px;font-weight:800;line-height:1.5;box-shadow:0 4px 14px #102f551c';}
 function showInviteFeedback(message,error=false){const status=document.getElementById('admin-invitations-status');status.textContent=message;status.style.cssText='display:block;padding:16px;margin:12px 0;border:2px solid '+(error?'#c2413b':'#238454')+';border-radius:12px;background:'+(error?'#fff0ee':'#e8f7ef')+';color:'+(error?'#8b2723':'#125435')+';font-size:16px;font-weight:800';status.scrollIntoView({behavior:'smooth',block:'center'});}
 async function loadAdminInvitations(){
  const status=document.getElementById('admin-invitations-status'),body=document.getElementById('admin-invitations-rows');status.textContent='Consultando convites…';body.replaceChildren();
@@ -452,8 +453,8 @@ document.getElementById('admin-invite-form').addEventListener('submit',async eve
  if(!confirm('Cadastrar '+name+' e enviar convite para '+email+' em '+institution.name+'?'))return;
  button.disabled=true;feedback.textContent='Registrando solicitação…';
  try{const jwt=await obtainJwt(),response=await fetch(worker+'/v1/admin/institution-admin-invitations',{method:'POST',headers:{Authorization:'Bearer '+jwt,'Content-Type':'application/json'},body:JSON.stringify({institution_id:institutionId,email,name})}),data=await response.json();if(!response.ok)throw Error(data?.error||'HTTP '+response.status);
- feedback.textContent=data.email_sent?'Convite enviado. Aguardando ativação.':'Cadastro pendente registrado, mas o e-mail não foi enviado.';if(data.email_sent)form.reset();await loadAdminInvitations();
- }catch(error){feedback.textContent='Não foi possível registrar: '+(error?.message||'Falha de conexão');}
+ showAdminActionFeedback(feedback,data.email_sent?'Convite enviado. Aguardando ativação.':'Cadastro pendente registrado, mas o e-mail não foi enviado.',data.email_sent?'success':'error');if(data.email_sent)form.reset();await loadAdminInvitations();
+ }catch(error){showAdminActionFeedback(feedback,'Não foi possível registrar: '+(error?.message||'Falha de conexão'),'error');}
  finally{button.disabled=false;}
 });
 

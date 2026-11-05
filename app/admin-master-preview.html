@@ -445,7 +445,7 @@ async function loadAdminInvitations(){
  }catch(error){status.textContent='Não foi possível consultar convites: '+(error?.message||'Falha de conexão');}
 }
 document.getElementById('admin-invite-form').addEventListener('submit',async event=>{
- event.preventDefault();const form=event.currentTarget,button=form.querySelector('button[type=submit]'),feedback=document.getElementById('admin-invite-feedback'),institutionId=document.getElementById('admin-invite-institution').value,email=document.getElementById('admin-invite-email').value.trim(),institution=institutions.find(i=>i.id===institutionId);
+ event.preventDefault();const form=event.currentTarget,button=form.querySelector('button[type=submit]'),feedback=document.getElementById('admin-invite-feedback'),institutionId=document.getElementById('admin-invite-institution').value,name=document.getElementById('admin-invite-name').value.trim(),email=document.getElementById('admin-invite-email').value.trim(),institution=institutions.find(i=>i.id===institutionId);
  if(!institution||institution.status!=='active'){feedback.textContent='Selecione uma instituição ativa.';return;}
  if(!name||name.length>100){feedback.textContent='Informe o nome completo.';return;}
  if(!confirm('Cadastrar '+name+' e enviar convite para '+email+' em '+institution.name+'?'))return;

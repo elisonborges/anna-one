@@ -275,7 +275,7 @@ export default {
           RETURNING id
         ) SELECT changed.id,changed.code,changed.name,changed.status FROM changed CROSS JOIN logged`;
         return json({ok:true,item:updated[0]},200,cors);
-      }catch(error){console.error("module status update failed",error?.code||"db_error");return json({error:"Alteração indisponível"},503,cors);}
+      }catch(error){console.error("module status update failed",{code:error?.code||"db_error",constraint:error?.constraint||null,message:error?.message||"unknown"});return json({error:"Alteração indisponível",code:error?.code||"db_error"},503,cors);}
     }
     // Perfis e permissões: lista de módulos por instituição, protegida por Master.
     if(/^\/v1\/admin\/institutions\/[0-9a-f-]{36}\/modules$/i.test(url.pathname)&&["GET","PUT"].includes(request.method)){
@@ -329,7 +329,7 @@ export default {
           RETURNING id
         ) SELECT changed.institution_id,changed.module_id,changed.enabled FROM changed CROSS JOIN logged`;
         return json({ok:true,item:changed[0]},200,cors);
-      }catch(error){console.error("institution modules failed",error?.code||"db_error");return json({error:"Permissões indisponíveis"},503,cors);}
+      }catch(error){console.error("institution modules failed",{code:error?.code||"db_error",constraint:error?.constraint||null,message:error?.message||"unknown"});return json({error:"Permissões indisponíveis",code:error?.code||"db_error"},503,cors);}
     }
     if(/^\/v1\/admin\/institution-admin-invitations\/[0-9a-f-]{36}\/cancel$/i.test(url.pathname)&&request.method==="POST"){
       let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}

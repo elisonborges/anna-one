@@ -457,7 +457,7 @@ export default {
            try{
              const emailResponse=await fetch("https://api.resend.com/emails",{
                method:"POST",
-               headers:{"Authorization":"Bearer "+env.RESEND_API_KEY,"Content-Type":"application/json","Idempotency-Key":"institution-admin-"+rows[0].id},
+               headers:{"Authorization":"Bearer "+env.RESEND_API_KEY,"Content-Type":"application/json","Idempotency-Key":"institution-admin-resend-"+rows[0].id+"-"+crypto.randomUUID()},
                body:JSON.stringify({
                  from:env.RESEND_FROM_EMAIL,to:[email],
                  subject:"Ative seu acesso institucional | AnnA One",

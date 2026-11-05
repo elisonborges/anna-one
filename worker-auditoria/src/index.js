@@ -594,7 +594,7 @@ export default {
         const result = await sql`
           WITH created AS (
             INSERT INTO public.institutions (name, slug, status, parent_institution_id)
-            SELECT ${name}, ${slug}, 'active', ${parentId}::uuid
+            SELECT ${name}::text, ${slug}::text, 'active', ${parentId}::uuid
             WHERE EXISTS (
               SELECT 1 FROM public.platform_admins WHERE user_id = ${identity.userId}::uuid
             ) AND (${parentId}::uuid IS NULL OR EXISTS (SELECT 1 FROM public.institutions WHERE id = ${parentId}::uuid AND parent_institution_id IS NULL))
@@ -603,7 +603,7 @@ export default {
             INSERT INTO anna_audit.audit_logs
               (actor_user_id, institution_id, action, entity_type, entity_id, details)
             SELECT ${identity.userId}::uuid, id, 'institution.created', 'institution',
-                   id::text, jsonb_build_object('name', ${name}, 'slug', ${slug}, 'status', 'active')
+                   id::text, jsonb_build_object('name', ${name}::text, 'slug', ${slug}::text, 'status', 'active')
             FROM created
             RETURNING institution_id
           )

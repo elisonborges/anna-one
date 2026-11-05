@@ -455,6 +455,18 @@ export default {
         return json({provider:"resend",api_key_configured:apiKeyReady,sender_configured:fromReady,domain_verified:"not_checked",sending_enabled:false,reason:"Envio ainda não habilitado. É necessário validar domínio, entrega e fluxo de aceite."},200,cors);
       }catch{return json({error:"Não foi possível verificar a configuração"},503,cors);}
     }
+    if(url.pathname==="/v1/institution-admin-invitation"&&request.method==="GET"){
+      let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Autenticação necessária"},401,cors);}
+      if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
+      try{
+        const sql=neon(env.DATABASE_URL);
+        const items=await sql`SELECT inv.id,inv.email,i.name AS institution_name FROM public.institution_admin_invitations inv
+          JOIN public.institutions i ON i.id=inv.institution_id AND i.status='active'
+          JOIN neon_auth."user" u ON u.id=${identity.userId}::uuid AND lower(u.email)=lower(inv.email)
+          WHERE inv.status='pending' ORDER BY inv.created_at DESC LIMIT 1`;
+        return json({invitation:items[0]||null},200,cors);
+      }catch(error){return json({error:"Consulta do convite indisponível"},503,cors);}
+    }
     // Aceite institucional: somente o titular autenticado do e-mail convidado.
     if(url.pathname==="/v1/institution-admin-invitation/accept"&&request.method==="POST"){
       let identity;try{identity=await verifyBearer(request,env);}catch{return json({error:"Entre na sua conta para aceitar o convite"},401,cors);}

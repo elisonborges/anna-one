@@ -15,6 +15,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Instalar dependência do banco Neon
+        working-directory: worker-auditoria
+        run: |
+          npm install --no-save --no-package-lock @neondatabase/serverless
       - name: Publicar Worker no Cloudflare
         working-directory: worker-auditoria
         env:

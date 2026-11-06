@@ -9,6 +9,35 @@ function migrate(state){
  state.current=null;
  return state;
 }
+const timezones=['America/Fortaleza','America/Sao_Paulo','America/Manaus','America/Rio_Branco','America/Noronha'];
+function ticketDay(now,zone){
+ const parts=new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);
+ const p=Object.fromEntries(parts.map(x=>[x.type,x.value]));return p.year+'-'+p.month+'-'+p.day;
+}
+function nextTicketNumber(state,key,now){
+ const policy=state.ticketSettings||{};
+ const zone=timezones.includes(policy.timezone)?policy.timezone:'America/Fortaleza';
+ const day=ticketDay(now,zone);
+ const start=Number.isSafeInteger(policy.startNumber)&&policy.startNumber>=1&&policy.startNumber<=999999?policy.startNumber:1;
+ if(state.ticketDay!==day){
+  // Na primeira migração, conservar a numeração atual; nas viradas seguintes,
+  // iniciar o novo dia respeitando a política cadastrada.
+  state.ticketDailyCounters=state.ticketDay?{}:{...state.counters};
+  state.ticketDayStart=start;
+  state.ticketDay=day;
+ }
+ if(!state.ticketDailyCounters||typeof state.ticketDailyCounters!=='object')state.ticketDailyCounters={};
+ const old=Number(state.ticketDailyCounters[key])||0;
+ // Evitar colisão com senhas antigas que ainda estejam na fila ou guichês.
+ const outstanding=[...(Array.isArray(state.queue)?state.queue:[]),...Object.values(state.currents||{}),...(state.noShows||[])];
+ const maxInUse=outstanding.reduce((max,t)=>t?.code?.startsWith((key.split(':')[1]==='preferencial'?'P':'A')+'-'+key.split(':')[0]+'-')?Math.max(max,Number(t.code.split('-').at(-1))||0):max,0);
+ const effectiveStart=Number.isSafeInteger(state.ticketDayStart)&&state.ticketDayStart>=1&&state.ticketDayStart<=999999?state.ticketDayStart:start;
+ const next=Math.max(effectiveStart-1,old,maxInUse)+1;
+ if(next>9999999)throw Error('Limite de numeração atingido; procure o administrador');
+ state.ticketDailyCounters[key]=next;
+ state.counters[key]=Math.max(Number(state.counters?.[key])||0,next);
+ return {number:next,day,zone,openingTime:/^([01]\d|2[0-3]):[0-5]\d$/.test(policy.openingTime||'')?policy.openingTime:''};
+}
 function active(state,dest){return state.currents[String(dest)]||null}
 function setActive(state,dest,ticket){if(ticket)state.currents[String(dest)]=ticket;else delete state.currents[String(dest)]}
 function visibleState(state){return {...state,current:null,currents:state.currents||{}}}
@@ -33,7 +62,7 @@ async function handle(req,res,{pool,auth,send,deviceApi}){
  const client=await pool.connect();
  try{
  await client.query('BEGIN');
- const unitResult=await client.query('SELECT u.id,u.client_id FROM flow_client_units u JOIN flow_clients c ON c.id=u.client_id WHERE u.id=$1 AND u.active=true AND c.active=true',[unit]);
+ const unitResult=await client.query('SELECT u.id,u.client_id,u.name,c.name AS institution_name FROM flow_client_units u JOIN flow_clients c ON c.id=u.client_id WHERE u.id=$1 AND u.active=true AND c.active=true',[unit]);
  if(!unitResult.rowCount)throw Error('Unidade inexistente');
  const serviceResult=await client.query('SELECT id,name FROM flow_client_services WHERE unit_id=$1 AND active=true ORDER BY id',[unit]);
  await client.query('INSERT INTO flow_client_runtime(unit_id) VALUES($1) ON CONFLICT DO NOTHING',[unit]);
@@ -53,8 +82,9 @@ async function handle(req,res,{pool,auth,send,deviceApi}){
  case 'issue':{
  const serviceId=id(a.serviceId);if(!serviceIds.has(serviceId))throw Error('Serviço não pertence à unidade');
  const priority=a.priority==='preferencial'?'preferencial':'normal';const key=serviceId+':'+priority;
- state.counters[key]=(state.counters[key]||0)+1;const code=(priority==='preferencial'?'P':'A')+'-'+serviceId+'-'+String(state.counters[key]).padStart(3,'0');
- state.queue.push({code,serviceId,priority,issuedAt:new Date().toISOString()});result={code};break}
+ const issuedAt=new Date(),numbering=nextTicketNumber(state,key,issuedAt);
+ const code=(priority==='preferencial'?'P':'A')+'-'+serviceId+'-'+String(numbering.number).padStart(3,'0');
+ state.queue.push({code,serviceId,priority,issuedAt:issuedAt.toISOString()});result={code,issuedAt:issuedAt.toISOString(),serviceName:serviceResult.rows.find(s=>Number(s.id)===serviceId)?.name||'',unitName:unitResult.rows[0].name,institutionName:unitResult.rows[0].institution_name,serviceStartLocal:numbering.openingTime?numbering.day+'T'+numbering.openingTime:null,timeZone:numbering.zone,paperWidth:['58','80','a4'].includes(state.ticketSettings?.paperWidth)?state.ticketSettings.paperWidth:'58'};break}
  case 'call':{
  if(active(state,id(a.destinationId)))throw Error('Conclua o atendimento deste guichê antes de chamar outra senha');
  const serviceId=id(a.serviceId);if(!serviceIds.has(serviceId))throw Error('Serviço não pertence à unidade');

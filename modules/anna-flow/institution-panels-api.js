@@ -2,7 +2,7 @@
 const auth=require('./auth-api');
 const num=x=>{const n=Number(x);return Number.isSafeInteger(n)&&n>0?n:null};
 const clean=(x,n)=>typeof x==='string'?x.trim().replace(/\s+/g,' ').slice(0,n):'';
-const themes=new Set(['escuro','claro','acolhedor']);
+const themes=new Set(['escuro','claro','acolhedor','azul','verde','vinho','roxo']);
 async function body(req){let raw='';for await(const c of req){raw+=c;if(raw.length>5000)throw Error('Requisição excessiva')}return JSON.parse(raw)}
 async function handle(req,res,{pool,send}){
  try{

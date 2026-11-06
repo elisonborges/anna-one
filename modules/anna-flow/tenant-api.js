@@ -19,7 +19,7 @@ async function handle(req,res,{pool,auth,send,deviceApi}){
  }
  if(req.method!=='POST')return send(res,405,{error:'Método não permitido'});
  const a=await read(req);
- if(linked){if(linked.kind==='tv')return send(res,403,{error:'TV somente leitura'});if(linked.kind==='terminal'){if(!user||!['admin','atendente'].includes(user.role))return send(res,403,{error:'Atendente precisa entrar com sua conta'});if(!['call','finish'].includes(a.type))return send(res,403,{error:'Operação não autorizada ao terminal'});if(a.type==='call'&&Number(a.destinationId)!==Number(linked.destination_id))return send(res,403,{error:'Guichê diferente do equipamento vinculado'})}else if(!['totem','recepcao'].includes(linked.kind)||a.type!=='issue')return send(res,403,{error:'Dispositivo permite somente emissão'});}else if(!user&&!(await auth(req)))return send(res,401,{error:'Vincule o dispositivo ou faça login'});
+ if(linked){if(linked.kind==='tv')return send(res,403,{error:'TV somente leitura'});if(linked.kind==='terminal'){if(!user||!['admin','atendente'].includes(user.role))return send(res,403,{error:'Atendente precisa entrar com sua conta'});if(!['call','finish','transfer'].includes(a.type))return send(res,403,{error:'Operação não autorizada ao terminal'});if(a.type==='call'&&Number(a.destinationId)!==Number(linked.destination_id))return send(res,403,{error:'Guichê diferente do equipamento vinculado'})}else if(!['totem','recepcao'].includes(linked.kind)||a.type!=='issue')return send(res,403,{error:'Dispositivo permite somente emissão'});}else if(!user&&!(await auth(req)))return send(res,401,{error:'Vincule o dispositivo ou faça login'});
  const client=await pool.connect();
  try{
  await client.query('BEGIN');
@@ -47,6 +47,24 @@ async function handle(req,res,{pool,auth,send,deviceApi}){
  if(idx<0)throw Error('Fila vazia');
  state.current={...state.queue.splice(idx,1)[0],destinationId:dest,destination:destination.rows[0].name,calledAt:new Date().toISOString()};
  state.history.unshift({...state.current,status:'chamado'});state.history=state.history.slice(0,30);state.calls++;result={code:state.current.code};break}
+ case 'transfer':{
+ if(!user||!['admin','atendente'].includes(user.role))throw Error('Funcionário autorizado necessário para encaminhar');
+ if(!state.current)throw Error('Não há senha em atendimento para encaminhar');
+ const target=id(a.targetServiceId);
+ if(!serviceIds.has(target))throw Error('O serviço de destino não pertence à unidade');
+ if(Number(state.current.serviceId)===target)throw Error('Selecione um serviço diferente do atual');
+ const original=state.current;
+ if(state.queue.some(q=>q.code===original.code))throw Error('Esta senha já está na fila');
+ const transferAt=new Date().toISOString();
+ const h=state.history.find(x=>x.code===original.code&&x.status==='chamado');
+ if(h){h.status='encaminhado';h.transferredToServiceId=target;h.transferredAt=transferAt;}
+ const trace=Array.isArray(original.transfers)?original.transfers:[];
+ const moved={code:original.code,serviceId:target,priority:original.priority,issuedAt:original.issuedAt||transferAt,transfers:[...trace,{fromServiceId:original.serviceId,toServiceId:target,at:transferAt}]};
+ state.queue.push(moved);
+ state.current=null;
+ result={code:moved.code,fromServiceId:original.serviceId,toServiceId:target,transferred:true};
+ break;
+ }
  case 'finish':{
  if(!state.current)throw Error('Sem atendimento ativo');
  const h=state.history.find(x=>x.code===state.current.code);if(h)h.status='concluido';

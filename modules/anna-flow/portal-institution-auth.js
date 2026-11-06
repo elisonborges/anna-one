@@ -2,18 +2,44 @@
 const crypto=require('node:crypto');
 const portalAccessUrl=process.env.FLOW_PORTAL_INSTITUTION_URL||'https://anna-one-auditoria.elisonborg.workers.dev/v1/institution/flow-access';
 const digest=v=>crypto.createHash('sha256').update(v).digest('hex');
+const workerRoot='https://anna-one-auditoria.elisonborg.workers.dev';
+async function worker(path,jwt){
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),6500);
+ try{
+  const response=await fetch(path,{headers:{Authorization:'Bearer '+jwt},signal:controller.signal,redirect:'error'});
+  const data=await response.json().catch(()=>null);
+  if(response.status===401||response.status===403)throw Object.assign(Error('Sua conta precisa estar autorizada no Portal AnnA One'),{status:401});
+  if(!response.ok)throw Object.assign(Error('Validação do Portal indisponível'),{status:response.status});
+  return data;
+ }finally{clearTimeout(timer)}
+}
 async function verify(req){
-const jwt=/^Bearer (eyJ[A-Za-z0-9_\-.]+)$/i.exec(req.headers.authorization||'')?.[1];
-if(!jwt||jwt.length>8192)throw Object.assign(Error('Sessão Neon Auth necessária'),{status:401});
-const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),6500);
-try{
-const response=await fetch(portalAccessUrl,{headers:{Authorization:'Bearer '+jwt},signal:controller.signal,redirect:'error'});
-if(response.status===401||response.status===403)throw Object.assign(Error('Entre pelo Portal AnnA One com sua conta autorizada'),{status:401});
-if(!response.ok)throw Error('Validação institucional indisponível');
-const data=await response.json();
-if(!/^[0-9a-f-]{36}$/i.test(data.user_id||'')||typeof data.user_email!=='string'||!Array.isArray(data.institutions))throw Error('Resposta institucional inválida');
-return data;
-}finally{clearTimeout(timer)}
+ const jwt=/^Bearer (eyJ[A-Za-z0-9_.-]+)$/i.exec(req.headers.authorization||'')?.[1];
+ if(!jwt||jwt.length>8192)throw Object.assign(Error('Sessão Neon Auth necessária'),{status:401});
+ let data;
+ try{data=await worker(portalAccessUrl,jwt)}
+ catch(error){
+  // A rota mais recente pode não estar publicada; exigir duas provas do Portal
+  if(error.status!==404&&error.status!==405)throw error;
+  const [identity,access]=await Promise.all([
+   worker(workerRoot+'/v1/auth/verify',jwt),
+   worker(workerRoot+'/v1/institution/me',jwt)
+  ]);
+  if(identity?.authenticated!==true||!/^[a-f0-9-]{36}$/i.test(identity.user_id||'')||access?.authorized!==true)
+   throw Object.assign(Error('Identidade institucional não confirmada'),{status:403});
+  const allowed=Array.isArray(access.institutions)?access.institutions:[];
+  const modules=Array.isArray(access.modules)?access.modules:[];
+  // Endpoint legado lista módulos agregados: não inferir instituição em múltiplos vínculos
+  if(allowed.length!==1||!modules.some(m=>m.code==='anna-flow'))
+   throw Object.assign(Error('Autorização específica do Flow indisponível. Solicite atualização do Portal.'),{status:403});
+  data={user_id:identity.user_id,
+   user_email:'neon-'+identity.user_id+'@auth.annaone.invalid',
+   institutions:allowed.map(i=>({institution_id:i.id,name:i.name,flow_client_id:null})),
+   legacyFallback:true};
+ }
+ if(!/^[a-f0-9-]{36}$/i.test(data?.user_id||'')||typeof data.user_email!=='string'||!Array.isArray(data.institutions))
+  throw Error('Resposta institucional inválida');
+ return data;
 }
 async function read(req){let v='';for await(const c of req){v+=c;if(v.length>2048)throw Error('Dados excessivos')}return JSON.parse(v)}
 async function handle(req,res,{pool,send}){
@@ -25,9 +51,12 @@ if(a.action==='lookup')return send(res,200,{institutions:authorized.institutions
 if(a.action!=='login')return send(res,400,{error:'Operação inválida'});
 const chosen=authorized.institutions.find(i=>i.institution_id===a.portalInstitutionId);
 if(!chosen)return send(res,403,{error:'Instituição não autorizada'});
-if(chosen.flow_client_id===null)return send(res,409,{error:'O Master precisa concluir a ativação desta instituição no AnnA Flow.'});
-const cid=Number(chosen.flow_client_id);
+const cidResult=await pool.query('SELECT l.client_id FROM flow_portal_institution_links l JOIN flow_clients c ON c.id=l.client_id WHERE l.portal_institution_id=$1 AND c.active=true',[chosen.institution_id]);
+if(!cidResult.rowCount)return send(res,409,{error:'O Master precisa concluir a ativação desta instituição no AnnA Flow.'});
+const cid=Number(cidResult.rows[0].client_id);
 if(!Number.isSafeInteger(cid)||cid<1)return send(res,503,{error:'ID institucional inválido'});
+if(chosen.flow_client_id!==null&&chosen.flow_client_id!==undefined&&Number(chosen.flow_client_id)!==cid)
+ return send(res,403,{error:'O vínculo Portal/Flow é inconsistente. Solicite revisão ao Master.'});
 const cx=await pool.connect();
 try{
 await cx.query('BEGIN');

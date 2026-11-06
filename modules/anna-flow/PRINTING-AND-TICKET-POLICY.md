@@ -41,3 +41,9 @@ Pesquisa anterior: Qmatic (gestão/TV), Qminder (console/filas) e SuaFila (emiss
 ## Situação da implementação
 
 Implementado na branch de desenvolvimento: acompanhamento institucional somente leitura por unidade, visualização de filas, guichês e histórico, configuração do número inicial diário, horário previsto de abertura, fuso e formato do papel; comprovante de senha com emissão e identificação do sistema. A impressão usa a caixa de diálogo do navegador. **Não há homologação física de modelos de impressora, impressão automática, integração ESC/POS direta, nem garantia de início efetivo do atendimento no comprovante emitido previamente.**
+
+## v1.5.17 — validação sem emissão real
+
+A tela de emissão inclui **Prévia / teste de impressão (sem emitir senha)**. O comprovante utiliza dados demonstrativos e contém a marca **AMOSTRA — NÃO VÁLIDA** tanto na tela quanto no papel. Esse teste não chama a API de emissão, não altera contadores e não entra na fila. Ao emitir senha verdadeira, a marca desaparece. A troca de unidade limpa o comprovante anterior para evitar imprimir dados da unidade errada.
+
+Roteiro para homologar impressoras: abrir a tela em sessão operacional autorizada; selecionar 58 mm, 80 mm ou A4; gerar amostra; imprimir pelo diálogo do navegador; conferir legibilidade, largura, corte, acentuação, data/hora, início previsto e identificação AnnA Flow v1.5.17. Anotar fabricante, modelo, conexão, sistema operacional, navegador, driver e resultado. **Não confirmar compatibilidade física sem esse teste no equipamento.**

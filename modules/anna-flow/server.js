@@ -6,6 +6,7 @@ const tenantApi=require('./tenant-api');
 const panelApi=require('./panel-api');
 const userAuth=require('./auth-api');
 const institutionUnits=require('./institution-units-api');
+const institutionPanels=require('./institution-panels-api');
 const deviceApi=require('./device-api');
 const centralAuth=require('./central-auth');
 const licenseApi=require('./license-api');
@@ -49,6 +50,7 @@ if(url.pathname==='/api/admin-page-access'&&req.method==='GET'){const [instituti
 if(url.pathname==='/api/license')return licenseApi.handle(req,res,{pool,send,auth,userAuth});
 if(url.pathname==='/api/institution-staff')return userAuth.institutionStaff(req,res,{pool,send});
 if(url.pathname==='/api/institution-units')return institutionUnits.handle(req,res,{pool,send});
+if(url.pathname==='/api/institution-panels')return institutionPanels.handle(req,res,{pool,send});
 if(url.pathname==='/api/manage-users')return userAuth.manageUsers(req,res,{pool,auth,send});
 if(url.pathname==='/api/me'&&req.method==='GET')return userAuth.me(req,res,{pool,send});
 if(url.pathname==='/api/catalog'&&req.method==='GET')return userAuth.unitCatalog(req,res,{pool,send});

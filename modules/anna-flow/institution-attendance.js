@@ -36,6 +36,7 @@ async function load(){
   $('iaStartNumber').value=s.startNumber||1;
   $('iaOpeningTime').value=s.openingTime||'';
   $('iaTimezone').value=s.timezone||'America/Fortaleza';
+  $('iaPaperWidth').value=s.paperWidth||'58';
   put('iaStatus','Atualizado às '+new Date().toLocaleTimeString('pt-BR')+' · '+d.unit.name);
  }catch(e){put('iaStatus','Não foi possível consultar: '+e.message)}finally{busy=false}
 }
@@ -49,10 +50,10 @@ async function units(){
  }catch(e){put('iaStatus',e.message)}
 }
 async function save(){
- const n=Number($('iaStartNumber').value),openingTime=$('iaOpeningTime').value,timezone=$('iaTimezone').value;
+ const n=Number($('iaStartNumber').value),openingTime=$('iaOpeningTime').value,timezone=$('iaTimezone').value,paperWidth=$('iaPaperWidth').value;
  if(!Number.isSafeInteger(n)||n<1||n>999999)return put('iaSettingsStatus','Informe um número inicial de 1 a 999999.');
  try{
-  const d=await api(Number($('iaUnit').value),{type:'ticket_settings',startNumber:n,openingTime,timezone});
+  const d=await api(Number($('iaUnit').value),{type:'ticket_settings',startNumber:n,openingTime,timezone,paperWidth});
   put('iaSettingsStatus',d.notice||'Configuração salva.');
  }catch(e){put('iaSettingsStatus',e.message)}
 }

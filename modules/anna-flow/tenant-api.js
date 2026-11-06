@@ -84,7 +84,7 @@ async function handle(req,res,{pool,auth,send,deviceApi}){
  const priority=a.priority==='preferencial'?'preferencial':'normal';const key=serviceId+':'+priority;
  const issuedAt=new Date(),numbering=nextTicketNumber(state,key,issuedAt);
  const code=(priority==='preferencial'?'P':'A')+'-'+serviceId+'-'+String(numbering.number).padStart(3,'0');
- state.queue.push({code,serviceId,priority,issuedAt:issuedAt.toISOString()});result={code,issuedAt:issuedAt.toISOString(),serviceName:serviceResult.rows.find(s=>Number(s.id)===serviceId)?.name||'',unitName:unitResult.rows[0].name,institutionName:unitResult.rows[0].institution_name,serviceStartLocal:numbering.openingTime?numbering.day+'T'+numbering.openingTime:null,timeZone:numbering.zone};break}
+ state.queue.push({code,serviceId,priority,issuedAt:issuedAt.toISOString()});result={code,issuedAt:issuedAt.toISOString(),serviceName:serviceResult.rows.find(s=>Number(s.id)===serviceId)?.name||'',unitName:unitResult.rows[0].name,institutionName:unitResult.rows[0].institution_name,serviceStartLocal:numbering.openingTime?numbering.day+'T'+numbering.openingTime:null,timeZone:numbering.zone,paperWidth:['58','80','a4'].includes(state.ticketSettings?.paperWidth)?state.ticketSettings.paperWidth:'58'};break}
  case 'call':{
  if(active(state,id(a.destinationId)))throw Error('Conclua o atendimento deste guichê antes de chamar outra senha');
  const serviceId=id(a.serviceId);if(!serviceIds.has(serviceId))throw Error('Serviço não pertence à unidade');

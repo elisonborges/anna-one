@@ -34,6 +34,20 @@ function showReceipt(data,serviceId,priority){
  $('receipt').hidden=false;$('receiptTools').hidden=false;
  $('receipt').dataset.width=$('receiptWidth').value;
 }
+function sampleReceipt(){
+ const now=new Date(),zone='America/Fortaleza';
+ const local=new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(now);
+ const p=Object.fromEntries(local.map(x=>[x.type,x.value]));
+ const serviceName=$('service').selectedOptions?.[0]?.textContent||'Serviço de exemplo';
+ const unitName=$('unit').selectedOptions?.[0]?.textContent||'Unidade de exemplo';
+ showReceipt({result:{code:'A-001-001',institutionName:'INSTITUIÇÃO EXEMPLO',unitName,serviceName,issuedAt:now.toISOString(),serviceStartLocal:p.year+'-'+p.month+'-'+p.day+'T'+p.hour+':'+p.minute,timeZone:zone,paperWidth:$('receiptWidth').value}},null,'normal');
+ $('receipt').dataset.sample='true';
+ $('receiptSample').hidden=false;
+ note('message','AMOSTRA de impressão criada sem emissão de senha nem alteração na fila. Selecione o papel e clique em Imprimir senha para testar.');
+}
+function clearReceipt(){
+ $('receipt').hidden=true;$('receiptTools').hidden=true;$('receipt').dataset.sample='false';$('receiptSample').hidden=true;
+}
 function fill(id,items){
  const sel=$(id);sel.replaceChildren(...items.map(item=>{const option=document.createElement('option');option.value=String(item.id);option.textContent=item.name;return option}));
 }
@@ -74,23 +88,24 @@ async function resume(){
   note('authStatus','Sessão da Produção expirada ou inválida. Faça login novamente.');
  }
 }
-$('unit').onchange=()=>catalog().catch(e=>note('message',e.message));
+$('unit').onchange=()=>{clearReceipt();$('ticket').textContent='';catalog().catch(e=>note('message',e.message))};
 $('issue').onclick=async()=>{
  try{
   const unit=$('unit').value,serviceId=$('service').value;
   if(!unit||!serviceId)throw Error('Selecione a unidade e o serviço');
   $('issue').disabled=true;
   const d=await api('/api/tenant?unit='+encodeURIComponent(unit),'POST',{type:'issue',serviceId:Number(serviceId),priority:$('priority').value});
-  note('ticket',d.result.code);showReceipt(d,serviceId,$('priority').value);note('message','Senha emitida com sucesso. Utilize Imprimir senha se desejar um comprovante.');
+  note('ticket',d.result.code);showReceipt(d,serviceId,$('priority').value);$('receipt').dataset.sample='false';$('receiptSample').hidden=true;note('message','Senha emitida com sucesso. Utilize Imprimir senha se desejar um comprovante.');
  }catch(e){note('message',e.message)}finally{$('issue').disabled=false}
 };
+$('testPrint').onclick=sampleReceipt;
 $('receiptWidth').addEventListener('change',()=>{$('receipt').dataset.width=$('receiptWidth').value});
 $('printTicket').onclick=()=>{if(!$('receipt').hidden)window.print()};
 $('logout').onclick=async()=>{
  if(deviceMode){location.assign('/device.html');return}
  try{await api('/api/logout','POST',{})}catch{}
  token='';sessionStorage.removeItem('flowProductionSession');
- $('ticket').textContent='';$('receipt').hidden=true;$('receiptTools').hidden=true;$('emit').hidden=true;$('auth').hidden=false;
+ $('ticket').textContent='';clearReceipt();$('emit').hidden=true;$('auth').hidden=false;
  note('authStatus','Sessão encerrada. Entre novamente na Produção.');
 };
 resume().catch(e=>note('authStatus','Não foi possível consultar o acesso: '+e.message));

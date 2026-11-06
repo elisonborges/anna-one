@@ -73,10 +73,32 @@ async function save(body){
  try{await request(body);await load();status('Configuração salva com sucesso.')}catch(e){status(e.message)}
 }
 async function load(){
- if(!token||loading)return;loading=true;
- try{const d=await request();if(Number(d.institution?.id)!==clientId)throw Error('Instituição inconsistente');data=d;
- $('ipInstitution').textContent='Instituição: '+d.institution.name;fillUnits();render();status('Painéis atualizados.')}
- catch(e){status(e.message)}finally{loading=false}
+ if(!token||loading)return;
+ loading=true;status('Consultando painéis e unidades...');
+ try{
+  const d=await request();
+  if(Number(d.institution?.id)!==clientId)throw Error('Instituição inconsistente');
+  data=d;
+  $('ipInstitution').textContent='Instituição: '+d.institution.name;
+  fillUnits();render();
+  if(d.warnings?.length)status('Unidades carregadas. Consulta parcial indisponível: '+d.warnings.join(', ')+'. Tente atualizar.');
+  else status('Painéis e unidades da instituição atualizados.');
+ }catch(e){
+  // Consulta independente já existente, para manter as unidades visíveis.
+  try{
+   const r=await fetch('/api/institution-units',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+   const d=await r.json();if(!r.ok)throw Error(d.error||'Consulta indisponível');
+   if(Number(d.institution?.id)!==clientId)throw Error('Instituição inconsistente');
+   data={institution:d.institution,units:d.units||[],services:d.services||[],panels:[]};
+   $('ipInstitution').textContent='Instituição: '+d.institution.name;
+   fillUnits();render();
+   status('Unidades carregadas, mas os painéis não puderam ser consultados. Use Atualizar. '+e.message);
+  }catch(fallbackError){
+   $('ipInstitution').textContent='Instituição não carregada';
+   $('ipUnit').replaceChildren();$('ipUnit').disabled=true;$('ipAdd').disabled=true;
+   status('Falha ao carregar os dados da instituição: '+fallbackError.message);
+  }
+ }finally{loading=false}
 }
 $('ipAdd').onclick=async()=>{const name=$('ipName').value.trim(),unitId=Number($('ipUnit').value),theme=$('ipTheme').value;
  if(name.length<2||!unitId)return status('Informe o nome e a unidade do painel.');

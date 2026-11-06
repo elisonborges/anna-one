@@ -52,6 +52,33 @@ function destinationList(rows,unitName){
   li.append(heading,unit,edit,form);el.append(li);
  }
 }
+function unitList(rows){
+ const el=$('iuUnits');el.replaceChildren();
+ if(!rows.length){const empty=document.createElement('li');empty.className='iu-empty';empty.textContent='Nenhuma unidade cadastrada.';el.append(empty);return}
+ for(const row of rows){
+  const li=document.createElement('li');li.className='iu-unit-card';
+  const name=document.createElement('strong');name.textContent=row.name;
+  const edit=document.createElement('button');edit.type='button';edit.className='iu-edit-btn';edit.textContent='Editar';
+  const form=document.createElement('div');form.className='iu-edit-form';form.hidden=true;
+  const label=document.createElement('label');label.textContent='Nome da unidade';
+  const input=document.createElement('input');input.maxLength=120;input.value=row.name;label.append(input);
+  const actions=document.createElement('div');actions.className='iu-edit-actions';
+  const save=document.createElement('button');save.type='button';save.textContent='Salvar';
+  const cancel=document.createElement('button');cancel.type='button';cancel.className='iu-secondary';cancel.textContent='Cancelar';
+  actions.append(save,cancel);form.append(label,actions);
+  edit.onclick=()=>{form.hidden=false;edit.hidden=true;input.focus()};
+  cancel.onclick=()=>{input.value=row.name;form.hidden=true;edit.hidden=false};
+  save.onclick=async()=>{
+   const updatedName=input.value.trim().replace(/\\s+/g,' ');
+   if(updatedName.length<2||updatedName.length>120)return status('Nome da unidade deve ter entre 2 e 120 caracteres.');
+   if(updatedName===row.name){cancel.onclick();return}
+   save.disabled=true;cancel.disabled=true;
+   try{await request({type:'unit_update',unitId:Number(row.id),name:updatedName});await load();status('Unidade atualizada: '+updatedName)}
+   catch(e){status(e.message)}finally{save.disabled=false;cancel.disabled=false}
+  };
+  li.append(name,edit,form);el.append(li);
+ }
+}
 function serviceList(rows,unitName){
  const el=$('iuServices');el.replaceChildren();
  if(!rows.length){const empty=document.createElement('li');empty.className='iu-empty';empty.textContent='Nenhum serviço cadastrado.';el.append(empty);return}
@@ -99,7 +126,7 @@ async function load(){
   $('iuCountDestinations').textContent=state.destinations.length;
   select('iuServiceUnit',state.units);select('iuDestinationUnit',state.units);select('iuPolicyUnit',state.units);showPolicy();
   const unitName=id=>state.units.find(u=>String(u.id)===String(id))?.name||'Unidade desconhecida';
-  list('iuUnits',state.units,u=>u.name);
+  unitList(state.units);
   serviceList(state.services,unitName);
   destinationList(state.destinations,unitName);
   $('iuAddService').disabled=!state.units.length;

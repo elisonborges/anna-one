@@ -21,6 +21,21 @@ async function handle(req,res,{pool,send}){
   }
   if(req.method!=='POST')return send(res,405,{error:'Método não permitido'});
   const a=await read(req);
+  if(a.type==='unit_update'){
+   const unitId=num(a.unitId),name=clean(a.name,120);
+   if(!unitId||name.length<2)return send(res,400,{error:'Unidade ou nome inválido'});
+   const db=await pool.connect();
+   try{
+    await db.query('BEGIN');
+    const previous=await db.query('SELECT id,name FROM flow_client_units WHERE id=$1 AND client_id=$2 AND active=true FOR UPDATE',[unitId,cid]);
+    if(!previous.rowCount){await db.query('ROLLBACK');return send(res,404,{error:'Unidade inexistente ou não autorizada'})}
+    const updated=await db.query('UPDATE flow_client_units SET name=$1 WHERE id=$2 AND client_id=$3 AND active=true RETURNING id,name',[name,unitId,cid]);
+    await db.query('INSERT INTO flow_admin_audit(action,client_id,unit_id,details) VALUES($1,$2,$3,$4::jsonb)',
+     ['unit_update',cid,unitId,JSON.stringify({unitId,previousName:previous.rows[0].name,name})]);
+    await db.query('COMMIT');
+    return send(res,200,{updated:updated.rows[0]});
+   }catch(e){await db.query('ROLLBACK').catch(()=>{});throw e}finally{db.release()}
+  }
   if(a.type==='service_update'){
    const serviceId=num(a.serviceId),name=clean(a.name,100);
    if(!serviceId||name.length<2)return send(res,400,{error:'Serviço ou nome inválido'});

@@ -13,7 +13,7 @@ async function handle(req,res,{pool,send}){
   if(req.method==='GET'){
    const panelId=positive(new URL(req.url,'http://localhost').searchParams.get('panel'));
    if(!panelId){
-    const panels=await pool.query('SELECT p.id,p.name,p.unit_id,u.name AS unit_name FROM flow_signage_profiles p JOIN flow_client_units u ON u.id=p.unit_id AND u.client_id=p.client_id AND u.active=true WHERE p.client_id=$1 AND p.active=true ORDER BY u.name,p.name',[clientId]);
+    const panels=await pool.query('SELECT p.id,p.name,p.unit_id,p.public_key,u.name AS unit_name FROM flow_signage_profiles p JOIN flow_client_units u ON u.id=p.unit_id AND u.client_id=p.client_id AND u.active=true WHERE p.client_id=$1 AND p.active=true ORDER BY u.name,p.name',[clientId]);
     return send(res,200,{institution:institution.rows[0],panels:panels.rows});
    }
    const panel=await pool.query('SELECT p.id,p.name,p.unit_id,p.notice,p.messages,u.name AS unit_name FROM flow_signage_profiles p JOIN flow_client_units u ON u.id=p.unit_id AND u.client_id=p.client_id AND u.active=true WHERE p.id=$1 AND p.client_id=$2 AND p.active=true',[panelId,clientId]);

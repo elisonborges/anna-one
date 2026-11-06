@@ -4,7 +4,7 @@
 
 Instituição, unidade, senha em destaque, Normal/Preferencial, serviço, emissão (dia e hora), início previsto do atendimento (dia e hora), orientação para acompanhar o painel. Sem dados pessoais. O início previsto é configurável pela instituição e não equivale à chamada efetiva. Se não configurado: "Não informado".
 
-Papel térmico de 58 mm, 80 mm e A4. A primeira versão usa impressão do navegador pelo driver do sistema operacional. Não inclui impressão silenciosa ou automática.
+Papel térmico de 58 mm, 80 mm e A4, configurável por unidade. A primeira versão usa impressão manual do navegador pelo driver do sistema operacional. Não inclui impressão silenciosa ou automática. O rodapé identifica o sistema e versão: AnnA Flow · Versão 1.5.16.
 
 ## Política de numeração
 
@@ -37,3 +37,7 @@ Estas famílias são uma meta de cobertura, **não equipamentos já homologados 
 ## Referências competitivas
 
 Pesquisa anterior: Qmatic (gestão/TV), Qminder (console/filas) e SuaFila (emissão/chamada). Transferência entre serviços sem novo número já aprovada. Waitwhile oferece IDs genéricos e por serviço, e Qmatic combina quiosques, ticket printers e métricas. Próximas oportunidades: QR code opcional, métricas de tempo de espera e impressão direta por conector homologado.
+
+## Situação da implementação
+
+Implementado na branch de desenvolvimento: acompanhamento institucional somente leitura por unidade, visualização de filas, guichês e histórico, configuração do número inicial diário, horário previsto de abertura, fuso e formato do papel; comprovante de senha com emissão e identificação do sistema. A impressão usa a caixa de diálogo do navegador. **Não há homologação física de modelos de impressora, impressão automática, integração ESC/POS direta, nem garantia de início efetivo do atendimento no comprovante emitido previamente.**

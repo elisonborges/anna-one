@@ -74,7 +74,7 @@ async function save(body){
 }
 async function load(){
  if(!token||loading)return;
- loading=true;status('Consultando painéis e unidades...');
+ loading=true;$('ipInstitution').textContent='Consultando instituição autenticada...';status('Consultando painéis e unidades...');
  try{
   const d=await request();
   if(Number(d.institution?.id)!==clientId)throw Error('Instituição inconsistente');

@@ -9,6 +9,7 @@ const institutionUnits=require('./institution-units-api');
 const institutionPanels=require('./institution-panels-api');
 const institutionOverview=require('./institution-overview-api');
 const institutionCommunication=require('./institution-communication-api');
+const institutionAttendance=require('./institution-attendance-api');
 const deviceApi=require('./device-api');
 const centralAuth=require('./central-auth');
 const licenseApi=require('./license-api');
@@ -66,6 +67,7 @@ if(url.pathname==='/api/institution-staff')return userAuth.institutionStaff(req,
 if(url.pathname==='/api/institution-units')return institutionUnits.handle(req,res,{pool,send});
 if(url.pathname==='/api/institution-panels')return institutionPanels.handle(req,res,{pool,send});
 if(url.pathname==='/api/institution-communication')return institutionCommunication.handle(req,res,{pool,send});
+if(url.pathname==='/api/institution-attendance')return institutionAttendance.handle(req,res,{pool,send});
 if(url.pathname==='/api/institution-overview')return institutionOverview.handle(req,res,{pool,send});
 if(url.pathname==='/api/manage-users')return userAuth.manageUsers(req,res,{pool,auth,send});
 if(url.pathname==='/api/me'&&req.method==='GET')return userAuth.me(req,res,{pool,send});
@@ -89,6 +91,6 @@ if(url.pathname.startsWith('/api/'))return send(res,404,{error:'Rota inexistente
 if(req.method!=='GET')return send(res,405,{error:'Método inválido'});
 const name=url.pathname==='/'?'index.html':url.pathname.slice(1);
 if(name==='admin.html'){const institutional=await userAuth.adminPageSession(req,pool).catch(()=>null);if(!(await auth(req))&&institutional?.role!=='admin'){res.writeHead(302,{'Location':'/flow-login.html','Cache-Control':'no-store'});return res.end()}}
-if(!['index.html','app.js','anna-symbol.svg','admin.html','admin.js','tenant-console.js','panel.html','panel.js','panel-demo.html','panel-demo.js','panel-config.js','operator.html','operator.js','users-admin.js','manage-users.js','admin-layout.js','issue.html','issue.js','communication-admin.js','communication-layout.js','local-media.html','local-media.js','local-player.js','access.html','flow-login.html','flow-login.js','admin-gate.js','device.html','device.js','device-admin.js','institution-staff.js','institution-units.js','institution-panels.js','institution-overview.js','clients-central.js','institution-communication.js'].includes(name))return send(res,404,{error:'Arquivo não encontrado'});
+if(!['index.html','app.js','anna-symbol.svg','admin.html','admin.js','tenant-console.js','panel.html','panel.js','panel-demo.html','panel-demo.js','panel-config.js','operator.html','operator.js','users-admin.js','manage-users.js','admin-layout.js','issue.html','issue.js','communication-admin.js','communication-layout.js','local-media.html','local-media.js','local-player.js','access.html','flow-login.html','flow-login.js','admin-gate.js','device.html','device.js','device-admin.js','institution-staff.js','institution-units.js','institution-panels.js','institution-overview.js','clients-central.js','institution-communication.js','institution-attendance.js'].includes(name))return send(res,404,{error:'Arquivo não encontrado'});
 try{const data=fs.readFileSync(path.join(__dirname,name));res.writeHead(200,{'Content-Type':name.endsWith('.js')?'text/javascript; charset=utf-8':name.endsWith('.svg')?'image/svg+xml':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self' https://esm.sh; style-src 'self' 'unsafe-inline'; connect-src 'self' https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech; img-src 'self' data: blob:; media-src 'self' https: blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"});res.end(data)}catch{return send(res,404,{error:'Arquivo inexistente'})}});
 server.listen(port,'0.0.0.0',()=>console.log('AnnA Flow online escutando na porta '+port));

@@ -2,7 +2,17 @@
 const id=v=>{const n=Number(v);if(!Number.isSafeInteger(n)||n<1)throw Error('Identificador inválido');return n};
 const safe=(v,n=100)=>typeof v==='string'?v.trim().slice(0,n):'';
 const read=async req=>{let body='';for await(const c of req){body+=c;if(body.length>10000)throw Error('Corpo muito grande')}return JSON.parse(body)};
-const initial=()=>({counters:{},queue:[],current:null,history:[],completed:0,calls:0});
+const initial=()=>({counters:{},queue:[],current:null,currents:{},history:[],completed:0,calls:0});
+function migrate(state){
+ if(!state.currents||typeof state.currents!=='object'||Array.isArray(state.currents))state.currents={};
+ if(state.current?.destinationId&&!state.currents[String(state.current.destinationId)])state.currents[String(state.current.destinationId)]=state.current;
+ state.current=null;
+ return state;
+}
+function active(state,dest){return state.currents[String(dest)]||null}
+function setActive(state,dest,ticket){if(ticket)state.currents[String(dest)]=ticket;else delete state.currents[String(dest)]}
+function visibleState(state){return {...state,current:null,currents:state.currents||{}}}
+
 async function handle(req,res,{pool,auth,send,deviceApi}){
  const user=await require('./auth-api').session(req,pool);
  const linked=await deviceApi.device(req,pool);
@@ -13,7 +23,7 @@ async function handle(req,res,{pool,auth,send,deviceApi}){
  if(linked&&Number(linked.unit_id)!==unit)return send(res,403,{error:'Equipamento de outra unidade'});
  if(req.method==='GET'){
  const q=await pool.query('SELECT r.revision,r.state FROM flow_client_runtime r JOIN flow_client_units u ON u.id=r.unit_id WHERE u.id=$1',[unit]);
- if(q.rowCount)return send(res,200,q.rows[0]);
+ if(q.rowCount)return send(res,200,{...q.rows[0],state:visibleState(migrate(q.rows[0].state))});
  const valid=await pool.query('SELECT id FROM flow_client_units WHERE id=$1 AND active=true',[unit]);
  return valid.rowCount?send(res,200,{revision:0,state:initial()}):send(res,404,{error:'Unidade não encontrada'});
  }
@@ -28,10 +38,15 @@ async function handle(req,res,{pool,auth,send,deviceApi}){
  const serviceResult=await client.query('SELECT id,name FROM flow_client_services WHERE unit_id=$1 AND active=true ORDER BY id',[unit]);
  await client.query('INSERT INTO flow_client_runtime(unit_id) VALUES($1) ON CONFLICT DO NOTHING',[unit]);
  const current=await client.query('SELECT revision,state FROM flow_client_runtime WHERE unit_id=$1 FOR UPDATE',[unit]);
- const state=current.rows[0].state,serviceIds=new Set(serviceResult.rows.map(s=>Number(s.id)));
+ const state=migrate(current.rows[0].state),serviceIds=new Set(serviceResult.rows.map(s=>Number(s.id)));
  if(!Array.isArray(state.noShows))state.noShows=[];
- // Os terminais podem agir apenas sobre o atendimento em seu próprio guichê.
- if(linked?.kind==='terminal'&&['recall','no_show','finish','transfer'].includes(a.type)&&state.current&&Number(state.current.destinationId)!==Number(linked.destination_id))throw Error('Atendimento pertence a outro guichê');
+ const deskActions=['recall','no_show','finish','transfer'];
+ const destId=deskActions.includes(a.type)?id(linked?.kind==='terminal'?linked.destination_id:a.destinationId):null;
+ if(linked?.kind==='terminal'&&deskActions.includes(a.type)&&a.destinationId&&Number(a.destinationId)!==Number(linked.destination_id))throw Error('Guichê diferente do terminal');
+ if(destId){
+  const d=await client.query('SELECT id FROM flow_client_destinations WHERE id=$1 AND unit_id=$2 AND active=true',[destId,unit]);
+  if(!d.rowCount)throw Error('Guichê não autorizado');
+ }
 
  let result;
  switch(a.type){
@@ -41,7 +56,7 @@ async function handle(req,res,{pool,auth,send,deviceApi}){
  state.counters[key]=(state.counters[key]||0)+1;const code=(priority==='preferencial'?'P':'A')+'-'+serviceId+'-'+String(state.counters[key]).padStart(3,'0');
  state.queue.push({code,serviceId,priority,issuedAt:new Date().toISOString()});result={code};break}
  case 'call':{
- if(state.current)throw Error('Conclua o atendimento anterior');
+ if(active(state,id(a.destinationId)))throw Error('Conclua o atendimento deste guichê antes de chamar outra senha');
  const serviceId=id(a.serviceId);if(!serviceIds.has(serviceId))throw Error('Serviço não pertence à unidade');
  const dest=id(a.destinationId);
  const destination=await client.query('SELECT id,name FROM flow_client_destinations WHERE unit_id=$1 AND id=$2 AND active=true',[unit,dest]);
@@ -49,30 +64,26 @@ async function handle(req,res,{pool,auth,send,deviceApi}){
  let idx=state.queue.findIndex(q=>q.serviceId===serviceId&&q.priority==='preferencial');
  if(idx<0)idx=state.queue.findIndex(q=>q.serviceId===serviceId);
  if(idx<0)throw Error('Fila vazia');
- state.current={...state.queue.splice(idx,1)[0],destinationId:dest,destination:destination.rows[0].name,calledAt:new Date().toISOString()};
- state.history.unshift({...state.current,status:'chamado'});state.history=state.history.slice(0,30);state.calls++;result={code:state.current.code};break}
+ const called={...state.queue.splice(idx,1)[0],destinationId:dest,destination:destination.rows[0].name,calledAt:new Date().toISOString()};
+ setActive(state,dest,called);state.lastCall={...called};
+ state.history.unshift({...called,status:'chamado'});state.history=state.history.slice(0,30);state.calls++;result={code:called.code,destinationId:dest};break}
  case 'recall':{
-  if(!state.current)throw Error('Não existe senha em atendimento para rechamar');
-  const when=new Date().toISOString();
-  state.current.recalledAt=when;
-  state.current.recallCount=(Number(state.current.recallCount)||0)+1;
-  const h=state.history.find(x=>x.code===state.current.code&&x.status==='chamado');
-  if(h){h.recalledAt=when;h.recallCount=state.current.recallCount}
-  state.calls++;
-  result={code:state.current.code,recallCount:state.current.recallCount,recalledAt:when};
+  const ticket=active(state,destId);if(!ticket)throw Error('Não existe senha em atendimento neste guichê');
+  const when=new Date().toISOString();ticket.recalledAt=when;ticket.recallCount=(Number(ticket.recallCount)||0)+1;
+  const h=state.history.find(x=>x.code===ticket.code&&x.status==='chamado'&&Number(x.destinationId)===destId);
+  if(h){h.recalledAt=when;h.recallCount=ticket.recallCount}
+  state.lastCall={...ticket};state.calls++;
+  result={code:ticket.code,destinationId:destId,recallCount:ticket.recallCount,recalledAt:when};
   break;
  }
  case 'no_show':{
-  if(!state.current)throw Error('Não existe senha em atendimento');
-  const c=state.current,when=new Date().toISOString();
-  if(state.noShows.some(x=>x.code===c.code))throw Error('Senha já registrada como não compareceu');
-  const h=state.history.find(x=>x.code===c.code&&x.status==='chamado');
+  const ticket=active(state,destId);if(!ticket)throw Error('Não existe senha em atendimento neste guichê');
+  const when=new Date().toISOString();
+  if(state.noShows.some(x=>x.code===ticket.code))throw Error('Senha já registrada como não compareceu');
+  const h=state.history.find(x=>x.code===ticket.code&&x.status==='chamado'&&Number(x.destinationId)===destId);
   if(h){h.status='nao_compareceu';h.noShowAt=when}
-  state.noShows.unshift({...c,noShowAt:when});
-  state.noShows=state.noShows.slice(0,50);
-  state.current=null;
-  result={code:c.code,noShowAt:when};
-  break;
+  state.noShows.unshift({...ticket,noShowAt:when});state.noShows=state.noShows.slice(0,50);
+  setActive(state,destId,null);result={code:ticket.code,destinationId:destId,noShowAt:when};break;
  }
  case 'return_queue':{
   const code=safe(a.code,60);
@@ -81,7 +92,7 @@ async function handle(req,res,{pool,auth,send,deviceApi}){
   const c=state.noShows[index];
   if(linked?.kind==='terminal'&&Number(c.destinationId)!==Number(linked.destination_id))throw Error('Senha de outro guichê');
   if(!serviceIds.has(Number(c.serviceId)))throw Error('Serviço original não está ativo');
-  if(state.current?.code===code||state.queue.some(x=>x.code===code))throw Error('Senha já está em atendimento ou na fila');
+  if(Object.values(state.currents).some(x=>x.code===code)||state.queue.some(x=>x.code===code))throw Error('Senha já está em atendimento ou na fila');
   state.noShows.splice(index,1);
   const when=new Date().toISOString();
   const {destinationId,destination,calledAt,recalledAt,recallCount,noShowAt,...pending}=c;
@@ -94,11 +105,10 @@ async function handle(req,res,{pool,auth,send,deviceApi}){
  }
  case 'transfer':{
  if(!user||!['admin','atendente'].includes(user.role))throw Error('Funcionário autorizado necessário para encaminhar');
- if(!state.current)throw Error('Não há senha em atendimento para encaminhar');
+ const original=active(state,destId);if(!original)throw Error('Não há senha em atendimento neste guichê');
  const target=id(a.targetServiceId);
  if(!serviceIds.has(target))throw Error('O serviço de destino não pertence à unidade');
- if(Number(state.current.serviceId)===target)throw Error('Selecione um serviço diferente do atual');
- const original=state.current;
+ if(Number(original.serviceId)===target)throw Error('Selecione um serviço diferente do atual');
  if(state.queue.some(q=>q.code===original.code))throw Error('Esta senha já está na fila');
  const transferAt=new Date().toISOString();
  const h=state.history.find(x=>x.code===original.code&&x.status==='chamado');
@@ -118,20 +128,20 @@ async function handle(req,res,{pool,auth,send,deviceApi}){
   if(newer)state.queue.splice(newer.i,0,moved);
   else state.queue.splice(peers[peers.length-1].i+1,0,moved);
  }
- state.current=null;
+ setActive(state,destId,null);
  result={code:moved.code,fromServiceId:original.serviceId,toServiceId:target,policy,transferred:true};
  break;
  }
  case 'finish':{
- if(!state.current)throw Error('Sem atendimento ativo');
- const h=state.history.find(x=>x.code===state.current.code&&x.status==='chamado');if(h)h.status='concluido';
- result={code:state.current.code};state.current=null;state.completed++;break}
+ const ticket=active(state,destId);if(!ticket)throw Error('Sem atendimento ativo neste guichê');
+ const h=state.history.find(x=>x.code===ticket.code&&x.status==='chamado'&&Number(x.destinationId)===destId);if(h)h.status='concluido';
+ result={code:ticket.code,destinationId:destId};setActive(state,destId,null);state.completed++;break}
  default:throw Error('Operação inválida');
  }
  const revision=Number(current.rows[0].revision)+1;
  await client.query('UPDATE flow_client_runtime SET state=$2::jsonb,revision=$3,updated_at=now() WHERE unit_id=$1',[unit,JSON.stringify(state),revision]);
  await client.query('INSERT INTO flow_admin_audit(action,client_id,unit_id,details) VALUES($1,$2,$3,$4::jsonb)',[a.type,unitResult.rows[0].client_id,unit,JSON.stringify(result)]);
- await client.query('COMMIT');return send(res,200,{revision,state,result});
+ await client.query('COMMIT');return send(res,200,{revision,state:visibleState(state),result});
  }catch(e){await client.query('ROLLBACK').catch(()=>{});return send(res,400,{error:e.message})}finally{client.release()}
  }catch(e){return send(res,400,{error:e.message})}
 }

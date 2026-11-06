@@ -4,7 +4,7 @@ let token='',clientId=0,data={units:[],services:[],panels:[]},loading=false;
 const status=s=>$('ipStatus').textContent=s;
 const node=(tag,text)=>{const x=document.createElement(tag);if(text!==undefined)x.textContent=text;return x};
 const button=(label,fn)=>{const x=node('button',label);x.type='button';x.onclick=fn;return x};
-const labels={escuro:'Premium',claro:'Institucional',acolhedor:'Acolhedor'};
+const labels={escuro:'Premium',claro:'Institucional',acolhedor:'Acolhedor',azul:'Azul Educacional',verde:'Verde Saúde',vinho:'Vinho Elegante',roxo:'Roxo Criativo'};
 async function request(body){
  const r=await fetch('/api/institution-panels',{method:body?'POST':'GET',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:body?JSON.stringify(body):undefined,cache:'no-store'});
  const d=await r.json();if(!r.ok)throw Error(d.error||'Falha na consulta');return d;

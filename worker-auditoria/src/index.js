@@ -94,7 +94,9 @@ export default {
           WHERE m.user_id=${identity.userId}::uuid AND m.role='institution_admin' AND m.active=true
           AND i.status='active' AND (p.id IS NULL OR (p.status='active' AND pim.enabled=true))
           ORDER BY i.name LIMIT 50`;
-        return json({authorized:rows.length>0,user_id:identity.userId,institutions:rows},200,cors);
+        const userRows=await sql`SELECT email FROM public.app_users WHERE id=${identity.userId}::uuid LIMIT 1`;
+        if(!userRows.length||!userRows[0].email)return json({authorized:false,error:"Conta não encontrada"},403,cors);
+        return json({authorized:rows.length>0,user_id:identity.userId,user_email:userRows[0].email,institutions:rows},200,cors);
       }catch{return json({authorized:false,error:"Permissões institucionais indisponíveis"},503,cors);}
     }
     // Consulta de autorização Master: somente leitura, com identidade validada pelo JWT.

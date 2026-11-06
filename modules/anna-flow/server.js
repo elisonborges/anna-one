@@ -27,17 +27,21 @@ case 'demo': {if(s.queue.length||s.current)throw Error('Limpe a fila primeiro');
 case 'reset': {Object.assign(s,{queue:[],current:null,history:[],counters:{},completed:0,calls:0});return {ok:true}}
 default:throw Error('Ação inválida')}}
 async function auth(req){return !!(await centralAuth.session(req,pool))}
+const institutionLookups=new Map();
 const server=http.createServer(async(req,res)=>{const url=new URL(req.url,'http://localhost');
 if(url.pathname==='/api/portal-institution-auth')return portalInstitutionAuth.handle(req,res,{pool,send});
 if(url.pathname==='/api/master-licenses')return masterLicenses.handle(req,res,{pool,send});
 if(url.pathname.startsWith('/api/central/'))return centralAuth.handle(req,res,{pool,send,legacyAuth});
 if(url.pathname.startsWith('/api/device/'))return deviceApi.handle(req,res,{pool,auth,send,userAuth});
-const institutionLookups=new Map();
 if(url.pathname==='/api/institutions-by-email'&&req.method==='POST'){
 let raw='';try{const ip=String(req.socket.remoteAddress||'unknown'),now=Date.now();if(institutionLookups.size>2000){for(const [k,v] of institutionLookups)if(v.until<now)institutionLookups.delete(k)}const prior=institutionLookups.get(ip),rate=prior&&prior.until>now?prior:{count:0,until:now+600000};if(rate.count>=15)return send(res,429,{error:'Limite de consultas atingido. Tente novamente mais tarde'});rate.count++;institutionLookups.set(ip,rate);
 for await(const chunk of req){raw+=chunk;if(raw.length>512)return send(res,413,{error:'Solicitação muito grande'})}
 const a=JSON.parse(raw),email=String(a.email||'').trim().toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)return send(res,400,{error:'Informe um e-mail válido'});
-const q=await pool.query("SELECT DISTINCT c.id,c.name FROM flow_users u JOIN flow_clients c ON c.id=u.client_id WHERE u.email=$1 AND u.active=true AND u.role=$2 AND c.active=true ORDER BY c.name,c.id LIMIT 30",[email,a.mode==='production'?'atendente':'admin']);return send(res,200,{institutions:q.rows});
+const production=a.mode==='production';
+const sql=production
+?"SELECT DISTINCT c.id,c.name FROM flow_users u JOIN flow_clients c ON c.id=u.client_id WHERE u.email=$1 AND u.active=true AND u.role='atendente' AND c.active=true ORDER BY c.name,c.id LIMIT 30"
+:"SELECT DISTINCT l.portal_institution_id AS id,c.name FROM flow_users u JOIN flow_portal_admin_links pal ON pal.flow_user_id=u.id AND pal.client_id=u.client_id JOIN flow_portal_institution_links l ON l.client_id=u.client_id JOIN flow_clients c ON c.id=u.client_id WHERE u.email=$1 AND u.active=true AND u.role='admin' AND c.active=true ORDER BY c.name,l.portal_institution_id LIMIT 30";
+const q=await pool.query(sql,[email]);return send(res,200,{institutions:q.rows});
 }catch{return send(res,503,{error:'Não foi possível consultar as instituições'})}}
 if(url.pathname==='/api/admin-page-logout'&&req.method==='POST'){const central=await centralAuth.session(req,pool);if(central)await pool.query('UPDATE flow_master_sessions SET revoked_at=now() WHERE id=$1',[central.session_id]);res.setHeader('Set-Cookie',['flow_central_access=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0','flow_admin_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0','flow_central_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0']);return send(res,200,{ok:true})}
 if(url.pathname==='/api/admin-page-access'&&req.method==='GET'){const institutional=await userAuth.adminPageSession(req,pool).catch(()=>null);return send(res,200,{authorized:(await auth(req))||institutional?.role==='admin',central:await auth(req),clientId:institutional?.client_id||null})}

@@ -79,6 +79,7 @@ async function handle(req,res,{pool,auth,send,deviceApi}){
   const index=state.noShows.findIndex(x=>x.code===code);
   if(index<0)throw Error('Senha não encontrada na lista de não comparecimento');
   const c=state.noShows[index];
+  if(linked?.kind==='terminal'&&Number(c.destinationId)!==Number(linked.destination_id))throw Error('Senha de outro guichê');
   if(!serviceIds.has(Number(c.serviceId)))throw Error('Serviço original não está ativo');
   if(state.current?.code===code||state.queue.some(x=>x.code===code))throw Error('Senha já está em atendimento ou na fila');
   state.noShows.splice(index,1);

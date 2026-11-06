@@ -21,7 +21,7 @@ async function handle(req,res,{pool,send}){
     pool.query("SELECT panel_id,count(*)::int AS total FROM flow_devices WHERE client_id=$1 AND kind='tv' AND active=true AND revoked_at IS NULL AND panel_id IS NOT NULL GROUP BY panel_id",[clientId])
    ]);
    const warnings=[];
-   const items=(result,name)=>{if(result.status==='fulfilled')return result.value.rows;warnings.push(name);console.error('[institution-panels] Falha na consulta '+name+':',result.reason?.message||'desconhecida');return []};
+   const items=(result,name)=>{if(result.status==='fulfilled')return result.value.rows;warnings.push(name);if(typeof console!=='undefined')console.error('[institution-panels] Falha na consulta '+name+':',result.reason?.message||'desconhecida');return []};
    const services=items(servicesResult,'serviços');
    const panels=items(panelsResult,'painéis');
    const links=items(linksResult,'vínculos de serviços');

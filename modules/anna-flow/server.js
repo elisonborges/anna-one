@@ -9,6 +9,7 @@ const deviceApi=require('./device-api');
 const centralAuth=require('./central-auth');
 const licenseApi=require('./license-api');
 const masterLicenses=require('./master-licenses');
+const portalInstitutionAuth=require('./portal-institution-auth');
 const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:true},max:5});
 const token=process.env.FLOW_ADMIN_TOKEN||'';
 if(!process.env.DATABASE_URL||token.length<24){console.error('Configure DATABASE_URL e FLOW_ADMIN_TOKEN (mínimo 24 caracteres).');process.exit(1)}
@@ -27,6 +28,7 @@ case 'reset': {Object.assign(s,{queue:[],current:null,history:[],counters:{},com
 default:throw Error('Ação inválida')}}
 async function auth(req){return !!(await centralAuth.session(req,pool))}
 const server=http.createServer(async(req,res)=>{const url=new URL(req.url,'http://localhost');
+if(url.pathname==='/api/portal-institution-auth')return portalInstitutionAuth.handle(req,res,{pool,send});
 if(url.pathname==='/api/master-licenses')return masterLicenses.handle(req,res,{pool,send});
 if(url.pathname.startsWith('/api/central/'))return centralAuth.handle(req,res,{pool,send,legacyAuth});
 if(url.pathname.startsWith('/api/device/'))return deviceApi.handle(req,res,{pool,auth,send,userAuth});

@@ -111,7 +111,7 @@ async function handle(req,res,{pool,auth,send,deviceApi}){
  if(Number(original.serviceId)===target)throw Error('Selecione um serviço diferente do atual');
  if(state.queue.some(q=>q.code===original.code))throw Error('Esta senha já está na fila');
  const transferAt=new Date().toISOString();
- const h=state.history.find(x=>x.code===original.code&&x.status==='chamado');
+ const h=state.history.find(x=>x.code===original.code&&x.status==='chamado'&&Number(x.destinationId)===destId);
  if(h){h.status='encaminhado';h.transferredToServiceId=target;h.transferredAt=transferAt;}
  const trace=Array.isArray(original.transfers)?original.transfers:[];
  const moved={code:original.code,serviceId:target,priority:original.priority,issuedAt:original.issuedAt||transferAt,transfers:[...trace,{fromServiceId:original.serviceId,toServiceId:target,at:transferAt}]};

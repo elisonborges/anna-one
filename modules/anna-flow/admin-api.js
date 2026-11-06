@@ -11,7 +11,11 @@ const mediaPanel=new URL(req.url,'http://localhost').searchParams.get('media_pan
 const panelParam=new URL(req.url,'http://localhost').searchParams.get('panel');if(panelParam){const panelId=id(panelParam);const links=await pool.query('SELECT service_id FROM flow_panel_service_links WHERE panel_id=$1',[panelId]);return send(res,200,{serviceIds:links.rows.map(x=>Number(x.service_id))})}
 const client=req.url.includes('?')?new URL(req.url,'http://localhost').searchParams.get('client'):null;
 const clientId=client?id(client):null;
-const c=await pool.query('SELECT id,name,segment,active FROM flow_clients ORDER BY id');
+const c=await pool.query(`SELECT c.id,c.name,c.segment,c.active,
+(SELECT COUNT(*)::int FROM flow_client_units u WHERE u.client_id=c.id AND u.active=true) AS units_count,
+(SELECT COALESCE(json_agg(json_build_object('id',a.id,'email',a.email,'name',a.display_name,'units',COALESCE((SELECT json_agg(json_build_object('id',au.unit_id,'name',un.name) ORDER BY un.name) FROM flow_user_units au JOIN flow_client_units un ON un.id=au.unit_id AND un.client_id=c.id WHERE au.user_id=a.id),'[]'::json))) ,'[]'::json)
+ FROM flow_users a WHERE a.client_id=c.id AND a.role='admin' AND a.active=true) AS administrators
+FROM flow_clients c ORDER BY c.id`);
 if(!clientId)return send(res,200,{clients:c.rows,units:[],services:[],destinations:[],panels:[]});
 const found=c.rows.some(x=>Number(x.id)===clientId);if(!found)return send(res,404,{error:'Cliente não encontrado'});
 const [units,services,destinations,panels]=await Promise.all([
@@ -23,6 +27,20 @@ return send(res,200,{clients:c.rows,units:units.rows,services:services.rows,dest
 if(req.method!=='POST')return send(res,405,{error:'Método não permitido'});
 const a=await readBody(req);let result;
 switch(a.type){
+case 'client_update': {
+ const client=id(a.clientId),name=str(a.name,160).replace(/\\s+/g,' '),segment=str(a.segment,32);
+ if(name.length<2||!['educacao','saude','empresa','publico','outro'].includes(segment))throw Error('Nome ou segmento inválido');
+ const db=await pool.connect();
+ try{
+  await db.query('BEGIN');
+  const old=await db.query('SELECT id,name,segment FROM flow_clients WHERE id=$1 FOR UPDATE',[client]);
+  if(!old.rowCount){await db.query('ROLLBACK');return send(res,404,{error:'Cliente não encontrado'})}
+  const updated=await db.query('UPDATE flow_clients SET name=$1,segment=$2 WHERE id=$3 RETURNING id,name,segment,active',[name,segment,client]);
+  await db.query('INSERT INTO flow_admin_audit(action,client_id,details) VALUES($1,$2,$3::jsonb)',
+   ['client_update',client,JSON.stringify({before:{name:old.rows[0].name,segment:old.rows[0].segment},after:{name,segment}})]);
+  await db.query('COMMIT');return send(res,200,{updated:updated.rows[0]})
+ }catch(e){await db.query('ROLLBACK').catch(()=>{});throw e}finally{db.release()}
+}
 case 'client': {const name=str(a.name,160),segment=str(a.segment,32);if(!name||!['educacao','saude','empresa','publico','outro'].includes(segment))throw Error('Nome ou segmento inválido');result=await pool.query('INSERT INTO flow_clients(name,segment) VALUES($1,$2) RETURNING id,name,segment',[name,segment]);break}
 case 'unit': {const name=str(a.name),client=id(a.clientId);if(!name)throw Error('Informe a unidade');result=await pool.query('INSERT INTO flow_client_units(client_id,name) VALUES($1,$2) RETURNING id,name',[client,name]);break}
 case 'service': {const name=str(a.name,100),client=id(a.clientId),unit=id(a.unitId);if(!name)throw Error('Informe o serviço');result=await pool.query('INSERT INTO flow_client_services(client_id,unit_id,name) VALUES($1,$2,$3) RETURNING id,name',[client,unit,name]);break}

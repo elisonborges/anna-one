@@ -19,7 +19,7 @@ async function handle(req,res,{pool,auth,send,deviceApi}){
  }
  if(req.method!=='POST')return send(res,405,{error:'Método não permitido'});
  const a=await read(req);
- if(linked){if(linked.kind==='tv')return send(res,403,{error:'TV somente leitura'});if(linked.kind==='terminal'){if(!user||!['admin','atendente'].includes(user.role))return send(res,403,{error:'Atendente precisa entrar com sua conta'});if(!['call','finish','transfer'].includes(a.type))return send(res,403,{error:'Operação não autorizada ao terminal'});if(a.type==='call'&&Number(a.destinationId)!==Number(linked.destination_id))return send(res,403,{error:'Guichê diferente do equipamento vinculado'})}else if(!['totem','recepcao'].includes(linked.kind)||a.type!=='issue')return send(res,403,{error:'Dispositivo permite somente emissão'});}else if(!user&&!(await auth(req)))return send(res,401,{error:'Vincule o dispositivo ou faça login'});
+ if(linked){if(linked.kind==='tv')return send(res,403,{error:'TV somente leitura'});if(linked.kind==='terminal'){if(!user||!['admin','atendente'].includes(user.role))return send(res,403,{error:'Atendente precisa entrar com sua conta'});if(!['call','finish','transfer','recall','no_show','return_queue'].includes(a.type))return send(res,403,{error:'Operação não autorizada ao terminal'});if(a.type==='call'&&Number(a.destinationId)!==Number(linked.destination_id))return send(res,403,{error:'Guichê diferente do equipamento vinculado'})}else if(!['totem','recepcao'].includes(linked.kind)||a.type!=='issue')return send(res,403,{error:'Dispositivo permite somente emissão'});}else if(!user&&!(await auth(req)))return send(res,401,{error:'Vincule o dispositivo ou faça login'});
  const client=await pool.connect();
  try{
  await client.query('BEGIN');
@@ -29,6 +29,10 @@ async function handle(req,res,{pool,auth,send,deviceApi}){
  await client.query('INSERT INTO flow_client_runtime(unit_id) VALUES($1) ON CONFLICT DO NOTHING',[unit]);
  const current=await client.query('SELECT revision,state FROM flow_client_runtime WHERE unit_id=$1 FOR UPDATE',[unit]);
  const state=current.rows[0].state,serviceIds=new Set(serviceResult.rows.map(s=>Number(s.id)));
+ if(!Array.isArray(state.noShows))state.noShows=[];
+ // Os terminais podem agir apenas sobre o atendimento em seu próprio guichê.
+ if(linked?.kind==='terminal'&&['recall','no_show','finish','transfer'].includes(a.type)&&state.current&&Number(state.current.destinationId)!==Number(linked.destination_id))throw Error('Atendimento pertence a outro guichê');
+
  let result;
  switch(a.type){
  case 'issue':{
@@ -47,6 +51,46 @@ async function handle(req,res,{pool,auth,send,deviceApi}){
  if(idx<0)throw Error('Fila vazia');
  state.current={...state.queue.splice(idx,1)[0],destinationId:dest,destination:destination.rows[0].name,calledAt:new Date().toISOString()};
  state.history.unshift({...state.current,status:'chamado'});state.history=state.history.slice(0,30);state.calls++;result={code:state.current.code};break}
+ case 'recall':{
+  if(!state.current)throw Error('Não existe senha em atendimento para rechamar');
+  const when=new Date().toISOString();
+  state.current.recalledAt=when;
+  state.current.recallCount=(Number(state.current.recallCount)||0)+1;
+  const h=state.history.find(x=>x.code===state.current.code&&x.status==='chamado');
+  if(h){h.recalledAt=when;h.recallCount=state.current.recallCount}
+  state.calls++;
+  result={code:state.current.code,recallCount:state.current.recallCount,recalledAt:when};
+  break;
+ }
+ case 'no_show':{
+  if(!state.current)throw Error('Não existe senha em atendimento');
+  const c=state.current,when=new Date().toISOString();
+  if(state.noShows.some(x=>x.code===c.code))throw Error('Senha já registrada como não compareceu');
+  const h=state.history.find(x=>x.code===c.code&&x.status==='chamado');
+  if(h){h.status='nao_compareceu';h.noShowAt=when}
+  state.noShows.unshift({...c,noShowAt:when});
+  state.noShows=state.noShows.slice(0,50);
+  state.current=null;
+  result={code:c.code,noShowAt:when};
+  break;
+ }
+ case 'return_queue':{
+  const code=safe(a.code,60);
+  const index=state.noShows.findIndex(x=>x.code===code);
+  if(index<0)throw Error('Senha não encontrada na lista de não comparecimento');
+  const c=state.noShows[index];
+  if(!serviceIds.has(Number(c.serviceId)))throw Error('Serviço original não está ativo');
+  if(state.current?.code===code||state.queue.some(x=>x.code===code))throw Error('Senha já está em atendimento ou na fila');
+  state.noShows.splice(index,1);
+  const when=new Date().toISOString();
+  const {destinationId,destination,calledAt,recalledAt,recallCount,noShowAt,...pending}=c;
+  // Retorno entra no fim da fila da mesma prioridade, preservando a senha.
+  state.queue.push({...pending,returnedAt:when});
+  const h=state.history.find(x=>x.code===code&&x.status==='nao_compareceu');
+  if(h){h.status='retornou_fila';h.returnedAt=when}
+  result={code,returnedAt:when};
+  break;
+ }
  case 'transfer':{
  if(!user||!['admin','atendente'].includes(user.role))throw Error('Funcionário autorizado necessário para encaminhar');
  if(!state.current)throw Error('Não há senha em atendimento para encaminhar');

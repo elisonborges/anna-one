@@ -11,21 +11,65 @@ const d=await r.json(),jwt=typeof d==='string'?d:d?.token||d?.data?.token||d?.ac
 if(typeof jwt!=='string'||jwt.split('.').length!==3)throw Error('O Portal não retornou uma autorização válida.');
 return jwt}
 async function access(action,id){const r=await fetch('/api/portal-institution-auth',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({action,portalInstitutionId:id})});const d=await r.json();if(!r.ok)throw Error(d.error||'Acesso institucional indisponível');return d}
-async function identify(){const email=$('email').value.trim().toLowerCase();
-if(token&&verifiedEmail===email)return;
-const password=$('password').value;if(!password)throw Error('Informe sua senha do Portal AnnA One.');
-let signed=await auth.getSession(),user=signed?.data?.user||signed?.data?.session?.user;
-if(!user||String(user.email||'').toLowerCase()!==email){signed=await auth.signIn.email({email,password});if(signed?.error)throw Error('E-mail ou senha do Portal inválidos.');signed=await auth.getSession();user=signed?.data?.user||signed?.data?.session?.user}
-$('password').value='';
-if(!user||String(user.email||'').toLowerCase()!==email)throw Error('A sessão do Portal não corresponde ao e-mail informado.');
-token=await getJwt(signed);verifiedEmail=email;
-const data=await access('lookup');institutions=data.institutions||[];
-const select=$('client');if(!institutions.length){select.disabled=true;select.replaceChildren(new Option('Nenhuma instituição autorizada',''));throw Error('Esta conta não possui administração institucional do AnnA Flow habilitada no Portal.')}
-select.replaceChildren(...(institutions.length>1?[new Option('Selecione uma instituição','')]:[]),...institutions.map(i=>new Option(i.name,String(i.id))));
-select.disabled=institutions.length===1;
-msg(institutions.length>1?'Selecione a instituição para continuar.':'Instituição encontrada no Portal AnnA One.')}
-$('email').oninput=()=>{token='';verifiedEmail='';institutions=[];$('client').disabled=true;$('client').replaceChildren(new Option('Identificação após autenticação',''))};
-$('institutionForm').onsubmit=async e=>{e.preventDefault();try{const previous=!!token&&verifiedEmail===$('email').value.trim().toLowerCase();if(!previous)await identify();if(institutions.length>1&&!previous)return;const id=$('client').value;if(!institutions.some(i=>i.id===id))throw Error('Selecione uma instituição autorizada.');const d=await access('login',id);sessionStorage.setItem('flowInstitutionAdmin',JSON.stringify({token:d.token,clientId:d.clientId}));location.replace('/admin.html#devices')}catch(e){msg(e.message)}};
+async function identify(){
+ const email=$('email').value.trim().toLowerCase();
+ if(token&&verifiedEmail===email)return;
+ if(!$('email').validity.valid||!email)throw Error('Informe um e-mail válido.');
+ const password=$('password').value;
+ let signed=await auth.getSession(),user=signed?.data?.user||signed?.data?.session?.user;
+ if(!user||String(user.email||'').toLowerCase()!==email){
+  if(!password)throw Error('Informe a senha para confirmar a instituição autorizada.');
+  const result=await auth.signIn.email({email,password});
+  if(result?.error)throw Error('E-mail ou senha do Portal inválidos.');
+  signed=await auth.getSession();
+  user=signed?.data?.user||signed?.data?.session?.user;
+ }
+ if(!user||String(user.email||'').toLowerCase()!==email)throw Error('A sessão do Portal não corresponde ao e-mail informado.');
+ const jwt=await getJwt(signed);
+ const previousToken=token;
+ token=jwt;
+ try{
+  const data=await access('lookup');
+  if($('email').value.trim().toLowerCase()!==email)return;
+  institutions=data.institutions||[];
+  const select=$('client');
+  if(!institutions.length){select.disabled=true;select.replaceChildren(new Option('Nenhuma instituição autorizada',''));throw Error('Esta conta não possui administração institucional do AnnA Flow habilitada no Portal.')}
+  select.replaceChildren(...(institutions.length>1?[new Option('Selecione uma instituição','')]:[]),...institutions.map(i=>new Option(i.name,String(i.id))));
+  select.disabled=institutions.length===1;
+  verifiedEmail=email;
+  msg(institutions.length>1?'Selecione a instituição para continuar.':'Instituição encontrada no Portal AnnA One.');
+ }catch(e){token=previousToken;throw e}
+}
+let lookupPromise=null;
+async function lookupOnField(){
+ const email=$('email').value.trim().toLowerCase();
+ if(!$('email').validity.valid||!email||token&&verifiedEmail===email)return;
+ if(lookupPromise)return lookupPromise;
+ const sel=$('client');sel.disabled=true;sel.replaceChildren(new Option('Consultando instituição autorizada...',''));
+ lookupPromise=identify().catch(e=>{
+  if($('email').value.trim().toLowerCase()!==email)return;
+  sel.replaceChildren(new Option($('password').value?'Não foi possível validar':'Informe a senha para identificar',''));
+  msg(e.message);
+ }).finally(()=>{lookupPromise=null});
+ return lookupPromise;
+}
+$('email').oninput=()=>{token='';verifiedEmail='';institutions=[];$('client').disabled=true;$('client').replaceChildren(new Option('Informe o e-mail',''))};
+$('email').addEventListener('blur',lookupOnField);
+$('password').addEventListener('blur',lookupOnField);
+$('password').addEventListener('change',lookupOnField);
+$('institutionForm').onsubmit=async e=>{
+ e.preventDefault();
+ try{
+  if(lookupPromise)await lookupPromise;
+  if(!token||verifiedEmail!==$('email').value.trim().toLowerCase())await identify();
+  const id=$('client').value;
+  if(!institutions.some(i=>i.id===id))throw Error('Selecione uma instituição autorizada.');
+  const d=await access('login',id);
+  $('password').value='';
+  sessionStorage.setItem('flowInstitutionAdmin',JSON.stringify({token:d.token,clientId:d.clientId}));
+  location.replace('/admin.html#devices');
+ }catch(e){msg(e.message)}
+};
 let productionLast='',productionPending=null;
 async function resolveProduction(){const email=$('centralEmail').value.trim().toLowerCase(),sel=$('productionClient');if(!$('centralEmail').validity.valid||!email)return false;if(email===productionLast&&sel.value)return true;if(productionPending)return productionPending;
 productionPending=(async()=>{try{const r=await fetch('/api/institutions-by-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,mode:'production'})});const d=await r.json();if(!r.ok)throw Error(d.error||'Consulta indisponível');if(email!==$('centralEmail').value.trim().toLowerCase())return false;productionLast=email;const list=d.institutions||[];sel.replaceChildren(...(list.length>1?[new Option('Selecione uma instituição','')]:[]),...list.map(i=>new Option(i.name+' · ID '+i.id,String(i.id))));sel.disabled=list.length===1;if(!list.length){sel.replaceChildren(new Option('Nenhuma instituição vinculada',''));msg('Funcionário não cadastrado na Produção.');return false}msg(list.length>1?'Selecione a instituição.':'Instituição identificada.');return true}catch(e){msg(e.message);return false}finally{productionPending=null}})();return productionPending}

@@ -1,1 +1,73 @@
-(()=>{'use strict';const $=id=>document.getElementById(id);let token='';const linked=()=>{try{return JSON.parse(localStorage.getItem('annaFlowDevice')||'null')}catch{return null}};let deviceMode=false;const err=(id,t)=>$(id).textContent=t;async function api(path,method='GET',body){const r=await fetch(path,{method,cache:'no-store',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{}),...(deviceMode?{'X-Flow-Device':linked().credential}:{})},body:body?JSON.stringify(body):undefined});const data=await r.json();if(!r.ok)throw Error(data.error||'Falha no servidor');return data}function fill(id,values){const sel=$(id);sel.replaceChildren(...values.map(x=>{const option=document.createElement('option');option.value=x.id;option.textContent=x.name;return option}))}async function catalog(){try{const id=$('unit').value;if(!id)return;const c=await api('/api/catalog?unit='+encodeURIComponent(id));fill('service',c.services)}catch(e){err('message',e.message)}}$('login').onclick=async()=>{try{const d=await api('/api/login','POST',{clientId:Number($('client').value),email:$('email').value,password:$('password').value});token=d.token;$('password').value='';const m=await api('/api/me');fill('unit',m.units);$('auth').hidden=true;$('emit').hidden=false;await catalog();err('message','Selecione o serviço e emita a senha.')}catch(e){err('authStatus',e.message)}};$('unit').onchange=catalog;$('issue').onclick=async()=>{try{const unit=$('unit').value,serviceId=$('service').value;if(!unit||!serviceId)throw Error('Selecione unidade e serviço');const d=await api('/api/tenant?unit='+encodeURIComponent(unit),'POST',{type:'issue',serviceId:Number(serviceId),priority:$('priority').value});err('ticket',d.result.code);err('message','Senha emitida com sucesso.')}catch(e){err('message',e.message)}};async function startDevice(){const d=linked();if(!d?.credential)return;try{deviceMode=true;const c=await api('/api/device/catalog');if(!['totem','recepcao'].includes(c.kind)){deviceMode=false;return}fill('unit',[{id:c.unitId,name:'Unidade vinculada'}]);$('unit').disabled=true;fill('service',c.services);$('auth').hidden=true;$('emit').hidden=false;err('message','Dispositivo autorizado para emissão nesta unidade.')}catch(e){deviceMode=false;err('authStatus','Vínculo inválido: '+e.message)}}startDevice();$('logout').onclick=async()=>$('logout').onclick=async()=>{if(deviceMode){deviceMode=false;location.href='/device.html';return}try{await api('/api/logout','POST',{})}catch{}token='';$('ticket').textContent='';$('emit').hidden=true;$('auth').hidden=false};})();
+(()=>{'use strict';
+const $=id=>document.getElementById(id);
+let token='',deviceMode=false,deviceCredential='';
+const note=(id,text)=>$(id).textContent=text;
+function linked(){try{const x=JSON.parse(localStorage.getItem('annaFlowDevice')||'null');return x?.status==='active'&&typeof x.credential==='string'?x:null}catch{return null}}
+function storedProduction(){try{const x=JSON.parse(sessionStorage.getItem('flowProductionSession')||'null');return x?.token&&x?.clientId?x:null}catch{return null}}
+async function api(path,method='GET',body){
+ const headers={'Content-Type':'application/json'};
+ if(token)headers.Authorization='Bearer '+token;
+ if(deviceMode)headers['X-Flow-Device']=deviceCredential;
+ const response=await fetch(path,{method,headers,cache:'no-store',body:body?JSON.stringify(body):undefined});
+ const data=await response.json();
+ if(!response.ok)throw Error(data.error||'Falha no servidor');
+ return data;
+}
+function fill(id,items){
+ const sel=$(id);sel.replaceChildren(...items.map(item=>{const option=document.createElement('option');option.value=String(item.id);option.textContent=item.name;return option}));
+}
+async function catalog(){
+ const unit=$('unit').value;
+ if(!unit)return;
+ const data=await api('/api/catalog?unit='+encodeURIComponent(unit));
+ fill('service',data.services);
+}
+function authorized(){
+ $('auth').hidden=true;$('emit').hidden=false;
+}
+async function resume(){
+ const device=linked();
+ if(device){
+  try{
+   deviceCredential=device.credential;deviceMode=true;
+   const catalog=await api('/api/device/catalog');
+   if(['totem','recepcao'].includes(catalog.kind)){
+    fill('unit',[{id:catalog.unitId,name:'Unidade vinculada'}]);
+    $('unit').disabled=true;fill('service',catalog.services);authorized();
+    note('message','Equipamento autorizado para emissão de senhas.');return;
+   }
+  }catch(e){note('authStatus','O vínculo do dispositivo não está disponível. Verificando a sessão da Produção...')}
+  deviceMode=false;deviceCredential='';
+ }
+ const saved=storedProduction();
+ if(!saved){note('authStatus','Entre na Produção com sua conta de funcionário para emitir senhas, ou vincule um totem/recepção.');return}
+ try{
+  token=saved.token;
+  const me=await api('/api/me');
+  if(me.role!=='atendente'||Number(me.clientId)!==Number(saved.clientId))throw Error('Sessão operacional sem permissão');
+  if(!me.units?.length)throw Error('Funcionário sem unidade autorizada');
+  fill('unit',me.units);$('unit').disabled=false;await catalog();authorized();
+  note('message','Sessão da Produção reconhecida. Escolha o serviço para emitir a senha.');
+ }catch(e){
+  token='';sessionStorage.removeItem('flowProductionSession');
+  note('authStatus','Sessão da Produção expirada ou inválida. Faça login novamente.');
+ }
+}
+$('unit').onchange=()=>catalog().catch(e=>note('message',e.message));
+$('issue').onclick=async()=>{
+ try{
+  const unit=$('unit').value,serviceId=$('service').value;
+  if(!unit||!serviceId)throw Error('Selecione a unidade e o serviço');
+  const d=await api('/api/tenant?unit='+encodeURIComponent(unit),'POST',{type:'issue',serviceId:Number(serviceId),priority:$('priority').value});
+  note('ticket',d.result.code);note('message','Senha emitida com sucesso.');
+ }catch(e){note('message',e.message)}
+};
+$('logout').onclick=async()=>{
+ if(deviceMode){location.assign('/device.html');return}
+ try{await api('/api/logout','POST',{})}catch{}
+ token='';sessionStorage.removeItem('flowProductionSession');
+ $('ticket').textContent='';$('emit').hidden=true;$('auth').hidden=false;
+ note('authStatus','Sessão encerrada. Entre novamente na Produção.');
+};
+resume().catch(e=>note('authStatus','Não foi possível consultar o acesso: '+e.message));
+})();

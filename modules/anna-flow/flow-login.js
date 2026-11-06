@@ -95,7 +95,7 @@ $('institutionForm').onsubmit=async e=>{
   const d=await access('login',id);
   $('password').value='';
   sessionStorage.setItem('flowInstitutionAdmin',JSON.stringify({token:d.token,clientId:d.clientId}));
-  location.replace('/admin.html#devices');
+  location.replace('/admin.html#overview');
  }catch(e){msg(e.message)}
 };
 let productionLast='',productionPending=null;

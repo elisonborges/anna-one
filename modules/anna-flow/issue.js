@@ -19,6 +19,7 @@ function formatEmission(iso,zone){
 }
 function showReceipt(data,serviceId,priority){
  const value=data.result||{},zone=value.timeZone||'America/Fortaleza';
+ if(['58','80','a4'].includes(value.paperWidth))$('receiptWidth').value=value.paperWidth;
  const service=$('service').selectedOptions?.[0]?.textContent||'Serviço';
  const unit=$('unit').selectedOptions?.[0]?.textContent||'Unidade';
  const start=value.serviceStartLocal;
@@ -78,9 +79,10 @@ $('issue').onclick=async()=>{
  try{
   const unit=$('unit').value,serviceId=$('service').value;
   if(!unit||!serviceId)throw Error('Selecione a unidade e o serviço');
+  $('issue').disabled=true;
   const d=await api('/api/tenant?unit='+encodeURIComponent(unit),'POST',{type:'issue',serviceId:Number(serviceId),priority:$('priority').value});
   note('ticket',d.result.code);showReceipt(d,serviceId,$('priority').value);note('message','Senha emitida com sucesso. Utilize Imprimir senha se desejar um comprovante.');
- }catch(e){note('message',e.message)}
+ }catch(e){note('message',e.message)}finally{$('issue').disabled=false}
 };
 $('receiptWidth').addEventListener('change',()=>{$('receipt').dataset.width=$('receiptWidth').value});
 $('printTicket').onclick=()=>{if(!$('receipt').hidden)window.print()};

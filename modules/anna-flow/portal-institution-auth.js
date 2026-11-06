@@ -11,7 +11,7 @@ const response=await fetch(portalAccessUrl,{headers:{Authorization:'Bearer '+jwt
 if(response.status===401||response.status===403)throw Object.assign(Error('Entre pelo Portal AnnA One com sua conta autorizada'),{status:401});
 if(!response.ok)throw Error('Validação institucional indisponível');
 const data=await response.json();
-if(!/^[0-9a-f-]{36}$/i.test(data.user_id||'')||!Array.isArray(data.institutions))throw Error('Resposta institucional inválida');
+if(!/^[0-9a-f-]{36}$/i.test(data.user_id||'')||typeof data.user_email!=='string'||!Array.isArray(data.institutions))throw Error('Resposta institucional inválida');
 return data;
 }finally{clearTimeout(timer)}
 }
@@ -37,7 +37,7 @@ let user=await cx.query("SELECT u.id,u.active,u.role FROM flow_portal_admin_link
 let uid;
 if(user.rowCount){if(user.rows[0].active!==true||user.rows[0].role!=='admin'){await cx.query('ROLLBACK');return send(res,403,{error:'Administrador bloqueado no Flow'})}uid=user.rows[0].id}
 else{
-const portalEmail=typeof a.email==='string'?a.email.trim().toLowerCase():''; // not used as identity proof
+const portalEmail=authorized.user_email.trim().toLowerCase();
 if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(portalEmail))throw Error('E-mail inválido');
 const conflict=await cx.query('SELECT id FROM flow_users WHERE client_id=$1 AND email=$2 FOR UPDATE',[cid,portalEmail]);
 if(conflict.rowCount){await cx.query('ROLLBACK');return send(res,409,{error:'Conta Flow existente requer conciliação pelo Master'})}

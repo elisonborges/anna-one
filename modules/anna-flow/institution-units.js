@@ -17,7 +17,43 @@ function select(id,rows){
 }
 const destinationTypes={guiche:'Guichê',sala:'Sala',consultorio:'Consultório',setor:'Setor',outro:'Destino'};
 function destinationLabel(kind,name){const type=destinationTypes[kind]||'Destino';const raw=String(name||'').trim();return new RegExp('^'+type+'(?:\\s|$)','i').test(raw)?raw:type+' '+raw}
-function destinationList(rows,unitName){const el=$('iuDestinations');el.replaceChildren();if(!rows.length){const empty=document.createElement('li');empty.className='iu-empty';empty.textContent='Nenhum destino cadastrado.';el.append(empty);return}for(const row of rows){const li=document.createElement('li');li.className='iu-destination-card';const heading=document.createElement('strong');heading.textContent=destinationLabel(row.destination_type,row.name);const unit=document.createElement('small');unit.textContent='Unidade: '+unitName(row.unit_id);li.append(heading,unit);el.append(li)}}
+function rawDestinationName(name){return String(name||'').trim().replace(/^(Guichê|Sala|Consultório|Setor|Destino)\\s+/i,'')}
+function destinationList(rows,unitName){
+ const el=$('iuDestinations');el.replaceChildren();
+ if(!rows.length){const empty=document.createElement('li');empty.className='iu-empty';empty.textContent='Nenhum destino cadastrado.';el.append(empty);return}
+ for(const row of rows){
+  const li=document.createElement('li');li.className='iu-destination-card';
+  const heading=document.createElement('strong');heading.textContent=destinationLabel(row.destination_type,row.name);
+  const unit=document.createElement('small');unit.textContent='Unidade: '+unitName(row.unit_id);
+  const edit=document.createElement('button');edit.type='button';edit.className='iu-edit-btn';edit.textContent='Editar';
+  const form=document.createElement('div');form.className='iu-edit-form';form.hidden=true;
+  const field=document.createElement('label');field.textContent='Número ou identificação';
+  const input=document.createElement('input');input.maxLength=80;input.value=rawDestinationName(row.name);field.append(input);
+  const kindField=document.createElement('label');kindField.textContent='Tipo';
+  const kindSelect=document.createElement('select');
+  for(const [value,label] of Object.entries(destinationTypes)){const option=document.createElement('option');option.value=value;option.textContent=label;kindSelect.append(option)}
+  kindSelect.value=row.destination_type;kindField.append(kindSelect);
+  const actions=document.createElement('div');actions.className='iu-edit-actions';
+  const save=document.createElement('button');save.type='button';save.textContent='Salvar';
+  const cancel=document.createElement('button');cancel.type='button';cancel.className='iu-secondary';cancel.textContent='Cancelar';
+  actions.append(save,cancel);form.append(field,kindField,actions);
+  edit.onclick=()=>{form.hidden=false;edit.hidden=true;input.focus()};
+  cancel.onclick=()=>{form.hidden=true;edit.hidden=false;input.value=rawDestinationName(row.name);kindSelect.value=row.destination_type};
+  save.onclick=async()=>{
+   const raw=input.value.trim(),kind=kindSelect.value;
+   if(!raw||!fieldValid(raw))return status('Informe uma identificação válida para o destino.');
+   const name=destinationLabel(kind,raw);
+   save.disabled=true;cancel.disabled=true;
+   try{
+    await request({type:'destination_update',destinationId:Number(row.id),name,kind});
+    await load();status('Destino atualizado: '+name);
+   }catch(e){status(e.message)}finally{save.disabled=false;cancel.disabled=false}
+  };
+  li.append(heading,unit,edit,form);el.append(li);
+ }
+}
+function fieldValid(value){return /^[\\p{L}\\p{N} ._-]+$/u.test(value)&&value.length<=80}
+
 function list(id,rows,describe){
  const el=$(id);el.replaceChildren();
  if(!rows.length){el.replaceChildren();const empty=document.createElement('li');empty.className='iu-empty';empty.textContent='Nenhum cadastro ainda. Use o botão abaixo para adicionar.';el.append(empty);return}

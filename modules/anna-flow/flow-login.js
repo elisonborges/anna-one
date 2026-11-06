@@ -37,10 +37,18 @@ async function identify(){
  const previousToken=token;
  token=jwt;
  try{
-  const data=await access('lookup');
-  if($('email').value.trim().toLowerCase()!==email)return;
-  institutions=data.institutions||[];
+  // A pesquisa feita ao sair do campo de e-mail já trouxe as opções.
+  // O servidor revalida o JWT, perfil e vínculo durante access('login').
+  // Evitar uma segunda ida ao Worker só para repetir a mesma lista.
   const select=$('client');
+  const known=lookupEmail===email&&select.value;
+  if(known){
+    institutions=Array.from(select.options).filter(o=>o.value).map(o=>({id:o.value,name:o.textContent}));
+  }else{
+    const data=await access('lookup');
+    institutions=data.institutions||[];
+  }
+  if($('email').value.trim().toLowerCase()!==email)return;
   if(!institutions.length){select.disabled=true;select.replaceChildren(new Option('Nenhuma instituição autorizada',''));throw Error('Esta conta não possui administração institucional do AnnA Flow habilitada no Portal.')}
   const selected=select.value;
   select.replaceChildren(...(institutions.length>1?[new Option('Selecione uma instituição','')]:[]),...institutions.map(i=>new Option(i.name,String(i.id))));

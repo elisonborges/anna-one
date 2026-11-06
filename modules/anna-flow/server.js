@@ -47,7 +47,19 @@ const sql=production
 const q=await pool.query(sql,[email]);return send(res,200,{institutions:q.rows});
 }catch{return send(res,503,{error:'Não foi possível consultar as instituições'})}}
 if(url.pathname==='/api/admin-page-logout'&&req.method==='POST'){const central=await centralAuth.session(req,pool);if(central)await pool.query('UPDATE flow_master_sessions SET revoked_at=now() WHERE id=$1',[central.session_id]);res.setHeader('Set-Cookie',['flow_central_access=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0','flow_admin_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0','flow_central_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0']);return send(res,200,{ok:true})}
-if(url.pathname==='/api/admin-page-access'&&req.method==='GET'){const [institutional,central]=await Promise.all([userAuth.adminPageSession(req,pool).catch(()=>null),auth(req).catch(()=>false)]);return send(res,200,{authorized:central||institutional?.role==='admin',central,clientId:institutional?.client_id||null})}
+if(url.pathname==='/api/admin-page-access'&&req.method==='GET'){
+ const [institutional,master]=await Promise.all([userAuth.adminPageSession(req,pool).catch(()=>null),centralAuth.session(req,pool).catch(()=>null)]);
+ if(master)return send(res,200,{authorized:true,central:true,identity:{role:'central',name:'Administrador central',email:master.email||null}});
+ if(institutional?.role==='admin'){
+  try{
+   const info=await pool.query('SELECT u.email,u.display_name,c.name AS institution_name FROM flow_users u JOIN flow_clients c ON c.id=u.client_id WHERE u.id=$1 AND u.client_id=$2 AND u.active=true AND c.active=true',[institutional.id,institutional.client_id]);
+   if(!info.rowCount)return send(res,200,{authorized:false,central:false});
+   const user=info.rows[0];
+   return send(res,200,{authorized:true,central:false,clientId:institutional.client_id,identity:{role:'institutional',name:user.display_name||user.email,email:user.email,institution:user.institution_name}});
+  }catch{return send(res,503,{authorized:false,error:'Não foi possível identificar o administrador'})}
+ }
+ return send(res,200,{authorized:false,central:false});
+}
 if(url.pathname==='/api/license')return licenseApi.handle(req,res,{pool,send,auth,userAuth});
 if(url.pathname==='/api/institution-staff')return userAuth.institutionStaff(req,res,{pool,send});
 if(url.pathname==='/api/institution-units')return institutionUnits.handle(req,res,{pool,send});

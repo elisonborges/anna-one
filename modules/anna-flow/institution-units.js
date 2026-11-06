@@ -52,6 +52,34 @@ function destinationList(rows,unitName){
   li.append(heading,unit,edit,form);el.append(li);
  }
 }
+function serviceList(rows,unitName){
+ const el=$('iuServices');el.replaceChildren();
+ if(!rows.length){const empty=document.createElement('li');empty.className='iu-empty';empty.textContent='Nenhum serviço cadastrado.';el.append(empty);return}
+ for(const row of rows){
+  const li=document.createElement('li');li.className='iu-service-card';
+  const name=document.createElement('strong');name.textContent=row.name;
+  const unit=document.createElement('small');unit.textContent='Unidade: '+unitName(row.unit_id);
+  const edit=document.createElement('button');edit.type='button';edit.className='iu-edit-btn';edit.textContent='Editar';
+  const form=document.createElement('div');form.className='iu-edit-form';form.hidden=true;
+  const label=document.createElement('label');label.textContent='Nome do serviço';
+  const input=document.createElement('input');input.maxLength=100;input.value=row.name;label.append(input);
+  const actions=document.createElement('div');actions.className='iu-edit-actions';
+  const save=document.createElement('button');save.type='button';save.textContent='Salvar';
+  const cancel=document.createElement('button');cancel.type='button';cancel.className='iu-secondary';cancel.textContent='Cancelar';
+  actions.append(save,cancel);form.append(label,actions);
+  edit.onclick=()=>{form.hidden=false;edit.hidden=true;input.focus()};
+  cancel.onclick=()=>{input.value=row.name;form.hidden=true;edit.hidden=false};
+  save.onclick=async()=>{
+   const updatedName=input.value.trim().replace(/\\s+/g,' ');
+   if(updatedName.length<2||updatedName.length>100)return status('Nome do serviço deve ter entre 2 e 100 caracteres.');
+   if(updatedName===row.name){cancel.onclick();return}
+   save.disabled=true;cancel.disabled=true;
+   try{await request({type:'service_update',serviceId:Number(row.id),name:updatedName});await load();status('Serviço atualizado: '+updatedName)}
+   catch(e){status(e.message)}finally{save.disabled=false;cancel.disabled=false}
+  };
+  li.append(name,unit,edit,form);el.append(li);
+ }
+}
 function fieldValid(value){return /^[\\p{L}\\p{N} ._-]+$/u.test(value)&&value.length<=80}
 
 function list(id,rows,describe){
@@ -72,7 +100,7 @@ async function load(){
   select('iuServiceUnit',state.units);select('iuDestinationUnit',state.units);select('iuPolicyUnit',state.units);showPolicy();
   const unitName=id=>state.units.find(u=>String(u.id)===String(id))?.name||'Unidade desconhecida';
   list('iuUnits',state.units,u=>u.name);
-  list('iuServices',state.services,x=>x.name+' · '+unitName(x.unit_id));
+  serviceList(state.services,unitName);
   destinationList(state.destinations,unitName);
   $('iuAddService').disabled=!state.units.length;
   $('iuAddDestination').disabled=!state.units.length;$('iuSavePolicy').disabled=!state.units.length;

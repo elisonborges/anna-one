@@ -1,5 +1,12 @@
-import {createAuthClient} from 'https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle';
-const auth=createAuthClient('https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth');
+// Carregar Neon Auth apenas quando for autenticar. A busca por e-mail deve
+// funcionar independentemente da disponibilidade do CDN externo.
+let authPromise;
+async function getAuth(){
+ if(!authPromise)authPromise=import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle')
+  .then(({createAuthClient})=>createAuthClient('https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth'))
+  .catch(err=>{authPromise=null;throw Error('Não foi possível carregar a autenticação do Portal.');});
+ return authPromise;
+}
 const $=id=>document.getElementById(id),msg=s=>$('msg').textContent=s;
 let token='',verifiedEmail='',institutions=[];
 function mode(production){$('institutionForm').hidden=production;$('centralForm').hidden=!production;$('institution').classList.toggle('active',!production);$('central').classList.toggle('active',production);msg('')}
@@ -16,6 +23,7 @@ async function identify(){
  if(token&&verifiedEmail===email)return;
  if(!$('email').validity.valid||!email)throw Error('Informe um e-mail válido.');
  const password=$('password').value;
+ const auth=await getAuth();
  let signed=await auth.getSession(),user=signed?.data?.user||signed?.data?.session?.user;
  if(!user||String(user.email||'').toLowerCase()!==email){
   if(!password)throw Error('Informe a senha para confirmar a instituição autorizada.');

@@ -22,7 +22,7 @@ return {id:user.id,email:email(user.email)};
 }
 
 async function body(req){let s='';for await(const c of req){s+=c;if(s.length>4096)throw Error('Dados excessivos')}return JSON.parse(s)}
-async function session(req,pool){const secret=/^Bearer (fc_[a-f0-9]{64})$/i.exec(req.headers.authorization||'')?.[1]||/(?:^|;\s*)flow_central_session=(fc_[a-f0-9]{64})(?:;|$)/.exec(req.headers.cookie||'')?.[1];if(!secret)return null;const q=await pool.query('SELECT s.supabase_user_id AS id,s.id AS session_id FROM flow_master_sessions s WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now()',[digest(secret)]);return q.rows[0]||null}
+async function session(req,pool){const secret=/^Bearer (fc_[a-f0-9]{64})$/i.exec(req.headers.authorization||'')?.[1]||/(?:^|;\s*)flow_central_session=(fc_[a-f0-9]{64})(?:;|$)/.exec(req.headers.cookie||'')?.[1];if(!secret)return null;const q=await pool.query('SELECT s.supabase_user_id AS id,s.id AS session_id,s.email FROM flow_master_sessions s WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now()',[digest(secret)]);return q.rows[0]||null}
 function cookie(res,secret){res.setHeader('Set-Cookie','flow_central_session='+secret+'; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=28800')}
 async function handle(req,res,{pool,send,legacyAuth}){try{
 const path=new URL(req.url,'http://localhost').pathname;
@@ -42,17 +42,17 @@ const master=await verifyMaster(result.access_token);
 if(!master||master.email!==mail)return send(res,403,{error:'Acesso exclusivo ao Administrador Geral da AnnA One'});
 attempts.delete(key);
 const secret='fc_'+crypto.randomBytes(32).toString('hex');
-await pool.query("INSERT INTO flow_master_sessions(supabase_user_id,token_hash,expires_at) VALUES($1,$2,now()+interval '8 hours')",[master.id,digest(secret)]);
+await pool.query("INSERT INTO flow_master_sessions(supabase_user_id,token_hash,email,expires_at) VALUES($1,$2,$3,now()+interval '8 hours')",[master.id,digest(secret),master.email]);
 cookie(res,secret);return send(res,200,{authorized:true});
 }
 if(path==='/api/central/exchange'&&req.method==='POST'){
 const a=await body(req);const master=await verifyMaster(a.accessToken);
 if(!master)return send(res,403,{error:'Faça login como Administrador Geral na AnnA One'});
 const secret='fc_'+crypto.randomBytes(32).toString('hex');
-await pool.query('INSERT INTO flow_master_sessions(supabase_user_id,token_hash,expires_at) VALUES($1,$2,now()+interval \'8 hours\')',[master.id,digest(secret)]);
+await pool.query('INSERT INTO flow_master_sessions(supabase_user_id,token_hash,expires_at) VALUES($1,$2,now()+interval \'8 hours\')',[master.id,digest(secret),master.email]);
 cookie(res,secret);return send(res,200,{authorized:true,email:master.email});
 }
-if(path==='/api/central/me'&&req.method==='GET'){const u=await session(req,pool);return u?send(res,200,{authorized:true}):send(res,401,{error:'Sessão inválida'})}
+if(path==='/api/central/me'&&req.method==='GET'){const u=await session(req,pool);return u?send(res,200,{authorized:true,email:u.email||null}):send(res,401,{error:'Sessão inválida'})}
 if(path==='/api/central/logout'&&req.method==='POST'){const u=await session(req,pool);if(u)await pool.query('UPDATE flow_master_sessions SET revoked_at=now() WHERE id=$1',[u.session_id]);res.setHeader('Set-Cookie','flow_central_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0');return send(res,200,{ok:true})}
 return send(res,405,{error:'Método não permitido'});
 }catch{return send(res,503,{error:'Não foi possível concluir a operação'})}}

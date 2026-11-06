@@ -21,6 +21,27 @@ async function handle(req,res,{pool,send}){
   }
   if(req.method!=='POST')return send(res,405,{error:'Método não permitido'});
   const a=await read(req);
+  if(a.type==='destination_update'){
+   const destinationId=num(a.destinationId),kind=String(a.kind||'');
+   const name=clean(a.name,100);
+   if(!destinationId||!['guiche','sala','consultorio','setor','outro'].includes(kind)||name.length<2)
+    return send(res,400,{error:'Identificação ou tipo de destino inválido'});
+   const db=await pool.connect();
+   try{
+    await db.query('BEGIN');
+    const updated=await db.query(`UPDATE flow_client_destinations d
+      SET name=$1,destination_type=$2
+      FROM flow_client_units u
+      WHERE d.id=$3 AND d.client_id=$4 AND d.active=true
+      AND u.id=d.unit_id AND u.client_id=$4 AND u.active=true
+      RETURNING d.id,d.unit_id,d.name,d.destination_type`,[name,kind,destinationId,cid]);
+    if(!updated.rowCount){await db.query('ROLLBACK');return send(res,404,{error:'Destino inexistente ou não autorizado'})}
+    await db.query('INSERT INTO flow_admin_audit(action,client_id,unit_id,details) VALUES($1,$2,$3,$4::jsonb)',
+      ['destination_update',cid,updated.rows[0].unit_id,JSON.stringify({destinationId,name,kind})]);
+    await db.query('COMMIT');
+    return send(res,200,{updated:updated.rows[0]});
+   }catch(e){await db.query('ROLLBACK').catch(()=>{});throw e}finally{db.release()}
+  }
   if(a.type==='transfer_policy'){
    const unit=num(a.unitId),policy=String(a.policy||'');
    if(!unit||!['start','end','original'].includes(policy))return send(res,400,{error:'Regra de encaminhamento inválida'});

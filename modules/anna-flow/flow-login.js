@@ -29,8 +29,15 @@ async function identify(){
   if(!password)throw Error('Informe a senha para confirmar a instituição autorizada.');
   const result=await auth.signIn.email({email,password});
   if(result?.error)throw Error('E-mail ou senha do Portal inválidos.');
-  signed=await auth.getSession();
-  user=signed?.data?.user||signed?.data?.session?.user;
+  // Better Auth devolve o usuário autenticado no sucesso do signIn.email.
+  // Evitar getSession() adicional; se não vier, usar caminho compatível.
+  if(result?.data?.user&&String(result.data.user.email||'').toLowerCase()===email){
+    user=result.data.user;
+    signed={data:{user,session:result.data.session||null}};
+  }else{
+    signed=await auth.getSession();
+    user=signed?.data?.user||signed?.data?.session?.user;
+  }
  }
  if(!user||String(user.email||'').toLowerCase()!==email)throw Error('A sessão do Portal não corresponde ao e-mail informado.');
  const jwt=await getJwt(signed);

@@ -76,6 +76,14 @@ uid=insert.rows[0].id;
 await cx.query('INSERT INTO flow_portal_admin_links(portal_user_id,client_id,flow_user_id) VALUES($1,$2,$3)',[authorized.user_id,cid,uid]);
 await cx.query("INSERT INTO flow_admin_audit(action,client_id,details) VALUES('portal_admin_linked',$1,$2::jsonb)",[cid,JSON.stringify({portalUserId:authorized.user_id,flowUserId:uid})]);
 }
+// O administrador validado no Portal pode administrar as unidades ativas
+// da própria instituição. Sincronizar os vínculos para que Dispositivos
+// mostre as mesmas unidades do cadastro institucional.
+await cx.query(`INSERT INTO flow_user_units(user_id,client_id,unit_id)
+ SELECT $1,$2,un.id FROM flow_client_units un
+ WHERE un.client_id=$2 AND un.active=true
+ AND NOT EXISTS(SELECT 1 FROM flow_user_units existing
+ WHERE existing.user_id=$1 AND existing.client_id=$2 AND existing.unit_id=un.id)`,[uid,cid]);
 const sessionToken='f_'+crypto.randomBytes(32).toString('hex');
 await cx.query("INSERT INTO flow_sessions(user_id,token_hash,expires_at) VALUES($1,$2,now()+interval '1 hour')",[uid,digest(sessionToken)]);
 await cx.query('COMMIT');

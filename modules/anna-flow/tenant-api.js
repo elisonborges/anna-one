@@ -23,6 +23,7 @@ function nextTicketNumber(state,key,now){
   // Na primeira migração, conservar a numeração atual; nas viradas seguintes,
   // iniciar o novo dia respeitando a política cadastrada.
   state.ticketDailyCounters=state.ticketDay?{}:{...state.counters};
+  state.ticketDayStart=start;
   state.ticketDay=day;
  }
  if(!state.ticketDailyCounters||typeof state.ticketDailyCounters!=='object')state.ticketDailyCounters={};
@@ -30,11 +31,12 @@ function nextTicketNumber(state,key,now){
  // Evitar colisão com senhas antigas que ainda estejam na fila ou guichês.
  const outstanding=[...(Array.isArray(state.queue)?state.queue:[]),...Object.values(state.currents||{}),...(state.noShows||[])];
  const maxInUse=outstanding.reduce((max,t)=>t?.code?.startsWith((key.split(':')[1]==='preferencial'?'P':'A')+'-'+key.split(':')[0]+'-')?Math.max(max,Number(t.code.split('-').at(-1))||0):max,0);
- const next=Math.max(start-1,old,maxInUse)+1;
+ const effectiveStart=Number.isSafeInteger(state.ticketDayStart)&&state.ticketDayStart>=1&&state.ticketDayStart<=999999?state.ticketDayStart:start;
+ const next=Math.max(effectiveStart-1,old,maxInUse)+1;
  if(next>9999999)throw Error('Limite de numeração atingido; procure o administrador');
  state.ticketDailyCounters[key]=next;
  state.counters[key]=Math.max(Number(state.counters?.[key])||0,next);
- return {number:next,day,zone,openingTime:/^([01]\\d|2[0-3]):[0-5]\\d$/.test(policy.openingTime||'')?policy.openingTime:''};
+ return {number:next,day,zone,openingTime:/^([01]\d|2[0-3]):[0-5]\d$/.test(policy.openingTime||'')?policy.openingTime:''};
 }
 function active(state,dest){return state.currents[String(dest)]||null}
 function setActive(state,dest,ticket){if(ticket)state.currents[String(dest)]=ticket;else delete state.currents[String(dest)]}

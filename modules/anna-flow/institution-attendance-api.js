@@ -3,7 +3,7 @@ const auth=require('./auth-api');
 const id=v=>{const n=Number(v);return Number.isSafeInteger(n)&&n>0?n:null};
 const zones=['America/Fortaleza','America/Sao_Paulo','America/Manaus','America/Rio_Branco','America/Noronha'];
 const validClock=v=>typeof v==='string'&&(/^([01]\d|2[0-3]):[0-5]\d$/).test(v);
-const settings=state=>({startNumber:Number.isSafeInteger(state?.ticketSettings?.startNumber)?state.ticketSettings.startNumber:1,openingTime:state?.ticketSettings?.openingTime||'',timezone:zones.includes(state?.ticketSettings?.timezone)?state.ticketSettings.timezone:'America/Fortaleza'});
+const settings=state=>({startNumber:Number.isSafeInteger(state?.ticketSettings?.startNumber)?state.ticketSettings.startNumber:1,openingTime:state?.ticketSettings?.openingTime||'',timezone:zones.includes(state?.ticketSettings?.timezone)?state.ticketSettings.timezone:'America/Fortaleza',paperWidth:['58','80','a4'].includes(state?.ticketSettings?.paperWidth)?state.ticketSettings.paperWidth:'58'});
 const stateOf=r=>(r&&typeof r==='object'&&!Array.isArray(r))?r:{};
 async function read(req){let s='';for await(const p of req){s+=p;if(s.length>2000)throw Error('Corpo excessivo')}return JSON.parse(s)}
 async function handle(req,res,{pool,send}){
@@ -36,7 +36,7 @@ async function handle(req,res,{pool,send}){
   }
   if(req.method!=='POST')return send(res,405,{error:'Método não permitido'});
   const data=await read(req);
-  if(data.type!=='ticket_settings'||!Number.isSafeInteger(data.startNumber)||data.startNumber<1||data.startNumber>999999||!zones.includes(data.timezone)||!(data.openingTime===''||validClock(data.openingTime)))
+  if(data.type!=='ticket_settings'||!Number.isSafeInteger(data.startNumber)||data.startNumber<1||data.startNumber>999999||!zones.includes(data.timezone)||!['58','80','a4'].includes(data.paperWidth)||!(data.openingTime===''||validClock(data.openingTime)))
    return send(res,400,{error:'Configuração inválida: número inicial de 1 a 999999 e horário HH:MM'});
   const cx=await pool.connect();
   try{
@@ -44,7 +44,7 @@ async function handle(req,res,{pool,send}){
    await cx.query('INSERT INTO flow_client_runtime(unit_id) VALUES($1) ON CONFLICT DO NOTHING',[unitId]);
    const old=await cx.query('SELECT state,revision FROM flow_client_runtime WHERE unit_id=$1 FOR UPDATE',[unitId]);
    const state=stateOf(old.rows[0].state);
-   state.ticketSettings={startNumber:data.startNumber,openingTime:data.openingTime,timezone:data.timezone};
+   state.ticketSettings={startNumber:data.startNumber,openingTime:data.openingTime,timezone:data.timezone,paperWidth:data.paperWidth};
    await cx.query('UPDATE flow_client_runtime SET state=$2::jsonb,revision=revision+1,updated_at=now() WHERE unit_id=$1',[unitId,JSON.stringify(state)]);
    await cx.query('INSERT INTO flow_admin_audit(action,client_id,unit_id,details) VALUES($1,$2,$3,$4::jsonb)',['ticket_settings',clientId,unitId,JSON.stringify(state.ticketSettings)]);
    await cx.query('COMMIT');

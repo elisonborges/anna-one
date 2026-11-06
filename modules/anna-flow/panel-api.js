@@ -18,7 +18,7 @@ async function handle(req,res,{pool,send,deviceApi}){
  const queue=(state.queue||[]).filter(x=>allowed.has(Number(x.serviceId)));
  const current=allowed.has(Number(state.current?.serviceId))?state.current:null;
  const history=(state.history||[]).filter(x=>allowed.has(Number(x.serviceId))).slice(0,6).map(x=>({code:x.code,status:x.status,destination:x.destination,serviceId:x.serviceId}));
- return send(res,200,{revision,profile:{name:row.name,theme:row.theme,notice:row.notice,messages:row.messages,unit:row.unit_name,client:row.client_name},media:media.rows[0]||{video_url:'',enabled:false},services:links.rows,waiting:queue.length,byService:links.rows.map(s=>({id:s.id,name:s.name,waiting:queue.filter(x=>Number(x.serviceId)===Number(s.id)).length})),current:current?{code:current.code,destination:current.destination,serviceId:current.serviceId}:null,history});
+ return send(res,200,{revision,profile:{name:row.name,theme:row.theme,notice:row.notice,messages:row.messages,unit:row.unit_name,client:row.client_name},media:media.rows[0]||{video_url:'',enabled:false},services:links.rows,waiting:queue.length,byService:links.rows.map(s=>({id:s.id,name:s.name,waiting:queue.filter(x=>Number(x.serviceId)===Number(s.id)).length})),current:current?{code:current.code,destination:current.destination,serviceId:current.serviceId,calledAt:current.calledAt,recalledAt:current.recalledAt,recallCount:current.recallCount||0}:null,history});
  }catch(e){return send(res,503,{error:'Consulta indisponível'})}
 }
 module.exports=handle;

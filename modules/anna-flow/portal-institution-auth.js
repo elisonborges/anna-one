@@ -1,6 +1,6 @@
 'use strict';
 const crypto=require('node:crypto');
-const portalAccessUrl=process.env.FLOW_PORTAL_INSTITUTION_URL||'https://anna-one-auditoria.elisonborg.workers.dev/v1/institution/flow-access';
+const portalAccessUrl=process.env.FLOW_PORTAL_INSTITUTION_URL||null;
 const digest=v=>crypto.createHash('sha256').update(v).digest('hex');
 const workerRoot='https://anna-one-auditoria.elisonborg.workers.dev';
 async function worker(path,jwt){
@@ -17,10 +17,11 @@ async function verify(req){
  const jwt=/^Bearer (eyJ[A-Za-z0-9_.-]+)$/i.exec(req.headers.authorization||'')?.[1];
  if(!jwt||jwt.length>8192)throw Object.assign(Error('Sessão Neon Auth necessária'),{status:401});
  let data;
- try{data=await worker(portalAccessUrl,jwt)}
- catch(error){
-  // A rota mais recente pode não estar publicada; exigir duas provas do Portal
-  if(error.status!==404&&error.status!==405)throw error;
+ // O Worker publicado ainda não disponibiliza flow-access.
+ // Evita a ida a uma rota 404 antes de consultar as rotas válidas.
+ if(portalAccessUrl){
+  data=await worker(portalAccessUrl,jwt);
+ }else{
   const [identity,access]=await Promise.all([
    worker(workerRoot+'/v1/auth/verify',jwt),
    worker(workerRoot+'/v1/institution/me',jwt)
@@ -29,13 +30,11 @@ async function verify(req){
    throw Object.assign(Error('Identidade institucional não confirmada'),{status:403});
   const allowed=Array.isArray(access.institutions)?access.institutions:[];
   const modules=Array.isArray(access.modules)?access.modules:[];
-  // Endpoint legado lista módulos agregados: não inferir instituição em múltiplos vínculos
+  // Rotas legadas agregam módulos, logo múltiplas instituições não permitem identificação segura.
   if(allowed.length!==1||!modules.some(m=>m.code==='anna-flow'))
-   throw Object.assign(Error('Autorização específica do Flow indisponível. Solicite atualização do Portal.'),{status:403});
-  data={user_id:identity.user_id,
-   user_email:'neon-'+identity.user_id+'@auth.annaone.invalid',
-   institutions:allowed.map(i=>({institution_id:i.id,name:i.name,flow_client_id:null})),
-   legacyFallback:true};
+   throw Object.assign(Error('Autorização específica do Flow indisponível para múltiplas instituições'),{status:403});
+  data={user_id:identity.user_id,user_email:'neon-'+identity.user_id+'@auth.annaone.invalid',
+   institutions:allowed.map(i=>({institution_id:i.id,name:i.name,flow_client_id:null})),legacyFallback:true};
  }
  if(!/^[a-f0-9-]{36}$/i.test(data?.user_id||'')||typeof data.user_email!=='string'||!Array.isArray(data.institutions))
   throw Error('Resposta institucional inválida');

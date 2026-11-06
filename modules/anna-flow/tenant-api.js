@@ -60,9 +60,21 @@ async function handle(req,res,{pool,auth,send,deviceApi}){
  if(h){h.status='encaminhado';h.transferredToServiceId=target;h.transferredAt=transferAt;}
  const trace=Array.isArray(original.transfers)?original.transfers:[];
  const moved={code:original.code,serviceId:target,priority:original.priority,issuedAt:original.issuedAt||transferAt,transfers:[...trace,{fromServiceId:original.serviceId,toServiceId:target,at:transferAt}]};
- state.queue.push(moved);
+ // A política pertence à unidade e é definida pelo administrador institucional.
+ // A prioridade continua respeitada pelo algoritmo de chamada do serviço.
+ const policy=['start','end','original'].includes(state.transferPolicy)?state.transferPolicy:'end';
+ const peers=state.queue.map((q,i)=>({q,i})).filter(x=>Number(x.q.serviceId)===target&&x.q.priority===moved.priority);
+ if(policy==='end'||!peers.length)state.queue.push(moved);
+ else if(policy==='start')state.queue.splice(peers[0].i,0,moved);
+ else {
+  const time=s=>{const n=Date.parse(s||'');return Number.isFinite(n)?n:Infinity};
+  const at=time(moved.issuedAt);
+  const newer=peers.find(x=>time(x.q.issuedAt)>at);
+  if(newer)state.queue.splice(newer.i,0,moved);
+  else state.queue.splice(peers[peers.length-1].i+1,0,moved);
+ }
  state.current=null;
- result={code:moved.code,fromServiceId:original.serviceId,toServiceId:target,transferred:true};
+ result={code:moved.code,fromServiceId:original.serviceId,toServiceId:target,policy,transferred:true};
  break;
  }
  case 'finish':{

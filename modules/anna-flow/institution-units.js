@@ -15,6 +15,9 @@ function select(id,rows){
  if(rows.some(x=>String(x.id)===old))el.value=old;
  el.disabled=!rows.length;
 }
+const destinationTypes={guiche:'Guichê',sala:'Sala',consultorio:'Consultório',setor:'Setor',outro:'Destino'};
+function destinationLabel(kind,name){const type=destinationTypes[kind]||'Destino';const raw=String(name||'').trim();return new RegExp('^'+type+'(?:\\s|$)','i').test(raw)?raw:type+' '+raw}
+function destinationList(rows,unitName){const el=$('iuDestinations');el.replaceChildren();if(!rows.length){const empty=document.createElement('li');empty.className='iu-empty';empty.textContent='Nenhum destino cadastrado.';el.append(empty);return}for(const row of rows){const li=document.createElement('li');li.className='iu-destination-card';const heading=document.createElement('strong');heading.textContent=destinationLabel(row.destination_type,row.name);const unit=document.createElement('small');unit.textContent='Unidade: '+unitName(row.unit_id);li.append(heading,unit);el.append(li)}}
 function list(id,rows,describe){
  const el=$(id);el.replaceChildren();
  if(!rows.length){el.replaceChildren();const empty=document.createElement('li');empty.className='iu-empty';empty.textContent='Nenhum cadastro ainda. Use o botão abaixo para adicionar.';el.append(empty);return}
@@ -34,7 +37,7 @@ async function load(){
   const unitName=id=>state.units.find(u=>String(u.id)===String(id))?.name||'Unidade desconhecida';
   list('iuUnits',state.units,u=>u.name);
   list('iuServices',state.services,x=>x.name+' · '+unitName(x.unit_id));
-  list('iuDestinations',state.destinations,x=>x.name+' · '+unitName(x.unit_id)+' · '+x.destination_type);
+  destinationList(state.destinations,unitName);
   $('iuAddService').disabled=!state.units.length;
   $('iuAddDestination').disabled=!state.units.length;$('iuSavePolicy').disabled=!state.units.length;
   status('Cadastros da instituição atualizados.');
@@ -53,7 +56,7 @@ async function create(type,fields,inputId){
 }
 $('iuAddUnit').onclick=()=>create('unit',{},'iuUnitName');
 $('iuAddService').onclick=()=>create('service',{unitId:Number($('iuServiceUnit').value)},'iuServiceName');
-$('iuAddDestination').onclick=()=>create('destination',{unitId:Number($('iuDestinationUnit').value),kind:$('iuDestinationKind').value},'iuDestinationName');
+$('iuAddDestination').onclick=async()=>{const kind=$('iuDestinationKind').value,raw=$('iuDestinationName').value.trim();if(!raw)return status('Informe o número ou identificação do destino.');if(!/^[\p{L}\p{N} ._-]+$/u.test(raw))return status('Identificação inválida.');const name=destinationLabel(kind,raw);if(!token)return status('Acesso institucional necessário.');try{await request({type:'destination',unitId:Number($('iuDestinationUnit').value),kind,name});$('iuDestinationName').value='';await load();status('Destino cadastrado: '+name)}catch(e){status(e.message)}};
 function showPolicy(){const uid=$('iuPolicyUnit').value;const found=state.transferPolicies.find(x=>String(x.unit_id)===uid);$('iuPolicy').value=['start','end','original'].includes(found?.policy)?found.policy:'end';$('iuPolicyStatus').textContent=found?.policy?'Regra configurada para esta unidade.':'Padrão: fim da fila.'}
 $('iuPolicyUnit').onchange=showPolicy;
 $('iuSavePolicy').onclick=async()=>{try{if(!$('iuPolicyUnit').value)throw Error('Selecione uma unidade.');const unitId=Number($('iuPolicyUnit').value),policy=$('iuPolicy').value;await request({type:'transfer_policy',unitId,policy});await load();$('iuPolicyUnit').value=String(unitId);showPolicy();$('iuPolicyStatus').textContent='Regra salva com sucesso.';}catch(e){$('iuPolicyStatus').textContent=e.message}};

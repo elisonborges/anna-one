@@ -123,7 +123,7 @@ async function handle(req,res,{pool,auth,send,deviceApi}){
  }
  case 'finish':{
  if(!state.current)throw Error('Sem atendimento ativo');
- const h=state.history.find(x=>x.code===state.current.code);if(h)h.status='concluido';
+ const h=state.history.find(x=>x.code===state.current.code&&x.status==='chamado');if(h)h.status='concluido';
  result={code:state.current.code};state.current=null;state.completed++;break}
  default:throw Error('Operação inválida');
  }

@@ -271,7 +271,7 @@ export default {
         ), logged AS (
           INSERT INTO anna_audit.audit_logs(actor_user_id,action,entity_type,entity_id,details)
           SELECT ${identity.userId}::uuid,'module.status.updated','module',id::text,
-            jsonb_build_object('previous_status',${existing[0].status},'status',status) FROM changed
+            jsonb_build_object('previous_status',${existing[0].status}::text,'status',changed.status) FROM changed
           RETURNING id
         ) SELECT changed.id,changed.code,changed.name,changed.status FROM changed CROSS JOIN logged`;
         return json({ok:true,item:updated[0]},200,cors);
@@ -325,7 +325,7 @@ export default {
         ), logged AS (
           INSERT INTO anna_audit.audit_logs(actor_user_id,institution_id,action,entity_type,entity_id,details)
           SELECT ${identity.userId}::uuid,institution_id,'institution.module.permission.updated','module',module_id::text,
-            jsonb_build_object('enabled',enabled) FROM changed
+            jsonb_build_object('enabled',changed.enabled) FROM changed
           RETURNING id
         ) SELECT changed.institution_id,changed.module_id,changed.enabled FROM changed CROSS JOIN logged`;
         return json({ok:true,item:changed[0]},200,cors);

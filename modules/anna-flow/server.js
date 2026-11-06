@@ -44,7 +44,7 @@ const sql=production
 const q=await pool.query(sql,[email]);return send(res,200,{institutions:q.rows});
 }catch{return send(res,503,{error:'Não foi possível consultar as instituições'})}}
 if(url.pathname==='/api/admin-page-logout'&&req.method==='POST'){const central=await centralAuth.session(req,pool);if(central)await pool.query('UPDATE flow_master_sessions SET revoked_at=now() WHERE id=$1',[central.session_id]);res.setHeader('Set-Cookie',['flow_central_access=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0','flow_admin_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0','flow_central_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0']);return send(res,200,{ok:true})}
-if(url.pathname==='/api/admin-page-access'&&req.method==='GET'){const institutional=await userAuth.adminPageSession(req,pool).catch(()=>null);return send(res,200,{authorized:(await auth(req))||institutional?.role==='admin',central:await auth(req),clientId:institutional?.client_id||null})}
+if(url.pathname==='/api/admin-page-access'&&req.method==='GET'){const [institutional,central]=await Promise.all([userAuth.adminPageSession(req,pool).catch(()=>null),auth(req).catch(()=>false)]);return send(res,200,{authorized:central||institutional?.role==='admin',central,clientId:institutional?.client_id||null})}
 if(url.pathname==='/api/license')return licenseApi.handle(req,res,{pool,send,auth,userAuth});
 if(url.pathname==='/api/institution-staff')return userAuth.institutionStaff(req,res,{pool,send});
 if(url.pathname==='/api/manage-users')return userAuth.manageUsers(req,res,{pool,auth,send});

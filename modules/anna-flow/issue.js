@@ -13,6 +13,26 @@ async function api(path,method='GET',body){
  if(!response.ok)throw Error(data.error||'Falha no servidor');
  return data;
 }
+function formatEmission(iso,zone){
+ try{return new Intl.DateTimeFormat('pt-BR',{timeZone:zone||'America/Fortaleza',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(iso))}
+ catch{return new Date(iso).toLocaleString('pt-BR')}
+}
+function showReceipt(data,serviceId,priority){
+ const value=data.result||{},zone=value.timeZone||'America/Fortaleza';
+ const service=$('service').selectedOptions?.[0]?.textContent||'Serviço';
+ const unit=$('unit').selectedOptions?.[0]?.textContent||'Unidade';
+ const start=value.serviceStartLocal;
+ const formattedStart=start?start.slice(8,10)+'/'+start.slice(5,7)+'/'+start.slice(0,4)+' às '+start.slice(11,16):'Não informado';
+ note('receiptInstitution',value.institutionName||'Instituição');
+ note('receiptUnit',value.unitName||unit);
+ note('receiptCode',value.code);
+ note('receiptType',priority==='preferencial'?'Atendimento preferencial':'Atendimento normal');
+ note('receiptService',value.serviceName||service);
+ note('receiptIssued',value.issuedAt?formatEmission(value.issuedAt,zone):'Não informado');
+ note('receiptStart',formattedStart);
+ $('receipt').hidden=false;$('receiptTools').hidden=false;
+ $('receipt').dataset.width=$('receiptWidth').value;
+}
 function fill(id,items){
  const sel=$(id);sel.replaceChildren(...items.map(item=>{const option=document.createElement('option');option.value=String(item.id);option.textContent=item.name;return option}));
 }
@@ -59,14 +79,16 @@ $('issue').onclick=async()=>{
   const unit=$('unit').value,serviceId=$('service').value;
   if(!unit||!serviceId)throw Error('Selecione a unidade e o serviço');
   const d=await api('/api/tenant?unit='+encodeURIComponent(unit),'POST',{type:'issue',serviceId:Number(serviceId),priority:$('priority').value});
-  note('ticket',d.result.code);note('message','Senha emitida com sucesso.');
+  note('ticket',d.result.code);showReceipt(d,serviceId,$('priority').value);note('message','Senha emitida com sucesso. Utilize Imprimir senha se desejar um comprovante.');
  }catch(e){note('message',e.message)}
 };
+$('receiptWidth').addEventListener('change',()=>{$('receipt').dataset.width=$('receiptWidth').value});
+$('printTicket').onclick=()=>{if(!$('receipt').hidden)window.print()};
 $('logout').onclick=async()=>{
  if(deviceMode){location.assign('/device.html');return}
  try{await api('/api/logout','POST',{})}catch{}
  token='';sessionStorage.removeItem('flowProductionSession');
- $('ticket').textContent='';$('emit').hidden=true;$('auth').hidden=false;
+ $('ticket').textContent='';$('receipt').hidden=true;$('receiptTools').hidden=true;$('emit').hidden=true;$('auth').hidden=false;
  note('authStatus','Sessão encerrada. Entre novamente na Produção.');
 };
 resume().catch(e=>note('authStatus','Não foi possível consultar o acesso: '+e.message));

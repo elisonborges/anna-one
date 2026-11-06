@@ -12,15 +12,22 @@ async function handle(req,res,{pool,send}){
   const institution=await pool.query('SELECT id,name FROM flow_clients WHERE id=$1 AND active=true',[clientId]);
   if(!institution.rowCount)return send(res,403,{error:'Instituição inativa'});
   if(req.method==='GET'){
-   const [units,services,panels,links,devices]=await Promise.all([
-    pool.query('SELECT id,name FROM flow_client_units WHERE client_id=$1 AND active=true ORDER BY name',[clientId]),
+   // Consulta das unidades isolada das configurações complementares.
+   const units=await pool.query('SELECT id,name FROM flow_client_units WHERE client_id=$1 AND active=true ORDER BY name',[clientId]);
+   const [servicesResult,panelsResult,linksResult,devicesResult]=await Promise.allSettled([
     pool.query('SELECT s.id,s.name,s.unit_id FROM flow_client_services s JOIN flow_client_units u ON u.id=s.unit_id AND u.client_id=s.client_id AND u.active=true WHERE s.client_id=$1 AND s.active=true ORDER BY s.name',[clientId]),
     pool.query('SELECT p.id,p.unit_id,p.name,p.theme,p.public_key FROM flow_signage_profiles p JOIN flow_client_units u ON u.id=p.unit_id AND u.client_id=p.client_id AND u.active=true WHERE p.client_id=$1 AND p.active=true ORDER BY p.name',[clientId]),
     pool.query('SELECT l.panel_id,l.service_id FROM flow_panel_service_links l JOIN flow_signage_profiles p ON p.id=l.panel_id AND p.active=true AND p.client_id=$1 JOIN flow_client_units u ON u.id=p.unit_id AND u.client_id=$1 AND u.active=true JOIN flow_client_services s ON s.id=l.service_id AND s.unit_id=p.unit_id AND s.active=true',[clientId]),
     pool.query("SELECT panel_id,count(*)::int AS total FROM flow_devices WHERE client_id=$1 AND kind='tv' AND active=true AND revoked_at IS NULL AND panel_id IS NOT NULL GROUP BY panel_id",[clientId])
    ]);
-   return send(res,200,{institution:institution.rows[0],units:units.rows,services:services.rows,
-    panels:panels.rows.map(p=>({...p,serviceIds:links.rows.filter(l=>Number(l.panel_id)===Number(p.id)).map(l=>Number(l.service_id)),tvCount:Number(devices.rows.find(d=>Number(d.panel_id)===Number(p.id))?.total||0)}))});
+   const warnings=[];
+   const items=(result,name)=>{if(result.status==='fulfilled')return result.value.rows;warnings.push(name);console.error('[institution-panels] Falha na consulta '+name+':',result.reason?.message||'desconhecida');return []};
+   const services=items(servicesResult,'serviços');
+   const panels=items(panelsResult,'painéis');
+   const links=items(linksResult,'vínculos de serviços');
+   const devices=items(devicesResult,'dispositivos');
+   return send(res,200,{institution:institution.rows[0],units:units.rows,services,
+    panels:panels.map(p=>({...p,serviceIds:links.filter(l=>Number(l.panel_id)===Number(p.id)).map(l=>Number(l.service_id)),tvCount:Number(devices.find(d=>Number(d.panel_id)===Number(p.id))?.total||0)})),warnings});
   }
   if(req.method!=='POST')return send(res,405,{error:'Método não permitido'});
   const a=await body(req);

@@ -33,9 +33,36 @@ function render(){
   const checks=[];
   for(const s of services){const checkbox=node('input');checkbox.type='checkbox';checkbox.value=String(s.id);checkbox.checked=p.serviceIds.some(x=>Number(x)===Number(s.id));checks.push(checkbox);list.append(labeled(s.name,checkbox))}
   if(!services.length)list.append(node('small','Nenhum serviço cadastrado nesta unidade.'));
+  // Prévia local e ilustrativa: não altera o painel nem emite chamadas.
+  const preview=node('section');preview.className='ip-preview';preview.dataset.theme=theme.value;
+  preview.setAttribute('aria-label','Prévia visual da TV sem dados reais');
+  const previewHead=node('div');previewHead.className='ip-preview-head';
+  const previewBrand=node('strong','AnnA Flow');const previewUnit=node('span',unit?.name||'Unidade');
+  previewHead.append(previewBrand,previewUnit);
+  const previewTicket=node('div');previewTicket.className='ip-preview-ticket';
+  const previewCaption=node('small','CHAMANDO AGORA');
+  const previewNumber=node('strong','A001');
+  const previewDesk=node('span','Guichê 01');
+  previewTicket.append(previewCaption,previewNumber,previewDesk);
+  const previewServices=node('div');previewServices.className='ip-preview-services';
+  const previewHint=node('small','Prévia ilustrativa — não representa chamadas reais nem salva alterações.');
+  const previewTitle=node('strong','Prévia da TV');
+  function updatePreview(){
+   preview.dataset.theme=theme.value;
+   previewBrand.textContent=(input.value.trim()||'AnnA Flow').slice(0,100);
+   previewServices.replaceChildren();
+   const chosen=services.filter((s,i)=>checks[i]?.checked);
+   if(!chosen.length){previewServices.append(node('span','Nenhum serviço selecionado'));return}
+   for(const s of chosen){const chip=node('span',s.name);chip.className='ip-preview-chip';previewServices.append(chip)}
+  }
+  preview.append(previewHead,previewTicket,previewServices);
+  theme.addEventListener('change',updatePreview);
+  input.addEventListener('input',updatePreview);
+  for(const check of checks)check.addEventListener('change',updatePreview);
+  updatePreview();
   const saveInfo=button('Salvar nome e tema',async()=>{const name=input.value.trim();if(name.length<2)return status('Nome deve ter pelo menos dois caracteres.');await save({type:'panel_update',panelId:p.id,name,theme:theme.value})});
   const saveServices=button('Salvar serviços',async()=>save({type:'panel_services',panelId:p.id,serviceIds:checks.filter(x=>x.checked).map(x=>Number(x.value))}));
-  form.append(labeled('Nome do painel',input),labeled('Tema',theme),node('strong','Serviços exibidos'),list,saveInfo,saveServices);
+  form.append(labeled('Nome do painel',input),labeled('Tema',theme),node('strong','Serviços exibidos'),list,previewTitle,preview,previewHint,saveInfo,saveServices);
   const config=button('Configurar',()=>{form.hidden=!form.hidden;config.setAttribute('aria-expanded',String(!form.hidden))});config.setAttribute('aria-expanded','false');
   const open=button('Abrir TV',()=>{if(p.public_key)window.open('/panel.html?key='+encodeURIComponent(p.public_key),'_blank','noopener');else status('URL do painel indisponível')});
   actions.append(config,open);card.append(title,detail,subtitle,tv,actions,form);$('ipCards').append(card);

@@ -1,49 +1,59 @@
 'use strict';
 const crypto=require('node:crypto');
-const base='https://tnvghprwltbziivlxeod.supabase.co';
-const key='sb_publishable_yI9_7tD4RwGrjolPjiq9vg_oSGpxxFR';
+const portalAccessUrl=process.env.FLOW_PORTAL_INSTITUTION_URL||'https://anna-one-auditoria.elisonborg.workers.dev/v1/institution/flow-access';
 const digest=v=>crypto.createHash('sha256').update(v).digest('hex');
-async function body(req){let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>12000)throw Error('Excesso de dados')}return JSON.parse(raw)}
-async function get(path,jwt){const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),8500);try{const response=await fetch(base+path,{headers:{apikey:key,Authorization:'Bearer '+jwt},signal:ctrl.signal});if(!response.ok)throw Error('Portal indisponível ou autorização insuficiente');return response.json()}finally{clearTimeout(timer)}}
-async function memberships(jwt){
-if(typeof jwt!=='string'||jwt.length<32||jwt.length>8192)throw Error('Sessão inválida');
-const user=await get('/auth/v1/user',jwt);
-if(!/^[0-9a-f-]{36}$/i.test(user.id||'')||!user.email)throw Error('Sessão inválida');
-const rows=await get('/rest/v1/memberships?select=institution_id,role,active,institutions(id,name,status)&user_id=eq.'+encodeURIComponent(user.id)+'&active=eq.true&role=eq.institution_admin',jwt);
-if(!Array.isArray(rows))throw Error('Permissões indisponíveis');
-return {user,allowed:rows.filter(r=>r.active===true&&r.role==='institution_admin'&&r.institutions?.status==='active'&&r.institutions?.id===r.institution_id)};
+async function verify(req){
+const jwt=/^Bearer (eyJ[A-Za-z0-9_\-.]+)$/i.exec(req.headers.authorization||'')?.[1];
+if(!jwt||jwt.length>8192)throw Object.assign(Error('Sessão Neon Auth necessária'),{status:401});
+const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),6500);
+try{
+const response=await fetch(portalAccessUrl,{headers:{Authorization:'Bearer '+jwt},signal:controller.signal,redirect:'error'});
+if(response.status===401||response.status===403)throw Object.assign(Error('Entre pelo Portal AnnA One com sua conta autorizada'),{status:401});
+if(!response.ok)throw Error('Validação institucional indisponível');
+const data=await response.json();
+if(!/^[0-9a-f-]{36}$/i.test(data.user_id||'')||!Array.isArray(data.institutions))throw Error('Resposta institucional inválida');
+return data;
+}finally{clearTimeout(timer)}
 }
+async function read(req){let v='';for await(const c of req){v+=c;if(v.length>2048)throw Error('Dados excessivos')}return JSON.parse(v)}
 async function handle(req,res,{pool,send}){
 if(req.method!=='POST')return send(res,405,{error:'Método não permitido'});
 try{
-const a=await body(req),verified=await memberships(a.accessToken);
-const rows=verified.allowed,options=rows.map(r=>({id:r.institution_id,name:r.institutions.name}));
-if(a.action==='lookup')return send(res,200,{institutions:options});
+const authorized=await verify(req);
+const a=await read(req);
+if(a.action==='lookup')return send(res,200,{institutions:authorized.institutions.map(i=>({id:i.institution_id,name:i.name,configured:i.flow_client_id!==null}))});
 if(a.action!=='login')return send(res,400,{error:'Operação inválida'});
-const selected=rows.find(r=>r.institution_id===a.portalInstitutionId);
-if(!selected)return send(res,403,{error:'Administrador não autorizado para esta instituição'});
-const mapping=await pool.query('SELECT c.id,c.name FROM flow_portal_institution_links l JOIN flow_clients c ON c.id=l.client_id WHERE l.portal_institution_id=$1 AND c.active=true',[selected.institution_id]);
-if(!mapping.rowCount)return send(res,409,{error:'Instituição identificada no Portal, mas o Master ainda não ativou seu vínculo com o AnnA Flow.'});
-const cid=mapping.rows[0].id;const cx=await pool.connect();try{
+const chosen=authorized.institutions.find(i=>i.institution_id===a.portalInstitutionId);
+if(!chosen)return send(res,403,{error:'Instituição não autorizada'});
+if(chosen.flow_client_id===null)return send(res,409,{error:'O Master precisa concluir a ativação desta instituição no AnnA Flow.'});
+const cid=Number(chosen.flow_client_id);
+if(!Number.isSafeInteger(cid)||cid<1)return send(res,503,{error:'ID institucional inválido'});
+const cx=await pool.connect();
+try{
 await cx.query('BEGIN');
-let found=await cx.query('SELECT u.id,u.role,u.active FROM flow_portal_admin_links l JOIN flow_users u ON u.id=l.flow_user_id WHERE l.portal_user_id=$1 AND l.client_id=$2 FOR UPDATE',[verified.user.id,cid]);
+const link=await cx.query('SELECT c.id FROM flow_portal_institution_links l JOIN flow_clients c ON c.id=l.client_id WHERE l.portal_institution_id=$1 AND l.client_id=$2 AND c.active=true',[chosen.institution_id,cid]);
+if(!link.rowCount){await cx.query('ROLLBACK');return send(res,409,{error:'Vínculo da instituição ainda não foi sincronizado com o Flow'})}
+let user=await cx.query("SELECT u.id,u.active,u.role FROM flow_portal_admin_links pl JOIN flow_users u ON u.id=pl.flow_user_id WHERE pl.portal_user_id=$1 AND pl.client_id=$2 FOR UPDATE",[authorized.user_id,cid]);
 let uid;
-if(found.rowCount){const u=found.rows[0];if(!u.active||u.role!=='admin')throw Error('Administrador Flow bloqueado');uid=u.id}
+if(user.rowCount){if(user.rows[0].active!==true||user.rows[0].role!=='admin'){await cx.query('ROLLBACK');return send(res,403,{error:'Administrador bloqueado no Flow'})}uid=user.rows[0].id}
 else{
-const conflict=await cx.query('SELECT id FROM flow_users WHERE client_id=$1 AND email=lower($2) FOR UPDATE',[cid,verified.user.email]);
-if(conflict.rowCount)throw Error('Há um usuário Flow com esse e-mail. Solicite vinculação administrativa para evitar assumir uma conta existente.');
-const salt=crypto.randomBytes(16).toString('hex'),randomSecret=crypto.randomBytes(48).toString('hex'),hash=salt+':'+crypto.scryptSync(randomSecret,salt,64).toString('hex');
-const inserted=await cx.query("INSERT INTO flow_users(client_id,email,password_hash,role,active) VALUES($1,lower($2),$3,'admin',true) RETURNING id",[cid,verified.user.email,hash]);
-uid=inserted.rows[0].id;
-await cx.query('INSERT INTO flow_portal_admin_links(portal_user_id,client_id,flow_user_id) VALUES($1,$2,$3)',[verified.user.id,cid,uid]);
-await cx.query('INSERT INTO flow_admin_audit(action,client_id,details) VALUES($1,$2,$3::jsonb)',['portal_admin_linked',cid,JSON.stringify({portalUserId:verified.user.id,userId:uid})])
+const portalEmail=typeof a.email==='string'?a.email.trim().toLowerCase():''; // not used as identity proof
+if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(portalEmail))throw Error('E-mail inválido');
+const conflict=await cx.query('SELECT id FROM flow_users WHERE client_id=$1 AND email=$2 FOR UPDATE',[cid,portalEmail]);
+if(conflict.rowCount){await cx.query('ROLLBACK');return send(res,409,{error:'Conta Flow existente requer conciliação pelo Master'})}
+const salt=crypto.randomBytes(16).toString('hex'),secret=crypto.randomBytes(48).toString('hex');
+const hash=salt+':'+crypto.scryptSync(secret,salt,64).toString('hex');
+const insert=await cx.query("INSERT INTO flow_users(client_id,email,password_hash,role) VALUES($1,$2,$3,'admin') RETURNING id",[cid,portalEmail,hash]);
+uid=insert.rows[0].id;
+await cx.query('INSERT INTO flow_portal_admin_links(portal_user_id,client_id,flow_user_id) VALUES($1,$2,$3)',[authorized.user_id,cid,uid]);
+await cx.query("INSERT INTO flow_admin_audit(action,client_id,details) VALUES('portal_admin_linked',$1,$2::jsonb)",[cid,JSON.stringify({portalUserId:authorized.user_id,flowUserId:uid})]);
 }
-const secret='f_'+crypto.randomBytes(32).toString('hex');
-await cx.query("INSERT INTO flow_sessions(user_id,token_hash,expires_at) VALUES($1,$2,now()+interval '1 hour')",[uid,digest(secret)]);
+const sessionToken='f_'+crypto.randomBytes(32).toString('hex');
+await cx.query("INSERT INTO flow_sessions(user_id,token_hash,expires_at) VALUES($1,$2,now()+interval '1 hour')",[uid,digest(sessionToken)]);
 await cx.query('COMMIT');
-res.setHeader('Set-Cookie','flow_admin_session='+secret+'; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=3600');
-return send(res,200,{role:'admin',clientId:cid,token:secret})
-}catch(e){await cx.query('ROLLBACK').catch(()=>{});if(e.message.includes('bloqueado')||e.message.includes('vinculação'))return send(res,403,{error:e.message});throw e}finally{cx.release()}
-}catch(e){return send(res,e.message==='Sessão inválida'?401:503,{error:e.message==='Sessão inválida'?'Sessão do Portal inválida': 'Não foi possível validar a conta institucional no Portal'})}
+res.setHeader('Set-Cookie','flow_admin_session='+sessionToken+'; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=3600');
+return send(res,200,{role:'admin',clientId:cid,token:sessionToken});
+}catch(e){await cx.query('ROLLBACK').catch(()=>{});throw e}finally{cx.release()}
+}catch(e){const status=e.status||(/inválid/.test(e.message)?400:503);return send(res,status,{error:status===503?'Não foi possível validar o acesso institucional':e.message})}
 }
-module.exports={handle,memberships};
+module.exports={handle};

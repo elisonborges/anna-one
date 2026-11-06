@@ -84,9 +84,17 @@ async function lookupOnField(){
 }
 $('email').oninput=()=>{lookupSequence++;lookupEmail='';token='';verifiedEmail='';institutions=[];$('client').disabled=true;$('client').replaceChildren(new Option('Informe o e-mail',''))};
 $('email').addEventListener('blur',lookupOnField);
-$('password').addEventListener('focus',lookupOnField);
+$('password').addEventListener('focus',()=>{
+  // Antecipar o carregamento da biblioteca enquanto o usuário digita a senha.
+  // A consulta de instituições permanece independente de autenticação.
+  getAuth().catch(()=>{});
+  lookupOnField();
+});
 $('institutionForm').onsubmit=async e=>{
  e.preventDefault();
+ const enter=$('institutionForm').querySelector('button[type="submit"]');
+ if(enter?.disabled)return;
+ if(enter){enter.disabled=true;enter.textContent='Entrando...';}
  try{
   if(lookupPromise)await lookupPromise;
   if(!token||verifiedEmail!==$('email').value.trim().toLowerCase())await identify();
@@ -96,7 +104,7 @@ $('institutionForm').onsubmit=async e=>{
   $('password').value='';
   sessionStorage.setItem('flowInstitutionAdmin',JSON.stringify({token:d.token,clientId:d.clientId}));
   location.replace('/admin.html#overview');
- }catch(e){msg(e.message)}
+ }catch(e){msg(e.message)}finally{if(enter){enter.disabled=false;enter.textContent='Entrar';}}
 };
 let productionLast='',productionPending=null;
 async function resolveProduction(){const email=$('centralEmail').value.trim().toLowerCase(),sel=$('productionClient');if(!$('centralEmail').validity.valid||!email)return false;if(email===productionLast&&sel.value)return true;if(productionPending)return productionPending;

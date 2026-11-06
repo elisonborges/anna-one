@@ -34,29 +34,41 @@ async function identify(){
   institutions=data.institutions||[];
   const select=$('client');
   if(!institutions.length){select.disabled=true;select.replaceChildren(new Option('Nenhuma instituição autorizada',''));throw Error('Esta conta não possui administração institucional do AnnA Flow habilitada no Portal.')}
+  const selected=select.value;
   select.replaceChildren(...(institutions.length>1?[new Option('Selecione uma instituição','')]:[]),...institutions.map(i=>new Option(i.name,String(i.id))));
+  if(institutions.some(i=>String(i.id)===selected))select.value=selected;
   select.disabled=institutions.length===1;
   verifiedEmail=email;
   msg(institutions.length>1?'Selecione a instituição para continuar.':'Instituição encontrada no Portal AnnA One.');
  }catch(e){token=previousToken;throw e}
 }
-let lookupPromise=null;
+let lookupPromise=null,lookupSequence=0,lookupEmail='';
 async function lookupOnField(){
- const email=$('email').value.trim().toLowerCase();
- if(!$('email').validity.valid||!email||token&&verifiedEmail===email)return;
- if(lookupPromise)return lookupPromise;
- const sel=$('client');sel.disabled=true;sel.replaceChildren(new Option('Consultando instituição autorizada...',''));
- lookupPromise=identify().catch(e=>{
-  if($('email').value.trim().toLowerCase()!==email)return;
-  sel.replaceChildren(new Option($('password').value?'Não foi possível validar':'Informe a senha para identificar',''));
-  msg(e.message);
- }).finally(()=>{lookupPromise=null});
+ const mail=$('email').value.trim().toLowerCase();
+ if(!$('email').validity.valid||!mail)return false;
+ if(mail===lookupEmail&&$('client').value)return true;
+ const seq=++lookupSequence,select=$('client');
+ select.disabled=true;select.replaceChildren(new Option('Consultando instituições...',''));
+ lookupPromise=(async()=>{
+  try{
+   const r=await fetch('/api/institutions-by-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:mail,mode:'institution'})});
+   const data=await r.json();
+   if(seq!==lookupSequence)return false;
+   if(!r.ok)throw Error(data.error||'Consulta indisponível');
+   const options=Array.isArray(data.institutions)?data.institutions:[];
+   if(!options.length){select.replaceChildren(new Option('Nenhuma instituição vinculada',''));msg('Nenhuma instituição vinculada ao e-mail no Flow.');return false}
+   select.replaceChildren(...(options.length>1?[new Option('Selecione a instituição','')]:[]),...options.map(i=>new Option(i.name,String(i.id))));
+   select.disabled=options.length===1;lookupEmail=mail;
+   msg(options.length===1?'Instituição identificada. Informe sua senha para entrar.':'Selecione a instituição e informe sua senha.');
+   return true;
+  }catch(e){if(seq===lookupSequence){lookupEmail='';select.replaceChildren(new Option('Consulta indisponível',''));msg(e.message)}return false}
+  finally{if(seq===lookupSequence)lookupPromise=null}
+ })();
  return lookupPromise;
 }
-$('email').oninput=()=>{token='';verifiedEmail='';institutions=[];$('client').disabled=true;$('client').replaceChildren(new Option('Informe o e-mail',''))};
+$('email').oninput=()=>{lookupSequence++;lookupEmail='';token='';verifiedEmail='';institutions=[];$('client').disabled=true;$('client').replaceChildren(new Option('Informe o e-mail',''))};
 $('email').addEventListener('blur',lookupOnField);
-$('password').addEventListener('blur',lookupOnField);
-$('password').addEventListener('change',lookupOnField);
+$('password').addEventListener('focus',lookupOnField);
 $('institutionForm').onsubmit=async e=>{
  e.preventDefault();
  try{

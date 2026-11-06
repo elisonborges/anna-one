@@ -16,9 +16,13 @@ async function handle(req,res,{pool,send,deviceApi}){
  const state=runtime.rows[0]?.state||{queue:[],current:null,history:[]},revision=runtime.rows[0]?.revision||0;
  const allowed=new Set(links.rows.map(x=>Number(x.id)));
  const queue=(state.queue||[]).filter(x=>allowed.has(Number(x.serviceId)));
- const current=allowed.has(Number(state.current?.serviceId))?state.current:null;
+ const allActive=Object.values(state.currents||{});
+ if(state.current?.destinationId&&!allActive.some(x=>Number(x.destinationId)===Number(state.current.destinationId)))allActive.push(state.current);
+ const active=allActive.filter(x=>allowed.has(Number(x.serviceId))).sort((a,b)=>Date.parse(b.recalledAt||b.calledAt||0)-Date.parse(a.recalledAt||a.calledAt||0));
+ const last=state.lastCall;
+ const current=last&&active.some(x=>x.code===last.code&&Number(x.destinationId)===Number(last.destinationId))?active.find(x=>x.code===last.code&&Number(x.destinationId)===Number(last.destinationId)):active[0]||null;
  const history=(state.history||[]).filter(x=>allowed.has(Number(x.serviceId))).slice(0,6).map(x=>({code:x.code,status:x.status,destination:x.destination,serviceId:x.serviceId}));
- return send(res,200,{revision,profile:{name:row.name,theme:row.theme,notice:row.notice,messages:row.messages,unit:row.unit_name,client:row.client_name},media:media.rows[0]||{video_url:'',enabled:false},services:links.rows,waiting:queue.length,byService:links.rows.map(s=>({id:s.id,name:s.name,waiting:queue.filter(x=>Number(x.serviceId)===Number(s.id)).length})),current:current?{code:current.code,destination:current.destination,serviceId:current.serviceId,calledAt:current.calledAt,recalledAt:current.recalledAt,recallCount:current.recallCount||0}:null,history});
+ return send(res,200,{revision,profile:{name:row.name,theme:row.theme,notice:row.notice,messages:row.messages,unit:row.unit_name,client:row.client_name},media:media.rows[0]||{video_url:'',enabled:false},services:links.rows,waiting:queue.length,byService:links.rows.map(s=>({id:s.id,name:s.name,waiting:queue.filter(x=>Number(x.serviceId)===Number(s.id)).length})),current:current?{code:current.code,destination:current.destination,destinationId:current.destinationId,serviceId:current.serviceId,calledAt:current.calledAt,recalledAt:current.recalledAt,recallCount:current.recallCount||0}:null,active:active.map(x=>({code:x.code,destination:x.destination,destinationId:x.destinationId,serviceId:x.serviceId,calledAt:x.calledAt,recalledAt:x.recalledAt})),history});
  }catch(e){return send(res,503,{error:'Consulta indisponível'})}
 }
 module.exports=handle;

@@ -17,7 +17,7 @@ function select(id,rows){
 }
 function list(id,rows,describe){
  const el=$(id);el.replaceChildren();
- if(!rows.length){el.textContent='Nenhum cadastro ainda.';return}
+ if(!rows.length){el.replaceChildren();const empty=document.createElement('li');empty.className='iu-empty';empty.textContent='Nenhum cadastro ainda. Use o botão abaixo para adicionar.';el.append(empty);return}
  for(const row of rows){const li=document.createElement('li');li.textContent=describe(row);el.append(li)}
 }
 async function load(){
@@ -27,6 +27,9 @@ async function load(){
   if(Number(data.institution?.id)!==clientId)throw Error('Instituição inconsistente');
   state.units=data.units||[];state.services=data.services||[];state.destinations=data.destinations||[];state.transferPolicies=data.transferPolicies||[];
   $('iuInstitution').textContent='Instituição: '+data.institution.name;
+  $('iuCountUnits').textContent=state.units.length;
+  $('iuCountServices').textContent=state.services.length;
+  $('iuCountDestinations').textContent=state.destinations.length;
   select('iuServiceUnit',state.units);select('iuDestinationUnit',state.units);select('iuPolicyUnit',state.units);showPolicy();
   const unitName=id=>state.units.find(u=>String(u.id)===String(id))?.name||'Unidade desconhecida';
   list('iuUnits',state.units,u=>u.name);
@@ -54,6 +57,8 @@ $('iuAddDestination').onclick=()=>create('destination',{unitId:Number($('iuDesti
 function showPolicy(){const uid=$('iuPolicyUnit').value;const found=state.transferPolicies.find(x=>String(x.unit_id)===uid);$('iuPolicy').value=['start','end','original'].includes(found?.policy)?found.policy:'end';$('iuPolicyStatus').textContent=found?.policy?'Regra configurada para esta unidade.':'Padrão: fim da fila.'}
 $('iuPolicyUnit').onchange=showPolicy;
 $('iuSavePolicy').onclick=async()=>{try{if(!$('iuPolicyUnit').value)throw Error('Selecione uma unidade.');const unitId=Number($('iuPolicyUnit').value),policy=$('iuPolicy').value;await request({type:'transfer_policy',unitId,policy});await load();$('iuPolicyUnit').value=String(unitId);showPolicy();$('iuPolicyStatus').textContent='Regra salva com sucesso.';}catch(e){$('iuPolicyStatus').textContent=e.message}};
+function openTab(name){const names=['units','services','destinations'];if(!names.includes(name))return;for(const tab of names){const selected=tab===name;const suffix=tab[0].toUpperCase()+tab.slice(1);$('iuPane'+suffix).hidden=!selected;$('iuTab'+suffix).setAttribute('aria-selected',String(selected));$('iuTab'+suffix).tabIndex=selected?0:-1}}
+for(const b of document.querySelectorAll('[data-iu-tab]')){b.addEventListener('click',()=>openTab(b.dataset.iuTab));b.addEventListener('keydown',e=>{if(!['ArrowRight','ArrowLeft'].includes(e.key))return;const tabs=['units','services','destinations'];const at=tabs.indexOf(b.dataset.iuTab),next=tabs[(at+(e.key==='ArrowRight'?1:2))%3];openTab(next);$('iuTab'+next[0].toUpperCase()+next.slice(1)).focus();e.preventDefault()})}openTab('units');
 $('iuRefresh').onclick=load;
 document.querySelector('[data-view-btn="units"]')?.addEventListener('click',load);
 window.flowInstitutionUnitsLogin=(value,id)=>{token=value;clientId=Number(id);load()};

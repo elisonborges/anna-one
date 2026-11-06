@@ -77,6 +77,26 @@ export default {
         return json({ authorized: rows.length > 0, institutions: rows, modules }, 200, cors);
       } catch { return json({ authorized: false, error: "Consulta institucional indisponivel" }, 503, cors); }
     }
+    // Identidade institucional específica para o AnnA Flow (token Neon Auth).
+    // Não basta o usuário ter outra instituição ou módulo habilitado globalmente.
+    if(url.pathname==="/v1/institution/flow-access"&&request.method==="GET"){
+      let identity;try{identity=await verifyBearer(request,env);}catch{return json({authorized:false,error:"Autenticação necessária"},401,cors);}
+      if(!env.DATABASE_URL)return json({authorized:false,error:"Banco indisponível"},503,cors);
+      try{
+        const sql=neon(env.DATABASE_URL);
+        const rows=await sql`SELECT i.id AS institution_id,i.name,l.flow_client_id
+          FROM public.memberships m JOIN public.institutions i ON i.id=m.institution_id
+          JOIN public.institution_modules im ON im.institution_id=i.id AND im.enabled=true
+          JOIN public.modules mo ON mo.id=im.module_id AND mo.code='anna-flow' AND mo.status='available'
+          LEFT JOIN public.institutions p ON p.id=i.parent_institution_id
+          LEFT JOIN public.institution_modules pim ON pim.institution_id=p.id AND pim.module_id=mo.id
+          LEFT JOIN public.flow_institution_links l ON l.institution_id=i.id
+          WHERE m.user_id=${identity.userId}::uuid AND m.role='institution_admin' AND m.active=true
+          AND i.status='active' AND (p.id IS NULL OR (p.status='active' AND pim.enabled=true))
+          ORDER BY i.name LIMIT 50`;
+        return json({authorized:rows.length>0,institutions:rows},200,cors);
+      }catch{return json({authorized:false,error:"Permissões institucionais indisponíveis"},503,cors);}
+    }
     // Consulta de autorização Master: somente leitura, com identidade validada pelo JWT.
     if (url.pathname === "/v1/admin/authorize" && request.method === "GET") {
       let identity;

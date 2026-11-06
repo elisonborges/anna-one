@@ -49,7 +49,7 @@ if(path==='/api/central/exchange'&&req.method==='POST'){
 const a=await body(req);const master=await verifyMaster(a.accessToken);
 if(!master)return send(res,403,{error:'Faça login como Administrador Geral na AnnA One'});
 const secret='fc_'+crypto.randomBytes(32).toString('hex');
-await pool.query('INSERT INTO flow_master_sessions(supabase_user_id,token_hash,expires_at) VALUES($1,$2,now()+interval \'8 hours\')',[master.id,digest(secret),master.email]);
+await pool.query('INSERT INTO flow_master_sessions(supabase_user_id,token_hash,email,expires_at) VALUES($1,$2,$3,now()+interval \'8 hours\')',[master.id,digest(secret),master.email]);
 cookie(res,secret);return send(res,200,{authorized:true,email:master.email});
 }
 if(path==='/api/central/me'&&req.method==='GET'){const u=await session(req,pool);return u?send(res,200,{authorized:true,email:u.email||null}):send(res,401,{error:'Sessão inválida'})}

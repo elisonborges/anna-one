@@ -11,15 +11,32 @@ async function handle(req,res,{pool,send}){
   const institution=await pool.query('SELECT id,name FROM flow_clients WHERE id=$1 AND active=true',[cid]);
   if(!institution.rowCount)return send(res,403,{error:'Instituição inativa'});
   if(req.method==='GET'){
-   const [units,services,destinations]=await Promise.all([
+   const [units,services,destinations,policies]=await Promise.all([
     pool.query('SELECT id,name FROM flow_client_units WHERE client_id=$1 AND active=true ORDER BY name',[cid]),
     pool.query('SELECT s.id,s.unit_id,s.name FROM flow_client_services s JOIN flow_client_units u ON u.id=s.unit_id AND u.client_id=s.client_id AND u.active=true WHERE s.client_id=$1 AND s.active=true ORDER BY s.name',[cid]),
-    pool.query('SELECT d.id,d.unit_id,d.name,d.destination_type FROM flow_client_destinations d JOIN flow_client_units u ON u.id=d.unit_id AND u.client_id=d.client_id AND u.active=true WHERE d.client_id=$1 AND d.active=true ORDER BY d.name',[cid])
+    pool.query('SELECT d.id,d.unit_id,d.name,d.destination_type FROM flow_client_destinations d JOIN flow_client_units u ON u.id=d.unit_id AND u.client_id=d.client_id AND u.active=true WHERE d.client_id=$1 AND d.active=true ORDER BY d.name',[cid]),
+    pool.query("SELECT r.unit_id,r.state->>'transferPolicy' AS policy FROM flow_client_runtime r JOIN flow_client_units u ON u.id=r.unit_id WHERE u.client_id=$1 AND u.active=true",[cid])
    ]);
-   return send(res,200,{institution:institution.rows[0],units:units.rows,services:services.rows,destinations:destinations.rows});
+   return send(res,200,{institution:institution.rows[0],units:units.rows,services:services.rows,destinations:destinations.rows,transferPolicies:policies.rows});
   }
   if(req.method!=='POST')return send(res,405,{error:'Método não permitido'});
-  const a=await read(req),name=clean(a.name,a.type==='unit'?120:100);
+  const a=await read(req);
+  if(a.type==='transfer_policy'){
+   const unit=num(a.unitId),policy=String(a.policy||'');
+   if(!unit||!['start','end','original'].includes(policy))return send(res,400,{error:'Regra de encaminhamento inválida'});
+   const allowed=await pool.query('SELECT 1 FROM flow_client_units WHERE id=$1 AND client_id=$2 AND active=true',[unit,cid]);
+   if(!allowed.rowCount)return send(res,403,{error:'Unidade não pertence à sua instituição'});
+   const db=await pool.connect();
+   try{
+    await db.query('BEGIN');
+    await db.query('INSERT INTO flow_client_runtime(unit_id) VALUES($1) ON CONFLICT DO NOTHING',[unit]);
+    await db.query("UPDATE flow_client_runtime SET state=jsonb_set(coalesce(state,'{}'::jsonb),'{transferPolicy}',to_jsonb($2::text),true),revision=revision+1,updated_at=now() WHERE unit_id=$1",[unit,policy]);
+    await db.query('INSERT INTO flow_admin_audit(action,client_id,unit_id,details) VALUES($1,$2,$3,$4::jsonb)',['transfer_policy',cid,unit,JSON.stringify({policy})]);
+    await db.query('COMMIT');
+    return send(res,200,{saved:true,unitId:unit,policy});
+   }catch(e){await db.query('ROLLBACK').catch(()=>{});throw e}finally{db.release()}
+  }
+  const name=clean(a.name,a.type==='unit'?120:100);
   if(!name||name.length<2)return send(res,400,{error:'Informe um nome com pelo menos 2 caracteres'});
   let result;
   if(a.type==='unit'){

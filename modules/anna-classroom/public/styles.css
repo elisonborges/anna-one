@@ -34,3 +34,15 @@
 .auth-box .auth-helper{font-size:12px;color:#6c8098;margin:16px 0 0}
 .auth-footer{width:100%;background:#0c2646;color:#d7e8fb;text-align:center;padding:19px 12px;font-size:12px}
 @media(max-width:690px){.auth-header{min-height:70px;padding:10px 16px}.auth-brand img{width:39px;height:39px}.auth-brand-name{font-size:22px}.auth-brand-name small{font-size:7px}.auth-header-link{font-size:11px}.auth-main{padding:22px 14px}.auth-box{padding:29px 20px}.auth-box h1{font-size:26px}}
+
+/* Entrada direta — mesmo padrão compacto aprovado para Service Desk e portal. */
+.classroom-login-form{display:grid;gap:12px;max-width:340px;margin:16px auto 8px;text-align:left}
+.classroom-login-form[hidden]{display:none!important}
+.classroom-login-form label{display:grid;gap:6px;color:#234361;font-weight:650;font-size:13px}
+.classroom-login-form input{width:100%;border:1px solid #cbd6e5;border-radius:9px;padding:11px;font:inherit;background:#fff;color:#173451}
+.classroom-login-form input:focus-visible{outline:3px solid #64c8ff;outline-offset:2px}
+.classroom-login-form button{border:0;border-radius:9px;background:#087bdf;color:#fff;padding:12px;font-weight:750;font-size:14px;cursor:pointer}
+.classroom-login-form button:disabled{opacity:.6;cursor:wait}
+.classroom-login-form .login-help{margin:0;text-align:center;font-size:12px}
+.login-help a{color:#0867b6;text-decoration:underline}
+.auth-box #auth-message{margin-bottom:12px}

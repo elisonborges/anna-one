@@ -119,11 +119,32 @@ function renderList(pane,items,formatter,emptyMessage){
  const search=element("input");
  search.type="search";search.placeholder="Pesquisar nesta lista...";
  search.setAttribute("aria-label","Pesquisar "+pane.querySelector("h2").textContent.toLowerCase());
- controls.append(search);pane.append(controls);
+ controls.append(search);
+ const csv=element("button","Exportar lista (CSV)","classroom-export");
+ csv.type="button";
+ csv.title="Exportar somente os registros carregados nesta lista";
+ controls.append(csv);pane.append(controls);
  const list=element("ul",null,"classroom-record-list");
  pane.append(list);
  const normalized=text=>String(text??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("pt-BR");
  const entries=items.map(item=>formatter(item));
+ const csvCell=value=>{
+  let str=String(value??"").replace(/\r|\n/g," ").trim();
+  if(/^[=+@-]/.test(str))str="'"+str;
+  return '"'+str.replace(/"/g,'""')+'"';
+ };
+ csv.addEventListener("click",()=>{
+  const term=normalized(search.value.trim());
+  const selected=entries.filter(entry=>normalized(entry.join(" ")).includes(term));
+  const rows=[["Nome","Detalhes"],...selected.map(entry=>[entry[0],entry[1]||""])];
+  const content="\uFEFF"+rows.map(row=>row.map(csvCell).join(";")).join("\r\n");
+  const url=URL.createObjectURL(new Blob([content],{type:"text/csv;charset=utf-8;"}));
+  const filename="anna-classroom-"+pane.querySelector("h2").textContent.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")+".csv";
+  const download=element("a");
+  download.href=url;download.download=filename;
+  document.body.append(download);download.click();download.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),0);
+ });
  const update=()=>{
   const term=normalized(search.value.trim());
   const matches=entries.filter(entry=>normalized(entry.join(" ")).includes(term));

@@ -48,7 +48,7 @@ async function handler(req,res){
  const pathname=new URL(req.url||'/', 'http://localhost').pathname;
  if(pathname==='/health'&&req.method==='GET')return send(res,200,{status:'ok',service:'anna-classroom-api'});
  if(!['GET','POST'].includes(req.method))return send(res,405,{error:'Método não permitido'});
- if(!['/v1/classes','/v1/students','/v1/enrollments','/v1/lessons','/v1/assignments','/v1/submissions','/v1/access'].includes(pathname))return send(res,404,{error:'Rota inexistente'});
+ if(!['/v1/classes','/v1/students','/v1/enrollments','/v1/lessons','/v1/assignments','/v1/submissions','/v1/overview','/v1/access'].includes(pathname))return send(res,404,{error:'Rota inexistente'});
  try{
   let userId;
   try { userId=await authenticate(req); }
@@ -67,6 +67,11 @@ async function handler(req,res){
   const client=await pool.connect();
   try{
    await permission(client,userId,institutionId);
+   if(req.method==='GET'&&pathname==='/v1/overview'){
+    const stats=await client.query('SELECT (SELECT count(*) FROM anna_classroom.classes WHERE institution_id=$1) AS classes,(SELECT count(*) FROM anna_classroom.students WHERE institution_id=$1) AS students,(SELECT count(*) FROM anna_classroom.enrollments WHERE institution_id=$1) AS enrollments,(SELECT count(*) FROM anna_classroom.lessons WHERE institution_id=$1) AS lessons,(SELECT count(*) FROM anna_classroom.assignments WHERE institution_id=$1) AS assignments,(SELECT count(*) FROM anna_classroom.submissions WHERE institution_id=$1) AS submissions',[institutionId]);
+    return send(res,200,{stats:stats.rows[0]});
+   }
+   if(pathname==='/v1/overview')return send(res,405,{error:'Método não permitido'});
    if(req.method==='GET'&&pathname==='/v1/classes'){
     const rows=await client.query('SELECT id,name,school_year,created_at FROM anna_classroom.classes WHERE institution_id=$1 ORDER BY created_at DESC LIMIT 100',[institutionId]);
     return send(res,200,{items:rows.rows});

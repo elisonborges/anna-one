@@ -49,3 +49,12 @@ A primeira versão visual é apenas interface. O funcionamento da sessão e das 
 - No Neon, habilitado `turmas-e-alunos` **somente** para a instituição de testes `COLEGIO TESTE` (UUID `9de1e73a-1227-4f63-b950-364e44f4978e`). Consulta posterior confirmou `enabled=true` e `anna_classroom.can_manage_institution(...)=true` para o membro institucional ativo.
 - Infra Render API segue live; as mudanças recentes são frontend/GitHub, dependem do deploy automático do Worker e do deploy do portal. Não alegar validação de ponta a ponta antes do usuário testar no navegador real.
 - Se a API apresentar 401 após a conexão do portal, confirmar os valores de `NEON_AUTH_ISSUER` e `NEON_AUTH_AUDIENCE` a partir das claims reais do JWT, sem expor token em chat. Se acesso pelo catálogo do portal seguir oculto, verificar a política do Worker `/v1/institution/me` para módulos planejados.
+
+## Arquitetura confirmada pelo usuário — 08/11/2026 (substitui planos de ponte/popup)
+- Master administra liberação de módulos por cliente usando Painel Master existente.
+- Cliente autenticado na Central AnnA One visualiza links dos módulos atribuídos e abre os módulos.
+- Acesso direto à URL do módulo: tela de login com e-mail/senha **no padrão visual Service Desk**, autenticação no **Neon Auth central** (não usar conta separada do Service Desk), ao validar conta e vínculo institucional abrir módulo diretamente.
+- Em 08/11: alteração do `public.modules` para `code=turmas-e-alunos,status=available` foi aplicada para permitir atribuição pelo Master; `COLEGIO TESTE` permanece habilitado e `can_manage_institution` retornou true. **Catálogo do portal atualizado** para mostrar `Turmas e Alunos` como `Disponível · Piloto` quando a API de autorizações o incluir.
+- Interface do Classroom adaptada para login direto com Neon Auth e autorização institucional; a ponte experimental `app/classroom-connect.html` foi removida, sem popup nem segundo cadastro. As requisições GET de turmas e alunos ainda passam pelas autorizações do servidor.
+- **Pendência:** testar entrada e acesso às turmas no navegador, validar JWT `iss/aud` (Render foi configurado com valores provisórios) e eventualmente ajustar cookies CORS se navegador bloquear cookies entre workers.dev e Neon Auth; não declarar fluxo end-to-end aprovado até teste real.
+- Ainda não apontar o link para `classroom.annaone.com.br` pois DNS não foi configurado.

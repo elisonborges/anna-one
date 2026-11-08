@@ -112,18 +112,32 @@ async function apiRequest(path,init={}){
  return response.json();
 }
 function renderList(pane,items,formatter,emptyMessage){
- const count=element("p",items.length+" registro(s)","panel-count");
+ const count=element("p",items.length+" registro(s) carregado(s)","panel-count");
  pane.append(count);
  if(!items.length){pane.append(element("p",emptyMessage,"panel-feedback"));return;}
+ const controls=element("div",null,"classroom-list-tools");
+ const search=element("input");
+ search.type="search";search.placeholder="Pesquisar nesta lista...";
+ search.setAttribute("aria-label","Pesquisar "+pane.querySelector("h2").textContent.toLowerCase());
+ controls.append(search);pane.append(controls);
  const list=element("ul",null,"classroom-record-list");
- for(const item of items){
-  const li=element("li");
-  const content=formatter(item);
-  li.append(element("strong",content[0]));
-  if(content[1])li.append(element("span",content[1]));
-  list.append(li);
- }
  pane.append(list);
+ const normalized=text=>String(text??"").normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLocaleLowerCase("pt-BR");
+ const entries=items.map(item=>formatter(item));
+ const update=()=>{
+  const term=normalized(search.value.trim());
+  const matches=entries.filter(entry=>normalized(entry.join(" ")).includes(term));
+  list.replaceChildren();
+  for(const entry of matches){
+   const li=element("li");
+   li.append(element("strong",entry[0]));
+   if(entry[1])li.append(element("span",entry[1]));
+   list.append(li);
+  }
+  count.textContent=matches.length+" de "+items.length+" registro(s) carregado(s)";
+  if(!matches.length)list.append(element("li","Nenhum resultado para esta pesquisa.","panel-feedback"));
+ };
+ search.addEventListener("input",update);update();
 }
 function renderHome(target){
  const summary=makeCard("Resumo institucional");

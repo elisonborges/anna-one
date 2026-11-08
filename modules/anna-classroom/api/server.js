@@ -48,7 +48,7 @@ async function handler(req,res){
  const pathname=new URL(req.url||'/', 'http://localhost').pathname;
  if(pathname==='/health'&&req.method==='GET')return send(res,200,{status:'ok',service:'anna-classroom-api'});
  if(!['GET','POST'].includes(req.method))return send(res,405,{error:'Método não permitido'});
- if(!['/v1/classes','/v1/students','/v1/enrollments','/v1/lessons','/v1/assignments','/v1/access'].includes(pathname))return send(res,404,{error:'Rota inexistente'});
+ if(!['/v1/classes','/v1/students','/v1/enrollments','/v1/lessons','/v1/assignments','/v1/submissions','/v1/access'].includes(pathname))return send(res,404,{error:'Rota inexistente'});
  try{
   let userId;
   try { userId=await authenticate(req); }
@@ -87,6 +87,11 @@ async function handler(req,res){
     const rows=await client.query('SELECT a.id,a.lesson_id,a.title,a.instructions,a.due_at,a.created_at,l.title AS lesson_title FROM anna_classroom.assignments a JOIN anna_classroom.lessons l ON l.id=a.lesson_id AND l.institution_id=a.institution_id WHERE a.institution_id=$1 ORDER BY a.created_at DESC LIMIT 100',[institutionId]);
     return send(res,200,{items:rows.rows});
    }
+   if(req.method==='GET'&&pathname==='/v1/submissions'){
+    const rows=await client.query('SELECT s.id,s.student_id,s.assignment_id,s.submitted_at,s.grade,s.feedback,st.display_name AS student_name,a.title AS assignment_title FROM anna_classroom.submissions s JOIN anna_classroom.students st ON st.id=s.student_id AND st.institution_id=s.institution_id JOIN anna_classroom.assignments a ON a.id=s.assignment_id AND a.institution_id=s.institution_id WHERE s.institution_id=$1 ORDER BY s.submitted_at DESC LIMIT 100',[institutionId]);
+    return send(res,200,{items:rows.rows});
+   }
+   if(pathname==='/v1/submissions')return send(res,405,{error:'Cadastro de entregas reservado ao fluxo de estudantes'});
    if(req.headers['content-type']?.split(';')[0]?.trim()!=='application/json')return send(res,415,{error:'Esperado application/json'});
    const data=await body(req);
    if(!data||typeof data!=='object'||Array.isArray(data))return send(res,400,{error:'Objeto JSON necessário'});

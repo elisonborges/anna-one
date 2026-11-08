@@ -2,12 +2,16 @@ import http from 'node:http';
 import { Pool } from 'pg';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
-const REQUIRED=['DATABASE_URL','NEON_AUTH_JWKS_URL','NEON_AUTH_ISSUER','NEON_AUTH_AUDIENCE','FRONTEND_ORIGIN'];
+const REQUIRED=['DATABASE_URL','NEON_AUTH_JWKS_URL','FRONTEND_ORIGIN'];
 for(const name of REQUIRED)if(!process.env[name])throw new Error('Configuração ausente: '+name);
 const allowedOrigins=new Set([new URL(process.env.FRONTEND_ORIGIN).origin,'https://anna-classroom.elisonborg.workers.dev']);
 const port=Number(process.env.PORT||3000);
 const pool=new Pool({connectionString:process.env.DATABASE_URL,max:4,connectionTimeoutMillis:5000,ssl:{rejectUnauthorized:true}});
-const jwks=createRemoteJWKSet(new URL(process.env.NEON_AUTH_JWKS_URL));
+const jwksUrl=new URL(process.env.NEON_AUTH_JWKS_URL);
+const jwks=createRemoteJWKSet(jwksUrl);
+// Neon Managed Auth assina os JWTs com issuer igual à origem do endpoint.
+// O audience não é garantido nesse fluxo; assinatura e issuer são obrigatórios.
+const authIssuer=jwksUrl.origin;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const send=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(data));};
 const validName=(x,max)=>typeof x==='string'&&x.trim().length>=1&&x.trim().length<=max;
@@ -20,7 +24,7 @@ async function authenticate(req){
  const header=req.headers.authorization||'';
  const match=/^Bearer ([A-Za-z0-9._~-]+)$/.exec(header);
  if(!match)throw Object.assign(new Error('Token obrigatório'),{status:401});
- const {payload}=await jwtVerify(match[1],jwks,{issuer:process.env.NEON_AUTH_ISSUER,audience:process.env.NEON_AUTH_AUDIENCE,algorithms:['EdDSA','ES256','RS256']});
+ const {payload}=await jwtVerify(match[1],jwks,{issuer:authIssuer,algorithms:['EdDSA']});
  if(typeof payload.sub!=='string'||!UUID.test(payload.sub))throw Object.assign(new Error('Identidade inválida'),{status:401});
  return payload.sub;
 }

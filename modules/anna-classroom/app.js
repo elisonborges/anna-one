@@ -309,6 +309,14 @@ function display(key){
  document.querySelector("#page-description").textContent="Ambiente de ensino da AnnA One";
  document.querySelector("#section-title").textContent=view==="inicio"?"Áreas do módulo":view==="turmas"?"Gestão de turmas, alunos e matrículas":view==="aulas"?"Planejamento de aulas":view==="atividades"?"Atividades pedagógicas":"Áreas do módulo";
  const target=document.querySelector("#module-cards");target.replaceChildren();
+ if(["inicio","turmas","aulas","atividades","correcoes"].includes(view)){
+  const toolbar=element("div",null,"classroom-view-actions");
+  const refresh=element("button","Atualizar dados","classroom-refresh");
+  refresh.type="button";
+  refresh.addEventListener("click",()=>display(view));
+  toolbar.append(refresh);
+  target.append(toolbar);
+ }
  if(view==="inicio")renderHome(target);
  else if(["turmas","aulas","atividades","correcoes"].includes(view))renderWorkspace(view,target,version);
  else{

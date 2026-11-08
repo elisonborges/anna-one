@@ -1,6 +1,16 @@
 # AnnA Classroom — ponto de continuidade
 Atualização: 07/11/2026 (horário do usuário, America/Fortaleza)
 
+## Atualização v0.2.1 — 08/11/2026
+
+- **Preservado:** layout aprovado, login Neon Auth, autorização Master/cliente, banco e API; nenhuma mudança nas tabelas nem dados reais.
+- **Consulta:** listas de Turmas, Alunos, Matrículas, Aulas, Atividades e Entregas agora têm filtro local responsivo, sem distinção entre letras maiúsculas e acentos. Contador informa resultados filtrados entre os **registros carregados**.
+- **Exportação:** botão CSV em cada lista, sob clique do administrador. Usa somente dados carregados/filtrados, UTF-8 com BOM, campo entre aspas e proteção contra injeção de fórmulas em planilhas. **Não é backup completo** nem contorna os limites atuais de leitura da API (100 registros por lista, 500 matrículas).
+- **Atualização:** botão **Atualizar dados** nas seções de resumo e listagens, para recarregar manualmente os dados autorizados sem sair da área.
+- **Testes:** `modules/anna-classroom/tests/smoke.test.mjs` com testes Node integrados e `modules/anna-classroom/package.json` com `npm test`. Conferências diretas feitas: sintaxe do frontend, busca por acentos, proteção CSV, espelhamento idêntico dos arquivos e presença dos elementos de login; todas passaram. **O `npm test` completo ainda não foi executado em um ambiente com checkout do repositório.**
+- **Publicação:** alterações gravadas na `main` e cache das referências de CSS/JS atualizado para `classroom-v021-20261108`. Cloudflare Worker usa build automático, mas não há ferramenta disponível nesta conversa para afirmar que a versão nova já está ativa no Worker. Nenhum deploy Render necessário, pois a API não mudou.
+- **Limites preservados:** não implementar perfis de estudante/professor, avaliações por nota, importação em massa, alteração/exclusão de registros reais ou mudança de DNS sem desenho de segurança e validação apropriada.
+
 ## Estado atual — Classroom v0.2 (08/11/2026)
 **Validação final:** deploy da API Render `dep-dbnuqqlg1s2s73dof5cg` confirmado **live**. As consultas SELECT para Matrículas, Aulas, Atividades, Entregas e Resumo passaram usando o papel `classroom_api_service`, sem escrita. Função `can_manage_institution` alinhada ao módulo `status=available`; instituição piloto continua autorizada e usuário desconhecido rejeitado. Frontend em GitHub `main`, com cache versionado `classroom-v02b-20261108`; build do Cloudflare não pôde ser inspecionado diretamente.
 

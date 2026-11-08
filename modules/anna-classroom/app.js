@@ -66,7 +66,6 @@ async function loadAuthorizedList(target,endpoint,title,formatItem){
   if(pane.isConnected)status.textContent="Falha de conexão com a API. Verifique a disponibilidade do serviço.";
  }
 }
-const auditEndpoint="https://anna-one-auditoria.elisonborg.workers.dev/v1/institution/me";
 const loginForm=document.querySelector("#classroom-login-form");
 const emailInput=document.querySelector("#classroom-email");
 const passwordInput=document.querySelector("#classroom-password");
@@ -81,8 +80,15 @@ function showLogin(text){
 }
 async function verifyInstitution(jwt){
  if(typeof jwt!=="string"||jwt.split(".").length!==3)throw Error("Sessão sem token de acesso válido.");
- const response=await fetch(auditEndpoint,{headers:{Authorization:"Bearer "+jwt},cache:"no-store"});
- if(!response.ok)throw Error("Não foi possível verificar o vínculo institucional.");
+ let response;
+ try{
+  response=await fetch(API_BASE+"/v1/access",{headers:{Authorization:"Bearer "+jwt},cache:"no-store"});
+ }catch{
+  throw Error("Sem comunicação com a API do Classroom. Verifique a conexão e tente novamente.");
+ }
+ if(response.status===401)throw Error("Sessão não validada pela API do Classroom.");
+ if(response.status===403)throw Error("O Master ainda não liberou o Classroom para esta conta.");
+ if(!response.ok)throw Error("Não foi possível confirmar a autorização (HTTP "+response.status+").");
  const result=await response.json();
  const institution=Array.isArray(result?.institutions)?result.institutions.find(item=>item?.id&&item?.name):null;
  if(result?.authorized!==true||!institution)throw Error("Esta conta não tem vínculo institucional ativo. Solicite autorização ao Master.");
@@ -139,7 +145,8 @@ loginForm.addEventListener("submit",async event=>{
   if(!session?.data?.user&&!session?.data?.session?.user)throw Error("A sessão não foi confirmada.");
   await verifyInstitution(await obtainAccessToken(session));
  }catch(error){
-  showLogin(error?.message||"Não foi possível entrar.");
+  const networkError=error?.message==="Failed to fetch"||error instanceof TypeError;
+  showLogin(networkError?"Não foi possível conectar ao serviço de login Neon Auth. Verifique a conexão ou tente pelo portal AnnA One.":error?.message||"Não foi possível entrar.");
  }finally{submitLogin.disabled=false;}
 });
 blocked("Verificando acesso institucional...");

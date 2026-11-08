@@ -153,7 +153,7 @@ loginForm.addEventListener("submit",async event=>{
  }catch(error){
   const raw=String(error?.message||"");
   const networkError=/failed to fetch|networkerror|load failed|fetch failed/i.test(raw)||error instanceof TypeError;
-  showLogin(networkError?"Falha de rede na etapa "+phase+". Não foi possível comunicar com "+(phase==="permissão"?"a API do Classroom.":"o Neon Auth."):" "+ "Verifique se o navegador bloqueou a conexão.":raw||"Não foi possível entrar.");
+  showLogin(networkError?("Falha de rede na etapa "+phase+". Não foi possível comunicar com "+(phase==="permissão"?"a API do Classroom.":"o Neon Auth.")+" Verifique se o navegador bloqueou a conexão."):(raw||"Não foi possível entrar."));
  }finally{submitLogin.disabled=false;}
 });
 blocked("Verificando acesso institucional...");

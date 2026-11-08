@@ -1,6 +1,18 @@
 # AnnA Classroom — ponto de continuidade
 Atualização: 07/11/2026 (horário do usuário, America/Fortaleza)
 
+## Estado atual — Classroom v0.2 (08/11/2026)
+**Este bloco prevalece sobre registros históricos abaixo quando houver divergências.**
+- **Layout:** aprovado pelo usuário após correção da sidebar e logo; preservar sem redesenhar.
+- **Fluxo:** Master atribui o módulo → Central do cliente mostra o acesso → Classroom valida Neon Auth e instituição via API; acesso direto com tela de login. Login real e acesso à visão geral foram confirmados pelo usuário em captura.
+- **Instituição piloto:** COLEGIO TESTE com `turmas-e-alunos` disponível e habilitado. `anna_classroom.can_manage_institution` aplica verificação por JWT, instituição, vínculo administrativo e atribuição.
+- **Frontend:** `public/{index.html,app.js,styles.css}`, espelhado em `modules/anna-classroom/`. V0.2 possui resumo institucional com contadores, cadastro/listagem de **Turmas, Alunos e Matrículas**, planejamento/listagem de **Aulas**, cadastro/listagem de **Atividades**, consulta de **Entregas e avaliações** (somente leitura), mensagem de status e **Sair** com limpeza do conteúdo da sessão. Todos os textos dinâmicos vão por `textContent`, sem injeção HTML.
+- **API Render:** `/health` público; com JWT assinado Neon e autorização institucional: GET `/v1/access`, GET `/v1/overview`, GET/POST `/v1/classes`, `/v1/students`, `/v1/enrollments`, `/v1/lessons`, `/v1/assignments`; GET `/v1/submissions` apenas. POST `/v1/submissions` não liberado até arquitetura de perfis de estudantes. Cada operação escopa dados à instituição; FKs compostas do Neon impedem vínculo entre instituições.
+- **Validações:** JavaScript da UI e da API passou checagem estática; cinco SELECTs com `classroom_api_service` nas tabelas novas passaram; produção permanece com **zero registros** nas seis tabelas. Nenhum aluno ou dado fictício cadastrado.
+- **Implantação:** Cloudflare Worker usa assets `public/` e deploy via `npx wrangler deploy --config modules/anna-classroom/wrangler.jsonc`; GitHub main é fonte de publicação. Render autodeploy OFF: acionar deploy manual após alterações na API. O deploy do frontend depende do build Cloudflare e sua confirmação não é fornecida pelo GitHub.
+- **Limitações conscientes:** primeira versão de gestão serve apenas administradores institucionais; professores/alunos ainda não têm fluxos próprios, nem envio de entregas, edição de notas, paginação acima de limites de 100/500 itens ou edição/exclusão de dados. Não anunciar essas funcionalidades como prontas.
+- **Próxima fase:** validar cadastros reais somente mediante ação do administrador; definir papéis e autorizações de professor/aluno antes de ampliar entregas, correções e avaliações. Nunca publicar módulo para instituições não habilitadas nem alterar dados reais para testes.
+
 ## Regras aprovadas (não perguntar novamente)
 - **Repositório principal e único para implementação:** `elisonborges/anna-one`, subdiretório `modules/anna-classroom/`.
 - Layout padronizado do portal AnnA One, com azul institucional e roxo de Gestão Escolar.

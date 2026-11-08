@@ -86,6 +86,20 @@ async function verifyInstitution(jwt){
  const result=await response.json();
  const institution=Array.isArray(result?.institutions)?result.institutions.find(item=>item?.id&&item?.name):null;
  if(result?.authorized!==true||!institution)throw Error("Esta conta não tem vínculo institucional ativo. Solicite autorização ao Master.");
+ // O vínculo institucional isolado não libera o módulo: a API confirma
+ // a identidade e a atribuição do Classroom pelo Master antes de exibir sua interface.
+ let permissionResponse;
+ try{
+  permissionResponse=await fetch(API_BASE+"/v1/classes",{
+   headers:{"Authorization":"Bearer "+jwt,"X-Institution-Id":institution.id},
+   cache:"no-store"
+  });
+ }catch{
+  throw Error("A API do Classroom está indisponível. Tente novamente mais tarde.");
+ }
+ if(permissionResponse.status===401)throw Error("Sua sessão foi aceita no portal, mas a API do Classroom não validou o token.");
+ if(permissionResponse.status===403)throw Error("O Classroom não está liberado para esta conta ou instituição. Consulte o Master.");
+ if(!permissionResponse.ok)throw Error("Não foi possível confirmar o acesso ao Classroom (HTTP "+permissionResponse.status+").");
  accessToken=jwt;
  loginForm.hidden=true;
  passwordInput.value="";

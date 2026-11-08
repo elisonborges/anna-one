@@ -130,19 +130,19 @@ function renderHome(target){
  const feedback=addStatus(summary,"Consultando indicadores...");
  target.append(summary);
  const stamp=renderVersion;
- Promise.all(["classes","students","enrollments","lessons","assignments"].map(type=>apiRequest("/v1/"+type)))
-  .then(values=>{
+ apiRequest("/v1/overview")
+  .then(({stats})=>{
    if(stamp!==renderVersion)return;
    feedback.textContent="";
-   const labels=["Turmas","Alunos","Matrículas","Aulas","Atividades"];
-   const stats=element("div",null,"classroom-stat-grid");
-   for(let i=0;i<values.length;i++){
+   const labels=[["classes","Turmas"],["students","Alunos"],["enrollments","Matrículas"],["lessons","Aulas"],["assignments","Atividades"]];
+   const metrics=element("div",null,"classroom-stat-grid");
+   for(const [id,label] of labels){
     const metric=element("div",null,"classroom-metric");
-    metric.append(element("strong",Array.isArray(values[i].items)?values[i].items.length:0));
-    metric.append(element("span",labels[i]));
-    stats.append(metric);
+    metric.append(element("strong",stats?.[id]??"—"));
+    metric.append(element("span",label));
+    metrics.append(metric);
    }
-   summary.append(stats);
+   summary.append(metrics);
   }).catch(error=>{if(stamp===renderVersion)feedback.textContent=error.message;});
  for(const item of [
   ["Turmas e alunos","Cadastre turmas, alunos e vincule matrículas.","turmas"],
@@ -388,6 +388,8 @@ signoutButton?.addEventListener("click",async()=>{
   if(result?.error)throw Error("Erro ao sair");
   accessToken=null;
   activeInstitution=null;
+  ++renderVersion;
+  document.querySelector("#module-cards").replaceChildren();
   blocked("Sessão encerrada. Entre novamente quando desejar.");
   loginForm.hidden=false;
   passwordInput.value="";

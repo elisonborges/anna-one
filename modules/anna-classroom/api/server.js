@@ -44,11 +44,20 @@ async function handler(req,res){
  const pathname=new URL(req.url||'/', 'http://localhost').pathname;
  if(pathname==='/health'&&req.method==='GET')return send(res,200,{status:'ok',service:'anna-classroom-api'});
  if(!['GET','POST'].includes(req.method))return send(res,405,{error:'Método não permitido'});
- if(!['/v1/classes','/v1/students'].includes(pathname))return send(res,404,{error:'Rota inexistente'});
+ if(!['/v1/classes','/v1/students','/v1/access'].includes(pathname))return send(res,404,{error:'Rota inexistente'});
  try{
   let userId;
   try { userId=await authenticate(req); }
   catch { return send(res,401,{error:'Sessão inválida ou expirada'}); }
+  if(pathname==='/v1/access'){
+   if(req.method!=='GET')return send(res,405,{error:'Método não permitido'});
+   const client=await pool.connect();
+   try{
+    const result=await client.query('SELECT id,name FROM anna_classroom.authorized_institution($1::uuid)',[userId]);
+    if(!result.rows.length)return send(res,403,{error:'Classroom não habilitado para esta conta ou instituição'});
+    return send(res,200,{authorized:true,institutions:result.rows});
+   }finally{client.release();}
+  }
   const institutionId=req.headers['x-institution-id'];
   if(typeof institutionId!=='string'||!UUID.test(institutionId))return send(res,400,{error:'Instituição inválida'});
   const client=await pool.connect();

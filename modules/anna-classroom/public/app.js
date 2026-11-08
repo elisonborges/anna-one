@@ -122,7 +122,7 @@ function renderList(pane,items,formatter,emptyMessage){
  controls.append(search);pane.append(controls);
  const list=element("ul",null,"classroom-record-list");
  pane.append(list);
- const normalized=text=>String(text??"").normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLocaleLowerCase("pt-BR");
+ const normalized=text=>String(text??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("pt-BR");
  const entries=items.map(item=>formatter(item));
  const update=()=>{
   const term=normalized(search.value.trim());

@@ -196,3 +196,43 @@
  #classroom-app .cards{grid-template-columns:1fr}
  #classroom-app .card{min-height:100px}
 }
+
+
+/* AnnA Classroom v0.2 — cadastros com o mesmo padrão da Central AnnA One */
+#classroom-app .cards{align-items:start}
+#classroom-app .classroom-panel{min-height:0;min-width:0;padding:18px 19px}
+#classroom-app .classroom-panel h2{font-size:16px;margin:0 0 12px;color:#103760}
+#classroom-app .classroom-data-form{display:grid;gap:10px;align-content:start}
+#classroom-app .classroom-field{display:grid;gap:5px;min-width:0;color:#284967;font-size:12px;font-weight:700}
+#classroom-app .classroom-field input,
+#classroom-app .classroom-field select,
+#classroom-app .classroom-field textarea{
+ display:block;width:100%;min-width:0;border:1px solid #c6d9ed;border-radius:9px;
+ padding:10px 11px;background:#fff;color:#173451;
+ font:400 13px system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+}
+#classroom-app .classroom-field textarea{resize:vertical;min-height:74px;max-height:240px}
+#classroom-app .classroom-field input:focus-visible,
+#classroom-app .classroom-field select:focus-visible,
+#classroom-app .classroom-field textarea:focus-visible{
+ outline:2px solid #57a9ff;outline-offset:1px
+}
+#classroom-app .classroom-action,
+#classroom-app .classroom-link-button{
+ display:inline-flex;align-items:center;justify-content:center;
+ border:0;border-radius:9px;padding:10px 13px;
+ font-size:13px;font-weight:750;cursor:pointer
+}
+#classroom-app .classroom-action{color:#fff;background:#0875e5;margin-top:3px}
+#classroom-app .classroom-action:hover{background:#075cbe}
+#classroom-app .classroom-link-button{color:#0759a9;background:#e8f3ff;margin-top:12px}
+#classroom-app .classroom-link-button:hover{background:#d3eaff}
+#classroom-app button:disabled{opacity:.6;cursor:wait}
+#classroom-app .panel-feedback{font-size:12px;color:#55708e;line-height:1.5;margin:7px 0 0}
+#classroom-app .panel-count{font-size:12px;color:#53718e;margin:0 0 9px}
+#classroom-app .classroom-record-list{list-style:none;padding:0;margin:0;display:grid;gap:0;max-height:320px;overflow-y:auto}
+#classroom-app .classroom-record-list li{padding:10px 2px;border-top:1px solid #e2ebf5;display:grid;gap:4px;overflow-wrap:anywhere}
+#classroom-app .classroom-record-list strong{font-size:13px;color:#163c67}
+#classroom-app .classroom-record-list span{font-size:12px;line-height:1.4;color:#607790}
+@media(max-width:1100px){#classroom-app .cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:780px){#classroom-app .cards{grid-template-columns:1fr}}

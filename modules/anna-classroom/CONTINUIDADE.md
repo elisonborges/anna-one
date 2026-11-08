@@ -40,3 +40,12 @@ A primeira versão visual é apenas interface. O funcionamento da sessão e das 
 - Interface atual: aba Turmas consulta GET `/v1/classes` e `/v1/students` com token e `X-Institution-Id`, exibindo estados 401/403/vazio/erro, **sem criar dados nem burlar autorizações**.
 - **PENDENTE REAL:** não há teste confirmado de sessão JWT integrada entre portal e Workers, nem confirmação dos claims iss/aud aceitos pela API. Não afirmar login validado. Antes de liberar uso escolar, validar em conta de instituição, corrigir mecanismo de sessão se necessário e habilitar o módulo seletivamente após autorização do usuário.
 - Alterações visuais foram mescladas na main, e últimas mudanças de interface também estão na main; o Cloudflare costuma gerar build automaticamente, mas a implantação final ainda precisa ser confirmada quando necessário.
+
+## Correção do acesso pelo portal (08/11/2026)
+- Usuário relatou que login no portal não abre o módulo.
+- Diagnóstico: sessão no domínio `annaone.com.br` não é automaticamente reutilizada em `elisonborg.workers.dev` e nenhuma instituição tinha o módulo habilitado.
+- Criada página `app/classroom-connect.html` no portal para, com sessão existente, transmitir JWT à janela Classroom exclusivamente por `postMessage` para origem exata `https://anna-classroom.elisonborg.workers.dev`, com nonce aleatório por conexão. Nenhum token em URL ou storage persistente.
+- Frontend `modules/anna-classroom/{app.js,public/app.js}`: botão **Conectar conta AnnA One** abre ponte do portal em janela auxiliar, verifica mensagem por origem, fonte e nonce, valida vínculo via endpoint existente, sem criar contas ou exibir dados de usuário.
+- No Neon, habilitado `turmas-e-alunos` **somente** para a instituição de testes `COLEGIO TESTE` (UUID `9de1e73a-1227-4f63-b950-364e44f4978e`). Consulta posterior confirmou `enabled=true` e `anna_classroom.can_manage_institution(...)=true` para o membro institucional ativo.
+- Infra Render API segue live; as mudanças recentes são frontend/GitHub, dependem do deploy automático do Worker e do deploy do portal. Não alegar validação de ponta a ponta antes do usuário testar no navegador real.
+- Se a API apresentar 401 após a conexão do portal, confirmar os valores de `NEON_AUTH_ISSUER` e `NEON_AUTH_AUDIENCE` a partir das claims reais do JWT, sem expor token em chat. Se acesso pelo catálogo do portal seguir oculto, verificar a política do Worker `/v1/institution/me` para módulos planejados.

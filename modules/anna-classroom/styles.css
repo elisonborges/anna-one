@@ -1,77 +1,99 @@
 :root{font-family:Inter,"Segoe UI",Arial,sans-serif;color:#17385b;background:#f4f7fd;--nav:#0c2646;--blue:#086cf3;--purple:#3512a2;--line:#dce6f2;--muted:#61768d}*{box-sizing:border-box}body{margin:0;min-height:100dvh}button,a{font:inherit}a{color:inherit;text-decoration:none}button:focus-visible,a:focus-visible{outline:3px solid #00baf6;outline-offset:3px}.layout{min-height:100dvh;display:grid;grid-template-columns:255px minmax(0,1fr)}.sidebar{background:var(--nav);color:#e2edff;padding:22px 17px;display:flex;flex-direction:column;gap:25px}.brand{display:flex;align-items:center;gap:10px;font-size:26px;font-weight:850;letter-spacing:-1px}.symbol{width:40px;height:40px;border:2px solid #7dbaff;border-radius:12px;display:grid;place-items:center;font-size:23px;color:#fff}.brand b{color:#52adff}.brand small{display:block;font-size:9px;letter-spacing:1.2px;font-weight:650;color:#c7ddf7}.nav{display:grid;gap:6px}.nav button{width:100%;display:flex;gap:10px;align-items:center;text-align:left;cursor:pointer;background:transparent;border:1px solid transparent;color:#dceaff;border-radius:11px;padding:13px;font-size:14px}.nav button:hover,.nav button[aria-current="page"]{background:#23466d;border-color:#547397;color:white}.sidebar-foot{margin-top:auto;border-top:1px solid #ffffff30;padding-top:16px;font-size:12px;color:#bdd4ec}.main{min-width:0}.top{background:#fff;border-bottom:1px solid var(--line);padding:16px clamp(18px,3vw,38px);display:flex;align-items:center;justify-content:space-between;gap:14px}.top strong{color:#123965}.top small{display:block;color:var(--muted);font-size:12px}.portal-link{background:#eaf3ff;border:1px solid #c8e0fd;border-radius:9px;padding:10px 14px;color:#0755a8;font-size:13px;font-weight:750}.content{padding:28px clamp(18px,3vw,38px);max-width:1350px}.eyebrow{font-size:11px;font-weight:850;letter-spacing:1.5px;color:var(--purple);text-transform:uppercase}.hero{background:linear-gradient(115deg,#0c3767,#3512a2);border-radius:19px;color:#fff;padding:27px 30px;display:flex;align-items:center;justify-content:space-between;gap:18px}.hero h1{font-size:clamp(26px,3vw,38px);margin:8px 0}.hero p{margin:0;color:#e0e9ff;line-height:1.6}.hero .icon{font-size:55px}.section-title{font-size:19px;color:#17385b;margin:27px 0 13px}.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.card{background:#fff;border:1px solid var(--line);border-radius:15px;padding:21px;min-height:160px;box-shadow:0 5px 19px #153b6509}.card .emoji{font-size:27px}.card h2{font-size:17px;margin:12px 0 6px}.card p{margin:0;color:var(--muted);font-size:13px;line-height:1.55}.pill{display:inline-block;background:#f0ebff;color:#3512a2;font-size:11px;font-weight:750;padding:6px 9px;border-radius:30px;margin-top:12px}.notice{margin-top:20px;background:#fff;border:1px solid var(--line);border-left:4px solid var(--purple);padding:18px 20px;border-radius:11px;font-size:14px;line-height:1.6}.notice p{margin:5px 0 0;color:var(--muted)}.status{display:flex;flex-wrap:wrap;gap:9px;margin-top:20px}.status span{border:1px solid #dae4f4;background:white;padding:8px 12px;border-radius:30px;color:#556d86;font-size:12px}.footer{font-size:11px;margin-top:35px;color:var(--muted)}[hidden]{display:none!important}@media(max-width:960px){.layout{grid-template-columns:205px minmax(0,1fr)}.cards{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:690px){.layout{display:block}.sidebar{padding:13px 15px;gap:12px}.brand{font-size:21px}.nav{display:flex;overflow-x:auto}.nav button{width:auto;flex:none;padding:10px;font-size:12px}.sidebar-foot{display:none}.top{flex-wrap:wrap}.hero{padding:22px}.hero .icon{display:none}.cards{grid-template-columns:1fr}.content{padding:17px}}
-.auth-gate{min-height:100dvh;display:grid;place-items:center;padding:24px;background:linear-gradient(145deg,#eaf3ff,#f7faff)}.auth-box{max-width:450px;width:100%;text-align:center;padding:34px;background:white;border:1px solid #d9e6f4;border-top:5px solid #3512a2;border-radius:18px;box-shadow:0 12px 35px #12396512}.auth-logo{width:54px;height:54px;border-radius:14px;margin:0 auto;display:grid;place-items:center;color:white;font-size:30px;font-weight:900;background:linear-gradient(130deg,#086cf3,#3512a2)}.auth-box h1{font-size:25px;margin:16px 0 8px}.auth-box p{color:#526981;line-height:1.6;margin:0 0 23px}.auth-box .portal-link{display:inline-block}.auth-box .portal-link[hidden]{display:none}
 
-/* Alinhamento visual com o portal oficial AnnA One, versão v0.8.3 */
-:root{--nav:#0c2646;--blue:#086cf3;--purple:#3512a2;background:#f1f7fe}
-.brand-symbol{width:40px;height:40px;flex:none}
-.sidebar{background:linear-gradient(#0b2343,#102e52)}
-.nav button[aria-current="page"]{background:#0875e5;border-color:#0875e5}
-.top{background:#0b2647;border-bottom:0;color:#fff}
-.top strong,.top small{color:#fff}
-.top small{color:#bcd7f2}
-.top .portal-link{background:#ffffff17;border-color:#ffffff50;color:#fff}
-.content{max-width:1350px}
-.hero{background:linear-gradient(110deg,#06438c,#0b78e7 64%,#3512a2)}
-.auth-gate{padding:0;min-height:100dvh;display:flex;flex-direction:column;background:#f1f7fe}
-.auth-header{background:#0c2646;color:#fff;width:100%;min-height:78px;padding:11px clamp(20px,5vw,70px);display:flex;align-items:center;justify-content:space-between;gap:16px;box-shadow:0 4px 18px #06182e20}
-.auth-brand{display:flex;align-items:center;gap:10px;color:#fff}
-.auth-brand img{width:51px;height:51px}
-.auth-brand-name{display:block;font-weight:850;font-size:28px;letter-spacing:-1.1px;line-height:1}
-.auth-brand-name b{color:#198dff}
-.auth-brand-name small{display:block;font-size:9px;font-weight:550;letter-spacing:.45px;color:#e0ebff;margin-top:6px}
-.auth-header-link{color:#e2edff;font-size:13px;font-weight:650}
-.auth-header-link:hover{text-decoration:underline}
-.auth-main{display:flex;flex:1;align-items:center;justify-content:center;width:100%;padding:35px 20px 48px}
-.auth-box{width:100%;max-width:580px;text-align:center;border:1px solid #dbe6f5;border-top:5px solid #3512a2;border-radius:16px;background:#fff;padding:35px 36px;box-shadow:0 9px 25px #0c264610}
-.auth-tag{font-size:11px;color:#3512a2;letter-spacing:1.4px;font-weight:850;margin-bottom:16px}
-.auth-mark{height:80px;display:flex;align-items:center;justify-content:center}
-.auth-mark img{width:72px;height:72px}
-.auth-box h1{font-size:30px;color:#0c2646;margin:8px 0 7px;letter-spacing:-.6px}
-.auth-box .auth-subtitle{font-size:15px;color:#375779;margin:0 0 17px}
-.auth-box #auth-message{color:#4f6580;line-height:1.6;font-size:14px;margin:0 0 16px}
-.auth-box .portal-link{display:inline-flex;align-items:center;justify-content:center;border-radius:11px;padding:13px 20px;color:#fff;background:#086cf3;border:1px solid #086cf3;font-size:14px;box-shadow:0 4px 12px #0b65ed22}
-.auth-box .portal-link:hover{background:#0056d0}
-.auth-box .auth-helper{font-size:12px;color:#6c8098;margin:16px 0 0}
-.auth-footer{width:100%;background:#0c2646;color:#d7e8fb;text-align:center;padding:19px 12px;font-size:12px}
-@media(max-width:690px){.auth-header{min-height:70px;padding:10px 16px}.auth-brand img{width:39px;height:39px}.auth-brand-name{font-size:22px}.auth-brand-name small{font-size:7px}.auth-header-link{font-size:11px}.auth-main{padding:22px 14px}.auth-box{padding:29px 20px}.auth-box h1{font-size:26px}}
-
-/* Entrada direta — mesmo padrão compacto aprovado para Service Desk e portal. */
-.classroom-login-form{display:grid;gap:12px;max-width:340px;margin:16px auto 8px;text-align:left}
-.classroom-login-form[hidden]{display:none!important}
-.classroom-login-form label{display:grid;gap:6px;color:#234361;font-weight:650;font-size:13px}
-.classroom-login-form input{width:100%;border:1px solid #cbd6e5;border-radius:9px;padding:11px;font:inherit;background:#fff;color:#173451}
-.classroom-login-form input:focus-visible{outline:3px solid #64c8ff;outline-offset:2px}
-.classroom-login-form button{border:0;border-radius:9px;background:#087bdf;color:#fff;padding:12px;font-weight:750;font-size:14px;cursor:pointer}
-.classroom-login-form button:disabled{opacity:.6;cursor:wait}
-.classroom-login-form .login-help{margin:0;text-align:center;font-size:12px}
-.login-help a{color:#0867b6;text-decoration:underline}
-.auth-box #auth-message{margin-bottom:12px}
-
-/* Tela de acesso: dimensões, espaçamento e identidade do login oficial AnnA One. */
-html:has(#auth-gate:not([hidden])){height:100%;overflow:hidden}
-body:has(#auth-gate:not([hidden])){height:100dvh;min-height:0;overflow:hidden}
-.auth-gate{height:100dvh;min-height:0;overflow:hidden;background:linear-gradient(155deg,#e9f3ff,#f7faff 65%);font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
-.auth-header{flex:0 0 auto;min-height:0;padding:11px clamp(16px,5vw,55px);box-shadow:none}
-.auth-header-inner{width:100%;max-width:1040px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
-.auth-brand img{width:42px;height:42px}
-.auth-brand-name{font-size:22px;letter-spacing:0}
-.auth-brand-name b{color:#5db8ff}
-.auth-brand-name small{margin-top:1px;color:#c9e4ff;font-size:9px;font-weight:750;letter-spacing:1.2px}
-.auth-header-link{border:1px solid #a7c9e777;padding:9px 14px;border-radius:9px;color:white;font-size:13px;font-weight:700}
-.auth-main{flex:1 1 auto;min-height:0;overflow-y:auto;padding:14px 16px;align-items:center}
-.auth-box{width:min(100%,440px);max-width:440px;margin:auto;text-align:left;border:1px solid #d7e3ee;border-top:5px solid #087cff;border-radius:18px;padding:22px 28px;box-shadow:0 12px 35px #11223322}
-.auth-box h1{font-size:25px;margin:0 0 8px;letter-spacing:0;color:#123965}
-.auth-box .auth-subtitle{font-size:14px;color:#526b83;margin:8px 0;line-height:1.5}
-.auth-box #auth-message{font-size:13px;margin:8px 0 4px;min-height:20px}
-.classroom-login-form{max-width:none;margin:8px 0;gap:0}
-.classroom-login-form label{display:grid;gap:0;margin-top:11px;color:#173451;font-size:14px;font-weight:600}
-.classroom-login-form input{padding:9px 11px;margin-top:4px;border:1px solid #bbcee0;border-radius:8px}
-.classroom-login-form button{width:100%;padding:10px 12px;margin-top:14px;background:#0870ca;border-radius:8px}
-.classroom-login-form .login-help{margin-top:9px;text-align:left}
-.auth-box .portal-link{width:100%;margin-top:12px;padding:10px;background:transparent;border:1px solid #b7dcff;color:#145b9d;box-shadow:none}
-.auth-box .portal-link:hover{background:#ecf6ff}
-.auth-box .auth-helper{margin:9px 0 0;font-size:11px;text-align:left}
-.auth-footer{flex:0 0 auto;padding:9px 12px;font-size:10px;line-height:1.4;color:#cbdff2}
-.auth-footer strong{color:white}
-@media(max-width:550px){.auth-header{padding:9px 12px}.auth-box{padding:18px 20px}.auth-main{padding:10px 14px}.auth-header-link{font-size:11px}.auth-brand-name{font-size:21px}.auth-footer{padding:8px 10px}}
-@media(max-height:580px){.auth-header{padding:6px 12px}.auth-brand img{width:32px;height:32px}.auth-box{padding:12px 20px}.auth-box h1{font-size:21px}.classroom-login-form label{margin-top:7px}.classroom-login-form input{padding:6px}.classroom-login-form button{margin-top:9px}.auth-footer{padding:5px 10px}}
+/* LOGIN ANN A ONE — PADRÃO COMPACTO APROVADO NO ANN A FLOW.
+   CSS isolado: não alterar regras da aplicação autenticada. */
+.auth-gate{
+ width:100%;height:100dvh;min-height:0;max-height:100dvh;overflow:hidden;
+ display:grid;grid-template-rows:auto minmax(0,1fr) auto;
+ padding:0;margin:0;background:linear-gradient(155deg,#e9f3ff,#f7faff 65%);
+ color:#173451;font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif
+}
+.auth-gate[hidden]{display:none!important}
+.auth-gate .auth-header{
+ min-height:0;background:#0c2646;padding:9px 16px;box-shadow:none;
+ display:block;color:#fff
+}
+.auth-gate .auth-header-inner{
+ max-width:1040px;margin:0 auto;display:flex;align-items:center;
+ justify-content:space-between;gap:12px
+}
+.auth-gate .auth-brand{display:flex;align-items:center;gap:9px;color:#fff;min-width:0}
+.auth-gate .auth-brand img{width:37px;height:37px;flex-shrink:0}
+.auth-gate .auth-brand-name{font-size:20px;font-weight:800;line-height:1;letter-spacing:0}
+.auth-gate .auth-brand-name b{color:#5db8ff}
+.auth-gate .auth-brand-name small{display:block;margin:4px 0 0;color:#c9e4ff;font-size:8px;letter-spacing:1px}
+.auth-gate .auth-header-link{
+ display:inline-block;flex-shrink:0;border:1px solid #a7c9e777;
+ border-radius:8px;color:#fff;padding:7px 10px;font-size:12px;font-weight:700
+}
+.auth-gate .auth-main{
+ min-width:0;min-height:0;overflow:hidden;display:flex;align-items:center;
+ justify-content:center;padding:9px 14px
+}
+.auth-gate .auth-box{
+ flex:0 1 390px;max-width:390px;width:100%;min-height:0;
+ max-height:100%;overflow-y:auto;
+ border:1px solid #d7e3ee;border-top:4px solid #087cff;
+ border-radius:16px;background:#fff;padding:16px 22px;
+ box-shadow:0 9px 26px #11223319;text-align:left
+}
+.auth-gate .auth-tag,.auth-gate .auth-mark{display:none}
+.auth-gate .auth-box h1{font-size:22px;color:#123965;line-height:1.15;margin:0 0 5px}
+.auth-gate .auth-box .auth-subtitle{font-size:13px;color:#526b83;line-height:1.35;margin:0 0 7px}
+.auth-gate .auth-box #auth-message{
+ font-size:12px;color:#526b83;line-height:1.35;margin:0 0 6px;min-height:15px
+}
+.auth-gate .classroom-login-form{
+ max-width:none;width:100%;display:grid;gap:0;margin:0;text-align:left
+}
+.auth-gate .classroom-login-form[hidden]{display:none!important}
+.auth-gate .classroom-login-form label{
+ display:grid;gap:0;font-size:13px;color:#173451;font-weight:650;margin:6px 0 0
+}
+.auth-gate .classroom-login-form input{
+ display:block;width:100%;margin-top:4px;padding:8px 10px;
+ border:1px solid #bbcee0;border-radius:8px;
+ background:#fff;color:#173451;font:inherit;font-size:13px
+}
+.auth-gate .classroom-login-form button{
+ width:100%;margin-top:11px;padding:9px 11px;
+ border:0;border-radius:8px;background:#0870ca;color:white;
+ font-size:13px;font-weight:750;cursor:pointer
+}
+.auth-gate .classroom-login-form button:disabled{opacity:.6;cursor:wait}
+.auth-gate .classroom-login-form .login-help{margin:7px 0 0;text-align:left;font-size:11px}
+.auth-gate .login-help a{color:#0867b6;text-decoration:underline}
+.auth-gate .auth-box .portal-link{
+ display:inline-block;width:100%;margin-top:8px;border-radius:8px;
+ background:#ecf6ff;color:#145b9d;border:1px solid #b7dcff;
+ padding:8px 10px;text-align:center;box-shadow:none;font-size:12px
+}
+.auth-gate .auth-box .portal-link[hidden]{display:none!important}
+.auth-gate .auth-box .auth-helper{font-size:10px;line-height:1.3;color:#6c8098;margin:7px 0 0}
+.auth-gate .auth-footer{
+ min-height:0;flex:none;padding:6px 12px;background:#0c2646;
+ color:#cbdff2;text-align:center;font-size:9px;line-height:1.3
+}
+.auth-gate .auth-footer strong{color:#fff}
+@media(max-width:520px){
+ .auth-gate .auth-header{padding:7px 10px}
+ .auth-gate .auth-brand img{width:32px;height:32px}
+ .auth-gate .auth-brand-name{font-size:18px}
+ .auth-gate .auth-brand-name small{font-size:7px}
+ .auth-gate .auth-header-link{padding:6px 8px;font-size:10px}
+ .auth-gate .auth-main{padding:7px 12px}
+ .auth-gate .auth-box{padding:14px 16px}
+ .auth-gate .auth-footer{font-size:8px;padding:5px 8px}
+}
+@media(max-height:620px){
+ .auth-gate .auth-header{padding-top:5px;padding-bottom:5px}
+ .auth-gate .auth-brand img{width:30px;height:30px}
+ .auth-gate .auth-main{padding:5px 12px}
+ .auth-gate .auth-box{padding:10px 18px}
+ .auth-gate .auth-box h1{font-size:20px}
+ .auth-gate .auth-box .auth-subtitle{margin-bottom:4px}
+ .auth-gate .classroom-login-form input{padding:6px 9px}
+ .auth-gate .classroom-login-form label{margin-top:4px}
+ .auth-gate .classroom-login-form button{margin-top:8px;padding:7px}
+ .auth-gate .auth-footer{padding:3px 10px;line-height:1.15}
+}

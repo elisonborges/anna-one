@@ -48,7 +48,7 @@ async function handler(req,res){
  const pathname=new URL(req.url||'/', 'http://localhost').pathname;
  if(pathname==='/health'&&req.method==='GET')return send(res,200,{status:'ok',service:'anna-classroom-api'});
  if(!['GET','POST'].includes(req.method))return send(res,405,{error:'Método não permitido'});
- if(!['/v1/classes','/v1/students','/v1/access'].includes(pathname))return send(res,404,{error:'Rota inexistente'});
+ if(!['/v1/classes','/v1/students','/v1/enrollments','/v1/lessons','/v1/assignments','/v1/access'].includes(pathname))return send(res,404,{error:'Rota inexistente'});
  try{
   let userId;
   try { userId=await authenticate(req); }
@@ -75,9 +75,41 @@ async function handler(req,res){
     const rows=await client.query('SELECT id,display_name,created_at FROM anna_classroom.students WHERE institution_id=$1 ORDER BY display_name LIMIT 100',[institutionId]);
     return send(res,200,{items:rows.rows});
    }
+   if(req.method==='GET'&&pathname==='/v1/enrollments'){
+    const rows=await client.query('SELECT e.id,e.class_id,e.student_id,e.enrolled_at,c.name AS class_name,c.school_year,s.display_name AS student_name FROM anna_classroom.enrollments e JOIN anna_classroom.classes c ON c.id=e.class_id AND c.institution_id=e.institution_id JOIN anna_classroom.students s ON s.id=e.student_id AND s.institution_id=e.institution_id WHERE e.institution_id=$1 ORDER BY c.name,s.display_name LIMIT 500',[institutionId]);
+    return send(res,200,{items:rows.rows});
+   }
+   if(req.method==='GET'&&pathname==='/v1/lessons'){
+    const rows=await client.query('SELECT l.id,l.class_id,l.title,l.description,l.created_at,c.name AS class_name FROM anna_classroom.lessons l JOIN anna_classroom.classes c ON c.id=l.class_id AND c.institution_id=l.institution_id WHERE l.institution_id=$1 ORDER BY l.created_at DESC LIMIT 100',[institutionId]);
+    return send(res,200,{items:rows.rows});
+   }
+   if(req.method==='GET'&&pathname==='/v1/assignments'){
+    const rows=await client.query('SELECT a.id,a.lesson_id,a.title,a.instructions,a.due_at,a.created_at,l.title AS lesson_title FROM anna_classroom.assignments a JOIN anna_classroom.lessons l ON l.id=a.lesson_id AND l.institution_id=a.institution_id WHERE a.institution_id=$1 ORDER BY a.created_at DESC LIMIT 100',[institutionId]);
+    return send(res,200,{items:rows.rows});
+   }
    if(req.headers['content-type']?.split(';')[0]?.trim()!=='application/json')return send(res,415,{error:'Esperado application/json'});
    const data=await body(req);
    if(!data||typeof data!=='object'||Array.isArray(data))return send(res,400,{error:'Objeto JSON necessário'});
+   if(pathname==='/v1/enrollments'){
+    if(typeof data.class_id!=='string'||!UUID.test(data.class_id)||typeof data.student_id!=='string'||!UUID.test(data.student_id))return send(res,400,{error:'Turma e aluno obrigatórios'});
+    const created=await client.query('INSERT INTO anna_classroom.enrollments(institution_id,class_id,student_id) VALUES($1,$2,$3) RETURNING id,class_id,student_id,enrolled_at',[institutionId,data.class_id,data.student_id]);
+    return send(res,201,{item:created.rows[0]});
+   }
+   if(pathname==='/v1/lessons'){
+    if(typeof data.class_id!=='string'||!UUID.test(data.class_id)||!validName(data.title,150)||typeof(data.description??'')!=='string'||(data.description||'').length>3000)return send(res,400,{error:'Turma, título ou descrição inválidos'});
+    const created=await client.query('INSERT INTO anna_classroom.lessons(institution_id,class_id,title,description,created_by) VALUES($1,$2,$3,$4,$5) RETURNING id,class_id,title,description,created_at',[institutionId,data.class_id,data.title.trim(),(data.description||'').trim(),userId]);
+    return send(res,201,{item:created.rows[0]});
+   }
+   if(pathname==='/v1/assignments'){
+    if(typeof data.lesson_id!=='string'||!UUID.test(data.lesson_id)||!validName(data.title,150)||typeof(data.instructions??'')!=='string'||(data.instructions||'').length>5000)return send(res,400,{error:'Aula, título ou instruções inválidos'});
+    let dueAt=null;
+    if(data.due_at!==null&&data.due_at!==undefined&&data.due_at!==''){
+     if(typeof data.due_at!=='string'||!/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}/.test(data.due_at)||!Number.isFinite(Date.parse(data.due_at)))return send(res,400,{error:'Prazo inválido'});
+     dueAt=new Date(data.due_at).toISOString();
+    }
+    const created=await client.query('INSERT INTO anna_classroom.assignments(institution_id,lesson_id,title,instructions,due_at,created_by) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,lesson_id,title,instructions,due_at,created_at',[institutionId,data.lesson_id,data.title.trim(),(data.instructions||'').trim(),dueAt,userId]);
+    return send(res,201,{item:created.rows[0]});
+   }
    if(pathname==='/v1/classes'){
     if(!validName(data.name,120)||!Number.isInteger(data.school_year)||data.school_year<2020||data.school_year>2200)return send(res,400,{error:'Nome ou ano inválido'});
     const created=await client.query('INSERT INTO anna_classroom.classes(institution_id,name,school_year,created_by) VALUES($1,$2,$3,$4) RETURNING id,name,school_year,created_at',[institutionId,data.name.trim(),data.school_year,userId]);
@@ -88,9 +120,9 @@ async function handler(req,res){
    return send(res,201,{item:created.rows[0]});
   }finally{client.release();}
  }catch(e){
-  const status=e.status||((e.code==='23503'||e.code==='23514')?400:500);
+  const status=e.status||(e.code==='23505'?409:(e.code==='23503'||e.code==='23514'||e.code==='23502')?400:500);
   // Não expor tokens, SQL, credenciais ou detalhes internos ao cliente.
-  return send(res,status,{error:status===500?'Falha interna':e.message});
+  return send(res,status,{error:status===500?'Falha interna':status===409?'Registro já existente':status===400&&e.code==='23503'?'Referência não encontrada nesta instituição':status===400&&e.code==='23514'?'Dados fora dos limites aceitos':e.message});
  }
 }
 const server=http.createServer(handler);

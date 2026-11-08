@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0c2646">
+<meta name="description" content="AnnA Classroom — ambiente pedagógico integrado à AnnA One.">
+<title>AnnA Classroom | AnnA One</title>
+<link rel="stylesheet" href="./styles.css">
+<script type="module" src="./app.js"></script>
+</head>
+<body>
+<section id="auth-gate" class="auth-gate" role="status" aria-live="polite"><div class="auth-box"><div class="auth-logo">A</div><h1>AnnA Classroom</h1><p id="auth-message">Verificando acesso pela AnnA One…</p><a id="auth-portal-link" class="portal-link" href="https://annaone.com.br/app/" hidden>Entrar pelo portal AnnA One ↗</a></div></section>
+<div class="layout" id="classroom-app" hidden>
+<aside class="sidebar" aria-label="Navegação Classroom">
+  <a class="brand" href="https://annaone.com.br/" aria-label="AnnA One"><span class="symbol">A</span><span>AnnA <b>One</b><small>TECNOLOGIA E EDUCAÇÃO JUNTAS</small></span></a>
+  <nav class="nav" aria-label="Módulos do Classroom">
+    <button type="button" data-view="inicio" aria-current="page">⌂ Início</button>
+    <button type="button" data-view="turmas">♧ Turmas</button>
+    <button type="button" data-view="aulas">▤ Aulas</button>
+    <button type="button" data-view="atividades">☑ Atividades</button>
+    <button type="button" data-view="correcoes">✓ Correções</button>
+    <button type="button" data-view="configuracoes">⚙ Ajustes</button>
+  </nav>
+  <div class="sidebar-foot">AnnA Classroom · v0.1 em construção<br>Integração à AnnA One em preparação</div>
+</aside>
+<div class="main">
+<header class="top"><div><strong>AnnA Classroom</strong><small>Ambiente pedagógico da AnnA One</small></div><a class="portal-link" href="https://annaone.com.br/app/">Voltar ao portal AnnA One ↗</a></header>
+<main class="content">
+<div class="hero"><div><span class="eyebrow" style="color:#c4ddff">Gestão escolar</span><h1 id="page-title">Bem-vindo ao AnnA Classroom</h1><p id="page-description">Turmas, aulas e aprendizagem em um só ambiente.</p></div><span class="icon" aria-hidden="true">👩‍🏫</span></div>
+<h2 class="section-title" id="section-title">Organização pedagógica</h2>
+<section id="module-cards" class="cards" aria-live="polite"></section>
+<div class="notice" role="status"><strong>Área pedagógica em implantação</strong><p>Sua conta institucional foi verificada. Esta estrutura ainda não consulta ou modifica dados escolares; as funções estarão disponíveis depois da implantação de uma API com autorização por usuário e instituição.</p></div>
+<div class="status"><span>Identidade AnnA One</span><span>Layout institucional</span><span>Base online</span><span>Sem dados de estudantes</span></div>
+<footer class="footer">© 2026 AnnA One · Tecnologia e Educação Juntas · AnnA Classroom</footer>
+</main>
+</div>
+</div>
+</body>
+</html>

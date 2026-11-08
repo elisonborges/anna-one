@@ -18,54 +18,251 @@ let activeInstitution=null;
 let accessToken=null;
 function blocked(text){gate.hidden=false;app.hidden=true;message.textContent=text;link.hidden=false;}
 function show(institution){activeInstitution=institution;document.querySelector(".top small").textContent="Instituição: "+institution.name;gate.hidden=true;app.hidden=false;display(location.hash.slice(1)||"inicio");}
+
+let renderVersion=0;
+function element(tag,text,className){
+ const node=document.createElement(tag);
+ if(text!==undefined&&text!==null)node.textContent=String(text);
+ if(className)node.className=className;
+ return node;
+}
+function navigate(key){
+ history.replaceState(null,"","#"+key);
+ display(key);
+}
+function makeCard(title){
+ const pane=element("article",null,"card classroom-panel");
+ pane.append(element("h2",title));
+ return pane;
+}
+function addStatus(pane,text){
+ const node=element("p",text,"panel-feedback");
+ node.setAttribute("role","status");
+ pane.append(node);
+ return node;
+}
+function makeField(label,name,type="text",maxLength=150){
+ const field=element("label",null,"classroom-field");
+ field.append(element("span",label));
+ const control=document.createElement(type==="textarea"?"textarea":"input");
+ control.name=name;
+ if(type!=="textarea")control.type=type;
+ if(type==="text"||type==="textarea")control.maxLength=maxLength;
+ if(type!=="datetime-local")control.required=true;
+ field.append(control);
+ return field;
+}
+function makeSelect(label,name,items,placeholder){
+ const field=element("label",null,"classroom-field");
+ field.append(element("span",label));
+ const select=document.createElement("select");
+ select.name=name;select.required=true;
+ const first=element("option",placeholder);
+ first.value="";
+ select.append(first);
+ for(const item of items){
+  const option=element("option",item.label);
+  option.value=item.id;
+  select.append(option);
+ }
+ field.append(select);
+ return field;
+}
+function makeForm(pane,fields,buttonText,endpoint,toPayload,refreshView){
+ const form=element("form",null,"classroom-data-form");
+ for(const field of fields)form.append(field);
+ const button=element("button",buttonText,"classroom-action");
+ button.type="submit";form.append(button);
+ const feedback=element("p","","panel-feedback");
+ feedback.setAttribute("role","status");form.append(feedback);
+ form.addEventListener("submit",async event=>{
+  event.preventDefault();
+  const data=Object.fromEntries(new FormData(form).entries());
+  button.disabled=true;
+  feedback.textContent="Salvando...";
+  try{
+   await apiRequest(endpoint,{method:"POST",body:JSON.stringify(toPayload(data))});
+   form.reset();
+   navigate(refreshView);
+  }catch(error){
+   feedback.textContent=error.message;
+  }finally{button.disabled=false;}
+ });
+ pane.append(form);
+}
+async function apiRequest(path,init={}){
+ if(!activeInstitution||!accessToken)throw Error("Sessão institucional não disponível.");
+ let response;
+ try{
+  response=await fetch(API_BASE+path,{
+   ...init,cache:"no-store",
+   headers:{
+    "Authorization":"Bearer "+accessToken,
+    "X-Institution-Id":activeInstitution.id,
+    ...(init.body?{"Content-Type":"application/json"}:{})
+   }
+  });
+ }catch{throw Error("Não foi possível conectar à API do Classroom.");}
+ if(!response.ok){
+  if(response.status===401)throw Error("Sessão expirada. Entre novamente para continuar.");
+  if(response.status===403)throw Error("Acesso não autorizado pelo Master.");
+  const payload=await response.json().catch(()=>({}));
+  throw Error(payload.error||"Operação não concluída (HTTP "+response.status+").");
+ }
+ return response.json();
+}
+function renderList(pane,items,formatter,emptyMessage){
+ const count=element("p",items.length+" registro(s)","panel-count");
+ pane.append(count);
+ if(!items.length){pane.append(element("p",emptyMessage,"panel-feedback"));return;}
+ const list=element("ul",null,"classroom-record-list");
+ for(const item of items){
+  const li=element("li");
+  const content=formatter(item);
+  li.append(element("strong",content[0]));
+  if(content[1])li.append(element("span",content[1]));
+  list.append(li);
+ }
+ pane.append(list);
+}
+function renderHome(target){
+ for(const item of [
+  ["Turmas e alunos","Cadastre turmas, alunos e vincule matrículas.","turmas"],
+  ["Aulas","Planeje aulas vinculadas às turmas.","aulas"],
+  ["Atividades","Crie atividades para suas aulas.","atividades"],
+  ["Correções","Avaliações e devolutivas em implantação.","correcoes"]
+ ]){
+  const card=makeCard(item[0]);
+  card.append(element("p",item[1]));
+  const action=element("button","Abrir área","classroom-link-button");
+  action.type="button";
+  action.addEventListener("click",()=>navigate(item[2]));
+  card.append(action);
+  target.append(card);
+ }
+}
+async function renderWorkspace(key,target,version){
+ const status=makeCard("Dados da instituição");
+ const message=addStatus(status,"Consultando registros autorizados...");
+ target.append(status);
+ try{
+  const needs=key==="turmas"?["classes","students","enrollments"]:key==="aulas"?["classes","lessons"]:["lessons","assignments"];
+  const result=await Promise.all(needs.map(name=>apiRequest("/v1/"+name)));
+  if(version!==renderVersion)return;
+  status.remove();
+  const byName=Object.fromEntries(needs.map((name,i)=>[name,Array.isArray(result[i].items)?result[i].items:[]]));
+  if(key==="turmas")renderTurmas(target,byName);
+  if(key==="aulas")renderAulas(target,byName);
+  if(key==="atividades")renderAtividades(target,byName);
+ }catch(error){
+  if(version===renderVersion)message.textContent=error.message;
+ }
+}
+function renderTurmas(target,{classes,students,enrollments}){
+ const classForm=makeCard("Nova turma");
+ makeForm(classForm,[makeField("Nome da turma","name","text",120),makeField("Ano letivo","school_year","number")],"Cadastrar turma","/v1/classes",data=>({name:data.name,school_year:Number(data.school_year)}),"turmas");
+ const year=classForm.querySelector('[name="school_year"]');
+ year.min="2020";year.max="2200";year.value=String(new Date().getFullYear());
+ target.append(classForm);
+
+ const studentForm=makeCard("Novo aluno");
+ makeForm(studentForm,[makeField("Nome do aluno","display_name","text",150)],"Cadastrar aluno","/v1/students",data=>({display_name:data.display_name}),"turmas");
+ target.append(studentForm);
+
+ const enrollmentForm=makeCard("Nova matrícula");
+ if(!classes.length||!students.length){
+  addStatus(enrollmentForm,"Cadastre pelo menos uma turma e um aluno para realizar matrículas.");
+ }else{
+  makeForm(enrollmentForm,[
+   makeSelect("Turma","class_id",classes.map(x=>({id:x.id,label:x.name+" · "+x.school_year})),"Selecione uma turma"),
+   makeSelect("Aluno","student_id",students.map(x=>({id:x.id,label:x.display_name})),"Selecione um aluno")
+  ],"Matricular aluno","/v1/enrollments",data=>data,"turmas");
+ }
+ target.append(enrollmentForm);
+
+ const classList=makeCard("Turmas cadastradas");
+ renderList(classList,classes,x=>[x.name,"Ano letivo: "+x.school_year],"Nenhuma turma cadastrada.");
+ target.append(classList);
+
+ const studentList=makeCard("Alunos cadastrados");
+ renderList(studentList,students,x=>[x.display_name,"Cadastro institucional"],"Nenhum aluno cadastrado.");
+ target.append(studentList);
+
+ const enrollmentList=makeCard("Matrículas");
+ renderList(enrollmentList,enrollments,x=>[x.student_name,x.class_name+" · "+x.school_year],"Nenhuma matrícula realizada.");
+ target.append(enrollmentList);
+}
+function renderAulas(target,{classes,lessons}){
+ const form=makeCard("Planejar aula");
+ if(!classes.length){
+  addStatus(form,"Cadastre uma turma antes de planejar aulas.");
+  const action=element("button","Ir para Turmas","classroom-link-button");
+  action.addEventListener("click",()=>navigate("turmas"));
+  form.append(action);
+ }else{
+  makeForm(form,[
+   makeSelect("Turma","class_id",classes.map(x=>({id:x.id,label:x.name+" · "+x.school_year})),"Selecione uma turma"),
+   makeField("Título da aula","title","text",150),
+   makeField("Descrição (opcional)","description","textarea",3000)
+  ],"Salvar aula","/v1/lessons",data=>data,"aulas");
+  form.querySelector('[name="description"]').required=false;
+ }
+ target.append(form);
+ const list=makeCard("Aulas planejadas");
+ renderList(list,lessons,x=>[x.title,x.class_name+" · "+(x.description||"Sem descrição")],"Nenhuma aula planejada.");
+ target.append(list);
+}
+function renderAtividades(target,{lessons,assignments}){
+ const form=makeCard("Criar atividade");
+ if(!lessons.length){
+  addStatus(form,"Planeje uma aula antes de criar atividades.");
+  const action=element("button","Ir para Aulas","classroom-link-button");
+  action.addEventListener("click",()=>navigate("aulas"));
+  form.append(action);
+ }else{
+  makeForm(form,[
+   makeSelect("Aula","lesson_id",lessons.map(x=>({id:x.id,label:x.title+" · "+x.class_name})),"Selecione uma aula"),
+   makeField("Título","title","text",150),
+   makeField("Instruções (opcional)","instructions","textarea",5000),
+   makeField("Prazo (opcional)","due_at","datetime-local")
+  ],"Salvar atividade","/v1/assignments",data=>({
+   lesson_id:data.lesson_id,title:data.title,instructions:data.instructions,
+   due_at:data.due_at?new Date(data.due_at).toISOString():null
+  }),"atividades");
+  form.querySelector('[name="instructions"]').required=false;
+ }
+ target.append(form);
+ const list=makeCard("Atividades cadastradas");
+ renderList(list,assignments,x=>[x.title,x.lesson_title+(x.due_at?" · Prazo: "+new Date(x.due_at).toLocaleDateString("pt-BR"):"")],"Nenhuma atividade cadastrada.");
+ target.append(list);
+}
 function display(key){
- const d=sections[key]||sections.inicio;
+ const view=sections[key]?key:"inicio";
+ const d=sections[view];
+ const version=++renderVersion;
  document.querySelector("#page-title").textContent=d[0];
  document.querySelector("#page-description").textContent="Ambiente de ensino da AnnA One";
- document.querySelector("#section-title").textContent="Áreas do módulo";
+ document.querySelector("#section-title").textContent=view==="inicio"?"Áreas do módulo":view==="turmas"?"Gestão de turmas, alunos e matrículas":view==="aulas"?"Planejamento de aulas":view==="atividades"?"Atividades pedagógicas":"Áreas do módulo";
  const target=document.querySelector("#module-cards");target.replaceChildren();
- for(const name of d.slice(1)){
-  const card=document.createElement("article");card.className="card";
-  const heading=document.createElement("h2");heading.textContent=name;
-  const note=document.createElement("p");note.textContent="Implantação pedagógica progressiva";
-  card.append(heading,note);target.append(card);
+ if(view==="inicio")renderHome(target);
+ else if(["turmas","aulas","atividades"].includes(view))renderWorkspace(view,target,version);
+ else if(view==="correcoes"){
+  const pane=makeCard("Correções e avaliações");
+  addStatus(pane,"O fluxo de entregas, notas e devolutivas ainda está em implantação. Nenhum dado é alterado nesta área.");
+  target.append(pane);
+ }else{
+  const pane=makeCard("Instituição e perfil");
+  addStatus(pane,"Instituição: "+(activeInstitution?.name||"não identificada")+". Acesso controlado pelo Master AnnA One.");
+  target.append(pane);
  }
- if(key==="turmas"){loadAuthorizedList(target,"/v1/classes","Turmas cadastradas",item=>String(item.name||"Turma")+" · "+String(item.school_year||""));loadAuthorizedList(target,"/v1/students","Alunos cadastrados",item=>String(item.display_name||"Aluno"));}
  document.querySelectorAll("[data-view]").forEach(button=>{
-  if(button.dataset.view===key)button.setAttribute("aria-current","page");
+  if(button.dataset.view===view)button.setAttribute("aria-current","page");
   else button.removeAttribute("aria-current");
  });
 }
-document.querySelectorAll("[data-view]").forEach(button=>button.addEventListener("click",()=>{
- const key=button.dataset.view;history.replaceState(null,"","#"+key);display(key);
-}));
-async function loadAuthorizedList(target,endpoint,title,formatItem){
- if(!activeInstitution||!accessToken)return;
- const pane=document.createElement("article");pane.className="card";pane.style.gridColumn="1/-1";
- const heading=document.createElement("h2");heading.textContent=title;
- const status=document.createElement("p");status.textContent="Consultando dados autorizados...";
- pane.append(heading,status);target.append(pane);
- try{
-  const response=await fetch(API_BASE+endpoint,{headers:{"Authorization":"Bearer "+accessToken,"X-Institution-Id":activeInstitution.id},cache:"no-store"});
-  if(!pane.isConnected)return;
-  if(!response.ok){
-   const messages={401:"Sessão não validada pela API; token JWT precisa de validação.",403:"Acesso restrito: módulo ainda não habilitado para esta instituição."};
-   status.textContent=messages[response.status]||"Não foi possível consultar os dados (HTTP "+response.status+").";
-   return;
-  }
-  const payload=await response.json();
-  const items=Array.isArray(payload?.items)?payload.items:[];
-  if(!items.length){status.textContent="Nenhum registro cadastrado nesta instituição.";return;}
-  status.textContent=items.length+" registro(s) encontrado(s).";
-  const list=document.createElement("ul");
-  for(const item of items){
-   const li=document.createElement("li");li.textContent=formatItem(item);list.append(li);
-  }
-  pane.append(list);
- }catch{
-  if(pane.isConnected)status.textContent="Falha de conexão com a API. Verifique a disponibilidade do serviço.";
- }
-}
+document.querySelectorAll("[data-view]").forEach(button=>button.addEventListener("click",()=>navigate(button.dataset.view)));
+window.addEventListener("hashchange",()=>{if(!app.hidden)display(location.hash.slice(1)||"inicio");});
+
 const loginForm=document.querySelector("#classroom-login-form");
 const emailInput=document.querySelector("#classroom-email");
 const passwordInput=document.querySelector("#classroom-password");

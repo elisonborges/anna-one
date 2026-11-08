@@ -18,7 +18,8 @@ export async function authorizeEduPlay(request, env, { verifyBearer, sql, json, 
   }
   if (!env.DATABASE_URL) return json({ authorized: false }, 503, cors);
   try {
-    const master = await sql`
+    const db = sql(env.DATABASE_URL);
+    const master = await db`
       SELECT EXISTS (
         SELECT 1 FROM public.platform_admins p
         WHERE p.user_id=${identity.userId}::uuid
@@ -28,7 +29,7 @@ export async function authorizeEduPlay(request, env, { verifyBearer, sql, json, 
       return json({ authorized: true, role: "master", user_id: identity.userId }, 200, cors);
     }
     // Confirmado no schema public.memberships: role='teacher', active boolean.
-    const teacher = await sql`
+    const teacher = await db`
       SELECT EXISTS (
         SELECT 1 FROM public.memberships m
         JOIN public.institutions i ON i.id=m.institution_id

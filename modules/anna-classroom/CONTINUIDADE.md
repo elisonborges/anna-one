@@ -2,7 +2,9 @@
 Atualização: 07/11/2026 (horário do usuário, America/Fortaleza)
 
 ## Estado atual — Classroom v0.2 (08/11/2026)
-**Validação final:** deploy da API Render `dep-dbnuqqlg1s2s73dof5cg` confirmado **live**. As consultas SELECT para Matrículas, Aulas, Atividades, Entregas e Resumo passaram usando o papel `classroom_api_service`, sem escrita. Função `can_manage_institution` alinhada ao módulo `status=available`; instituição piloto continua autorizada e usuário desconhecido rejeitado. Frontend em GitHub `main`, com cache versionado `classroom-v02b-20261108`; build do Cloudflare não pôde ser inspecionado diretamente.\n\n
+**Validação final:** deploy da API Render `dep-dbnuqqlg1s2s73dof5cg` confirmado **live**. As consultas SELECT para Matrículas, Aulas, Atividades, Entregas e Resumo passaram usando o papel `classroom_api_service`, sem escrita. Função `can_manage_institution` alinhada ao módulo `status=available`; instituição piloto continua autorizada e usuário desconhecido rejeitado. Frontend em GitHub `main`, com cache versionado `classroom-v02b-20261108`; build do Cloudflare não pôde ser inspecionado diretamente.
+
+
 **Este bloco prevalece sobre registros históricos abaixo quando houver divergências.**
 - **Layout:** aprovado pelo usuário após correção da sidebar e logo; preservar sem redesenhar.
 - **Fluxo:** Master atribui o módulo → Central do cliente mostra o acesso → Classroom valida Neon Auth e instituição via API; acesso direto com tela de login. Login real e acesso à visão geral foram confirmados pelo usuário em captura.

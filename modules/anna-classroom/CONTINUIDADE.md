@@ -30,3 +30,13 @@ Atualização: 07/11/2026 (horário do usuário, America/Fortaleza)
 
 ## Nota
 A primeira versão visual é apenas interface. O funcionamento da sessão e das operações reais exige testes na origem online. As políticas servidoras são a fronteira de segurança, não o JavaScript.
+
+## Atualização de implantação (08/11/2026)
+- Frontend publicado no Cloudflare Worker `https://anna-classroom.elisonborg.workers.dev/`, usando `modules/anna-classroom/wrangler.jsonc` e assets de `public/`. Interface no padrão AnnA One; domínio `classroom.annaone.com.br` ainda sem rota porque a zona DNS não aparece na conta Cloudflare. **Não alterar nameservers do Registro.br sem plano.**
+- Endereço atual do Worker adicionado à lista de origens confiáveis Neon Auth.
+- Portal `app/index.html` ganhou link **Gestão Escolar > Turmas e Alunos > Abrir AnnA Classroom**, mas o cartão continua sujeito ao filtro de autorizações institucionais.
+- Render API deploy `dep-dbnu48ijnfac73dd5n4g` confirmado **live**; CORS aceita o domínio atual Workers e o domínio definitivo. Auto-deploy continua OFF.
+- Neon checado: `anna_classroom.classes` com **0 registros**, `public.modules` possui `turmas-e-alunos` com status `planned`; `public.institution_modules` tem **0 instituições com esse módulo habilitado**.
+- Interface atual: aba Turmas consulta GET `/v1/classes` e `/v1/students` com token e `X-Institution-Id`, exibindo estados 401/403/vazio/erro, **sem criar dados nem burlar autorizações**.
+- **PENDENTE REAL:** não há teste confirmado de sessão JWT integrada entre portal e Workers, nem confirmação dos claims iss/aud aceitos pela API. Não afirmar login validado. Antes de liberar uso escolar, validar em conta de instituição, corrigir mecanismo de sessão se necessário e habilitar o módulo seletivamente após autorização do usuário.
+- Alterações visuais foram mescladas na main, e últimas mudanças de interface também estão na main; o Cloudflare costuma gerar build automaticamente, mas a implantação final ainda precisa ser confirmada quando necessário.

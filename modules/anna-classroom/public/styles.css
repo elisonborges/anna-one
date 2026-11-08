@@ -257,3 +257,24 @@
 #classroom-app .classroom-panel:has(.classroom-stat-grid){grid-column:1/-1}
 @media(max-width:800px){#classroom-app .classroom-stat-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:420px){#classroom-app .classroom-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+
+/* Ferramentas discretas de consulta v0.2.1 — sem mudar o visual aprovado */
+#classroom-app .classroom-list-tools{
+ display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:9px 0 12px
+}
+#classroom-app .classroom-list-tools input[type="search"]{
+ flex:1 1 150px;min-width:0;max-width:100%;border:1px solid #c6d9ed;
+ border-radius:8px;padding:9px 10px;background:#fff;color:#173451;
+ font:400 12px system-ui,-apple-system,"Segoe UI",Arial,sans-serif
+}
+#classroom-app .classroom-export{
+ flex:0 0 auto;border:1px solid #c1ddfa;border-radius:8px;
+ padding:9px 11px;background:#eaf4ff;color:#0759a9;
+ font:700 11px system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+ cursor:pointer
+}
+#classroom-app .classroom-export:hover{background:#d9ebff}
+#classroom-app .classroom-export:focus-visible{
+ outline:2px solid #57a9ff;outline-offset:2px
+}

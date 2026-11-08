@@ -29,9 +29,18 @@ export async function authorizeEduPlay(request, env, { verifyBearer, sql, json, 
     if (master[0]?.authorized === true) {
       return json({ authorized: true, role: "master", user_id: identity.userId }, 200, cors);
     }
-    // NÃO presumir que 'teacher' ou 'professor' seja o papel efetivo no schema.
-    // Após confirmar o papel e a autorização do módulo EduPlay no banco,
-    // consultar memberships ativos e instituição ativa, usando o JWT verificado.
+    // Confirmado no schema public.memberships: role='teacher', active boolean.
+    const teacher = await sql`
+      SELECT EXISTS (
+        SELECT 1 FROM public.memberships m
+        WHERE m.user_id=${identity.userId}::uuid
+          AND m.role='teacher'
+          AND m.active=TRUE
+      ) AS authorized
+    `;
+    if (teacher[0]?.authorized === true) {
+      return json({ authorized: true, role: "teacher", user_id: identity.userId }, 200, cors);
+    }
     return json({ authorized: false }, 403, cors);
   } catch {
     return json({ authorized: false }, 503, cors);

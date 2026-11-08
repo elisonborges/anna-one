@@ -126,6 +126,24 @@ function renderList(pane,items,formatter,emptyMessage){
  pane.append(list);
 }
 function renderHome(target){
+ const summary=makeCard("Resumo institucional");
+ const feedback=addStatus(summary,"Consultando indicadores...");
+ target.append(summary);
+ const stamp=renderVersion;
+ Promise.all(["classes","students","enrollments","lessons","assignments"].map(type=>apiRequest("/v1/"+type)))
+  .then(values=>{
+   if(stamp!==renderVersion)return;
+   feedback.textContent="";
+   const labels=["Turmas","Alunos","Matrículas","Aulas","Atividades"];
+   const stats=element("div",null,"classroom-stat-grid");
+   for(let i=0;i<values.length;i++){
+    const metric=element("div",null,"classroom-metric");
+    metric.append(element("strong",Array.isArray(values[i].items)?values[i].items.length:0));
+    metric.append(element("span",labels[i]));
+    stats.append(metric);
+   }
+   summary.append(stats);
+  }).catch(error=>{if(stamp===renderVersion)feedback.textContent=error.message;});
  for(const item of [
   ["Turmas e alunos","Cadastre turmas, alunos e vincule matrículas.","turmas"],
   ["Aulas","Planeje aulas vinculadas às turmas.","aulas"],
@@ -146,7 +164,7 @@ async function renderWorkspace(key,target,version){
  const message=addStatus(status,"Consultando registros autorizados...");
  target.append(status);
  try{
-  const needs=key==="turmas"?["classes","students","enrollments"]:key==="aulas"?["classes","lessons"]:["lessons","assignments"];
+  const needs=key==="turmas"?["classes","students","enrollments"]:key==="aulas"?["classes","lessons"]:key==="atividades"?["lessons","assignments"]:["submissions"];
   const result=await Promise.all(needs.map(name=>apiRequest("/v1/"+name)));
   if(version!==renderVersion)return;
   status.remove();
@@ -154,6 +172,7 @@ async function renderWorkspace(key,target,version){
   if(key==="turmas")renderTurmas(target,byName);
   if(key==="aulas")renderAulas(target,byName);
   if(key==="atividades")renderAtividades(target,byName);
+  if(key==="correcoes")renderCorrecoes(target,byName);
  }catch(error){
   if(version===renderVersion)message.textContent=error.message;
  }
@@ -236,6 +255,17 @@ function renderAtividades(target,{lessons,assignments}){
  renderList(list,assignments,x=>[x.title,x.lesson_title+(x.due_at?" · Prazo: "+new Date(x.due_at).toLocaleDateString("pt-BR"):"")],"Nenhuma atividade cadastrada.");
  target.append(list);
 }
+function renderCorrecoes(target,{submissions}){
+ const notice=makeCard("Entregas e avaliações");
+ addStatus(notice,"Consulta de entregas por instituição. O registro de respostas pelos estudantes e a edição de notas serão implantados com os respectivos perfis e permissões.");
+ target.append(notice);
+ const pane=makeCard("Entregas recebidas");
+ renderList(pane,submissions,x=>[
+  x.student_name+" · "+x.assignment_title,
+  (x.grade===null||x.grade===undefined?"Aguardando avaliação":"Nota: "+x.grade)+(x.feedback?" · Devolutiva: "+x.feedback:"")
+ ],"Nenhuma entrega registrada.");
+ target.append(pane);
+}
 function display(key){
  const view=sections[key]?key:"inicio";
  const d=sections[view];
@@ -245,12 +275,8 @@ function display(key){
  document.querySelector("#section-title").textContent=view==="inicio"?"Áreas do módulo":view==="turmas"?"Gestão de turmas, alunos e matrículas":view==="aulas"?"Planejamento de aulas":view==="atividades"?"Atividades pedagógicas":"Áreas do módulo";
  const target=document.querySelector("#module-cards");target.replaceChildren();
  if(view==="inicio")renderHome(target);
- else if(["turmas","aulas","atividades"].includes(view))renderWorkspace(view,target,version);
- else if(view==="correcoes"){
-  const pane=makeCard("Correções e avaliações");
-  addStatus(pane,"O fluxo de entregas, notas e devolutivas ainda está em implantação. Nenhum dado é alterado nesta área.");
-  target.append(pane);
- }else{
+ else if(["turmas","aulas","atividades","correcoes"].includes(view))renderWorkspace(view,target,version);
+ else{
   const pane=makeCard("Instituição e perfil");
   addStatus(pane,"Instituição: "+(activeInstitution?.name||"não identificada")+". Acesso controlado pelo Master AnnA One.");
   target.append(pane);
@@ -352,6 +378,24 @@ loginForm.addEventListener("submit",async event=>{
   const networkError=/failed to fetch|networkerror|load failed|fetch failed/i.test(raw)||error instanceof TypeError;
   showLogin(networkError?("Falha de rede na etapa "+phase+". Não foi possível comunicar com "+(phase==="permissão"?"a API do Classroom.":"o Neon Auth.")+" Verifique se o navegador bloqueou a conexão."):(raw||"Não foi possível entrar."));
  }finally{submitLogin.disabled=false;}
+});
+const signoutButton=document.querySelector("#classroom-signout");
+signoutButton?.addEventListener("click",async()=>{
+ if(!authClient||signoutButton.disabled)return;
+ signoutButton.disabled=true;
+ try{
+  const result=await authClient.signOut();
+  if(result?.error)throw Error("Erro ao sair");
+  accessToken=null;
+  activeInstitution=null;
+  blocked("Sessão encerrada. Entre novamente quando desejar.");
+  loginForm.hidden=false;
+  passwordInput.value="";
+  signoutButton.disabled=false;
+ }catch{
+  signoutButton.disabled=false;
+  window.alert("Não foi possível encerrar a sessão. Tente novamente.");
+ }
 });
 blocked("Verificando acesso institucional...");
 authenticate();

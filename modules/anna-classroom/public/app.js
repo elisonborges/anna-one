@@ -138,15 +138,22 @@ loginForm.addEventListener("submit",async event=>{
  if(!authClient){showLogin("Autenticação indisponível. Atualize a página e tente novamente.");return;}
  submitLogin.disabled=true;
  message.textContent="Autenticando sua conta...";
+ let phase="login";
  try{
   const result=await authClient.signIn.email({email:emailInput.value.trim(),password:passwordInput.value});
-  if(result?.error)throw Error("E-mail ou senha inválidos.");
+  if(result?.error){
+   if(/fetch|network|cors/i.test(String(result.error.message||"")))throw Error("Falha de comunicação com Neon Auth durante o login.");
+   throw Error("E-mail ou senha inválidos.");
+  }
+  phase="sessão";
   const session=await authClient.getSession();
   if(!session?.data?.user&&!session?.data?.session?.user)throw Error("A sessão não foi confirmada.");
+  phase="permissão";
   await verifyInstitution(await obtainAccessToken(session));
  }catch(error){
-  const networkError=error?.message==="Failed to fetch"||error instanceof TypeError;
-  showLogin(networkError?"Não foi possível conectar ao serviço de login Neon Auth. Verifique a conexão ou tente pelo portal AnnA One.":error?.message||"Não foi possível entrar.");
+  const raw=String(error?.message||"");
+  const networkError=/failed to fetch|networkerror|load failed|fetch failed/i.test(raw)||error instanceof TypeError;
+  showLogin(networkError?"Falha de rede na etapa "+phase+". Não foi possível comunicar com "+(phase==="permissão"?"a API do Classroom.":"o Neon Auth."):" "+ "Verifique se o navegador bloqueou a conexão.":raw||"Não foi possível entrar.");
  }finally{submitLogin.disabled=false;}
 });
 blocked("Verificando acesso institucional...");

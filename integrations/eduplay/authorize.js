@@ -6,8 +6,8 @@
  * json(data,status,headers). Não criar instâncias ou segredos aqui.
  *
  * IMPORTANTE: role docente precisa ser confirmado na base antes da ativação.
- * Este módulo libera somente Master; docentes permanecem bloqueados até
- * confirmação da nomenclatura e política institucional.
+ * O perfil docente é 'teacher', conforme constraint do banco anna-one.
+ * A integração com o roteador e a validação da identidade ainda são pendentes.
  */
 export async function authorizeEduPlay(request, env, { verifyBearer, sql, json, cors = {} }) {
   let identity;
@@ -21,9 +21,7 @@ export async function authorizeEduPlay(request, env, { verifyBearer, sql, json, 
     const master = await sql`
       SELECT EXISTS (
         SELECT 1 FROM public.platform_admins p
-        JOIN neon_auth."user" au ON au.id=p.user_id
         WHERE p.user_id=${identity.userId}::uuid
-          AND au."emailVerified"=true AND au.banned IS NOT TRUE
       ) AS authorized
     `;
     if (master[0]?.authorized === true) {
@@ -33,9 +31,11 @@ export async function authorizeEduPlay(request, env, { verifyBearer, sql, json, 
     const teacher = await sql`
       SELECT EXISTS (
         SELECT 1 FROM public.memberships m
+        JOIN public.institutions i ON i.id=m.institution_id
         WHERE m.user_id=${identity.userId}::uuid
           AND m.role='teacher'
           AND m.active=TRUE
+          AND i.status='active'
       ) AS authorized
     `;
     if (teacher[0]?.authorized === true) {

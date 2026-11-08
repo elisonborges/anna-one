@@ -104,7 +104,7 @@ async function handler(req,res){
     if(typeof data.lesson_id!=='string'||!UUID.test(data.lesson_id)||!validName(data.title,150)||typeof(data.instructions??'')!=='string'||(data.instructions||'').length>5000)return send(res,400,{error:'Aula, título ou instruções inválidos'});
     let dueAt=null;
     if(data.due_at!==null&&data.due_at!==undefined&&data.due_at!==''){
-     if(typeof data.due_at!=='string'||!/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}/.test(data.due_at)||!Number.isFinite(Date.parse(data.due_at)))return send(res,400,{error:'Prazo inválido'});
+     if(typeof data.due_at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(data.due_at)||!Number.isFinite(Date.parse(data.due_at)))return send(res,400,{error:'Prazo inválido'});
      dueAt=new Date(data.due_at).toISOString();
     }
     const created=await client.query('INSERT INTO anna_classroom.assignments(institution_id,lesson_id,title,instructions,due_at,created_by) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,lesson_id,title,instructions,due_at,created_at',[institutionId,data.lesson_id,data.title.trim(),(data.instructions||'').trim(),dueAt,userId]);

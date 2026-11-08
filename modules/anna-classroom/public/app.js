@@ -66,30 +66,55 @@ async function loadAuthorizedList(target,endpoint,title,formatItem){
   if(pane.isConnected)status.textContent="Falha de conexão com a API. Verifique a disponibilidade do serviço.";
  }
 }
+const PORTAL_CONNECT="https://annaone.com.br/app/classroom-connect.html";
+const auditEndpoint="https://anna-one-auditoria.elisonborg.workers.dev/v1/institution/me";
+async function verifyInstitution(jwt){
+ if(typeof jwt!=="string"||jwt.split(".").length!==3)throw Error("Token indisponível.");
+ const response=await fetch(auditEndpoint,{headers:{Authorization:"Bearer "+jwt},cache:"no-store"});
+ if(!response.ok)throw Error("Não foi possível verificar as permissões da conta.");
+ const result=await response.json();
+ const institution=Array.isArray(result?.institutions)?result.institutions.find(item=>item?.id&&item?.name):null;
+ if(result?.authorized!==true||!institution)throw Error("Conta sem vínculo institucional ativo. Solicite acesso no portal.");
+ accessToken=jwt;
+ show(institution);
+}
+function connectFromPortal(){
+ if(!window.crypto?.getRandomValues)return blocked("Conexão segura indisponível neste navegador.");
+ const random=new Uint8Array(24);
+ crypto.getRandomValues(random);
+ const nonce=Array.from(random,x=>x.toString(16).padStart(2,"0")).join("");
+ const popup=window.open(PORTAL_CONNECT+"#nonce="+nonce,"anna-classroom-connect","popup=yes,width=550,height=620");
+ if(!popup){blocked("Habilite janelas pop-up para conectar sua conta AnnA One.");return;}
+ message.textContent="Confirmando sessão com o portal AnnA One...";
+ let used=false;
+ const receive=async event=>{
+  if(used||event.origin!=="https://annaone.com.br"||event.source!==popup||event.data?.type!=="anna-classroom-auth"||event.data.nonce!==nonce)return;
+  used=true;window.removeEventListener("message",receive);
+  try{await verifyInstitution(event.data.token);}
+  catch(error){blocked(error.message||"Não foi possível validar sua instituição.");}
+ };
+ window.addEventListener("message",receive);
+}
+link.textContent="Conectar conta AnnA One ↗";
+link.href="https://annaone.com.br/app/";
+link.addEventListener("click",event=>{event.preventDefault();connectFromPortal();});
 async function authenticate(){
  try{
   const {createAuthClient}=await import("https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle");
   const auth=createAuthClient(AUTH_BASE);
   const session=await auth.getSession();
-  const user=session?.data?.user||session?.data?.session?.user;
-  if(!user)return blocked("Entre primeiro pelo portal AnnA One.");
+  if(!session?.data?.user&&!session?.data?.session?.user)throw Error("Sem sessão neste domínio.");
   let jwt=session?.data?.session?.access_token;
-  if(!jwt){
+  if(typeof jwt!=="string"||jwt.split(".").length!==3){
    const response=await fetch(AUTH_BASE+"/token",{credentials:"include",cache:"no-store"});
-   if(!response.ok)return blocked("Não foi possível confirmar sua sessão.");
-   const payload=await response.json();
-   jwt=typeof payload==="string"?payload:payload?.token||payload?.data?.token||payload?.access_token;
+   if(response.ok){
+    const payload=await response.json();
+    jwt=typeof payload==="string"?payload:payload?.token||payload?.data?.token||payload?.access_token;
+   }
   }
-  if(typeof jwt!=="string")return blocked("Sessão sem token verificável.");
-  const response=await fetch("https://anna-one-auditoria.elisonborg.workers.dev/v1/institution/me",{headers:{Authorization:"Bearer "+jwt},cache:"no-store"});
-  if(!response.ok)return blocked("Não foi possível confirmar o acesso institucional.");
-  const result=await response.json();
-  const institution=Array.isArray(result?.institutions)?result.institutions.find(item=>item?.id&&item?.name):null;
-  if(result?.authorized!==true||!institution)return blocked("Sua conta não tem vínculo institucional autorizado.");
-  accessToken=jwt;
-  show(institution);
+  await verifyInstitution(jwt);
  }catch{
-  blocked("Acesso indisponível neste endereço. Entre pelo portal AnnA One.");
+  blocked("Conecte sua sessão existente do portal AnnA One para acessar o Classroom.");
  }
 }
 blocked("Verificando acesso institucional...");

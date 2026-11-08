@@ -30,7 +30,7 @@ function display(key){
   const note=document.createElement("p");note.textContent="Implantação pedagógica progressiva";
   card.append(heading,note);target.append(card);
  }
- if(key==="turmas")loadClasses(target);
+ if(key==="turmas"){loadAuthorizedList(target,"/v1/classes","Turmas cadastradas",item=>String(item.name||"Turma")+" · "+String(item.school_year||""));loadAuthorizedList(target,"/v1/students","Alunos cadastrados",item=>String(item.display_name||"Aluno"));}
  document.querySelectorAll("[data-view]").forEach(button=>{
   if(button.dataset.view===key)button.setAttribute("aria-current","page");
   else button.removeAttribute("aria-current");
@@ -39,30 +39,32 @@ function display(key){
 document.querySelectorAll("[data-view]").forEach(button=>button.addEventListener("click",()=>{
  const key=button.dataset.view;history.replaceState(null,"","#"+key);display(key);
 }));
-async function loadClasses(target){
+async function loadAuthorizedList(target,endpoint,title,formatItem){
  if(!activeInstitution||!accessToken)return;
  const pane=document.createElement("article");pane.className="card";pane.style.gridColumn="1/-1";
- const heading=document.createElement("h2");heading.textContent="Turmas cadastradas";
- const status=document.createElement("p");status.textContent="Consultando turmas autorizadas...";
- pane.append(heading,status);target.prepend(pane);
+ const heading=document.createElement("h2");heading.textContent=title;
+ const status=document.createElement("p");status.textContent="Consultando dados autorizados...";
+ pane.append(heading,status);target.append(pane);
  try{
-  const response=await fetch(API_BASE+"/v1/classes",{headers:{"Authorization":"Bearer "+accessToken,"X-Institution-Id":activeInstitution.id},cache:"no-store"});
+  const response=await fetch(API_BASE+endpoint,{headers:{"Authorization":"Bearer "+accessToken,"X-Institution-Id":activeInstitution.id},cache:"no-store"});
+  if(!pane.isConnected)return;
   if(!response.ok){
-   const messages={401:"Sessão não validada pela API. O login JWT precisa de verificação.",403:"Módulo ainda não habilitado para esta instituição."};
-   status.textContent=messages[response.status]||"Não foi possível consultar turmas (HTTP "+response.status+").";
+   const messages={401:"Sessão não validada pela API; token JWT precisa de validação.",403:"Acesso restrito: módulo ainda não habilitado para esta instituição."};
+   status.textContent=messages[response.status]||"Não foi possível consultar os dados (HTTP "+response.status+").";
    return;
   }
   const payload=await response.json();
   const items=Array.isArray(payload?.items)?payload.items:[];
-  if(!items.length){status.textContent="Nenhuma turma cadastrada nesta instituição.";return;}
-  status.textContent=items.length+" turma(s) encontrada(s).";
+  if(!items.length){status.textContent="Nenhum registro cadastrado nesta instituição.";return;}
+  status.textContent=items.length+" registro(s) encontrado(s).";
   const list=document.createElement("ul");
   for(const item of items){
-   const li=document.createElement("li");li.textContent=String(item.name||"Turma")+" · "+String(item.school_year||"");
-   list.append(li);
+   const li=document.createElement("li");li.textContent=formatItem(item);list.append(li);
   }
   pane.append(list);
- }catch{status.textContent="Falha de conexão com a API. Tente novamente mais tarde.";}
+ }catch{
+  if(pane.isConnected)status.textContent="Falha de conexão com a API. Verifique a disponibilidade do serviço.";
+ }
 }
 async function authenticate(){
  try{

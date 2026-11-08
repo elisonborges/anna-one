@@ -4,7 +4,7 @@ import { createRemoteJWKSet, jwtVerify } from 'jose';
 
 const REQUIRED=['DATABASE_URL','NEON_AUTH_JWKS_URL','NEON_AUTH_ISSUER','NEON_AUTH_AUDIENCE','FRONTEND_ORIGIN'];
 for(const name of REQUIRED)if(!process.env[name])throw new Error('Configuração ausente: '+name);
-const origin=new URL(process.env.FRONTEND_ORIGIN).origin;
+const allowedOrigins=new Set([new URL(process.env.FRONTEND_ORIGIN).origin,'https://anna-classroom.elisonborg.workers.dev']);
 const port=Number(process.env.PORT||3000);
 const pool=new Pool({connectionString:process.env.DATABASE_URL,max:4,connectionTimeoutMillis:5000,ssl:{rejectUnauthorized:true}});
 const jwks=createRemoteJWKSet(new URL(process.env.NEON_AUTH_JWKS_URL));
@@ -33,14 +33,14 @@ async function permission(db,userId,institutionId){
 async function handler(req,res){
  res.setHeader('Vary','Origin');
  const requestedOrigin=req.headers.origin;
- if(requestedOrigin&&requestedOrigin!==origin)return send(res,403,{error:'Origem não autorizada'});
- if(requestedOrigin===origin){
-  res.setHeader('Access-Control-Allow-Origin',origin);
+ if(requestedOrigin&&!allowedOrigins.has(requestedOrigin))return send(res,403,{error:'Origem não autorizada'});
+ if(requestedOrigin&&allowedOrigins.has(requestedOrigin)){
+  res.setHeader('Access-Control-Allow-Origin',requestedOrigin);
   res.setHeader('Access-Control-Allow-Methods','GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers','Authorization, Content-Type, X-Institution-Id');
  }
  res.setHeader('X-Frame-Options','DENY');
- if(req.method==='OPTIONS')return requestedOrigin===origin?send(res,204,{}):send(res,403,{error:'Origem não autorizada'});
+ if(req.method==='OPTIONS')return requestedOrigin&&allowedOrigins.has(requestedOrigin)?send(res,204,{}):send(res,403,{error:'Origem não autorizada'});
  const pathname=new URL(req.url||'/', 'http://localhost').pathname;
  if(pathname==='/health'&&req.method==='GET')return send(res,200,{status:'ok',service:'anna-classroom-api'});
  if(!['GET','POST'].includes(req.method))return send(res,405,{error:'Método não permitido'});

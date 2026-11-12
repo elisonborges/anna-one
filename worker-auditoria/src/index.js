@@ -63,18 +63,30 @@ export default {
           WHERE m.user_id=${identity.userId}::uuid AND m.active=true
             AND i.status='active' AND m.role='institution_admin'
           ORDER BY i.name LIMIT 50`;
-        const modules = rows.length ? await sql`SELECT DISTINCT mo.name, mo.code
+        // Compatibilidade: administradores existentes mantêm acessos herdados
+        // até terem a primeira permissão individual cadastrada.
+        // Demais perfis só recebem módulos individualmente concedidos.
+        const modules = await sql`SELECT DISTINCT mo.name, mo.code
           FROM public.institution_modules im
           JOIN public.modules mo ON mo.id=im.module_id
           JOIN public.memberships mb ON mb.institution_id=im.institution_id
           JOIN public.institutions ins ON ins.id=mb.institution_id
           LEFT JOIN public.institutions parent ON parent.id=ins.parent_institution_id
           LEFT JOIN public.institution_modules pim ON pim.institution_id=parent.id AND pim.module_id=mo.id
+          LEFT JOIN public.user_module_permissions up ON up.institution_id=im.institution_id
+            AND up.user_id=mb.user_id AND up.module_id=mo.id
           WHERE mb.user_id=${identity.userId}::uuid AND mb.active=true
-            AND mb.role='institution_admin' AND ins.status='active'
+            AND ins.status='active' AND mo.code<>'service-desk'
             AND (parent.id IS NULL OR (parent.status='active' AND pim.enabled=true))
             AND im.enabled=true AND mo.status='available'
-          ORDER BY mo.name` : [];
+            AND (
+              (mb.role='institution_admin' AND NOT EXISTS(
+                SELECT 1 FROM public.user_module_permissions any_up
+                WHERE any_up.institution_id=mb.institution_id AND any_up.user_id=mb.user_id
+              ))
+              OR up.enabled=true
+            )
+          ORDER BY mo.name`;
         return json({ authorized: rows.length > 0, institutions: rows, modules }, 200, cors);
       } catch { return json({ authorized: false, error: "Consulta institucional indisponivel" }, 503, cors); }
     }

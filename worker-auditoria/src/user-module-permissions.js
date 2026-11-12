@@ -12,6 +12,15 @@ const email=v=>typeof v==="string"&&v.length<=254&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.
 export async function handleUserModulePermissions(request,{sql,actor}){
  if(!sql||!actor?.userId)return send({error:"Autenticação obrigatória"},401);
  const url=new URL(request.url);
+ if(request.method==="GET"&&!url.searchParams.has("institution_id")){
+  const institutions=actor.isMaster===true
+   ? await sql`SELECT id,name FROM public.institutions WHERE status='active' ORDER BY name`
+   : await sql`SELECT i.id,i.name FROM public.institutions i JOIN public.memberships m
+      ON m.institution_id=i.id WHERE m.user_id=${actor.userId}
+      AND m.role='institution_admin' AND m.active=true AND i.status='active'
+      ORDER BY i.name`;
+  return send({items:institutions});
+ }
  const institutionId=url.searchParams.get("institution_id");
  const login=(url.searchParams.get("email")||"").trim().toLowerCase();
  if(!uuid(institutionId)||!email(login))return send({error:"Informe a instituição e o e-mail"},400);

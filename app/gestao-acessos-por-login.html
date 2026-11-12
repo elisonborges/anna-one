@@ -51,11 +51,11 @@ async function init(){
   await jwt();
   status('Sessão encontrada. Escolha a instituição e o login.');
   try{
-   const res=await request('/v1/admin/institutions');
+   const res=await request(api);
    const list=Array.isArray(res)?res:Array.isArray(res.items)?res.items:[];
    list.forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=i.name;$('institution').append(o)});
   }catch{
-   status('Se for administrador institucional, use o identificador da sua instituição fornecido no painel. A listagem de instituições pode estar restrita ao Master.',true);
+   status('Não foi possível carregar instituições autorizadas. Verifique se a integração do Worker está ativa.',true);
   }
  }catch(e){status(e.message,true)}
 }

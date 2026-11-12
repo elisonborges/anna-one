@@ -13,12 +13,13 @@ export default {
     const url = new URL(request.url);
     const origin = request.headers.get("Origin");
     const allowed = env.APP_ORIGIN || "https://annaone.com.br";
-    const cors = origin === allowed
-      ? { "access-control-allow-origin": allowed, "access-control-allow-headers": "authorization, content-type",
+    const allowedOrigins = new Set([allowed, "https://elisonborges.github.io"]);
+    const cors = origin && allowedOrigins.has(origin)
+      ? { "access-control-allow-origin": origin, "access-control-allow-headers": "authorization, content-type",
           "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS", "vary": "Origin" }
       : {};
     if (request.method === "OPTIONS") {
-      return origin === allowed
+      return origin && allowedOrigins.has(origin)
         ? new Response(null, { status: 204, headers: cors })
         : json({ error: "Origem não permitida" }, 403);
     }

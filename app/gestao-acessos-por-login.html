@@ -1,0 +1,90 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>AnnA One | Permissões individuais</title>
+<style>
+:root{font:15px/1.5 system-ui,"Segoe UI",Arial,sans-serif;background:#eef4fc;color:#173553}*{box-sizing:border-box}
+body{margin:0}header{background:#0d2544;color:white;padding:18px 5vw;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+header a{color:#fff;text-decoration:none;font-weight:750}main{max-width:1000px;margin:auto;padding:25px 20px}section{background:white;border:1px solid #d4e3f1;border-radius:15px;padding:22px;margin-bottom:16px}
+h1{margin:0;font-size:22px}h2{font-size:19px;margin:0 0 12px}.muted{color:#516a84;font-size:13px}
+label{display:block;font-weight:700}input,select{width:100%;padding:10px;border:1px solid #aebfd2;border-radius:9px;font:inherit;margin:5px 0 14px}
+button{padding:10px 17px;background:#1169be;border:0;color:white;font:inherit;font-weight:800;border-radius:9px;cursor:pointer}
+button:disabled{opacity:.5;cursor:not-allowed}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #f6af18;outline-offset:2px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}.modules{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.module{display:flex;gap:11px;align-items:flex-start;padding:12px;border:1px solid #d7e3ed;border-radius:10px;font-weight:600}
+.module input{width:20px;height:20px;flex:none;margin:2px 0}.module small{display:block;font-weight:400;color:#5c7186}
+#status{white-space:pre-wrap}.error{color:#a32627}.ok{color:#127043}
+@media(max-width:640px){.row,.modules{grid-template-columns:1fr}}
+</style></head><body><header><h1>AnnA One · Permissões por login</h1><a href="./admin-master-preview.html#permissoes">Voltar à Administração Master</a></header>
+<main><section><h2>1. Selecionar instituição e usuário</h2>
+<p class="muted">O Master pode gerenciar instituições autorizadas. O administrador institucional só pode atribuir módulos da própria instituição. As regras são validadas no servidor.</p>
+<div class="row"><label>Instituição<select id="institution"><option value="">Selecione…</option></select></label><label>Login do usuário<input type="email" id="email" placeholder="usuario@escola.com.br" autocomplete="off"></label></div>
+<button id="consult" type="button">Consultar módulos do login</button><p id="status" role="status" aria-live="polite">Carregando sessão…</p>
+</section><section id="editor" hidden><h2 id="account">2. Módulos do usuário</h2>
+<p class="muted">A marcação individual não altera a autorização da instituição. Somente módulos previamente autorizados podem ser marcados.</p>
+<div id="modules" class="modules"></div><p class="muted" id="changes"></p></section></main>
+<script type="module">
+const worker='https://anna-one-auditoria.elisonborg.workers.dev', $=id=>document.getElementById(id);
+const api='/v1/admin/user-modules';
+let auth,session,loadKey='',institutionId='';
+const status=(message,error=false)=>{ $('status').textContent=message;$('status').className=error?'error':'ok'; };
+async function jwt(){
+ const result=await auth.getSession(),s=result?.data?.session;
+ let t=s?.access_token||s?.token;
+ if(typeof t==='string'&&t.split('.').length===3)return t;
+ for(const k of ['getJWTToken','getJwtToken','token']){
+  if(typeof auth[k]==='function'){
+   try{const r=await auth[k]();t=typeof r==='string'?r:r?.token||r?.data?.token||r?.data?.jwt||r?.data?.access_token;
+   if(typeof t==='string'&&t.split('.').length===3)return t}catch{}
+  }
+ }
+ throw Error('Faça login no Portal AnnA One para continuar.');
+}
+async function request(path,method='GET',data){
+ const token=await jwt();
+ const r=await fetch(worker+path,{method,cache:'no-store',headers:{Authorization:'Bearer '+token,...(data?{'Content-Type':'application/json'}:{})},...(data?{body:JSON.stringify(data)}:{})});
+ let body;try{body=await r.json()}catch{body={error:'Resposta inválida do servidor'}}
+ if(!r.ok)throw Error(r.status===404&&path.startsWith(api)?'A API de permissões individuais ainda não está ativada no Worker.':(body.error||'HTTP '+r.status));
+ return body;
+}
+async function init(){
+ try{
+  const sdk=await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');
+  auth=sdk.createAuthClient('https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth');
+  await jwt();
+  status('Sessão encontrada. Escolha a instituição e o login.');
+  try{
+   const res=await request('/v1/admin/institutions');
+   const list=Array.isArray(res)?res:Array.isArray(res.items)?res.items:[];
+   list.forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=i.name;$('institution').append(o)});
+  }catch{
+   status('Se for administrador institucional, use o identificador da sua instituição fornecido no painel. A listagem de instituições pode estar restrita ao Master.',true);
+  }
+ }catch(e){status(e.message,true)}
+}
+$('consult').addEventListener('click',async()=>{
+ const inst=$('institution').value,email=$('email').value.trim().toLowerCase();
+ $('editor').hidden=true;
+ if(!inst||!email){status('Selecione a instituição e informe o login.',true);return}
+ $('consult').disabled=true;status('Consultando permissões…');
+ try{
+  const data=await request(api+'?institution_id='+encodeURIComponent(inst)+'&email='+encodeURIComponent(email));
+  institutionId=inst;loadKey=email;
+  $('modules').replaceChildren();
+  $('account').textContent='2. Módulos de '+data.user.email+' · '+data.user.role;
+  for(const m of data.modules||[]){
+   const allowed=m.institution_enabled&&m.status==='available'&&m.code!=='service-desk'&&data.institution_status==='active'&&data.user.active;
+   const l=document.createElement('label');l.className='module';
+   const c=document.createElement('input');c.type='checkbox';c.checked=!!m.user_enabled;c.disabled=!allowed;
+   const v=document.createElement('span');v.textContent=m.name;
+   const hint=document.createElement('small');hint.textContent=allowed?'Autorizado pela instituição':'Não autorizado pela instituição / indisponível';
+   v.append(hint);l.append(c,v);$('modules').append(l);
+   c.addEventListener('change',async()=>{
+    const enabled=c.checked;c.disabled=true;status('Salvando…');
+    try{await request(api+'?institution_id='+encodeURIComponent(institutionId)+'&email='+encodeURIComponent(loadKey),'PUT',{module_id:m.id,enabled});status('Permissão individual salva para '+loadKey+'.');}
+    catch(e){c.checked=!enabled;status('Não foi possível salvar: '+e.message,true)}
+    finally{c.disabled=!allowed}
+   });
+  }
+  $('editor').hidden=false;status('Consulta concluída. Selecione os módulos permitidos para este login.');
+ }catch(e){status(e.message,true)}finally{$('consult').disabled=false}
+});
+init();
+</script></body></html>

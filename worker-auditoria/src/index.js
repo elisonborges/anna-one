@@ -1,5 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import { verifyBearer } from "./auth.js";
+import { handleUserModulePermissions } from "./user-module-permissions.js";
 
 const json = (data, status = 200, headers = {}) =>
   new Response(JSON.stringify(data), {
@@ -76,6 +77,24 @@ export default {
           ORDER BY mo.name` : [];
         return json({ authorized: rows.length > 0, institutions: rows, modules }, 200, cors);
       } catch { return json({ authorized: false, error: "Consulta institucional indisponivel" }, 503, cors); }
+    }
+    // Administração de módulos por login: Master ou administrador da própria instituição.
+    if(url.pathname==="/v1/admin/user-modules"&&["GET","PUT"].includes(request.method)){
+      let identity;
+      try{identity=await verifyBearer(request,env);}
+      catch{return json({error:"Autenticação necessária"},401,cors);}
+      if(!env.DATABASE_URL)return json({error:"Banco indisponível"},503,cors);
+      try{
+        const sql=neon(env.DATABASE_URL);
+        const master=await sql`SELECT EXISTS(SELECT 1 FROM public.platform_admins WHERE user_id=${identity.userId}::uuid) AS ok`;
+        const response=await handleUserModulePermissions(request,{sql,actor:{userId:identity.userId,isMaster:master[0]?.ok===true}});
+        const headers=new Headers(response.headers);
+        Object.entries(cors).forEach(([key,value])=>headers.set(key,value));
+        return new Response(response.body,{status:response.status,headers});
+      }catch(error){
+        console.error("user modules failed",error?.code||"db_error");
+        return json({error:"Não foi possível processar as permissões individuais"},503,cors);
+      }
     }
     // Consulta de autorização Master: somente leitura, com identidade validada pelo JWT.
     if (url.pathname === "/v1/admin/authorize" && request.method === "GET") {

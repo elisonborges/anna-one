@@ -62,7 +62,7 @@ export default {
         const rows = await sql`SELECT i.id, i.name, m.role FROM public.memberships m
           JOIN public.institutions i ON i.id=m.institution_id
           WHERE m.user_id=${identity.userId}::uuid AND m.active=true
-            AND i.status='active' AND m.role='institution_admin'
+            AND i.status='active'
           ORDER BY i.name LIMIT 50`;
         // Compatibilidade: administradores existentes mantêm acessos herdados
         // até terem a primeira permissão individual cadastrada.

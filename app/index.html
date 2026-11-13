@@ -37,8 +37,8 @@ try {
     }
     if(data?.authorized===true&&Array.isArray(data.institutions)&&data.institutions.length){
      const institution=data.institutions[0];
-     if(document.documentElement.dataset.masterAuthorized!=='true')document.getElementById('anna-account-role').textContent='Administrador Institucional · '+institution.name;
-     document.documentElement.dataset.institutionAuthorized='true';
+     if(document.documentElement.dataset.masterAuthorized!=='true')document.getElementById('anna-account-role').textContent=({institution_admin:'Administrador Institucional',manager:'Coordenador',teacher:'Professor',technician:'Técnico'}[institution.role]||'Usuário')+' · '+institution.name;
+     document.documentElement.dataset.institutionAuthorized=institution.role==='institution_admin'?'true':'false';
      window.annaInstitution={id:institution.id,name:institution.name,role:institution.role};
      window.annaAuthorizedModules=Array.isArray(data.modules)?data.modules.filter(m=>typeof m?.name==='string').map(m=>m.name):[];
      window.dispatchEvent(new Event('anna-permissions-ready'));

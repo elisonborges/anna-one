@@ -91,6 +91,51 @@ export default {
         return json({ authorized: rows.length > 0, institutions: rows, modules }, 200, cors);
       } catch { return json({ authorized: false, error: "Consulta institucional indisponivel" }, 503, cors); }
     }
+    // AnnA Agenda: autorização central somente leitura. Não concede acesso ao banco da Agenda.
+    if (url.pathname === "/v1/agenda/access" && request.method === "GET") {
+      let identity;
+      try { identity = await verifyBearer(request, env); }
+      catch { return json({ authorized: false, error: "Autenticação necessária" }, 401, cors); }
+      if (!env.DATABASE_URL) return json({ authorized: false, error: "Banco indisponível" }, 503, cors);
+      try {
+        const sql = neon(env.DATABASE_URL);
+        const rows = await sql`SELECT i.id AS institution_id, i.name AS institution_name, mb.role,
+          md.code AS module_code
+          FROM public.memberships mb
+          JOIN public.institutions i ON i.id=mb.institution_id
+          JOIN public.modules md ON md.code='agenda' AND md.status='available'
+          JOIN public.institution_modules im ON im.institution_id=i.id
+            AND im.module_id=md.id AND im.enabled=true
+          LEFT JOIN public.institutions parent ON parent.id=i.parent_institution_id
+          LEFT JOIN public.institution_modules pim ON pim.institution_id=parent.id
+            AND pim.module_id=md.id
+          LEFT JOIN public.user_module_permissions up ON up.institution_id=i.id
+            AND up.user_id=mb.user_id AND up.module_id=md.id
+          WHERE mb.user_id=${identity.userId}::uuid AND mb.active=true
+            AND i.status='active'
+            AND (parent.id IS NULL OR (parent.status='active' AND pim.enabled=true))
+            AND ((mb.role='institution_admin' AND NOT EXISTS(
+              SELECT 1 FROM public.user_module_permissions existing
+              WHERE existing.institution_id=i.id AND existing.user_id=mb.user_id
+            )) OR up.enabled=true)
+          ORDER BY i.name LIMIT 50`;
+        return json({ authorized: rows.length > 0, institutions: rows }, 200, cors);
+      } catch (error) {
+        console.error("agenda access failed", error?.code || "db_error");
+        return json({ authorized: false, error: "Autorização indisponível" }, 503, cors);
+      }
+    }
+    // Teste privado da conexão do banco da Agenda, sem expor dados.
+    if (url.pathname === "/v1/agenda/connection" && request.method === "GET") {
+      try { await verifyBearer(request, env); }
+      catch { return json({ connected: false, error: "Autenticação necessária" }, 401, cors); }
+      if (!env.AGENDA_DATABASE_URL) return json({ connected: false, error: "Conexão não configurada" }, 503, cors);
+      try {
+        const agendaSql = neon(env.AGENDA_DATABASE_URL);
+        const rows = await agendaSql`SELECT 1 AS ok`;
+        return json({ connected: rows[0]?.ok === 1 }, rows[0]?.ok === 1 ? 200 : 503, cors);
+      } catch { return json({ connected: false, error: "Banco indisponível" }, 503, cors); }
+    }
     // Administração de módulos por login: Master ou administrador da própria instituição.
     if(url.pathname==="/v1/admin/user-modules"&&["GET","PUT"].includes(request.method)){
       let identity;

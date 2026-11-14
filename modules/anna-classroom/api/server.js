@@ -58,7 +58,8 @@ async function permission(db,userId,institutionId,pathname,method){
  const teacherRoute=(pathname==='/v1/classes'&&method==='GET')||
  (pathname==='/v1/lessons'&&['GET','POST'].includes(method))||
  (pathname==='/v1/assignments'&&['GET','POST'].includes(method))||
- (pathname==='/v1/eduplay/share'&&method==='POST');
+ (pathname==='/v1/eduplay/share'&&method==='POST')||
+ (pathname==='/v1/resources/share'&&method==='POST');
  const q=await db.query(
   'SELECT anna_classroom.can_manage_institution($1::uuid,$2::uuid) AS admin, anna_classroom.can_author_eduplay($1::uuid,$2::uuid) AS author',
   [userId,institutionId]
@@ -81,7 +82,7 @@ async function handler(req,res){
  const pathname=new URL(req.url||'/', 'http://localhost').pathname;
  if(pathname==='/health'&&req.method==='GET')return send(res,200,{status:'ok',service:'anna-classroom-api'});
  if(!['GET','POST'].includes(req.method))return send(res,405,{error:'Método não permitido'});
- if(!['/v1/classes','/v1/students','/v1/enrollments','/v1/lessons','/v1/assignments','/v1/submissions','/v1/overview','/v1/access','/v1/eduplay/share'].includes(pathname))return send(res,404,{error:'Rota inexistente'});
+ if(!['/v1/classes','/v1/students','/v1/enrollments','/v1/lessons','/v1/assignments','/v1/submissions','/v1/overview','/v1/access','/v1/eduplay/share','/v1/resources/share'].includes(pathname))return send(res,404,{error:'Rota inexistente'});
  try{
   let userId;
   try { userId=await authenticate(req); }
@@ -122,7 +123,7 @@ async function handler(req,res){
     return send(res,200,{items:rows.rows});
    }
    if(req.method==='GET'&&pathname==='/v1/assignments'){
-    const rows=await client.query('SELECT a.id,a.lesson_id,a.title,a.instructions,a.due_at,a.created_at,(a.eduplay_quiz IS NOT NULL) AS from_eduplay,l.title AS lesson_title FROM anna_classroom.assignments a JOIN anna_classroom.lessons l ON l.id=a.lesson_id AND l.institution_id=a.institution_id WHERE a.institution_id=$1 ORDER BY a.created_at DESC LIMIT 100',[institutionId]);
+    const rows=await client.query('SELECT a.id,a.lesson_id,a.title,a.instructions,a.due_at,a.created_at,(a.eduplay_quiz IS NOT NULL) AS from_eduplay,a.resource_source,a.resource_url,l.title AS lesson_title FROM anna_classroom.assignments a JOIN anna_classroom.lessons l ON l.id=a.lesson_id AND l.institution_id=a.institution_id WHERE a.institution_id=$1 ORDER BY a.created_at DESC LIMIT 100',[institutionId]);
     return send(res,200,{items:rows.rows});
    }
    if(req.method==='GET'&&pathname==='/v1/submissions'){
@@ -133,6 +134,26 @@ async function handler(req,res){
    if(req.headers['content-type']?.split(';')[0]?.trim()!=='application/json')return send(res,415,{error:'Esperado application/json'});
    const data=await body(req);
    if(!data||typeof data!=='object'||Array.isArray(data))return send(res,400,{error:'Objeto JSON necessário'});
+   if(pathname==='/v1/resources/share'){
+    if(typeof data.lesson_id!=='string'||!UUID.test(data.lesson_id))return send(res,400,{error:'Selecione uma aula válida'});
+    if(!['labpc','projetos-escolares'].includes(data.source))return send(res,400,{error:'Origem da atividade inválida'});
+    if(!validName(data.title,150)||typeof(data.instructions??'')!=='string'||(data.instructions||'').length>3000)return send(res,400,{error:'Título ou orientações inválidos'});
+    let target;
+    try{target=new URL(data.url)}catch{return send(res,400,{error:'Endereço da atividade inválido'})}
+    const allowed={
+     labpc:[['https://labpc.annaone.com.br','/'],['https://elisonborges.github.io','/labpc/']],
+     'projetos-escolares':[['https://projetos.annaone.com.br','/'],['https://elisonborges.github.io','/annaone-projetos-escolares/']]
+    };
+    if(target.username||target.password||!allowed[data.source].some(([origin,prefix])=>target.origin===origin&&target.pathname.startsWith(prefix)))return send(res,400,{error:'Somente links oficiais do módulo de origem são permitidos'});
+    if(target.href.length>1024)return send(res,400,{error:'Link longo demais'});
+    const dueAt=data.due_at?new Date(data.due_at):null;
+    if(dueAt&&(!Number.isFinite(dueAt.getTime())||typeof data.due_at!=='string'))return send(res,400,{error:'Prazo inválido'});
+    const result=await client.query(
+     'INSERT INTO anna_classroom.assignments(institution_id,lesson_id,title,instructions,due_at,created_by,resource_source,resource_url) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,title,lesson_id,created_at',
+     [institutionId,data.lesson_id,data.title.trim(),(data.instructions||'').trim(),dueAt?dueAt.toISOString():null,userId,data.source,target.href]
+    );
+    return send(res,201,{item:result.rows[0],origin:data.source});
+   }
    if(pathname==='/v1/eduplay/share'){
     if(typeof data.lesson_id!=='string'||!UUID.test(data.lesson_id))return send(res,400,{error:'Selecione uma aula válida'});
     const quiz=normalizeEduPlayQuiz(data.quiz);

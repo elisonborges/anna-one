@@ -33,7 +33,7 @@ test('o layout aprovado e os campos do login permanecem presentes',()=>{
 
 test('API exige JWT e permissão institucional antes das operações',()=>{
  assert.match(api,/jwtVerify\(match\[1\],jwks/);
- assert.match(api,/await permission\(client,userId,institutionId\)/);
+ assert.match(api,/await permission\(client,userId,institutionId,pathname,req.method\)/);
  assert.match(api,/anna_classroom\.can_manage_institution/);
  assert.match(api,/X-Frame-Options/);
  for(const route of ['/v1/access','/v1/classes','/v1/students','/v1/enrollments','/v1/lessons','/v1/assignments','/v1/submissions','/v1/overview']){
@@ -56,4 +56,17 @@ test('exportação CSV impede fórmulas e escapa aspas',()=>{
  assert.equal(csvCell('=1+1'),'"\'=1+1"');
  assert.equal(csvCell('+SUM(1)'),'"\'+SUM(1)"');
  assert.equal(csvCell('Nome "Teste"'),'"Nome ""Teste"""');
+});
+
+test('integrações usam autenticação do servidor e não expõem gabarito na listagem',()=>{
+ assert.match(api,/normalizeEduPlayQuiz/);
+ assert.match(api,/can_link_source/);
+ assert.match(api,/can_author_eduplay/);
+ assert.match(api,/\/v1\/eduplay\/share/);
+ assert.match(api,/\/v1\/resources\/share/);
+ assert.match(api,/eduplay_quiz/);
+ assert.doesNotMatch(api,/SELECT[^;]+eduplay_quiz[^;]+FROM anna_classroom\.assignments/i);
+ assert.match(frontend,/anna-eduplay-share/);
+ assert.match(frontend,/event\.source!==window\.opener/);
+ assert.match(frontend,/pendingEduplayQuiz/);
 });

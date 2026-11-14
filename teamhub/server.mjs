@@ -46,7 +46,7 @@ const route=async(req,res)=>{
   const file=p==='/'?'/index.html':p;
   if(!['/index.html','/app.js','/styles.css','/manifest.webmanifest'].includes(file))return reply(res,404,{error:'Não encontrado'});
   const data=await readFile(path.join(dir,'public',file));
-  res.writeHead(200,{'Content-Type':file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':file.endsWith('.webmanifest')?'application/manifest+json':'text/html; charset=utf-8','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self' https://esm.sh; connect-src 'self' https://*.neon.tech https://*.neonauth.*; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"});return res.end(data);
+  res.writeHead(200,{'Content-Type':file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':file.endsWith('.webmanifest')?'application/manifest+json':'text/html; charset=utf-8','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self' https://esm.sh; connect-src 'self' https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"});return res.end(data);
  }
  const subject=await user(req);
  if(p==='/api/me'&&req.method==='GET'){

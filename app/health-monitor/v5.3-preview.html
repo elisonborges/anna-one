@@ -352,7 +352,7 @@ function wallBuild(data){
   const valid=sample.filter(r=>r.healthy===true).length,rate=sample.length?100*valid/sample.length:0;
   const div=document.createElement('div'),heading=document.createElement('div'),name=document.createElement('strong'),value=document.createElement('small'),bar=document.createElement('div'),fill=document.createElement('span');
   div.style.padding='9px 0';heading.style.display='flex';heading.style.justifyContent='space-between';heading.style.gap='10px';name.textContent=nativeNames[x.code]||x.code;value.textContent=sample.length?rate.toFixed(1)+'% · '+valid+'/'+sample.length:'Sem amostras';heading.append(name,value);bar.className='hm-wall-bar';fill.style.width=rate+'%';if(rate<100)fill.className='warn';bar.append(fill);div.append(heading,bar);wallNode('wallAvailability').append(div);
-  const measures=sample.map(r=>Number(r.latency_ms)).filter(v=>Number.isFinite(v)&&v>=0&&v!==null);
+  const measures=sample.filter(r=>r.latency_ms!==null&&r.latency_ms!==undefined).map(r=>Number(r.latency_ms)).filter(v=>Number.isFinite(v)&&v>=0);
   if(!measures.length)continue;
   const average=measures.reduce((a,b)=>a+b,0)/measures.length;
   const row=document.createElement('div'),label=document.createElement('strong'),metric=document.createElement('small'),head=document.createElement('div');
@@ -375,7 +375,7 @@ function closeWall(){
  if(document.fullscreenElement===wallNode('wallMode')&&document.exitFullscreen)document.exitFullscreen().catch(()=>{});
 }
 function openWall(){
- if(!isPlatformAdmin)return;
+ if(!isPlatformAdmin||!wallNode('wallMode').hidden)return;
  wallPreviousOverflow=document.body.style.overflow;document.body.style.overflow='hidden';wallNode('wallMode').hidden=false;
  wallNode('wallClock').textContent=new Date().toLocaleTimeString('pt-BR');
  wallLoad();if(wallTimer!==null)clearInterval(wallTimer);

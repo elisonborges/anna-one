@@ -135,9 +135,51 @@ body.login-mode #loginFooter small{font-size:10px}
 .hm-beat{min-width:0;border-radius:3px;background:#c9d5e2}.hm-beat.good{background:#289968}.hm-beat.bad{background:#d75c5c}.hm-beat.unknown{background:#c9d5e2}
 .hm-service>small{font-size:11px;color:#748ba5}
 @media(max-width:680px){.hm-overview{padding:16px}.hm-services{grid-template-columns:1fr}.hm-collection{align-items:flex-start}}
+
+/* v5.5 — legibilidade do menu principal, acima das regras antigas */
+#workspace>nav.hm-sidebar{
+  display:flex;align-items:center;flex-wrap:wrap;gap:7px 8px;
+  background:#f7faff;border:1px solid #cbd9e9;border-radius:14px;
+  padding:10px 13px;margin-bottom:16px;box-shadow:0 2px 12px rgba(16,45,80,.055);
+}
+#workspace>nav.hm-sidebar .hm-nav-label{
+  font-size:11px;font-weight:800;letter-spacing:1.1px;
+  color:#355879;margin:0 4px;align-self:center;white-space:nowrap;
+}
+#workspace>nav.hm-sidebar .hm-group-divider{
+  width:1px;height:28px;flex:0 0 1px;margin:0 6px;
+  background:#bdcede;align-self:center;
+}
+#workspace>nav.hm-sidebar button[data-view]{
+  display:inline-flex;align-items:center;justify-content:center;
+  flex:0 1 auto;min-height:42px;width:auto;padding:10px 13px;margin:0;
+  border:1px solid transparent;border-radius:9px;background:transparent;
+  color:#20466e;font-size:13px;font-weight:750;line-height:1.25;
+  transition:background .15s ease,color .15s ease,border-color .15s ease,box-shadow .15s ease;
+}
+#workspace>nav.hm-sidebar button[data-view]:hover:not(:disabled){
+  background:#e5effa;border-color:#bad0e9;color:#0d4485;
+}
+#workspace>nav.hm-sidebar button[data-view][aria-pressed="true"]{
+  background:#fff;border-color:#9bbce3;color:#0b4f9c;
+  box-shadow:0 2px 9px rgba(16,45,80,.12);
+}
+#workspace>nav.hm-sidebar button[data-view]:focus-visible{
+  outline:3px solid #2b7cce;outline-offset:2px;
+}
+#workspace>nav.hm-sidebar button[hidden]{display:none!important}
+@media(max-width:680px){
+  #workspace>nav.hm-sidebar{gap:7px;padding:10px}
+  #workspace>nav.hm-sidebar .hm-nav-label{width:100%;margin:7px 3px 0}
+  #workspace>nav.hm-sidebar .hm-group-divider{height:1px;width:100%;flex:1 0 100%;margin:4px 0}
+  #workspace>nav.hm-sidebar button[data-view]{flex:1 1 150px}
+}
+@media(prefers-reduced-motion:reduce){
+  #workspace>nav.hm-sidebar button[data-view]{transition:none}
+}
 </style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script></head><body class="login-mode">
 <header class="anna-module-header"><a class="anna-module-brand" href="../../" aria-label="AnnA One — página inicial"><img src="../../assets/anna-symbol.svg" alt="" width="43" height="43"><span class="anna-brand-copy"><strong>AnnA <span>One</span></strong><small>TECNOLOGIA E EDUCAÇÃO JUNTAS</small></span></a><div class="header-tools"><label for="orgSelect" hidden>Organização <select id="orgSelect" disabled><option>Entre para consultar</option></select></label><span class="badge">v5.5</span><a class="back" href="../">← Voltar ao portal</a><button type="button" id="logout" class="header-logout" hidden>Sair</button></div></header>
-<section class="panel" id="authPanel"><div class="login-brand"><img src="../../assets/anna-symbol.svg" alt="" width="38" height="38"><div><strong>AnnA Health Monitor</strong><small>AnnA One</small></div></div><h2>Acessar sua conta</h2><p class="login-description">Entre com as credenciais cadastradas no Health Monitor.</p><form id="loginForm"><label>E-mail<input name="email" type="email" autocomplete="username" required></label><label>Senha<input name="password" type="password" autocomplete="current-password" required></label><button type="submit">Entrar</button></form><p id="authMessage" role="status">Conectando...</p></section><footer id="loginFooter">© 2026 AnnA One. Todos os direitos reservados.<div>Health Monitor · Projeto e desenvolvimento original.</div></footer><main id="workspace" hidden><div class="workspace-heading"><div><h1>Health Monitor <span class="version">v5.5</span></h1><p>Monitoramento operacional e segurança da AnnA One.</p></div><div class="heading-summary"><div class="summary-item"><strong id="summaryMonitors">0</strong><small>Monitores cadastrados</small></div><div class="summary-item"><strong>Master</strong><small>Plataforma AnnA One</small></div></div></div><nav class="panel hm-sidebar" aria-label="Navegação"><p class="hm-nav-label">OPERAÇÃO</p><button type="button" id="overviewNav" data-view="overview" aria-pressed="true" hidden>Visão Geral</button><button type="button" data-view="shared" aria-pressed="false">Serviços e infraestrutura</button><p class="hm-nav-label">GESTÃO</p><button type="button" data-view="monitors" aria-pressed="false">Meus monitores</button><button type="button" data-view="dashboards" aria-pressed="false">Meus dashboards</button><button type="button" id="auditNav" data-view="audit" aria-pressed="false" hidden>Auditoria e Segurança</button><button type="button" id="adminNav" data-view="admin" aria-pressed="false" hidden>Administrar acessos</button></nav><div>
+<section class="panel" id="authPanel"><div class="login-brand"><img src="../../assets/anna-symbol.svg" alt="" width="38" height="38"><div><strong>AnnA Health Monitor</strong><small>AnnA One</small></div></div><h2>Acessar sua conta</h2><p class="login-description">Entre com as credenciais cadastradas no Health Monitor.</p><form id="loginForm"><label>E-mail<input name="email" type="email" autocomplete="username" required></label><label>Senha<input name="password" type="password" autocomplete="current-password" required></label><button type="submit">Entrar</button></form><p id="authMessage" role="status">Conectando...</p></section><footer id="loginFooter">© 2026 AnnA One. Todos os direitos reservados.<div>Health Monitor · Projeto e desenvolvimento original.</div></footer><main id="workspace" hidden><div class="workspace-heading"><div><h1>Health Monitor <span class="version">v5.5</span></h1><p>Monitoramento operacional e segurança da AnnA One.</p></div><div class="heading-summary"><div class="summary-item"><strong id="summaryMonitors">0</strong><small>Monitores cadastrados</small></div><div class="summary-item"><strong>Master</strong><small>Plataforma AnnA One</small></div></div></div><nav class="panel hm-sidebar" aria-label="Navegação"><p class="hm-nav-label">OPERAÇÃO</p><button type="button" id="overviewNav" data-view="overview" aria-pressed="true" hidden>Visão Geral</button><button type="button" data-view="shared" aria-pressed="false">Serviços e infraestrutura</button><span class="hm-group-divider" aria-hidden="true"></span><p class="hm-nav-label">GESTÃO</p><button type="button" data-view="monitors" aria-pressed="false">Meus monitores</button><button type="button" data-view="dashboards" aria-pressed="false">Meus dashboards</button><button type="button" id="auditNav" data-view="audit" aria-pressed="false" hidden>Auditoria e Segurança</button><button type="button" id="adminNav" data-view="admin" aria-pressed="false" hidden>Administrar acessos</button></nav><div>
 <section class="panel hm-overview" id="overview" hidden><div class="hm-heading"><div><small>CENTRAL DE OPERAÇÕES</small><h2>Visão Geral</h2><p>Saúde operacional, evolução das verificações e situações que exigem atenção.</p></div><button id="overviewRefresh" type="button">Atualizar</button></div><div class="hm-stats"><article><small>Serviços registrados</small><strong id="overviewTotal">—</strong></article><article><small>Acessíveis / saudáveis</small><strong id="overviewHealthy">—</strong></article><article><small>Falhas recentes</small><strong id="overviewFailures">—</strong></article><article><small>Dados desatualizados</small><strong id="overviewStale">—</strong></article></div><div class="hm-collection"><span class="hm-live-dot" aria-hidden="true"></span><span id="overviewUpdated">Última coleta: —</span> · <span id="overviewState">Aguardando consulta</span></div><div class="hm-overview-summary"><div><h2>Panorama das últimas verificações</h2><p>Sequência das 12 amostras mais recentes por serviço; cinza indica ausência de amostra, não falha.</p></div><div class="hm-legend"><span><i class="hm-indicator hm-good"></i>Positiva</span><span><i class="hm-indicator hm-bad"></i>Falha</span><span><i class="hm-indicator hm-unknown"></i>Sem dado</span></div></div><h2>Serviços monitorados</h2><div class="hm-filters"><label>Buscar serviço<input id="overviewSearch" type="search" placeholder="Flow, Portal, LabPC..."></label><label>Estado<select id="overviewFilter"><option value="all">Todos</option><option value="healthy">Saudáveis</option><option value="failure">Falhas</option><option value="stale">Dados antigos</option></select></label><label>Categoria<select id="overviewCategory"><option value="all">Todas as categorias</option><option value="apps">Aplicações</option><option value="infrastructure">Infraestrutura e autenticação</option></select></label></div><div id="overviewList" class="hm-services" aria-live="polite"></div><p class="hm-meta">Acessibilidade pública de páginas e arquivos não comprova autenticação, IA ou operações internas. Monitores de clientes ainda não possuem checagem automática ativa.</p></section>
 <section class="panel" id="monitors"><h2>Meus monitores</h2><p>Monitores salvos por organização. As verificações automáticas ainda não estão habilitadas.</p>
 <button id="new" type="button">+ Adicionar monitor</button>

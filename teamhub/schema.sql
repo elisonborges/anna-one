@@ -1,4 +1,4 @@
--- AnnA TeamHub MVP: execute SOMENTE em um banco de desenvolvimento isolado.
+-- AnnA Nexus MVP (schema técnico teamhub preservado): execute SOMENTE em um banco de desenvolvimento isolado.
 CREATE SCHEMA IF NOT EXISTS teamhub;
 CREATE TABLE IF NOT EXISTS teamhub.organizations (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL, slug text NOT NULL UNIQUE,

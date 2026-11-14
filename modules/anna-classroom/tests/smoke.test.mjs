@@ -65,7 +65,8 @@ test('integrações usam autenticação do servidor e não expõem gabarito na l
  assert.match(api,/\/v1\/eduplay\/share/);
  assert.match(api,/\/v1\/resources\/share/);
  assert.match(api,/eduplay_quiz/);
- assert.doesNotMatch(api,/SELECT[^;]+eduplay_quiz[^;]+FROM anna_classroom\.assignments/i);
+ assert.match(api,/\(a\.eduplay_quiz IS NOT NULL\) AS from_eduplay/);
+ assert.doesNotMatch(api,/SELECT \* FROM anna_classroom\.assignments/i);
  assert.match(frontend,/anna-eduplay-share/);
  assert.match(frontend,/event\.source!==window\.opener/);
  assert.match(frontend,/pendingEduplayQuiz/);

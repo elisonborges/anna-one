@@ -137,6 +137,8 @@ async function handler(req,res){
    if(pathname==='/v1/resources/share'){
     if(typeof data.lesson_id!=='string'||!UUID.test(data.lesson_id))return send(res,400,{error:'Selecione uma aula válida'});
     if(!['labpc','projetos-escolares'].includes(data.source))return send(res,400,{error:'Origem da atividade inválida'});
+    const grant=await client.query('SELECT anna_classroom.can_link_source($1::uuid,$2::uuid,$3::text) AS allowed',[userId,institutionId,data.source]);
+    if(grant.rows[0]?.allowed!==true)return send(res,403,{error:'Módulo de origem não autorizado para esta instituição'});
     if(!validName(data.title,150)||typeof(data.instructions??'')!=='string'||(data.instructions||'').length>3000)return send(res,400,{error:'Título ou orientações inválidos'});
     let target;
     try{target=new URL(data.url)}catch{return send(res,400,{error:'Endereço da atividade inválido'})}

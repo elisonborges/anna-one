@@ -84,6 +84,8 @@ body.tv-mode .insight{padding:12px 15px}
 .screen-dialog-foot{margin:16px 0 0;border-top:1px solid #375774;padding-top:12px}
 #screenTitle{overflow-wrap:anywhere}
 @media(max-width:750px){.screen-dialog-columns{grid-template-columns:1fr}.screen-checks{grid-template-columns:1fr}.screen-dialog-card{padding:16px}}
+.insights.single{grid-template-columns:1fr}
+.screen-dialog[hidden]{display:none!important}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
@@ -165,6 +167,7 @@ function renderScreenConfig(){
  document.title=screenConfig.name+' | Gestão à Vista · AnnA One';
  $('screenTitle').textContent=screenConfig.name;
  $('screenSubtitle').textContent='Gestão à Vista · '+screenConfig.services.length+' serviço(s) selecionado(s)';
+ document.querySelector('.insights').classList.toggle('single',screenConfig.widgets.filter(v=>v==='incidents'||v==='trends').length===1);
  $('metrics').hidden=!screenConfig.widgets.includes('metrics');
  $('servicesHeading').hidden=!screenConfig.widgets.includes('services');
  $('services').hidden=!screenConfig.widgets.includes('services');
@@ -304,6 +307,7 @@ function renderInsights(rows){
  if(!trends.length){const p=document.createElement('p');p.className='insight-empty';p.textContent='Sem tendência relevante ou amostras suficientes para comparar.';trendRoot.append(p);}
 }
 function render(rows){
+ rows=rows.filter(r=>screenConfig.services.includes(r.service_code));
  const latest=new Map();for(const row of rows)if(!latest.has(row.service_code))latest.set(row.service_code,row);
  const list=[...latest.entries()].map(([code,row])=>({code,row,status:state(row)})).sort((a,b)=>({bad:0,stale:1,good:2}[a.status]-{bad:0,stale:1,good:2}[b.status])||(names[a.code]||a.code).localeCompare(names[b.code]||b.code,'pt-BR'));
  const good=list.filter(s=>s.status==='good').length,bad=list.filter(s=>s.status==='bad').length;

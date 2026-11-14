@@ -16,8 +16,29 @@ const AUTH_BASE="https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon
 const API_BASE="https://anna-classroom-api.onrender.com";
 let activeInstitution=null;
 let accessToken=null;
+let pendingEduplayQuiz=null;
+const eduplayOrigins=new Set(["https://eduplay.annaone.com.br","https://elisonborges.github.io"]);
+const shareNonce=new URLSearchParams(location.search).get("share_nonce");
+if(shareNonce&&/^[a-f0-9]{48}$/.test(shareNonce)){
+ window.addEventListener("message",event=>{
+  if(!eduplayOrigins.has(event.origin)||event.source!==window.opener||event.data?.type!=="anna-eduplay-share"||event.data?.nonce!==shareNonce)return;
+  const quiz=event.data.quiz;
+  if(!quiz||typeof quiz!=="object"||typeof quiz.title!=="string"||!Array.isArray(quiz.questions)||quiz.questions.length<1)return;
+  if(JSON.stringify(quiz).length>25000)return;
+  pendingEduplayQuiz=quiz;
+  window.opener.postMessage({type:"anna-classroom-received",nonce:shareNonce},event.origin);
+  if(!app.hidden)navigate("atividades");
+ });
+}
+
 function blocked(text){gate.hidden=false;app.hidden=true;message.textContent=text;link.hidden=false;}
-function show(institution){activeInstitution=institution;document.querySelector(".top small").textContent="Instituição: "+institution.name;gate.hidden=true;app.hidden=false;display(location.hash.slice(1)||"inicio");}
+function show(institution){
+ activeInstitution=institution;
+ document.querySelector(".top small").textContent="Instituição: "+institution.name;
+ gate.hidden=true;app.hidden=false;
+ if(shareNonce&&pendingEduplayQuiz)navigate("atividades");
+ else display(location.hash.slice(1)||"inicio");
+}
 
 let renderVersion=0;
 function element(tag,text,className){
@@ -82,6 +103,10 @@ function makeForm(pane,fields,buttonText,endpoint,toPayload,refreshView){
   feedback.textContent="Salvando...";
   try{
    await apiRequest(endpoint,{method:"POST",body:JSON.stringify(toPayload(data))});
+   if(endpoint==="/v1/eduplay/share"){
+    pendingEduplayQuiz=null;
+    if(shareNonce)history.replaceState(null,"","#atividades");
+   }
    form.reset();
    navigate(refreshView);
   }catch(error){
@@ -267,6 +292,32 @@ function renderAulas(target,{classes,lessons}){
  target.append(list);
 }
 function renderAtividades(target,{lessons,assignments}){
+ if(pendingEduplayQuiz){
+  const quiz=pendingEduplayQuiz;
+  const bridge=makeCard("Compartilhar atividade do AnnA EduPlay");
+  bridge.classList.add("classroom-eduplay-bridge");
+  bridge.append(element("p",quiz.title+" · "+quiz.questions.length+" pergunta(s). A cópia ficará vinculada à aula selecionada."));
+  if(!lessons.length){
+   addStatus(bridge,"Crie uma aula antes de compartilhar o quiz.");
+   const go=element("button","Planejar aula","classroom-link-button");
+   go.addEventListener("click",()=>navigate("aulas"));bridge.append(go);
+  }else{
+   makeForm(bridge,[
+    makeSelect("Aula de destino","lesson_id",lessons.map(x=>({id:x.id,label:x.title+" · "+x.class_name})),"Selecione uma aula"),
+    makeField("Orientações (opcional)","instructions","textarea",3000),
+    makeField("Prazo (opcional)","due_at","datetime-local")
+   ],"Publicar quiz nesta aula","/v1/eduplay/share",data=>({
+    lesson_id:data.lesson_id,
+    quiz,
+    instructions:data.instructions,
+    due_at:data.due_at?new Date(data.due_at).toISOString():null
+   }),"atividades");
+   bridge.querySelector('[name="instructions"]').required=false;
+   const action=bridge.querySelector("form");
+   action.addEventListener("submit",()=>{const button=action.querySelector('button[type="submit"]');if(button){button.addEventListener("click",()=>{}, {once:true});}}, {once:true});
+  }
+  target.append(bridge);
+ }
  const form=makeCard("Criar atividade");
  if(!lessons.length){
   addStatus(form,"Planeje uma aula antes de criar atividades.");
@@ -431,6 +482,7 @@ signoutButton?.addEventListener("click",async()=>{
   if(result?.error)throw Error("Erro ao sair");
   accessToken=null;
   activeInstitution=null;
+  pendingEduplayQuiz=null;
   ++renderVersion;
   document.querySelector("#module-cards").replaceChildren();
   blocked("Sessão encerrada. Entre novamente quando desejar.");

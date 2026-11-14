@@ -4,7 +4,15 @@ const state={jwt:null,org:null,role:null,projects:[],tasks:[],project:null,view:
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const message=(s,error=false)=>{const el=$('status');el.textContent=s;el.style.background=error?'#fff0ef':'';el.style.color=error?'#a31931':''};
 const show=(view)=>{state.view=view;for(const id of ['overview','projects','board','mytasks'])$(id).hidden=id!==view;
- document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);b.setAttribute('aria-current',b.dataset.view===view?'page':'false')});
+ $('signin-form').addEventListener('submit',async e=>{
+ e.preventDefault();const button=$('signin-button');button.disabled=true;message('Autenticando com sua conta AnnA One…');
+ try{
+  const result=await state.auth.signIn.email({email:$('signin-email').value.trim(),password:$('signin-password').value});
+  if(result?.error)throw Error('Credenciais inválidas ou acesso indisponível.');
+  $('signin-password').value='';await boot();
+ }catch(error){message('Não foi possível entrar. Confira seus dados no Portal AnnA One e tente novamente.',true)}finally{button.disabled=false}
+});
+document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);b.setAttribute('aria-current',b.dataset.view===view?'page':'false')});
  $('title').textContent=view==='overview'?'Visão geral':view==='projects'?'Projetos':view==='board'?state.project?.name||'Quadro':'Minhas tarefas';
  $('subtitle').textContent=view==='overview'?'Acompanhe os projetos e as atividades da sua equipe.':view==='projects'?'Organize seus projetos e entregas.':view==='board'?'Acompanhe o trabalho por etapas.':'Atividades sob sua responsabilidade.';
 };
@@ -66,7 +74,7 @@ async function boot(){
   const {createAuthClient}=await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');
   state.auth=createAuthClient(AUTH);
   const session=await state.auth.getSession();const account=session?.data?.user||session?.data?.session?.user;
-  if(!account){message('Acesse com seu login do Portal AnnA One. Não há cadastro separado.',true);$('portal').textContent='Entrar no portal';return;}
+  if(!account){$('account').textContent='Não conectado';$('signin').hidden=false;message('Entre com sua conta existente do Portal AnnA One.');return;}\n  $('signin').hidden=true;
   state.subject=String(account.id||'');$('account').textContent=account.email||'Conta AnnA One';
   let token=session?.data?.session?.access_token;
   if(typeof token!=='string'||token.split('.').length!==3){
@@ -80,7 +88,7 @@ async function boot(){
   state.org=me.organizations[0].id;
   select.addEventListener('change',async()=>{state.org=select.value;state.tasks=[];state.project=null;await refreshProjects();show('overview')});
   $('app').hidden=false;await refreshProjects();show('overview');message('');
- }catch(e){message(e.message||'Não foi possível iniciar o Nexus.',true)}
+ }catch(e){message(e.message||'Não foi possível iniciar o Nexus.',true);if(!state.jwt)$('signin').hidden=false;}
 }
 document.querySelectorAll('[data-view]').forEach(x=>x.addEventListener('click',async()=>{if(!state.org)return;try{if(x.dataset.view==='projects'||x.dataset.view==='overview')await refreshProjects();if(x.dataset.view==='mytasks'&&!state.project){$('mine').textContent='Abra um projeto para consultar as tarefas.'}show(x.dataset.view)}catch(e){message(e.message,true)}}));
 $('back-projects').onclick=async()=>{await refreshProjects();show('projects')};

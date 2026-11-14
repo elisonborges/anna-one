@@ -289,3 +289,12 @@
 }
 #classroom-app .classroom-refresh:hover{background:#eaf4ff}
 #classroom-app .classroom-refresh:focus-visible{outline:2px solid #57a9ff;outline-offset:2px}
+
+/* Integração EduPlay → Classroom: destaque discreto para atribuição recebida. */
+#classroom-app .classroom-eduplay-bridge{
+ grid-column:1/-1;border-left:4px solid #6733ed;background:#fbfaff;
+}
+#classroom-app .classroom-eduplay-bridge h2{color:#3b2399}
+#classroom-app .classroom-eduplay-bridge .classroom-data-form{
+ max-width:720px;
+}

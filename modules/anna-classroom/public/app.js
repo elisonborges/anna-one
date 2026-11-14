@@ -181,6 +181,7 @@ function renderList(pane,items,formatter,emptyMessage){
    const li=element("li");
    li.append(element("strong",entry[0]));
    if(entry[1])li.append(element("span",entry[1]));
+   if(entry[2])renderExternalResourceLink(li,entry[2]);
    list.append(li);
   }
   count.textContent=matches.length+" de "+items.length+" registro(s) carregado(s)";
@@ -297,6 +298,23 @@ function renderAulas(target,{classes,lessons}){
  renderList(list,lessons,x=>[x.title,x.class_name+" · "+(x.description||"Sem descrição")],"Nenhuma aula planejada.");
  target.append(list);
 }
+function renderExternalResourceLink(row,url){
+ try{
+  const target=new URL(url);
+  const allowed=[
+   ["https://labpc.annaone.com.br","/"],
+   ["https://elisonborges.github.io","/labpc/"],
+   ["https://projetos.annaone.com.br","/"],
+   ["https://elisonborges.github.io","/annaone-projetos-escolares/"]
+  ];
+  if(!allowed.some(([origin,prefix])=>target.origin===origin&&target.pathname.startsWith(prefix)))return;
+  const link=element("a","Abrir atividade ↗","classroom-resource-link");
+  link.href=target.href;
+  link.target="_blank";
+  link.rel="noopener noreferrer";
+  row.append(link);
+ }catch{}
+}
 function renderAtividades(target,{lessons,assignments}){
  if(pendingEduplayQuiz){
   const quiz=pendingEduplayQuiz;
@@ -322,6 +340,30 @@ function renderAtividades(target,{lessons,assignments}){
   }
   target.append(bridge);
  }
+ if(lessons.length){
+  const external=makeCard("Vincular atividade de outro módulo");
+  external.append(element("p","Compartilhe um link oficial do Central LabPC ou Projetos Escolares com uma aula da instituição."));
+  const sourceField=makeSelect("Módulo de origem","source",[
+   {id:"labpc",label:"Central LabPC"},
+   {id:"projetos-escolares",label:"Projetos Escolares"}
+  ],"Selecione o módulo");
+  const urlField=makeField("Link oficial da atividade","url","url");
+  urlField.querySelector("input").maxLength=1024;
+  makeForm(external,[
+   sourceField,
+   makeSelect("Aula de destino","lesson_id",lessons.map(x=>({id:x.id,label:x.title+" · "+x.class_name})),"Selecione uma aula"),
+   makeField("Título da atividade","title","text",150),
+   urlField,
+   makeField("Orientações (opcional)","instructions","textarea",3000),
+   makeField("Prazo (opcional)","due_at","datetime-local")
+  ],"Vincular atividade","/v1/resources/share",data=>({
+   source:data.source,lesson_id:data.lesson_id,title:data.title,url:data.url,
+   instructions:data.instructions,
+   due_at:data.due_at?new Date(data.due_at).toISOString():null
+  }),"atividades");
+  external.querySelector('[name="instructions"]').required=false;
+  target.append(external);
+ }
  const form=makeCard("Criar atividade");
  if(!lessons.length){
   addStatus(form,"Planeje uma aula antes de criar atividades.");
@@ -342,7 +384,11 @@ function renderAtividades(target,{lessons,assignments}){
  }
  target.append(form);
  const list=makeCard("Atividades cadastradas");
- renderList(list,assignments,x=>[x.title,(x.from_eduplay?"AnnA EduPlay · ":"")+x.lesson_title+(x.due_at?" · Prazo: "+new Date(x.due_at).toLocaleDateString("pt-BR"):"")],"Nenhuma atividade cadastrada.");
+ renderList(list,assignments,x=>[
+  x.title,
+  (x.from_eduplay?"AnnA EduPlay · ":x.resource_source==="labpc"?"Central LabPC · ":x.resource_source==="projetos-escolares"?"Projetos Escolares · ":"")+x.lesson_title+(x.due_at?" · Prazo: "+new Date(x.due_at).toLocaleDateString("pt-BR"):""),
+  x.resource_url||null
+ ],"Nenhuma atividade cadastrada.");
  target.append(list);
 }
 function renderCorrecoes(target,{submissions}){

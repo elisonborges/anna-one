@@ -15,6 +15,7 @@ const app=document.querySelector("#classroom-app");
 const AUTH_BASE="https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth";
 const API_BASE="https://anna-classroom-api.onrender.com";
 let activeInstitution=null;
+let activeRole=null;
 let accessToken=null;
 let pendingEduplayQuiz=null;
 const eduplayOrigins=new Set(["https://eduplay.annaone.com.br","https://elisonborges.github.io"]);
@@ -34,7 +35,9 @@ if(shareNonce&&/^[a-f0-9]{48}$/.test(shareNonce)){
 function blocked(text){gate.hidden=false;app.hidden=true;message.textContent=text;link.hidden=false;}
 function show(institution){
  activeInstitution=institution;
- document.querySelector(".top small").textContent="Instituição: "+institution.name;
+ activeRole=institution.administrator===true?'institution_admin':'teacher';
+ document.querySelector(".top small").textContent=(activeRole==='teacher'?'Professor · ':'Instituição: ')+institution.name;
+ document.querySelectorAll('[data-view="turmas"],[data-view="correcoes"]').forEach(button=>{button.hidden=activeRole==='teacher';});
  gate.hidden=true;app.hidden=false;
  if(shareNonce&&pendingEduplayQuiz)navigate("atividades");
  else display(location.hash.slice(1)||"inicio");
@@ -186,6 +189,7 @@ function renderList(pane,items,formatter,emptyMessage){
  search.addEventListener("input",update);update();
 }
 function renderHome(target){
+ if(activeRole!=='teacher'){
  const summary=makeCard("Resumo institucional");
  const feedback=addStatus(summary,"Consultando indicadores...");
  target.append(summary);
@@ -204,12 +208,14 @@ function renderHome(target){
    }
    summary.append(metrics);
   }).catch(error=>{if(stamp===renderVersion)feedback.textContent=error.message;});
+ }
  for(const item of [
   ["Turmas e alunos","Cadastre turmas, alunos e vincule matrículas.","turmas"],
   ["Aulas","Planeje aulas vinculadas às turmas.","aulas"],
   ["Atividades","Crie atividades para suas aulas.","atividades"],
   ["Correções","Avaliações e devolutivas em implantação.","correcoes"]
  ]){
+  if(activeRole==='teacher'&&(item[2]==='turmas'||item[2]==='correcoes'))continue;
   const card=makeCard(item[0]);
   card.append(element("p",item[1]));
   const action=element("button","Abrir área","classroom-link-button");
@@ -351,7 +357,8 @@ function renderCorrecoes(target,{submissions}){
  target.append(pane);
 }
 function display(key){
- const view=sections[key]?key:"inicio";
+ let view=sections[key]?key:"inicio";
+ if(activeRole==='teacher'&&(view==='turmas'||view==='correcoes'))view='aulas';
  const d=sections[view];
  const version=++renderVersion;
  document.querySelector("#page-title").textContent=d[0];
@@ -480,6 +487,8 @@ signoutButton?.addEventListener("click",async()=>{
   if(result?.error)throw Error("Erro ao sair");
   accessToken=null;
   activeInstitution=null;
+  activeRole=null;
+  document.querySelectorAll('[data-view="turmas"],[data-view="correcoes"]').forEach(button=>{button.hidden=false;});
   pendingEduplayQuiz=null;
   ++renderVersion;
   document.querySelector("#module-cards").replaceChildren();

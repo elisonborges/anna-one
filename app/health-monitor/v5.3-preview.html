@@ -124,7 +124,7 @@ body.login-mode #loginFooter small{font-size:10px}
 <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0"><button type="button" id="nativeRefresh">Atualizar indicadores</button><a href="./index.html" target="_blank" rel="noopener noreferrer">Painel completo e relatórios da v5.2 ↗</a></div>
 <p id="nativeMessage" role="status">Aguardando consulta.</p><h2>Estado dos serviços</h2><div id="nativeServices" class="grid" style="margin:12px 0"></div>
 <h2 style="margin-top:20px">Histórico de disponibilidade</h2><p>Verificações reais dos últimos períodos, provenientes do banco atual.</p><div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0"><button type="button" class="nativePeriod" data-days="1">24 horas</button><button type="button" class="nativePeriod" data-days="7">7 dias</button><button type="button" class="nativePeriod" data-days="30">30 dias</button><button type="button" id="nativeExport">Exportar CSV</button></div><div id="nativeHistoryChart" role="img" aria-label="Disponibilidade por serviço" style="display:grid;gap:10px;margin:12px 0"></div><p id="nativeHistoryNote" role="status"></p><h2>Eventos recentes</h2><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:580px"><thead><tr><th style="text-align:left">Data</th><th style="text-align:left">Serviço</th><th style="text-align:left">Evento</th><th style="text-align:left">Situação</th></tr></thead><tbody id="nativeEvents"></tbody></table></div>
-<h2 style="margin-top:20px">Bancos de dados e armazenamento</h2><div id="nativeResources" class="grid" style="margin:12px 0"></div><h2 style="margin-top:20px">Resend — Serviço de E-mails</h2><div id="nativeResend" class="grid" style="margin-top:12px"></div>
+<h2 style="margin-top:20px">Prevenção e processamento</h2><div id="nativeProcessing" class="grid" style="margin:12px 0"></div><div id="nativePreventive" role="status"></div><h2 style="margin-top:20px">Bancos de dados e armazenamento</h2><div id="nativeResources" class="grid" style="margin:12px 0"></div><h2 style="margin-top:20px">Resend — Serviço de E-mails</h2><div id="nativeResend" class="grid" style="margin-top:12px"></div>
 </div><p id="sharedRestricted" hidden>Indicadores internos exclusivos de administradores Master.</p></section>
 <section class="panel" id="audit" hidden><h2>Auditoria e Segurança</h2><p>Histórico administrativo da AnnA One, consultado em modo somente leitura. A autorização é conferida pelo serviço de Auditoria (Neon Auth).</p>
 <div class="audit-filters"><label>Instituição (ID)<input id="auditInstitution" placeholder="Todas" autocomplete="off"></label><label>Ação<input id="auditAction" placeholder="Todas" autocomplete="off"></label><button id="auditSearch" type="button">Consultar eventos</button></div>
@@ -150,31 +150,53 @@ function renderNativeHistory(){
 document.querySelectorAll('.nativePeriod').forEach(b=>b.addEventListener('click',()=>{nativeDays=Number(b.dataset.days);renderNativeHistory();}));
 document.getElementById('nativeExport').addEventListener('click',()=>{if(!isPlatformAdmin)return;const cutoff=Date.now()-nativeDays*86400000;const lines=['servico,data,saudavel,latencia_ms'];for(const r of nativeHistoryRows){if(new Date(r.checked_at).getTime()<cutoff)continue;lines.push([r.service_code,r.checked_at,r.healthy,r.latency_ms??''].map(v=>'"'+String(v??'').replaceAll('"','""')+'"').join(','));}const link=document.createElement('a');link.href=URL.createObjectURL(new Blob(['\uFEFF'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}));link.download='anna-health-monitor-historico.csv';link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);});
 let nativeLoading=false;
-const nativeNames={anna_one:'AnnA One',projetos_escolares:'Projetos Escolares',agenda_educacional:'Agenda Educacional',neon_agenda:'Neon Agenda',central_labpc:'Central LabPC',supabase_auth_labpc:'Supabase Auth LabPC'};
+const nativeNames={anna_one:'AnnA One',projetos_escolares:'Projetos Escolares',agenda_educacional:'Agenda Educacional',neon_agenda:'Neon Agenda',central_labpc:'Central LabPC (legado)',supabase_auth_labpc:'Supabase Auth LabPC',anna_one_master_page:'Portal Master (página)',anna_virtual_widget:'AnnA Virtual (componente JS)',labpc_portal:'LabPC (portal)',anna_flow_public:'AnnA Flow (painel)',health_monitor_page:'Health Monitor v5.3 (página)'};
+const nativeSurfaceCodes=new Set(['anna_one_master_page','anna_virtual_widget','labpc_portal','anna_flow_public','health_monitor_page']);
+const nativeFresh=row=>row?.checked_at&&Date.now()-new Date(row.checked_at).getTime()<=30*60000&&Date.now()>=new Date(row.checked_at).getTime()-60000;
 const nativeDate=value=>value&&!Number.isNaN(new Date(value).getTime())?new Date(value).toLocaleString('pt-BR'):'—';
 function nativeCell(value){const td=document.createElement('td');td.textContent=String(value??'—');td.style.cssText='padding:10px 6px;border-bottom:1px solid #dce6f1';return td;}
 async function loadNativeOperations(){
  if(nativeLoading||!isPlatformAdmin||document.getElementById('shared').hidden)return;
  nativeLoading=true;const refresh=document.getElementById('nativeRefresh'),message=document.getElementById('nativeMessage');refresh.disabled=true;message.textContent='Consultando indicadores...';
  try{
-  const [checks,notices,resend,databases,storage]=await Promise.all([
-   supabaseClient.from('health_monitor_checks').select('service_code,checked_at,healthy,latency_ms').order('checked_at',{ascending:false}).limit(3000),
+  const [checks,notices,resend,databases,storage,processing,preventive]=await Promise.all([
+   supabaseClient.from('health_monitor_checks') .select('service_code,checked_at,healthy,latency_ms,details').order('checked_at',{ascending:false}).limit(3000),
    supabaseClient.from('health_monitor_notifications').select('created_at,service_code,event,status,simulation').order('created_at',{ascending:false}).limit(15),
    supabaseClient.from('health_monitor_resend_metrics').select('checked_at,period_days,sent,delivered,bounced,failed,suppressed,complained').order('checked_at',{ascending:false}).limit(15),
    supabaseClient.from('health_monitor_database_metrics').select('source,checked_at,database_bytes,public_tables,estimated_public_rows').order('checked_at',{ascending:false}).limit(50),
-   supabaseClient.from('health_monitor_storage_metrics').select('checked_at,source,bucket_count,object_count,total_bytes,status').order('checked_at',{ascending:false}).limit(50)
+   supabaseClient.from('health_monitor_storage_metrics').select('checked_at,source,bucket_count,object_count,total_bytes,status').order('checked_at',{ascending:false}).limit(50),
+   supabaseClient.from('health_monitor_processing_metrics').select('checked_at,total_runs,success_runs,failed_runs,other_runs,average_duration_seconds').order('checked_at',{ascending:false}).limit(1),
+   supabaseClient.from('health_monitor_preventive_events').select('service_code,event,checked_at,mode').order('checked_at',{ascending:false}).limit(20)
   ]);
   if(!isPlatformAdmin||document.getElementById('shared').hidden)return;
   if(checks.error)throw new Error('Não foi possível consultar as verificações: '+checks.error.message);
   nativeHistoryRows=checks.data||[];renderNativeHistory();const latest=new Map();for(const row of checks.data||[])if(!latest.has(row.service_code))latest.set(row.service_code,row);
   const services=document.getElementById('nativeServices');services.replaceChildren();let healthy=0;
-  for(const [code,row] of latest){if(row.healthy===true)healthy++;const card=document.createElement('article');const name=document.createElement('strong'),p=document.createElement('p'),small=document.createElement('small');name.textContent=nativeNames[code]||code;p.textContent=row.healthy===true?'Saudável':row.healthy===false?'Falha detectada':'Estado desconhecido';p.style.color=row.healthy===true?'#167245':row.healthy===false?'#a12d2d':'#637993';small.textContent='Verificado: '+nativeDate(row.checked_at)+(row.latency_ms==null?'':' · '+row.latency_ms+' ms');card.append(name,p,small);services.append(card);}
+  for(const [code,row] of latest){
+   const fresh=nativeFresh(row),surface=nativeSurfaceCodes.has(code);
+   if(fresh&&row.healthy===true)healthy++;
+   const card=document.createElement('article'),name=document.createElement('strong'),p=document.createElement('p'),small=document.createElement('small'),desc=document.createElement('small');
+   name.textContent=nativeNames[code]||code;
+   p.textContent=!fresh?'Dados desatualizados':row.healthy===true?(surface?'Página/recurso acessível':'Última sondagem saudável'):row.healthy===false?(surface?'Página/recurso inacessível':'Falha detectada'):'Estado desconhecido';
+   p.style.color=!fresh?'#8b6619':row.healthy===true?'#167245':row.healthy===false?'#a12d2d':'#637993';
+   small.textContent='Verificado: '+nativeDate(row.checked_at)+(row.latency_ms==null?'':' · '+row.latency_ms+' ms');
+   desc.textContent=surface?'Verificação pública, sem testar autenticação ou funções internas.':(row.details||'Estado de uma sondagem periódica, não SLA.');
+   card.append(name,p,small,desc);services.append(card);
+  }
   if(!latest.size){const p=document.createElement('p');p.textContent='Nenhuma verificação registrada.';services.append(p);}
-  document.getElementById('nativeTotal').textContent=String(latest.size);document.getElementById('nativeHealthy').textContent=String(healthy);document.getElementById('nativeFailures').textContent=String([...latest.values()].filter(x=>x.healthy===false).length);document.getElementById('nativeUpdated').textContent=nativeDate((checks.data||[])[0]?.checked_at);
+  document.getElementById('nativeTotal').textContent=String(latest.size);document.getElementById('nativeHealthy').textContent=String(healthy);document.getElementById('nativeFailures').textContent=String([...latest.values()].filter(x=>nativeFresh(x)&&x.healthy===false).length);document.getElementById('nativeUpdated').textContent=nativeDate((checks.data||[])[0]?.checked_at);
   const events=document.getElementById('nativeEvents');events.replaceChildren();
   if(notices.error){const tr=document.createElement('tr');tr.append(nativeCell('Notificações indisponíveis: '+notices.error.message));events.append(tr);}
   else for(const row of notices.data||[]){const tr=document.createElement('tr');for(const value of [nativeDate(row.created_at),nativeNames[row.service_code]||row.service_code,row.event,(row.simulation?'Simulação · ':'')+row.status])tr.append(nativeCell(value));events.append(tr);}
-  const resources=document.getElementById('nativeResources');resources.replaceChildren();
+  const processingBox=document.getElementById('nativeProcessing');processingBox.replaceChildren();
+ const processingLine=document.createElement('article'),processingTitle=document.createElement('strong'),processingDetail=document.createElement('p');
+ processingTitle.textContent='Execuções do monitoramento';
+ const processingRow=processing.data?.[0];
+ processingDetail.textContent=processing.error?'Consulta indisponível: '+processing.error.message:!processingRow?'Sem métricas registradas.':'Última coleta: '+nativeDate(processingRow.checked_at)+' · Execuções: '+processingRow.total_runs+' · Sucessos: '+processingRow.success_runs+' · Falhas: '+processingRow.failed_runs+' · Duração média: '+(processingRow.average_duration_seconds??'—')+' s';
+ processingLine.append(processingTitle,processingDetail);processingBox.append(processingLine);
+ const preventiveBox=document.getElementById('nativePreventive');
+ preventiveBox.textContent=preventive.error?'Eventos preventivos indisponíveis: '+preventive.error.message:preventive.data?.length?'Último evento preventivo: '+(nativeNames[preventive.data[0].service_code]||preventive.data[0].service_code)+' · '+preventive.data[0].event+' · '+nativeDate(preventive.data[0].checked_at)+' · Modo: '+preventive.data[0].mode:'Nenhum evento preventivo registrado.';
+ const resources=document.getElementById('nativeResources');resources.replaceChildren();
  const metricCard=(title,detail)=>{const card=document.createElement('article'),strong=document.createElement('strong'),p=document.createElement('p');strong.textContent=title;p.textContent=detail;card.append(strong,p);resources.append(card);};
  if(databases.error)metricCard('Banco de dados','Consulta indisponível: '+databases.error.message);
  else{const bySource=new Map();for(const row of databases.data||[])if(!bySource.has(row.source))bySource.set(row.source,row);for(const [source,row] of bySource)metricCard('Banco · '+source,'Tamanho: '+(row.database_bytes==null?'—':(Number(row.database_bytes)/1048576).toFixed(2)+' MB')+' · Tabelas: '+(row.public_tables??'—')+' · Registros estimados: '+(row.estimated_public_rows??'—')+' · '+nativeDate(row.checked_at));}
@@ -184,7 +206,7 @@ async function loadNativeOperations(){
  const resendBox=document.getElementById('nativeResend');resendBox.replaceChildren();
   if(resend.error){const p=document.createElement('p');p.textContent='Métricas do Resend indisponíveis: '+resend.error.message;resendBox.append(p);}
   else {for(const days of [1,7,30]){const row=(resend.data||[]).find(x=>Number(x.period_days)===days);const card=document.createElement('article'),head=document.createElement('strong'),line=document.createElement('p'),detail=document.createElement('small');head.textContent='Últimos '+days+' dia(s)';line.textContent=row?'Enviados: '+row.sent+' · Entregues: '+row.delivered:'Sem registros';detail.textContent=row?'Falhas: '+row.failed+' · Rejeições: '+row.bounced+' · Coleta: '+nativeDate(row.checked_at):'Situação desconhecida';card.append(head,line,detail);resendBox.append(card);}}
-  message.textContent='Indicadores consultados. Envio aceito não significa entrega confirmada.';
+  message.textContent='Indicadores consultados. Acessibilidade pública não confirma saúde interna, e envio aceito não significa entrega confirmada. Registros mais antigos que 30 minutos aparecem como desatualizados.';
  }catch(error){message.textContent=error.message||'Falha na consulta dos indicadores.';}
  finally{nativeLoading=false;refresh.disabled=false;}
 }

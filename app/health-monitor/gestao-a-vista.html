@@ -38,6 +38,27 @@ h2{margin:0;font-size:clamp(17px,1.7vw,23px)}
 @media(max-width:760px){header{flex-direction:column;align-items:flex-start}.services{grid-template-columns:1fr}}
 @media(max-width:420px){.metric{padding:14px}.service{padding:12px}.actions{gap:6px}#clock{width:100%}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+
+/* Análise discreta: mantém o telão legível a distância */
+.insights{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.insight{min-width:0;border:1px solid #31536f;background:#102c49;border-radius:12px;padding:14px 17px}
+.insight-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap;padding-bottom:9px;border-bottom:1px solid #2b4b68}
+.insight-head h2{font-size:16px}.insight-head span{font-size:11px;color:#afc8df}
+.insight-list{display:grid;gap:7px;padding-top:9px}
+.insight-entry{display:flex;justify-content:space-between;align-items:center;gap:9px;font-size:13px;min-width:0}
+.insight-entry strong{color:#e8f3fc;font-weight:650;overflow-wrap:anywhere}
+.insight-entry small{color:#a9c6dd;font-size:11px;white-space:nowrap}
+.insight-entry .up{color:#ffb2b5}.insight-entry .down{color:#75e2bb}
+.insight-empty{font-size:12px;color:#adc8de;margin:3px 0;line-height:1.5}
+body.tv-mode header{padding-top:13px;padding-bottom:13px}
+body.tv-mode main{max-width:none;padding-top:13px}
+body.tv-mode .metric{padding:13px 16px}
+body.tv-mode .service{padding:9px 13px}
+body.tv-mode .service strong{font-size:clamp(13px,1.05vw,20px)}
+body.tv-mode .state{font-size:clamp(11px,.9vw,15px)}
+body.tv-mode .insight{padding:12px 15px}
+@media(min-width:1600px){.services{grid-template-columns:repeat(3,minmax(0,1fr))}body.tv-mode .metrics{grid-template-columns:repeat(4,1fr)}}
+@media(max-width:800px){.insights{grid-template-columns:1fr}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
@@ -59,7 +80,8 @@ h2{margin:0;font-size:clamp(17px,1.7vw,23px)}
 <div class="rowhead"><h2>Estado dos serviços</h2><span class="sub" id="collected">Última coleta: —</span></div>
 <div id="warning" hidden role="alert"></div>
 <div id="services" class="services" aria-label="Estado dos serviços"></div>
-<p class="foot">Atualização automática a cada 60 segundos com esta guia visível. Verde indica uma sondagem positiva, não disponibilidade contínua. Testes de páginas públicas não comprovam funcionamento de login, banco ou operações internas. Dados com mais de 30 minutos são considerados desatualizados.</p>
+<div class="insights" aria-label="Análise das verificações"><section class="insight"><div class="insight-head"><h2>Ocorrências observadas</h2><span>Últimas 24 horas</span></div><div id="incidents" class="insight-list"></div></section><section class="insight"><div class="insight-head"><h2>Tendência de latência</h2><span>Comparação entre amostras</span></div><div id="trends" class="insight-list"></div></section></div>
+<p class="foot">Atualização automática a cada 60 segundos com esta guia visível. Verde indica uma sondagem positiva, não disponibilidade contínua. Testes de páginas públicas não comprovam funcionamento de login, banco ou operações internas. Dados com mais de 30 minutos são considerados desatualizados. Ocorrências e tendências são inferidas de amostras, não de acompanhamento contínuo.</p>
 </div>
 </main>
 <script>
@@ -87,6 +109,39 @@ async function authorize(){
  if(access.error||!access.data?.length){showStatus('Acesso restrito ao Master.');$('access').hidden=false;return false;}
  master=true;$('access').hidden=true;$('dashboard').hidden=false;return true;
 }
+function renderInsights(rows){
+ const incidentRoot=$('incidents'),trendRoot=$('trends');incidentRoot.replaceChildren();trendRoot.replaceChildren();
+ const cutoff=Date.now()-86400000,perService=new Map();
+ for(const row of rows){const time=new Date(row.checked_at).getTime();if(!Number.isFinite(time)||time<cutoff)continue;if(!perService.has(row.service_code))perService.set(row.service_code,[]);perService.get(row.service_code).push(row);}
+ const incidents=[],trends=[];
+ for(const [code,latest] of perService){
+  const samples=latest.slice().reverse();
+  for(let i=1;i<samples.length;i++){
+   const a=samples[i-1],b=samples[i];
+   if(typeof a.healthy!=='boolean'||typeof b.healthy!=='boolean'||a.healthy===b.healthy)continue;
+   incidents.push({code,time:b.checked_at,event:b.healthy?'recuperacao':'falha'});
+  }
+  const latency=latest.filter(r=>r.latency_ms!==null&&r.latency_ms!==undefined&&Number.isFinite(Number(r.latency_ms))&&Number(r.latency_ms)>=0).map(r=>Number(r.latency_ms));
+  if(latency.length<10)continue;
+  const recent=latency.slice(0,5),previous=latency.slice(5,10);
+  const current=recent.reduce((a,b)=>a+b,0)/5,baseline=previous.reduce((a,b)=>a+b,0)/5,delta=current-baseline;
+  if(Math.abs(delta)<15||Math.abs(delta)/(baseline||1)<.15)continue;
+  trends.push({code,current,delta,ratio:Math.abs(delta)/(baseline||1)});
+ }
+ incidents.sort((a,b)=>new Date(b.time)-new Date(a.time));
+ const add=(root,title,detail,colorClass)=>{
+  const line=document.createElement('div'),name=document.createElement('strong'),label=document.createElement('small');
+  line.className='insight-entry';name.textContent=title;label.textContent=detail;if(colorClass)label.className=colorClass;line.append(name,label);root.append(line);
+ };
+ for(const event of incidents.slice(0,4)){
+  const display=names[event.code]||event.code;
+  add(incidentRoot,display,event.event==='falha'?'Falha · '+date(event.time):'Recuperação · '+date(event.time),event.event==='falha'?'up':'down');
+ }
+ if(!incidents.length){const p=document.createElement('p');p.className='insight-empty';p.textContent='Nenhuma transição entre falha e recuperação nas amostras carregadas.';incidentRoot.append(p);}
+ trends.sort((a,b)=>b.ratio-a.ratio);
+ for(const trend of trends.slice(0,4))add(trendRoot,names[trend.code]||trend.code,Math.round(trend.current)+' ms · '+(trend.delta>0?'↑ aumentou':'↓ diminuiu'),trend.delta>0?'up':'down');
+ if(!trends.length){const p=document.createElement('p');p.className='insight-empty';p.textContent='Sem tendência relevante ou amostras suficientes para comparar.';trendRoot.append(p);}
+}
 function render(rows){
  const latest=new Map();for(const row of rows)if(!latest.has(row.service_code))latest.set(row.service_code,row);
  const list=[...latest.entries()].map(([code,row])=>({code,row,status:state(row)})).sort((a,b)=>({bad:0,stale:1,good:2}[a.status]-{bad:0,stale:1,good:2}[b.status])||(names[a.code]||a.code).localeCompare(names[b.code]||b.code,'pt-BR'));
@@ -103,13 +158,14 @@ function render(rows){
   info.append(title,details);card.append(info,badge);root.append(card);
  }
  if(!list.length){const text=document.createElement('p');text.textContent='Nenhum registro disponível.';root.append(text);}
+ renderInsights(rows);
 }
 async function refresh(){
  if(busy)return;busy=true;$('refresh').disabled=true;
  try{
   if(!await authorize())return;
   showStatus('Consultando as últimas verificações...');
-  const response=await client.from('health_monitor_checks').select('service_code,checked_at,healthy,latency_ms').order('checked_at',{ascending:false}).limit(100);
+  const response=await client.from('health_monitor_checks').select('service_code,checked_at,healthy,latency_ms').order('checked_at',{ascending:false}).limit(1000);
   if(response.error)throw new Error(response.error.message);
   if(!master)return;
   render(response.data||[]);
@@ -118,10 +174,13 @@ async function refresh(){
  finally{busy=false;$('refresh').disabled=false;}
 }
 function tick(){$('clock').textContent=new Date().toLocaleTimeString('pt-BR');}
+function updateTvMode(){document.body.classList.toggle('tv-mode',Boolean(document.fullscreenElement)||window.innerWidth>=1600);}
+window.addEventListener('resize',updateTvMode);
+document.addEventListener('fullscreenchange',updateTvMode);
 $('refresh').addEventListener('click',refresh);
 $('fullscreen').addEventListener('click',()=>{if(document.fullscreenElement){document.exitFullscreen?.();}else document.documentElement.requestFullscreen?.().catch(()=>{});});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
 if(client)client.auth.onAuthStateChange((_event,session)=>{if(!session){master=false;$('dashboard').hidden=true;$('access').hidden=false;showStatus('Sessão encerrada. Entre no painel principal.');}});
-tick();setInterval(tick,1000);setInterval(()=>{if(!document.hidden)refresh();},60000);refresh();
+updateTvMode();tick();setInterval(tick,1000);setInterval(()=>{if(!document.hidden)refresh();},60000);refresh();
 </script>
 </body></html>

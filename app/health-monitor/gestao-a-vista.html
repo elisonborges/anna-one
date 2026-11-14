@@ -120,6 +120,141 @@ const names={
 const publicCodes=new Set(['anna_one_master_page','anna_virtual_widget','labpc_portal','anna_flow_public','health_monitor_page','service_desk_portal','agenda_portal']);
 const $=id=>document.getElementById(id);
 let busy=false,master=false;
+
+const widgetLabels={metrics:'Indicadores principais',services:'Lista de serviços',incidents:'Ocorrências observadas',trends:'Tendências de latência'};
+const allCodes=Object.keys(names);
+const infraCodes=['anna_one','neon_agenda','supabase_auth_labpc'];
+const appCodes=allCodes.filter(code=>!infraCodes.includes(code));
+const defaultConfig=()=>({name:'Visão Geral',widgets:Object.keys(widgetLabels),services:allCodes.slice()});
+const safeList=(list,allowed)=>Array.isArray(list)?[...new Set(list.filter(v=>typeof v==='string'&&allowed.includes(v)))]:[];
+function normalizeConfig(value){
+ const raw=value&&typeof value==='object'?value:{};
+ return {name:typeof raw.name==='string'?(raw.name.trim().slice(0,60)||'Visão Geral'):'Visão Geral',
+ widgets:raw.widgets===undefined?Object.keys(widgetLabels):safeList(raw.widgets,Object.keys(widgetLabels)),
+ services:raw.services===undefined?allCodes.slice():safeList(raw.services,allCodes)};
+}
+function configFromUrl(){
+ const params=new URLSearchParams(location.search);
+ if(!params.has('tela'))return defaultConfig();
+ return normalizeConfig({
+  name:params.get('tela')||'Tela personalizada',
+  services:(params.get('servicos')||'').split(',').filter(Boolean),
+  widgets:(params.get('paineis')||'').split(',').filter(Boolean)
+ });
+}
+function screenUrl(config){
+ const profile=normalizeConfig(config),url=new URL(location.pathname,location.origin);
+ url.searchParams.set('tela',profile.name);
+ url.searchParams.set('servicos',profile.services.join(','));
+ url.searchParams.set('paineis',profile.widgets.join(','));
+ return url.href;
+}
+let screenConfig=configFromUrl(),currentScreenId=null,screenUserId=null,savedScreens=[];
+function screenStorageKey(){return 'anna-health-wall-screens-v1-'+screenUserId;}
+function loadSavedScreens(){
+ try{
+  const parsed=JSON.parse(localStorage.getItem(screenStorageKey())||'[]');
+  savedScreens=Array.isArray(parsed)?parsed.filter(p=>p&&typeof p.id==='string'&&p.id.length<90).slice(0,50).map(p=>({id:p.id,...normalizeConfig(p)})):[];
+ }catch(_){savedScreens=[];}
+}
+function persistScreens(){
+ try{localStorage.setItem(screenStorageKey(),JSON.stringify(savedScreens));return true;}
+ catch(_){$('screenMessage').textContent='Não foi possível salvar neste navegador. Use Copiar link.';return false;}
+}
+function renderScreenConfig(){
+ document.title=screenConfig.name+' | Gestão à Vista · AnnA One';
+ $('screenTitle').textContent=screenConfig.name;
+ $('screenSubtitle').textContent='Gestão à Vista · '+screenConfig.services.length+' serviço(s) selecionado(s)';
+ $('metrics').hidden=!screenConfig.widgets.includes('metrics');
+ $('servicesHeading').hidden=!screenConfig.widgets.includes('services');
+ $('services').hidden=!screenConfig.widgets.includes('services');
+ $('incidentPanel').hidden=!screenConfig.widgets.includes('incidents');
+ $('trendPanel').hidden=!screenConfig.widgets.includes('trends');
+ document.querySelector('.insights').hidden=!screenConfig.widgets.some(v=>v==='incidents'||v==='trends');
+}
+function renderEditorOptions(){
+ const widgets=$('screenWidgets'),services=$('screenServices');widgets.replaceChildren();services.replaceChildren();
+ const option=(target,key,label,prefix)=>{
+  const row=document.createElement('label'),check=document.createElement('input'),txt=document.createElement('span');
+  check.type='checkbox';check.value=key;check.dataset[prefix]=key;txt.textContent=label;row.append(check,txt);target.append(row);
+ };
+ for(const [id,label] of Object.entries(widgetLabels))option(widgets,id,label,'widget');
+ for(const [id,label] of Object.entries(names))option(services,id,label,'service');
+}
+function readEditor(){
+ return normalizeConfig({name:$('screenName').value,widgets:[...$('screenWidgets').querySelectorAll('input:checked')].map(e=>e.value),
+ services:[...$('screenServices').querySelectorAll('input:checked')].map(e=>e.value)});
+}
+function validateEditor(config){
+ if(!$('screenName').value.trim()){ $('screenMessage').textContent='Informe o nome da tela.';return false;}
+ if(!config.services.length){$('screenMessage').textContent='Selecione ao menos um serviço.';return false;}
+ if(!config.widgets.length){$('screenMessage').textContent='Selecione ao menos um tipo de informação.';return false;}
+ return true;
+}
+function setEditor(profile,id=null){
+ const config=normalizeConfig(profile);currentScreenId=id;$('screenName').value=config.name;
+ for(const el of $('screenWidgets').querySelectorAll('input'))el.checked=config.widgets.includes(el.value);
+ for(const el of $('screenServices').querySelectorAll('input'))el.checked=config.services.includes(el.value);
+ $('editScreenHeading').textContent=id?'Editar tela':'Nova configuração';
+ $('deleteScreen').disabled=!id;$('screenMessage').textContent='';
+ renderSavedScreens();
+}
+function renderSavedScreens(){
+ const root=$('savedScreens');root.replaceChildren();
+ for(const screen of savedScreens){
+  const row=document.createElement('div'),edit=document.createElement('button'),open=document.createElement('button');
+  row.className='saved-screen';edit.type='button';edit.textContent=screen.name;edit.title='Editar configuração';edit.addEventListener('click',()=>setEditor(screen,screen.id));
+  open.type='button';open.textContent='Abrir ↗';open.title='Abrir esta tela em nova guia';open.addEventListener('click',()=>window.open(screenUrl(screen),'_blank','noopener,noreferrer'));
+  row.append(edit,open);root.append(row);
+ }
+ if(!savedScreens.length){const p=document.createElement('p');p.className='sub';p.textContent='Nenhuma tela salva ainda.';root.append(p);}
+}
+function presets(kind){
+ const config={all:defaultConfig(),infra:{name:'TV Infraestrutura',services:infraCodes,widgets:['metrics','services','trends']},
+ apps:{name:'TV Aplicações',services:appCodes,widgets:['metrics','services','trends']},
+ alerts:{name:'TV Ocorrências',services:allCodes,widgets:['metrics','incidents','trends']}}[kind];
+ if(config)setEditor(config,null);
+}
+$('manageScreens').addEventListener('click',()=>{
+ if(!master)return;
+ $('screensModal').hidden=false;document.body.style.overflow='hidden';renderSavedScreens();
+ setEditor(screenConfig,null);
+ $('closeScreens').focus();
+});
+function closeScreenDialog(){$('screensModal').hidden=true;document.body.style.overflow='';}
+$('closeScreens').addEventListener('click',closeScreenDialog);
+$('screensModal').addEventListener('click',event=>{if(event.target===$('screensModal'))closeScreenDialog();});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('screensModal').hidden)closeScreenDialog();});
+$('newScreen').addEventListener('click',()=>setEditor({name:'Nova tela',widgets:Object.keys(widgetLabels),services:allCodes},null));
+document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>presets(b.dataset.preset)));
+$('screenForm').addEventListener('submit',event=>{
+ event.preventDefault();if(!master)return;
+ const config=readEditor();if(!validateEditor(config))return;
+ const id=currentScreenId||('screen-'+Date.now()+'-'+Math.random().toString(36).slice(2,8));
+ const index=savedScreens.findIndex(x=>x.id===id);
+ if(index>=0)savedScreens[index]={id,...config};else if(savedScreens.length>=50){$('screenMessage').textContent='Limite de 50 telas salvas neste navegador.';return;}else savedScreens.push({id,...config});
+ currentScreenId=id;
+ if(persistScreens())$('screenMessage').textContent='Tela salva neste navegador. Abra-a ou copie seu link.';
+ renderSavedScreens();
+ $('deleteScreen').disabled=false;
+});
+$('deleteScreen').addEventListener('click',()=>{
+ if(!master||!currentScreenId)return;
+ savedScreens=savedScreens.filter(s=>s.id!==currentScreenId);
+ persistScreens();setEditor(defaultConfig(),null);$('screenMessage').textContent='Configuração local excluída. Links já compartilhados continuam válidos.';
+});
+$('openScreen').addEventListener('click',()=>{
+ if(!master)return;const config=readEditor();if(!validateEditor(config))return;
+ window.open(screenUrl(config),'_blank','noopener,noreferrer');
+});
+$('copyScreen').addEventListener('click',async()=>{
+ if(!master)return;const config=readEditor();if(!validateEditor(config))return;
+ const url=screenUrl(config);
+ try{await navigator.clipboard.writeText(url);$('screenMessage').textContent='Link copiado. Na outra TV, abra o endereço e faça login Master.';}
+ catch(_){$('screenMessage').textContent='Cópia automática indisponível. Endereço: '+url;}
+});
+renderEditorOptions();renderScreenConfig();
+
 const date=value=>value&&!Number.isNaN(new Date(value).getTime())?new Date(value).toLocaleString('pt-BR'):'—';
 function state(row){
  const diff=Date.now()-new Date(row.checked_at).getTime();
@@ -128,12 +263,12 @@ function state(row){
 }
 function showStatus(text){$('status').textContent=text;}
 async function authorize(){
- master=false;$('dashboard').hidden=true;
+ master=false;$('manageScreens').hidden=true;$('dashboard').hidden=true;
  if(!client){showStatus('Biblioteca de autenticação indisponível.');$('access').hidden=false;return false;}
  const auth=await client.auth.getUser();if(auth.error||!auth.data?.user){showStatus('Sessão não identificada. Entre no painel principal.');$('access').hidden=false;return false;}
  const access=await client.from('platform_admins').select('user_id').eq('user_id',auth.data.user.id).limit(1);
  if(access.error||!access.data?.length){showStatus('Acesso restrito ao Master.');$('access').hidden=false;return false;}
- master=true;$('access').hidden=true;$('dashboard').hidden=false;return true;
+ master=true;const uid=auth.data.user.id;if(screenUserId!==uid){screenUserId=uid;loadSavedScreens();}$('manageScreens').hidden=false;$('access').hidden=true;$('dashboard').hidden=false;return true;
 }
 function renderInsights(rows){
  const incidentRoot=$('incidents'),trendRoot=$('trends');incidentRoot.replaceChildren();trendRoot.replaceChildren();
@@ -206,7 +341,7 @@ document.addEventListener('fullscreenchange',updateTvMode);
 $('refresh').addEventListener('click',refresh);
 $('fullscreen').addEventListener('click',()=>{if(document.fullscreenElement){document.exitFullscreen?.();}else document.documentElement.requestFullscreen?.().catch(()=>{});});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
-if(client)client.auth.onAuthStateChange((_event,session)=>{if(!session){master=false;$('dashboard').hidden=true;$('access').hidden=false;showStatus('Sessão encerrada. Entre no painel principal.');}});
+if(client)client.auth.onAuthStateChange((_event,session)=>{if(!session){master=false;$('manageScreens').hidden=true;closeScreenDialog();$('dashboard').hidden=true;$('access').hidden=false;showStatus('Sessão encerrada. Entre no painel principal.');}});
 updateTvMode();tick();setInterval(tick,1000);setInterval(()=>{if(!document.hidden)refresh();},60000);refresh();
 </script>
 </body></html>

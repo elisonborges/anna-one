@@ -40,7 +40,7 @@ async function project(org,id){
 const route=async(req,res)=>{
  if(req.method==='OPTIONS'){res.writeHead(405);return res.end();}
  const url=new URL(req.url,'http://localhost'); const p=url.pathname;
- if(p==='/health')return reply(res,200,{ok:true,service:'anna-teamhub'});
+ if(p==='/health')return reply(res,200,{ok:true,service:'anna-nexus'});
  if(!p.startsWith('/api/')){
   if(req.method!=='GET')return reply(res,405,{error:'Método não permitido'});
   const file=p==='/'?'/index.html':p;
@@ -95,4 +95,4 @@ const route=async(req,res)=>{
  }
  return reply(res,404,{error:'Rota não encontrada'});
 };
-http.createServer((req,res)=>Promise.resolve(route(req,res)).catch(e=>reply(res,e.status||500,{error:e.status?e.message:'Erro interno'}))).listen(port,'0.0.0.0',()=>console.log('TeamHub na porta',port));
+http.createServer((req,res)=>Promise.resolve(route(req,res)).catch(e=>reply(res,e.status||500,{error:e.status?e.message:'Erro interno'}))).listen(port,'0.0.0.0',()=>console.log('AnnA Nexus na porta',port));

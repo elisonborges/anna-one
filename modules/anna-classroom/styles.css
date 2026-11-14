@@ -298,3 +298,11 @@
 #classroom-app .classroom-eduplay-bridge .classroom-data-form{
  max-width:720px;
 }
+
+/* Integração com recursos do Central LabPC e Projetos Escolares */
+#classroom-app .classroom-resource-link{
+ display:inline-flex;width:max-content;max-width:100%;
+ margin-top:3px;color:#0759a9;font-weight:750;font-size:12px;
+ text-decoration:underline;text-underline-offset:2px;
+}
+#classroom-app .classroom-resource-link:hover{color:#003d80}

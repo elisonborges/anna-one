@@ -1,6 +1,19 @@
 # AnnA Classroom — ponto de continuidade
 Atualização: 07/11/2026 (horário do usuário, America/Fortaleza)
 
+## Integração multiorigem — 14/11/2026
+
+- **Objetivo aprovado:** Classroom é o organizador de turmas/aulas/atribuições para atividades de **AnnA EduPlay/GameLab**, **Central LabPC** e **Projetos Escolares**, sem duplicar sistemas nem assumir dados das plataformas de origem.
+- **Banco Neon existente:** colunas opcionais em `anna_classroom.assignments`: `eduplay_quiz jsonb` (snapshot privado com gabarito), `resource_source text` e `resource_url text` (links oficiais). Nenhuma tabela nova ou registro escolar criado.
+- **GameLab:** repositório `elisonborges/anna-eduplay` (principal `main` e branch `dev/gamelab-editor-v03`): botão **Compartilhar no Classroom** em cada quiz salvo; abre janela do Classroom e entrega cópia por `postMessage` com nonce aleatório e origem exata. Conteúdo do GameLab permanece no `localStorage`; o Classroom só persiste após escolha da aula e clique em publicar.
+- **Classroom:** quadro **Compartilhar atividade do AnnA EduPlay** na área Atividades para selecionar aula, orientações e prazo. API `POST /v1/eduplay/share` valida estrutura/tamanho das questões, associação à aula na mesma instituição e autorização de usuário; `GET /v1/assignments` lista atividades indicando origem, **sem revelar gabarito**.
+- **Central LabPC e Projetos Escolares:** quadro **Vincular atividade de outro módulo** na mesma área Atividades. Professor/administrador informa título, URL oficial, aula, orientações e prazo. API `POST /v1/resources/share` aceita apenas links oficiais dos dois módulos e exige também autorização de origem atribuída pelo Master mediante `anna_classroom.can_link_source`. Os links continuam obedecendo a autenticação própria de cada plataforma. Sem coleta de PDFs, envios ou dados escolares nesses sistemas.
+- **Perfis:** `anna_classroom.authorized_institution` pode reconhecer `institution_admin` e `teacher` com módulo Classroom atribuído. `can_manage_institution` continua restrito a administrador. `can_author_eduplay` libera leitura de turmas, leitura/criação de aulas e atividades e compartilhamento às contas professor autorizadas; estudantes, matrículas, resumos e correções permanecem indisponíveis a professores pela API. A interface oculta Turmas e Correções para professores.
+- **Segurança:** gabaritos do EduPlay ficam na coluna `eduplay_quiz`, não na resposta de listagem; nenhuma atividade real foi importada ou atribuída nesta implementação. Não expor respostas corretas aos alunos por endpoint de professor.
+- **Limitações:** integração EduPlay é de **cópia pontual**, não sincronização bidirecional nem notas; LabPC e Projetos Escolares são **vínculos por URL**, não sincronização automática de realizações, entregas ou avaliações. Dependem de permissões Master adequadas. Compatibilidade final, deploy frontend no Cloudflare e execução em navegador autenticado ainda precisam ser verificados.
+- **Publicação:** alterações no GitHub `main` dos repositórios `anna-one` e `anna-eduplay`; a branch de desenvolvimento do GameLab também recebeu o botão. API Render com deploy manual. Não mesclar outras funcionalidades não validadas da branch EduPlay nem alterar DNS.
+- **Atenção ao ambiente:** em checagem nesta etapa, o Neon apresentou **0 instituições, 0 memberships e 0 atribuições** no branch consultado. Não presumir que a habilitação piloto registrada em 08/11 permanece; verificar ambiente efetivo antes de afirmar acesso disponível.
+
 ## Atualização v0.2.1 — 08/11/2026
 
 - **Preservado:** layout aprovado, login Neon Auth, autorização Master/cliente, banco e API; nenhuma mudança nas tabelas nem dados reais.

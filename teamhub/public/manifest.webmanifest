@@ -6,5 +6,13 @@
   "display": "standalone",
   "background_color": "#f5f9ff",
   "theme_color": "#0c2646",
-  "lang": "pt-BR"
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "./anna-symbol.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
 }

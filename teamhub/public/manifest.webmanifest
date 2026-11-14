@@ -1,0 +1,10 @@
+{
+  "name": "AnnA TeamHub",
+  "short_name": "TeamHub",
+  "description": "Gestão de projetos AnnA One",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f5f9ff",
+  "theme_color": "#0c2646",
+  "lang": "pt-BR"
+}

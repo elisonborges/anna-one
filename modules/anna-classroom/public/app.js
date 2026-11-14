@@ -313,8 +313,6 @@ function renderAtividades(target,{lessons,assignments}){
     due_at:data.due_at?new Date(data.due_at).toISOString():null
    }),"atividades");
    bridge.querySelector('[name="instructions"]').required=false;
-   const action=bridge.querySelector("form");
-   action.addEventListener("submit",()=>{const button=action.querySelector('button[type="submit"]');if(button){button.addEventListener("click",()=>{}, {once:true});}}, {once:true});
   }
   target.append(bridge);
  }

@@ -15,9 +15,33 @@ const authIssuer=jwksUrl.origin;
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const send=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(data));};
 const validName=(x,max)=>typeof x==='string'&&x.trim().length>=1&&x.trim().length<=max;
+
+// GameLab v0.3 -> Classroom: snapshot validado no servidor. As respostas
+// corretas só ficam no banco, nunca são incluídas nas listagens públicas.
+function normalizeEduPlayQuiz(value){
+ if(!value||typeof value!=='object'||Array.isArray(value))return null;
+ const title=typeof value.title==='string'?value.title.trim():'';
+ const subject=typeof value.subject==='string'?value.subject.trim():'';
+ if(!validName(title,100)||subject.length>80||!Array.isArray(value.questions)||value.questions.length<1||value.questions.length>20)return null;
+ const questions=[];
+ for(const question of value.questions){
+  if(!question||typeof question!=='object'||Array.isArray(question))return null;
+  const prompt=typeof question.prompt==='string'?question.prompt.trim():'';
+  const type=question.type==='boolean'?'boolean':question.type==='multiple'?'multiple':null;
+  const options=question.options;
+  const n=type==='boolean'?2:4;
+  if(!type||!validName(prompt,300)||!Array.isArray(options)||options.length!==n)return null;
+  if(!options.every(option=>validName(option,180)))return null;
+  if(!Number.isInteger(question.correct)||question.correct<0||question.correct>=n)return null;
+  const difficulty=['easy','medium','hard'].includes(question.difficulty)?question.difficulty:'medium';
+  questions.push({prompt,type,options:options.map(option=>option.trim()),correct:question.correct,difficulty});
+ }
+ return {format:'anna-eduplay-quiz-v1',title,subject,questions};
+}
+
 async function body(req){
  const chunks=[];let bytes=0;
- for await(const chunk of req){bytes+=chunk.length;if(bytes>8192)throw Object.assign(new Error('Corpo grande demais'),{status:413});chunks.push(chunk);}
+ for await(const chunk of req){bytes+=chunk.length;if(bytes>32768)throw Object.assign(new Error('Corpo grande demais'),{status:413});chunks.push(chunk);}
  try{return JSON.parse(Buffer.concat(chunks).toString('utf8'))}catch{throw Object.assign(new Error('JSON inválido'),{status:400})}
 }
 async function authenticate(req){
@@ -48,7 +72,7 @@ async function handler(req,res){
  const pathname=new URL(req.url||'/', 'http://localhost').pathname;
  if(pathname==='/health'&&req.method==='GET')return send(res,200,{status:'ok',service:'anna-classroom-api'});
  if(!['GET','POST'].includes(req.method))return send(res,405,{error:'Método não permitido'});
- if(!['/v1/classes','/v1/students','/v1/enrollments','/v1/lessons','/v1/assignments','/v1/submissions','/v1/overview','/v1/access'].includes(pathname))return send(res,404,{error:'Rota inexistente'});
+ if(!['/v1/classes','/v1/students','/v1/enrollments','/v1/lessons','/v1/assignments','/v1/submissions','/v1/overview','/v1/access','/v1/eduplay/share'].includes(pathname))return send(res,404,{error:'Rota inexistente'});
  try{
   let userId;
   try { userId=await authenticate(req); }
@@ -89,7 +113,7 @@ async function handler(req,res){
     return send(res,200,{items:rows.rows});
    }
    if(req.method==='GET'&&pathname==='/v1/assignments'){
-    const rows=await client.query('SELECT a.id,a.lesson_id,a.title,a.instructions,a.due_at,a.created_at,l.title AS lesson_title FROM anna_classroom.assignments a JOIN anna_classroom.lessons l ON l.id=a.lesson_id AND l.institution_id=a.institution_id WHERE a.institution_id=$1 ORDER BY a.created_at DESC LIMIT 100',[institutionId]);
+    const rows=await client.query('SELECT a.id,a.lesson_id,a.title,a.instructions,a.due_at,a.created_at,(a.eduplay_quiz IS NOT NULL) AS from_eduplay,l.title AS lesson_title FROM anna_classroom.assignments a JOIN anna_classroom.lessons l ON l.id=a.lesson_id AND l.institution_id=a.institution_id WHERE a.institution_id=$1 ORDER BY a.created_at DESC LIMIT 100',[institutionId]);
     return send(res,200,{items:rows.rows});
    }
    if(req.method==='GET'&&pathname==='/v1/submissions'){
@@ -100,6 +124,19 @@ async function handler(req,res){
    if(req.headers['content-type']?.split(';')[0]?.trim()!=='application/json')return send(res,415,{error:'Esperado application/json'});
    const data=await body(req);
    if(!data||typeof data!=='object'||Array.isArray(data))return send(res,400,{error:'Objeto JSON necessário'});
+   if(pathname==='/v1/eduplay/share'){
+    if(typeof data.lesson_id!=='string'||!UUID.test(data.lesson_id))return send(res,400,{error:'Selecione uma aula válida'});
+    const quiz=normalizeEduPlayQuiz(data.quiz);
+    if(!quiz)return send(res,400,{error:'Quiz inválido: título, alternativas ou respostas fora dos limites'});
+    if(typeof(data.instructions??'')!=='string'||(data.instructions||'').length>3000)return send(res,400,{error:'Instruções inválidas'});
+    const dueAt=data.due_at?new Date(data.due_at):null;
+    if(dueAt&&(!Number.isFinite(dueAt.getTime())||typeof data.due_at!=='string'))return send(res,400,{error:'Prazo inválido'});
+    const created=await client.query(
+     'INSERT INTO anna_classroom.assignments (institution_id,lesson_id,title,instructions,due_at,created_by,eduplay_quiz) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb) RETURNING id,title,lesson_id,created_at',
+     [institutionId,data.lesson_id,quiz.title,(data.instructions||'').trim(),dueAt?dueAt.toISOString():null,userId,JSON.stringify(quiz)]
+    );
+    return send(res,201,{item:created.rows[0],origin:'anna-eduplay'});
+   }
    if(pathname==='/v1/enrollments'){
     if(typeof data.class_id!=='string'||!UUID.test(data.class_id)||typeof data.student_id!=='string'||!UUID.test(data.student_id))return send(res,400,{error:'Turma e aluno obrigatórios'});
     const created=await client.query('INSERT INTO anna_classroom.enrollments(institution_id,class_id,student_id) VALUES($1,$2,$3) RETURNING id,class_id,student_id,enrolled_at',[institutionId,data.class_id,data.student_id]);

@@ -1,6 +1,6 @@
 {
-  "name": "AnnA TeamHub",
-  "short_name": "TeamHub",
+  "name": "AnnA Nexus",
+  "short_name": "Nexus",
   "description": "Gestão de projetos AnnA One",
   "start_url": "./",
   "display": "standalone",

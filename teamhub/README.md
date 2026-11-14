@@ -12,7 +12,7 @@ Node 20+.
 - AUTH_ISSUER: valor `iss` esperado dos tokens verificados.
 - AUTH_AUDIENCE: destinatário autorizado do token.
 - PORT: porta HTTP (padrão 3000).
-- PORTAL_LOGIN_URL: URL do login central (opcional).
+- O acesso ao Portal AnnA One utiliza link absoluto para o login central; conferir autenticação cross-origin e origem autorizada antes de homologar.
 - CORS_ORIGIN: origem aprovada da aplicação (quando API separada; preferir mesma origem).
 
 ## Execução futura

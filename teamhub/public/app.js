@@ -75,12 +75,12 @@ async function boot(){
   }
   if(typeof token!=='string'||token.split('.').length!==3)throw Error('Não foi possível obter token de acesso validável. Confira a configuração central de identidade.');
   state.jwt=token;
-  const me=await api('/api/me');if(!me.organizations.length){message('Login reconhecido, mas sua conta ainda não possui acesso ao TeamHub.',true);return;}
+  const me=await api('/api/me');if(!me.organizations.length){message('Login reconhecido, mas sua conta ainda não possui acesso ao Nexus.',true);return;}
   const select=$('org');select.replaceChildren(...me.organizations.map(o=>{const opt=document.createElement('option');opt.value=o.id;opt.textContent=o.name;return opt}));
   state.org=me.organizations[0].id;
   select.addEventListener('change',async()=>{state.org=select.value;state.tasks=[];state.project=null;await refreshProjects();show('overview')});
   $('app').hidden=false;await refreshProjects();show('overview');message('');
- }catch(e){message(e.message||'Não foi possível iniciar o TeamHub.',true)}
+ }catch(e){message(e.message||'Não foi possível iniciar o Nexus.',true)}
 }
 document.querySelectorAll('[data-view]').forEach(x=>x.addEventListener('click',async()=>{if(!state.org)return;try{if(x.dataset.view==='projects'||x.dataset.view==='overview')await refreshProjects();if(x.dataset.view==='mytasks'&&!state.project){$('mine').textContent='Abra um projeto para consultar as tarefas.'}show(x.dataset.view)}catch(e){message(e.message,true)}}));
 $('back-projects').onclick=async()=>{await refreshProjects();show('projects')};

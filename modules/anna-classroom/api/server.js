@@ -52,11 +52,20 @@ async function authenticate(req){
  if(typeof payload.sub!=='string'||!UUID.test(payload.sub))throw Object.assign(new Error('Identidade inválida'),{status:401});
  return payload.sub;
 }
-async function permission(db,userId,institutionId){
- // Permissão institucional ativa E módulo habilitado: nunca confiar no papel enviado pelo cliente.
- // A primeira versão permite apenas a administração institucional.
- const q=await db.query('SELECT anna_classroom.can_manage_institution($1::uuid,$2::uuid) AS permitted',[userId,institutionId]);
- if(q.rows[0]?.permitted!==true)throw Object.assign(new Error('Acesso institucional ou módulo não autorizado'),{status:403});
+async function permission(db,userId,institutionId,pathname,method){
+ // Administrador mantém direitos completos. Professor só pode consultar
+ // turmas/aulas/atividades e criar conteúdo; estudantes e matrículas são restritos.
+ const teacherRoute=(pathname==='/v1/classes'&&method==='GET')||
+ (pathname==='/v1/lessons'&&['GET','POST'].includes(method))||
+ (pathname==='/v1/assignments'&&['GET','POST'].includes(method))||
+ (pathname==='/v1/eduplay/share'&&method==='POST');
+ const q=await db.query(
+  'SELECT anna_classroom.can_manage_institution($1::uuid,$2::uuid) AS admin, anna_classroom.can_author_eduplay($1::uuid,$2::uuid) AS author',
+  [userId,institutionId]
+ );
+ const access=q.rows[0];
+ if(access?.admin!==true&&!(teacherRoute&&access?.author===true))
+  throw Object.assign(new Error('Acesso institucional ou módulo não autorizado'),{status:403});
 }
 async function handler(req,res){
  res.setHeader('Vary','Origin');
@@ -81,7 +90,7 @@ async function handler(req,res){
    if(req.method!=='GET')return send(res,405,{error:'Método não permitido'});
    const client=await pool.connect();
    try{
-    const result=await client.query('SELECT id,name FROM anna_classroom.authorized_institution($1::uuid)',[userId]);
+    const result=await client.query('SELECT id,name,anna_classroom.can_manage_institution($1::uuid,id) AS administrator FROM anna_classroom.authorized_institution($1::uuid)',[userId]);
     if(!result.rows.length)return send(res,403,{error:'Classroom não habilitado para esta conta ou instituição'});
     return send(res,200,{authorized:true,institutions:result.rows});
    }finally{client.release();}
@@ -90,7 +99,7 @@ async function handler(req,res){
   if(typeof institutionId!=='string'||!UUID.test(institutionId))return send(res,400,{error:'Instituição inválida'});
   const client=await pool.connect();
   try{
-   await permission(client,userId,institutionId);
+   await permission(client,userId,institutionId,pathname,req.method);
    if(req.method==='GET'&&pathname==='/v1/overview'){
     const stats=await client.query('SELECT (SELECT count(*) FROM anna_classroom.classes WHERE institution_id=$1) AS classes,(SELECT count(*) FROM anna_classroom.students WHERE institution_id=$1) AS students,(SELECT count(*) FROM anna_classroom.enrollments WHERE institution_id=$1) AS enrollments,(SELECT count(*) FROM anna_classroom.lessons WHERE institution_id=$1) AS lessons,(SELECT count(*) FROM anna_classroom.assignments WHERE institution_id=$1) AS assignments,(SELECT count(*) FROM anna_classroom.submissions WHERE institution_id=$1) AS submissions',[institutionId]);
     return send(res,200,{stats:stats.rows[0]});

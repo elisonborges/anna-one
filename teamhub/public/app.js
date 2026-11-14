@@ -74,7 +74,8 @@ async function boot(){
   const {createAuthClient}=await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');
   state.auth=createAuthClient(AUTH);
   const session=await state.auth.getSession();const account=session?.data?.user||session?.data?.session?.user;
-  if(!account){$('account').textContent='Não conectado';$('signin').hidden=false;message('Entre com sua conta existente do Portal AnnA One.');return;}\n  $('signin').hidden=true;
+  if(!account){$('account').textContent='Não conectado';$('signin').hidden=false;message('Entre com sua conta existente do Portal AnnA One.');return;}
+  $('signin').hidden=true;
   state.subject=String(account.id||'');$('account').textContent=account.email||'Conta AnnA One';
   let token=session?.data?.session?.access_token;
   if(typeof token!=='string'||token.split('.').length!==3){

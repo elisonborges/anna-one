@@ -336,7 +336,7 @@ function renderAtividades(target,{lessons,assignments}){
  }
  target.append(form);
  const list=makeCard("Atividades cadastradas");
- renderList(list,assignments,x=>[x.title,x.lesson_title+(x.due_at?" · Prazo: "+new Date(x.due_at).toLocaleDateString("pt-BR"):"")],"Nenhuma atividade cadastrada.");
+ renderList(list,assignments,x=>[x.title,(x.from_eduplay?"AnnA EduPlay · ":"")+x.lesson_title+(x.due_at?" · Prazo: "+new Date(x.due_at).toLocaleDateString("pt-BR"):"")],"Nenhuma atividade cadastrada.");
  target.append(list);
 }
 function renderCorrecoes(target,{submissions}){

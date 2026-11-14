@@ -1,0 +1,14 @@
+{
+  "name": "anna-teamhub",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node --check server.mjs && node --check public/app.js"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
+    "jose": "^6.0.11"
+  }
+}

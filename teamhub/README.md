@@ -1,9 +1,9 @@
-# AnnA TeamHub — MVP 0.1 (implementação em branch isolada)
+# AnnA Nexus — MVP 0.1 (implementação em branch isolada)
 
 Plataforma mobile-first, em português, identidade visual AnnA One (azul-marinho/azul), tema claro/escuro. O login é o Neon Auth do portal — **sem senha própria**. Backend com verificação de JWT por JWKS e autorização no PostgreSQL. Projetos e Kanban persistem no banco.
 
 ## Estado e segurança
-Esta branch NÃO está publicada em produção. Nenhum banco foi alterado. Não inserir segredos no GitHub ou no frontend. O serviço só inicia com variáveis obrigatórias.
+O nome comercial adotado é AnnA Nexus. O diretório técnico `teamhub/`, o schema PostgreSQL `teamhub` e a branch existente permanecem inalterados nesta etapa para preservar compatibilidade.\n\nEsta branch NÃO está publicada em produção. Nenhum banco foi alterado. Não inserir segredos no GitHub ou no frontend. O serviço só inicia com variáveis obrigatórias.
 
 ## Ambiente
 Node 20+.

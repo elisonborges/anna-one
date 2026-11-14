@@ -59,31 +59,59 @@ body.tv-mode .state{font-size:clamp(11px,.9vw,15px)}
 body.tv-mode .insight{padding:12px 15px}
 @media(min-width:1600px){.services{grid-template-columns:repeat(3,minmax(0,1fr))}body.tv-mode .metrics{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:800px){.insights{grid-template-columns:1fr}}
+
+/* Gestão à Vista multi-telas: editor exclusivo de administradores */
+[hidden]{display:none!important}
+.screen-dialog{position:fixed;inset:0;z-index:50;overflow:auto;background:rgba(2,11,23,.87);padding:clamp(12px,3vw,32px)}
+.screen-dialog-card{max-width:1060px;margin:auto;background:#102b48;border:1px solid #426481;border-radius:16px;padding:22px;color:#edf6ff;box-shadow:0 20px 60px #0008}
+.screen-dialog-header{display:flex;justify-content:space-between;gap:18px;align-items:start;border-bottom:1px solid #375774;padding-bottom:15px}
+.screen-dialog-header p,.screen-dialog-foot{font-size:12px;color:#b4cbdf;line-height:1.5}.screen-dialog-header p{margin:7px 0 0}
+.screen-dialog-columns{display:grid;grid-template-columns:minmax(220px,.7fr) minmax(0,1.3fr);gap:22px;margin-top:17px}
+.screen-dialog h3{font-size:15px;margin:0 0 13px}.screen-dialog button{font-size:12px}
+.saved-screens{display:grid;gap:7px;margin-bottom:11px}
+.saved-screen{display:flex;align-items:center;gap:8px;background:#183a5b;padding:7px;border:1px solid #355a7a;border-radius:9px}
+.saved-screen button:first-child{flex:1;min-width:0;text-align:left;overflow-wrap:anywhere}
+.screen-field{display:grid;gap:8px;margin-bottom:14px;font-size:13px}
+.screen-field input{background:#091e34;border:1px solid #56748f;color:#fff;padding:11px;border-radius:8px;font:inherit;width:100%}
+.screen-presets{display:flex;gap:7px;flex-wrap:wrap}
+.screen-dialog fieldset{border:1px solid #3c5d79;border-radius:10px;padding:12px;margin:13px 0}
+.screen-dialog legend{font-size:13px;font-weight:750;padding:0 6px}
+.screen-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.screen-checks label{display:flex;align-items:center;gap:9px;font-size:12px;cursor:pointer;line-height:1.3}
+.screen-checks input{accent-color:#54b4ff;width:16px;height:16px;flex-shrink:0}
+.screen-form-actions{display:flex;flex-wrap:wrap;gap:8px;margin:13px 0}
+.screen-message{font-size:12px;color:#ffd58d;min-height:1em}
+.screen-dialog-foot{margin:16px 0 0;border-top:1px solid #375774;padding-top:12px}
+#screenTitle{overflow-wrap:anywhere}
+@media(max-width:750px){.screen-dialog-columns{grid-template-columns:1fr}.screen-checks{grid-template-columns:1fr}.screen-dialog-card{padding:16px}}
+.insights.single{grid-template-columns:1fr}
+.screen-dialog[hidden]{display:none!important}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
 <body>
 <header>
-<div><div class="brand">AnnA <span>One</span> · HEALTH MONITOR</div><h1>Gestão à Vista</h1><p>Visão operacional dos serviços da plataforma</p></div>
-<div class="actions"><span id="clock" aria-label="Hora atual">--:--:--</span><button id="fullscreen" type="button">⛶ Tela cheia</button><button id="refresh" type="button">Atualizar</button><a class="back" href="./v5.3-preview.html">Painel principal</a></div>
+<div><div class="brand">AnnA <span>One</span> · HEALTH MONITOR</div><h1 id="screenTitle">Gestão à Vista</h1><p id="screenSubtitle">Visão operacional dos serviços da plataforma</p></div>
+<div class="actions"><span id="clock" aria-label="Hora atual">--:--:--</span><button id="fullscreen" type="button">⛶ Tela cheia</button><button id="manageScreens" type="button" hidden>Gerenciar telas</button><button id="refresh" type="button">Atualizar</button><a class="back" href="./v5.3-preview.html">Painel principal</a></div>
 </header>
 <main>
 <div id="status" class="notice" role="status">Validando acesso Master...</div>
 <section id="access" hidden><h2>Acesso restrito</h2><p>Abra o Health Monitor e entre com uma conta Master. Esta guia usa a mesma sessão autenticada e respeita as políticas de acesso.</p><a href="./v5.3-preview.html">Ir ao Health Monitor</a></section>
 <div id="dashboard" hidden>
-<div class="metrics">
+<div class="metrics" id="metrics">
 <div class="metric"><strong id="total">—</strong><small>Serviços com registros</small></div>
 <div class="metric"><strong id="healthy" class="good">—</strong><small>Últimas amostras positivas</small></div>
 <div class="metric"><strong id="failed" class="bad">—</strong><small>Falhas recentes</small></div>
 <div class="metric"><strong id="stale" class="muted">—</strong><small>Dados desatualizados</small></div>
 </div>
-<div class="rowhead"><h2>Estado dos serviços</h2><span class="sub" id="collected">Última coleta: —</span></div>
+<div class="rowhead" id="servicesHeading"><h2>Estado dos serviços</h2><span class="sub" id="collected">Última coleta: —</span></div>
 <div id="warning" hidden role="alert"></div>
 <div id="services" class="services" aria-label="Estado dos serviços"></div>
-<div class="insights" aria-label="Análise das verificações"><section class="insight"><div class="insight-head"><h2>Ocorrências observadas</h2><span>Últimas 24 horas</span></div><div id="incidents" class="insight-list"></div></section><section class="insight"><div class="insight-head"><h2>Tendência de latência</h2><span>Comparação entre amostras</span></div><div id="trends" class="insight-list"></div></section></div>
+<div class="insights" aria-label="Análise das verificações"><section class="insight" id="incidentPanel"><div class="insight-head"><h2>Ocorrências observadas</h2><span>Últimas 24 horas</span></div><div id="incidents" class="insight-list"></div></section><section class="insight" id="trendPanel"><div class="insight-head"><h2>Tendência de latência</h2><span>Comparação entre amostras</span></div><div id="trends" class="insight-list"></div></section></div>
 <p class="foot">Atualização automática a cada 60 segundos com esta guia visível. Verde indica uma sondagem positiva, não disponibilidade contínua. Testes de páginas públicas não comprovam funcionamento de login, banco ou operações internas. Dados com mais de 30 minutos são considerados desatualizados. Ocorrências e tendências são inferidas de amostras, não de acompanhamento contínuo.</p>
 </div>
 </main>
+<section id="screensModal" class="screen-dialog" hidden aria-label="Gerenciar telas da Gestão à Vista"><div class="screen-dialog-card" role="dialog" aria-modal="true" aria-labelledby="screensHeading"><div class="screen-dialog-header"><div><h2 id="screensHeading">Gerenciar telas</h2><p>Configure o conteúdo de cada TV e abra um endereço exclusivo.</p></div><button id="closeScreens" type="button">Fechar</button></div><div class="screen-dialog-columns"><div><h3>Telas salvas neste navegador</h3><div id="savedScreens" class="saved-screens"></div><button id="newScreen" type="button">+ Nova tela</button></div><form id="screenForm"><h3 id="editScreenHeading">Configurar tela</h3><label class="screen-field">Nome da tela<input id="screenName" maxlength="60" required placeholder="Ex.: TV Infraestrutura"></label><div class="screen-field"><strong>Configuração rápida</strong><div class="screen-presets"><button type="button" data-preset="all">Geral</button><button type="button" data-preset="infra">Infraestrutura</button><button type="button" data-preset="apps">Aplicações</button><button type="button" data-preset="alerts">Ocorrências</button></div></div><fieldset><legend>Informações exibidas</legend><div id="screenWidgets" class="screen-checks"></div></fieldset><fieldset><legend>Serviços monitorados</legend><div id="screenServices" class="screen-checks"></div></fieldset><p id="screenMessage" class="screen-message" role="status"></p><div class="screen-form-actions"><button type="submit" id="saveScreen">Salvar configuração</button><button type="button" id="openScreen">Abrir em outra guia</button><button type="button" id="copyScreen">Copiar link da tela</button><button type="button" id="deleteScreen">Excluir tela</button></div></form></div><p class="screen-dialog-foot">Cada tela tem endereço e filtros independentes. Os perfis salvos ficam neste navegador; para outras TVs, abra o link e autentique a conta Master. Alterações não são sincronizadas remotamente nesta versão.</p></div></section>
 <script>
 'use strict';
 const client=window.supabase?.createClient('https://tnvghprwltbziivlxeod.supabase.co','sb_publishable_yI9_7tD4RwGrjolPjiq9vg_oSGpxxFR');
@@ -94,6 +122,142 @@ const names={
 const publicCodes=new Set(['anna_one_master_page','anna_virtual_widget','labpc_portal','anna_flow_public','health_monitor_page','service_desk_portal','agenda_portal']);
 const $=id=>document.getElementById(id);
 let busy=false,master=false;
+
+const widgetLabels={metrics:'Indicadores principais',services:'Lista de serviços',incidents:'Ocorrências observadas',trends:'Tendências de latência'};
+const allCodes=Object.keys(names);
+const infraCodes=['anna_one','neon_agenda','supabase_auth_labpc'];
+const appCodes=allCodes.filter(code=>!infraCodes.includes(code));
+const defaultConfig=()=>({name:'Visão Geral',widgets:Object.keys(widgetLabels),services:allCodes.slice()});
+const safeList=(list,allowed)=>Array.isArray(list)?[...new Set(list.filter(v=>typeof v==='string'&&allowed.includes(v)))]:[];
+function normalizeConfig(value){
+ const raw=value&&typeof value==='object'?value:{};
+ return {name:typeof raw.name==='string'?(raw.name.trim().slice(0,60)||'Visão Geral'):'Visão Geral',
+ widgets:raw.widgets===undefined?Object.keys(widgetLabels):safeList(raw.widgets,Object.keys(widgetLabels)),
+ services:raw.services===undefined?allCodes.slice():safeList(raw.services,allCodes)};
+}
+function configFromUrl(){
+ const params=new URLSearchParams(location.search);
+ if(!params.has('tela'))return defaultConfig();
+ return normalizeConfig({
+  name:params.get('tela')||'Tela personalizada',
+  services:(params.get('servicos')||'').split(',').filter(Boolean),
+  widgets:(params.get('paineis')||'').split(',').filter(Boolean)
+ });
+}
+function screenUrl(config){
+ const profile=normalizeConfig(config),url=new URL(location.pathname,location.origin);
+ url.searchParams.set('tela',profile.name);
+ url.searchParams.set('servicos',profile.services.join(','));
+ url.searchParams.set('paineis',profile.widgets.join(','));
+ return url.href;
+}
+let screenConfig=configFromUrl(),currentScreenId=null,screenUserId=null,savedScreens=[];
+function screenStorageKey(){return 'anna-health-wall-screens-v1-'+screenUserId;}
+function loadSavedScreens(){
+ try{
+  const parsed=JSON.parse(localStorage.getItem(screenStorageKey())||'[]');
+  savedScreens=Array.isArray(parsed)?parsed.filter(p=>p&&typeof p.id==='string'&&p.id.length<90).slice(0,50).map(p=>({id:p.id,...normalizeConfig(p)})):[];
+ }catch(_){savedScreens=[];}
+}
+function persistScreens(){
+ try{localStorage.setItem(screenStorageKey(),JSON.stringify(savedScreens));return true;}
+ catch(_){$('screenMessage').textContent='Não foi possível salvar neste navegador. Use Copiar link.';return false;}
+}
+function renderScreenConfig(){
+ document.title=screenConfig.name+' | Gestão à Vista · AnnA One';
+ $('screenTitle').textContent=screenConfig.name;
+ $('screenSubtitle').textContent='Gestão à Vista · '+screenConfig.services.length+' serviço(s) selecionado(s)';
+ document.querySelector('.insights').classList.toggle('single',screenConfig.widgets.filter(v=>v==='incidents'||v==='trends').length===1);
+ $('metrics').hidden=!screenConfig.widgets.includes('metrics');
+ $('servicesHeading').hidden=!screenConfig.widgets.includes('services');
+ $('services').hidden=!screenConfig.widgets.includes('services');
+ $('incidentPanel').hidden=!screenConfig.widgets.includes('incidents');
+ $('trendPanel').hidden=!screenConfig.widgets.includes('trends');
+ document.querySelector('.insights').hidden=!screenConfig.widgets.some(v=>v==='incidents'||v==='trends');
+}
+function renderEditorOptions(){
+ const widgets=$('screenWidgets'),services=$('screenServices');widgets.replaceChildren();services.replaceChildren();
+ const option=(target,key,label,prefix)=>{
+  const row=document.createElement('label'),check=document.createElement('input'),txt=document.createElement('span');
+  check.type='checkbox';check.value=key;check.dataset[prefix]=key;txt.textContent=label;row.append(check,txt);target.append(row);
+ };
+ for(const [id,label] of Object.entries(widgetLabels))option(widgets,id,label,'widget');
+ for(const [id,label] of Object.entries(names))option(services,id,label,'service');
+}
+function readEditor(){
+ return normalizeConfig({name:$('screenName').value,widgets:[...$('screenWidgets').querySelectorAll('input:checked')].map(e=>e.value),
+ services:[...$('screenServices').querySelectorAll('input:checked')].map(e=>e.value)});
+}
+function validateEditor(config){
+ if(!$('screenName').value.trim()){ $('screenMessage').textContent='Informe o nome da tela.';return false;}
+ if(!config.services.length){$('screenMessage').textContent='Selecione ao menos um serviço.';return false;}
+ if(!config.widgets.length){$('screenMessage').textContent='Selecione ao menos um tipo de informação.';return false;}
+ return true;
+}
+function setEditor(profile,id=null){
+ const config=normalizeConfig(profile);currentScreenId=id;$('screenName').value=config.name;
+ for(const el of $('screenWidgets').querySelectorAll('input'))el.checked=config.widgets.includes(el.value);
+ for(const el of $('screenServices').querySelectorAll('input'))el.checked=config.services.includes(el.value);
+ $('editScreenHeading').textContent=id?'Editar tela':'Nova configuração';
+ $('deleteScreen').disabled=!id;$('screenMessage').textContent='';
+ renderSavedScreens();
+}
+function renderSavedScreens(){
+ const root=$('savedScreens');root.replaceChildren();
+ for(const screen of savedScreens){
+  const row=document.createElement('div'),edit=document.createElement('button'),open=document.createElement('button');
+  row.className='saved-screen';edit.type='button';edit.textContent=screen.name;edit.title='Editar configuração';edit.addEventListener('click',()=>setEditor(screen,screen.id));
+  open.type='button';open.textContent='Abrir ↗';open.title='Abrir esta tela em nova guia';open.addEventListener('click',()=>window.open(screenUrl(screen),'_blank','noopener,noreferrer'));
+  row.append(edit,open);root.append(row);
+ }
+ if(!savedScreens.length){const p=document.createElement('p');p.className='sub';p.textContent='Nenhuma tela salva ainda.';root.append(p);}
+}
+function presets(kind){
+ const config={all:defaultConfig(),infra:{name:'TV Infraestrutura',services:infraCodes,widgets:['metrics','services','trends']},
+ apps:{name:'TV Aplicações',services:appCodes,widgets:['metrics','services','trends']},
+ alerts:{name:'TV Ocorrências',services:allCodes,widgets:['metrics','incidents','trends']}}[kind];
+ if(config)setEditor(config,null);
+}
+$('manageScreens').addEventListener('click',()=>{
+ if(!master)return;
+ $('screensModal').hidden=false;document.body.style.overflow='hidden';renderSavedScreens();
+ setEditor(screenConfig,null);
+ $('closeScreens').focus();
+});
+function closeScreenDialog(){$('screensModal').hidden=true;document.body.style.overflow='';}
+$('closeScreens').addEventListener('click',closeScreenDialog);
+$('screensModal').addEventListener('click',event=>{if(event.target===$('screensModal'))closeScreenDialog();});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('screensModal').hidden)closeScreenDialog();});
+$('newScreen').addEventListener('click',()=>setEditor({name:'Nova tela',widgets:Object.keys(widgetLabels),services:allCodes},null));
+document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>presets(b.dataset.preset)));
+$('screenForm').addEventListener('submit',event=>{
+ event.preventDefault();if(!master)return;
+ const config=readEditor();if(!validateEditor(config))return;
+ const id=currentScreenId||('screen-'+Date.now()+'-'+Math.random().toString(36).slice(2,8));
+ const index=savedScreens.findIndex(x=>x.id===id);
+ if(index>=0)savedScreens[index]={id,...config};else if(savedScreens.length>=50){$('screenMessage').textContent='Limite de 50 telas salvas neste navegador.';return;}else savedScreens.push({id,...config});
+ currentScreenId=id;
+ if(persistScreens())$('screenMessage').textContent='Tela salva neste navegador. Abra-a ou copie seu link.';
+ renderSavedScreens();
+ $('deleteScreen').disabled=false;
+});
+$('deleteScreen').addEventListener('click',()=>{
+ if(!master||!currentScreenId)return;
+ savedScreens=savedScreens.filter(s=>s.id!==currentScreenId);
+ persistScreens();setEditor(defaultConfig(),null);$('screenMessage').textContent='Configuração local excluída. Links já compartilhados continuam válidos.';
+});
+$('openScreen').addEventListener('click',()=>{
+ if(!master)return;const config=readEditor();if(!validateEditor(config))return;
+ window.open(screenUrl(config),'_blank','noopener,noreferrer');
+});
+$('copyScreen').addEventListener('click',async()=>{
+ if(!master)return;const config=readEditor();if(!validateEditor(config))return;
+ const url=screenUrl(config);
+ try{await navigator.clipboard.writeText(url);$('screenMessage').textContent='Link copiado. Na outra TV, abra o endereço e faça login Master.';}
+ catch(_){$('screenMessage').textContent='Cópia automática indisponível. Endereço: '+url;}
+});
+renderEditorOptions();renderScreenConfig();
+
 const date=value=>value&&!Number.isNaN(new Date(value).getTime())?new Date(value).toLocaleString('pt-BR'):'—';
 function state(row){
  const diff=Date.now()-new Date(row.checked_at).getTime();
@@ -102,12 +266,12 @@ function state(row){
 }
 function showStatus(text){$('status').textContent=text;}
 async function authorize(){
- master=false;$('dashboard').hidden=true;
+ master=false;$('manageScreens').hidden=true;$('dashboard').hidden=true;
  if(!client){showStatus('Biblioteca de autenticação indisponível.');$('access').hidden=false;return false;}
  const auth=await client.auth.getUser();if(auth.error||!auth.data?.user){showStatus('Sessão não identificada. Entre no painel principal.');$('access').hidden=false;return false;}
  const access=await client.from('platform_admins').select('user_id').eq('user_id',auth.data.user.id).limit(1);
  if(access.error||!access.data?.length){showStatus('Acesso restrito ao Master.');$('access').hidden=false;return false;}
- master=true;$('access').hidden=true;$('dashboard').hidden=false;return true;
+ master=true;const uid=auth.data.user.id;if(screenUserId!==uid){screenUserId=uid;loadSavedScreens();}$('manageScreens').hidden=false;$('access').hidden=true;$('dashboard').hidden=false;return true;
 }
 function renderInsights(rows){
  const incidentRoot=$('incidents'),trendRoot=$('trends');incidentRoot.replaceChildren();trendRoot.replaceChildren();
@@ -143,6 +307,7 @@ function renderInsights(rows){
  if(!trends.length){const p=document.createElement('p');p.className='insight-empty';p.textContent='Sem tendência relevante ou amostras suficientes para comparar.';trendRoot.append(p);}
 }
 function render(rows){
+ rows=rows.filter(r=>screenConfig.services.includes(r.service_code));
  const latest=new Map();for(const row of rows)if(!latest.has(row.service_code))latest.set(row.service_code,row);
  const list=[...latest.entries()].map(([code,row])=>({code,row,status:state(row)})).sort((a,b)=>({bad:0,stale:1,good:2}[a.status]-{bad:0,stale:1,good:2}[b.status])||(names[a.code]||a.code).localeCompare(names[b.code]||b.code,'pt-BR'));
  const good=list.filter(s=>s.status==='good').length,bad=list.filter(s=>s.status==='bad').length;
@@ -180,7 +345,7 @@ document.addEventListener('fullscreenchange',updateTvMode);
 $('refresh').addEventListener('click',refresh);
 $('fullscreen').addEventListener('click',()=>{if(document.fullscreenElement){document.exitFullscreen?.();}else document.documentElement.requestFullscreen?.().catch(()=>{});});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
-if(client)client.auth.onAuthStateChange((_event,session)=>{if(!session){master=false;$('dashboard').hidden=true;$('access').hidden=false;showStatus('Sessão encerrada. Entre no painel principal.');}});
+if(client)client.auth.onAuthStateChange((_event,session)=>{if(!session){master=false;$('manageScreens').hidden=true;closeScreenDialog();$('dashboard').hidden=true;$('access').hidden=false;showStatus('Sessão encerrada. Entre no painel principal.');}});
 updateTvMode();tick();setInterval(tick,1000);setInterval(()=>{if(!document.hidden)refresh();},60000);refresh();
 </script>
 </body></html>

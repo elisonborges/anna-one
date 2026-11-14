@@ -59,31 +59,57 @@ body.tv-mode .state{font-size:clamp(11px,.9vw,15px)}
 body.tv-mode .insight{padding:12px 15px}
 @media(min-width:1600px){.services{grid-template-columns:repeat(3,minmax(0,1fr))}body.tv-mode .metrics{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:800px){.insights{grid-template-columns:1fr}}
+
+/* Gestão à Vista multi-telas: editor exclusivo de administradores */
+[hidden]{display:none!important}
+.screen-dialog{position:fixed;inset:0;z-index:50;overflow:auto;background:rgba(2,11,23,.87);padding:clamp(12px,3vw,32px)}
+.screen-dialog-card{max-width:1060px;margin:auto;background:#102b48;border:1px solid #426481;border-radius:16px;padding:22px;color:#edf6ff;box-shadow:0 20px 60px #0008}
+.screen-dialog-header{display:flex;justify-content:space-between;gap:18px;align-items:start;border-bottom:1px solid #375774;padding-bottom:15px}
+.screen-dialog-header p,.screen-dialog-foot{font-size:12px;color:#b4cbdf;line-height:1.5}.screen-dialog-header p{margin:7px 0 0}
+.screen-dialog-columns{display:grid;grid-template-columns:minmax(220px,.7fr) minmax(0,1.3fr);gap:22px;margin-top:17px}
+.screen-dialog h3{font-size:15px;margin:0 0 13px}.screen-dialog button{font-size:12px}
+.saved-screens{display:grid;gap:7px;margin-bottom:11px}
+.saved-screen{display:flex;align-items:center;gap:8px;background:#183a5b;padding:7px;border:1px solid #355a7a;border-radius:9px}
+.saved-screen button:first-child{flex:1;min-width:0;text-align:left;overflow-wrap:anywhere}
+.screen-field{display:grid;gap:8px;margin-bottom:14px;font-size:13px}
+.screen-field input{background:#091e34;border:1px solid #56748f;color:#fff;padding:11px;border-radius:8px;font:inherit;width:100%}
+.screen-presets{display:flex;gap:7px;flex-wrap:wrap}
+.screen-dialog fieldset{border:1px solid #3c5d79;border-radius:10px;padding:12px;margin:13px 0}
+.screen-dialog legend{font-size:13px;font-weight:750;padding:0 6px}
+.screen-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.screen-checks label{display:flex;align-items:center;gap:9px;font-size:12px;cursor:pointer;line-height:1.3}
+.screen-checks input{accent-color:#54b4ff;width:16px;height:16px;flex-shrink:0}
+.screen-form-actions{display:flex;flex-wrap:wrap;gap:8px;margin:13px 0}
+.screen-message{font-size:12px;color:#ffd58d;min-height:1em}
+.screen-dialog-foot{margin:16px 0 0;border-top:1px solid #375774;padding-top:12px}
+#screenTitle{overflow-wrap:anywhere}
+@media(max-width:750px){.screen-dialog-columns{grid-template-columns:1fr}.screen-checks{grid-template-columns:1fr}.screen-dialog-card{padding:16px}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
 <body>
 <header>
-<div><div class="brand">AnnA <span>One</span> · HEALTH MONITOR</div><h1>Gestão à Vista</h1><p>Visão operacional dos serviços da plataforma</p></div>
-<div class="actions"><span id="clock" aria-label="Hora atual">--:--:--</span><button id="fullscreen" type="button">⛶ Tela cheia</button><button id="refresh" type="button">Atualizar</button><a class="back" href="./v5.3-preview.html">Painel principal</a></div>
+<div><div class="brand">AnnA <span>One</span> · HEALTH MONITOR</div><h1 id="screenTitle">Gestão à Vista</h1><p id="screenSubtitle">Visão operacional dos serviços da plataforma</p></div>
+<div class="actions"><span id="clock" aria-label="Hora atual">--:--:--</span><button id="fullscreen" type="button">⛶ Tela cheia</button><button id="manageScreens" type="button" hidden>Gerenciar telas</button><button id="refresh" type="button">Atualizar</button><a class="back" href="./v5.3-preview.html">Painel principal</a></div>
 </header>
 <main>
 <div id="status" class="notice" role="status">Validando acesso Master...</div>
 <section id="access" hidden><h2>Acesso restrito</h2><p>Abra o Health Monitor e entre com uma conta Master. Esta guia usa a mesma sessão autenticada e respeita as políticas de acesso.</p><a href="./v5.3-preview.html">Ir ao Health Monitor</a></section>
 <div id="dashboard" hidden>
-<div class="metrics">
+<div class="metrics" id="metrics">
 <div class="metric"><strong id="total">—</strong><small>Serviços com registros</small></div>
 <div class="metric"><strong id="healthy" class="good">—</strong><small>Últimas amostras positivas</small></div>
 <div class="metric"><strong id="failed" class="bad">—</strong><small>Falhas recentes</small></div>
 <div class="metric"><strong id="stale" class="muted">—</strong><small>Dados desatualizados</small></div>
 </div>
-<div class="rowhead"><h2>Estado dos serviços</h2><span class="sub" id="collected">Última coleta: —</span></div>
+<div class="rowhead" id="servicesHeading"><h2>Estado dos serviços</h2><span class="sub" id="collected">Última coleta: —</span></div>
 <div id="warning" hidden role="alert"></div>
 <div id="services" class="services" aria-label="Estado dos serviços"></div>
-<div class="insights" aria-label="Análise das verificações"><section class="insight"><div class="insight-head"><h2>Ocorrências observadas</h2><span>Últimas 24 horas</span></div><div id="incidents" class="insight-list"></div></section><section class="insight"><div class="insight-head"><h2>Tendência de latência</h2><span>Comparação entre amostras</span></div><div id="trends" class="insight-list"></div></section></div>
+<div class="insights" aria-label="Análise das verificações"><section class="insight" id="incidentPanel"><div class="insight-head"><h2>Ocorrências observadas</h2><span>Últimas 24 horas</span></div><div id="incidents" class="insight-list"></div></section><section class="insight" id="trendPanel"><div class="insight-head"><h2>Tendência de latência</h2><span>Comparação entre amostras</span></div><div id="trends" class="insight-list"></div></section></div>
 <p class="foot">Atualização automática a cada 60 segundos com esta guia visível. Verde indica uma sondagem positiva, não disponibilidade contínua. Testes de páginas públicas não comprovam funcionamento de login, banco ou operações internas. Dados com mais de 30 minutos são considerados desatualizados. Ocorrências e tendências são inferidas de amostras, não de acompanhamento contínuo.</p>
 </div>
 </main>
+<section id="screensModal" class="screen-dialog" hidden aria-label="Gerenciar telas da Gestão à Vista"><div class="screen-dialog-card" role="dialog" aria-modal="true" aria-labelledby="screensHeading"><div class="screen-dialog-header"><div><h2 id="screensHeading">Gerenciar telas</h2><p>Configure o conteúdo de cada TV e abra um endereço exclusivo.</p></div><button id="closeScreens" type="button">Fechar</button></div><div class="screen-dialog-columns"><div><h3>Telas salvas neste navegador</h3><div id="savedScreens" class="saved-screens"></div><button id="newScreen" type="button">+ Nova tela</button></div><form id="screenForm"><h3 id="editScreenHeading">Configurar tela</h3><label class="screen-field">Nome da tela<input id="screenName" maxlength="60" required placeholder="Ex.: TV Infraestrutura"></label><div class="screen-field"><strong>Configuração rápida</strong><div class="screen-presets"><button type="button" data-preset="all">Geral</button><button type="button" data-preset="infra">Infraestrutura</button><button type="button" data-preset="apps">Aplicações</button><button type="button" data-preset="alerts">Ocorrências</button></div></div><fieldset><legend>Informações exibidas</legend><div id="screenWidgets" class="screen-checks"></div></fieldset><fieldset><legend>Serviços monitorados</legend><div id="screenServices" class="screen-checks"></div></fieldset><p id="screenMessage" class="screen-message" role="status"></p><div class="screen-form-actions"><button type="submit" id="saveScreen">Salvar configuração</button><button type="button" id="openScreen">Abrir em outra guia</button><button type="button" id="copyScreen">Copiar link da tela</button><button type="button" id="deleteScreen">Excluir tela</button></div></form></div><p class="screen-dialog-foot">Cada tela tem endereço e filtros independentes. Os perfis salvos ficam neste navegador; para outras TVs, abra o link e autentique a conta Master. Alterações não são sincronizadas remotamente nesta versão.</p></div></section>
 <script>
 'use strict';
 const client=window.supabase?.createClient('https://tnvghprwltbziivlxeod.supabase.co','sb_publishable_yI9_7tD4RwGrjolPjiq9vg_oSGpxxFR');

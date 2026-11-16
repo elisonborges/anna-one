@@ -1759,6 +1759,7 @@ $('invite-copy').addEventListener('click',async()=>{
  try{await navigator.clipboard.writeText($('invite-link').value);message('Link copiado. Compartilhe somente com o destinatário.')}
  catch{ $('invite-link').focus();$('invite-link').select();message('Selecione e copie o link apresentado.');}
 });
+$('guest-projects-refresh').addEventListener('click',async()=>{try{await refreshProjects();message(state.projects.length?'Projetos autorizados atualizados.':'Ainda não há projetos compartilhados.')}catch(e){message(e.message,true)}});
 $('back-projects').onclick=async()=>{await refreshProjects();show('projects')};
 $('new-project').onclick=()=>modal('project');
 $('new-task').onclick=()=>modal('task');

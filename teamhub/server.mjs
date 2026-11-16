@@ -301,19 +301,23 @@ const route=async(req,res)=>{
   const b=await json(req);
   const token=typeof b.token==='string'?b.token:'';
   if(!/^[a-f0-9]{64}$/.test(token))bad('Convite inválido.',400);
-  if(!req.identityEmail)bad('O token de identidade não contém e-mail. Faça login novamente no portal.',403);
+  if(!req.identityEmail||!req.identityEmailVerified)bad('Confirme seu e-mail no Portal AnnA One antes de aceitar um convite.',403);
   const hash=createHash('sha256').update(token).digest('hex');
   const invitations=await sql`SELECT id,organization_id,email,role FROM teamhub.invitations WHERE token_hash=${hash} AND status='pending' AND expires_at>now()`;
   if(!invitations.length)bad('Convite expirado, cancelado ou já utilizado.',410);
   const invitation=invitations[0];
   if(invitation.email!==req.identityEmail)bad('Este convite foi emitido para outro e-mail. Entre com a conta convidada do Portal AnnA One.',403);
+  const alreadyMember=await sql`SELECT 1 FROM teamhub.memberships WHERE organization_id=${invitation.organization_id} AND auth_subject=${subject}`;
+  if(alreadyMember.length)bad('Esta conta já pertence à organização. Peça ao administrador para ajustar o perfil ou reativar o acesso.',409);
   const linked=await sql`WITH claimed AS (
    UPDATE teamhub.invitations SET status='accepted',accepted_by_subject=${subject},accepted_at=now()
-   WHERE id=${invitation.id} AND status='pending' AND expires_at>now() RETURNING organization_id,role
+   WHERE id=${invitation.id} AND status='pending' AND expires_at>now()
+    AND NOT EXISTS (SELECT 1 FROM teamhub.memberships m WHERE m.organization_id=${invitation.organization_id} AND m.auth_subject=${subject})
+   RETURNING organization_id,role
   ), membership AS (
    INSERT INTO teamhub.memberships(organization_id,auth_subject,role,active)
    SELECT organization_id,${subject},role,true FROM claimed
-   ON CONFLICT (organization_id,auth_subject) DO UPDATE SET role=EXCLUDED.role,active=true
+   ON CONFLICT (organization_id,auth_subject) DO NOTHING
    RETURNING organization_id
   ) SELECT organization_id FROM membership`;
   if(!linked.length)bad('O convite não está mais disponível.',409);

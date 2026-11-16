@@ -306,6 +306,14 @@ async function loadReports(){
   return [t.title,name,status,secondsLabel((Math.min(now,t.archived_at?new Date(t.archived_at).getTime():t.deleted_at?new Date(t.deleted_at).getTime():now)-new Date(t.created_at).getTime())/1000),secondsLabel(t.pending_seconds),String(t.pauses)];
  });
  renderTable('reports-tasks',['Tarefa','Projeto','Situação','Tempo total','Em pendência','Pausas'],taskRows);
+ const subRows=(data.subtasks||[]).map(sub=>[
+  sub.project_name,sub.parent_title,sub.title,
+  ({todo:'A fazer',doing:'Em andamento',done:'Concluída'})[sub.status]||sub.status,
+  (Array.isArray(sub.assignees)&&sub.assignees.length?sub.assignees.map(memberName).join(', '):memberName(sub.owner_subject)),
+  sub.due_at?new Date(sub.due_at).toLocaleDateString('pt-BR',{timeZone:'UTC'}):'—',
+  secondsLabel((now-new Date(sub.created_at).getTime())/1000)
+ ]);
+ renderTable('reports-subtasks',['Projeto','Tarefa','Subtarefa','Situação','Responsáveis','Prazo','Tempo total'],subRows);
  const pauses=data.pauses.map(p=>[
   data.projects.find(x=>x.project_id===p.project_id)?.project_name||'Projeto',
   p.task_id?'Tarefa':'Projeto',p.reason,
@@ -322,6 +330,7 @@ function exportReport(){
  const lines=[['Tipo','Projeto','Referência','Motivo ou situação','Início','Fim','Segundos em pendência','Pausas']];
  for(const p of data.projects)lines.push(['Projeto',p.project_name,p.project_id,p.project_paused_at?'Em pausa':'Ativo',p.project_created_at,'',p.project_pending_seconds,p.project_pauses]);
  for(const t of data.tasks)lines.push(['Tarefa',data.projects.find(p=>p.project_id===t.project_id)?.project_name||'',t.title,t.deleted_at?'Excluída':t.archived_at?'Arquivada':t.paused_at?'Pausada':t.status,t.created_at,'',t.pending_seconds,t.pauses]);
+ for(const x of (data.subtasks||[]))lines.push(['Subtarefa',x.project_name,x.parent_title+' / '+x.title,x.status,x.created_at,'',0,0]);
  for(const x of data.pauses)lines.push(['Pausa',data.projects.find(p=>p.project_id===x.project_id)?.project_name||'',x.task_id||x.project_id,x.reason,x.started_at,x.ended_at||'Em aberto',x.elapsed_seconds,'']);
  const csv='\uFEFF'+lines.map(cols=>cols.map(v=>{let x=String(v??'');if(/^[=+@\-]/.test(x))x="'"+x;return '"'+x.replace(/"/g,'""')+'"';}).join(';')).join('\r\n');
  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));

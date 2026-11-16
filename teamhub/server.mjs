@@ -123,7 +123,7 @@ const route=async(req,res)=>{
    const rows=await sql`INSERT INTO teamhub.invitations(organization_id,email,role,token_hash,invited_by_subject,expires_at)
      VALUES(${org},${email},${invitedRole},${tokenHash},${subject},now()+interval '7 days') RETURNING id,email,role,status,expires_at`;
    await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action) VALUES(${org},${subject},'invitation.created')`;
-   return reply(res,201,{invitation:rows[0],invite_url:'https://anna-nexus-dev.onrender.com/?invite='+token,delivery:'manual'});
+   return reply(res,201,{invitation:rows[0],invite_url:'https://anna-nexus-dev.onrender.com/#invite='+token,delivery:'manual'});
   }catch(e){
    if(e?.code==='23505'||String(e?.message||'').includes('invitations_one_pending'))bad('Este e-mail já possui um convite pendente. Cancele-o antes de enviar outro.',409);
    throw e;

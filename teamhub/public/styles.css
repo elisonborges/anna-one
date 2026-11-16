@@ -788,3 +788,7 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
 @media(prefers-reduced-motion:reduce){
  #app,#app .side,.board-progress-track span{transition:none!important}
 }
+
+/* Menu de acesso não deve aparecer na tela de login nem exibir badges vazias. */
+body:has(#signin:not([hidden])) .mobile-menu-toggle{display:none!important}
+#app .side .nav span[hidden]{display:none!important}

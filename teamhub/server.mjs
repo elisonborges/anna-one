@@ -57,8 +57,12 @@ const route=async(req,res)=>{
  if(!validId(org))bad('Selecione uma organização válida.');
  const role=await membership(subject,org);
  if(p==='/api/projects'&&req.method==='GET'){
-  const projects=await sql`SELECT p.id,p.name,p.description,p.created_at, COUNT(t.id)::int AS total, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id WHERE p.organization_id=${org} AND p.archived_at IS NULL GROUP BY p.id ORDER BY p.created_at DESC`;
+  const projects=await sql`SELECT p.id,p.name,p.description,p.created_at, COUNT(t.id)::int AS total, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id WHERE p.organization_id=${org} AND p.archived_at IS NULL GROUP BY p.id ORDER BY p.created_at DESC`;
   return reply(res,200,{projects,role});
+ }
+ if(p==='/api/dashboard'&&req.method==='GET'){
+  const rows=await sql`SELECT COUNT(DISTINCT p.id)::int AS projects, COUNT(t.id) FILTER(WHERE t.status!='done')::int AS open, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id WHERE p.organization_id=${org} AND p.archived_at IS NULL`;
+  return reply(res,200,{summary:rows[0]});
  }
  if(p==='/api/projects'&&req.method==='POST'){
   requireManager(role);const body=await json(req);const name=String(body.name||'').trim();if(name.length<2||name.length>160)bad('Nome entre 2 e 160 caracteres.');
@@ -84,12 +88,22 @@ const route=async(req,res)=>{
  const tm=/^\/api\/tasks\/([0-9a-f-]+)$/.exec(p);
  if(tm&&validId(tm[1])&&req.method==='PATCH'){
   requireEditor(role);const b=await json(req);
-  const keys=Object.keys(b);if(!keys.length||keys.some(k=>!['status','priority','title'].includes(k)))bad('Campos não permitidos.');
-  const existing=await sql`SELECT id,project_id,title,status,priority FROM teamhub.tasks WHERE id=${tm[1]} AND organization_id=${org}`;
+  const keys=Object.keys(b);
+  if(!keys.length||keys.some(k=>!['status','priority','title','description','due_at'].includes(k)))bad('Campos não permitidos.');
+  const existing=await sql`SELECT id,project_id,title,description,status,priority,due_at FROM teamhub.tasks WHERE id=${tm[1]} AND organization_id=${org}`;
   if(!existing.length)bad('Tarefa não encontrada.',404);
-  const t=existing[0];const status=b.status===undefined?t.status:b.status,priority=b.priority===undefined?t.priority:b.priority,title=b.title===undefined?t.title:String(b.title).trim();
-  if(!['todo','doing','done'].includes(status)||!['low','medium','high'].includes(priority)||title.length<2||title.length>240)bad('Valores inválidos.');
-  const result=await sql`UPDATE teamhub.tasks SET status=${status},priority=${priority},title=${title},updated_at=now() WHERE id=${t.id} AND organization_id=${org} RETURNING id,title,status,priority`;
+  const t=existing[0];
+  const status=b.status===undefined?t.status:b.status;
+  const priority=b.priority===undefined?t.priority:b.priority;
+  const title=b.title===undefined?t.title:String(b.title).trim();
+  const description=b.description===undefined?t.description:String(b.description);
+  let dueAt=t.due_at;
+  if(b.due_at!==undefined){
+    if(b.due_at!==null&&(!/^\d{4}-\d{2}-\d{2}$/.test(b.due_at)||Number.isNaN(Date.parse(b.due_at+'T12:00:00Z'))||new Date(b.due_at+'T12:00:00Z').toISOString().slice(0,10)!==b.due_at))bad('Data inválida.');
+    dueAt=b.due_at===null?null:b.due_at+'T12:00:00Z';
+  }
+  if(!['todo','doing','done'].includes(status)||!['low','medium','high'].includes(priority)||title.length<2||title.length>240||description.length>2000)bad('Valores inválidos.');
+  const result=await sql`UPDATE teamhub.tasks SET status=${status},priority=${priority},title=${title},description=${description},due_at=${dueAt},updated_at=now() WHERE id=${t.id} AND organization_id=${org} RETURNING id,title,description,status,priority,due_at`;
   await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id,task_id) VALUES(${org},${subject},'task.updated',${t.project_id},${t.id})`;
   return reply(res,200,{task:result[0]});
  }

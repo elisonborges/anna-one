@@ -455,12 +455,12 @@ const route=async(req,res)=>{
     assignments=excluded.assignments,mentions=excluded.mentions,deadlines=excluded.deadlines,
     approvals=excluded.approvals,email_enabled=excluded.email_enabled,updated_at=now()
     RETURNING assignments,mentions,deadlines,approvals,email_enabled`;
-  if(values.email_enabled){
+  if(b.email_enabled===true){
    await sql`INSERT INTO teamhub.notification_email_contacts(organization_id,auth_subject,email,verified_at)
     VALUES(${org},${subject},${req.identityEmail},now())
     ON CONFLICT(organization_id,auth_subject) DO UPDATE
      SET email=excluded.email,verified_at=now(),updated_at=now()`;
-  }else{
+  }else if(b.email_enabled===false){
    await sql`DELETE FROM teamhub.notification_email_contacts WHERE organization_id=${org} AND auth_subject=${subject}`;
   }
   return reply(res,200,{preferences:rows[0],email_available:emailTransportConfigured()});

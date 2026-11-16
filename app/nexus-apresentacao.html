@@ -26,6 +26,76 @@ body{background:linear-gradient(180deg,#f3f5ff 0%,#f8faff 56%,#edf0ff 100%)}
 /* Ajuste de alinhamento do conteúdo principal em telas menores */
 @media(max-width:1100px){.hero-inner{min-height:0;padding-top:30px;padding-bottom:38px;align-items:start}.hero-inner>div:first-child{align-self:start}.hero h1{margin-top:7px}.hero h2{margin-bottom:10px}.hero p{margin-top:8px}.actions{margin-top:16px;margin-bottom:12px}}
 @media(max-width:600px){.hero-inner{padding-top:23px;padding-bottom:30px;gap:20px}.hero h1{margin:7px 0}.hero h2{margin-bottom:8px}.hero p{line-height:1.6}.actions{margin-top:14px;margin-bottom:10px}}
+
+/* Responsividade por largura e altura útil da janela (notebooks 15" e telas compactas) */
+@media(min-width:951px) and (max-width:1500px){
+ .hero-inner{min-height:0;grid-template-columns:minmax(0,.88fr) minmax(0,1.12fr);gap:24px;padding-top:30px;padding-bottom:34px;align-items:center}
+ .hero h1{font-size:clamp(43px,4.5vw,66px);margin:8px 0}
+ .hero h2{font-size:clamp(19px,1.9vw,25px);line-height:1.24;margin-bottom:8px}
+ .hero p{font-size:14px;line-height:1.55;margin:8px 0}
+ .hero .actions{margin:14px 0 11px}
+ .hero .btn{min-height:41px;padding:9px 13px;font-size:12px}
+ .hero .pill{font-size:11px}
+ .mock{transform:none}
+ .mock-body{min-height:0}
+ .mock-main{padding:13px}
+ .mock-side{padding:13px 7px}
+ .mock-side-footer{margin-top:24px}
+ .mock-welcome{margin-bottom:10px}
+ .stat{min-height:89px;padding:8px}
+ .mock-board{margin-top:8px;padding:9px 11px}
+ .mock-project+.mock-project{margin-top:8px}
+ .mock-task{padding:7px 0}
+}
+@media(min-width:951px) and (max-height:800px){
+ .hero-inner{padding-top:22px;padding-bottom:24px}
+ .hero h1{font-size:clamp(40px,4.2vw,60px)}
+ .hero h2{font-size:clamp(18px,1.8vw,23px)}
+ .hero p{font-size:13.5px}
+ .mock-top{padding:10px 13px}
+ .mock-main{padding:11px}
+ .mock-welcome{margin-bottom:7px}
+ .mock-board{padding:8px 10px}
+ .mock-task{padding:6px 0}
+ .mock-caption{margin-top:6px}
+}
+@media(min-width:951px) and (max-width:1250px){
+ .hero-inner{grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr);gap:18px}
+ .mock-side{padding:10px 5px}
+ .mock-body{grid-template-columns:104px minmax(0,1fr)}
+ .mock-side-title{font-size:7px}
+ .mock-side div:not(.mock-side-title):not(.mock-side-footer){font-size:9px}
+ .mock-main{padding:9px}
+ .mock-period{display:none}
+ .mock-board-head{margin-bottom:7px}
+}
+@media(max-width:950px){
+ .hero-inner{grid-template-columns:minmax(0,1fr);min-height:0;gap:23px;padding-top:26px;padding-bottom:34px;align-items:start}
+ .hero-inner>div:first-child{align-self:start}
+ .hero h1{font-size:clamp(43px,7vw,65px)}
+ .hero h2{max-width:660px}
+ .hero p{max-width:690px}
+ .mock{width:100%;max-width:730px;transform:none}
+}
+@media(max-width:600px){
+ .hero-inner{padding-top:20px;padding-bottom:26px;gap:18px}
+ .hero h1{font-size:clamp(40px,11vw,56px)}
+ .hero h2{font-size:20px}
+ .mock-top-right{gap:5px}
+ .mock-side span{display:none}
+ .mock-body{grid-template-columns:48px minmax(0,1fr)}
+ .mock-side{padding:8px 3px}
+ .mock-side-title,.mock-side-footer{display:none}
+ .mock-side div:not(.mock-side-title):not(.mock-side-footer){justify-content:center;font-size:14px;padding:8px 2px}
+ .mock-main{padding:8px}
+ .mock-welcome small{font-size:9px}
+ .mock-board-head{font-size:10px}
+ .stat-foot{display:none}
+ .stat{min-height:72px}
+ .stat small{font-size:7px}
+ .stat b{font-size:17px}
+ .project-line strong{font-size:9px}
+}
 </style></head><body><a class="skip" href="#conteudo">Ir para o conteúdo</a><header><div class="head"><a class="brand" href="../"><img src="../assets/anna-symbol.svg" alt=""><span>AnnA One<small>TECNOLOGIA E EDUCAÇÃO JUNTAS</small></span></a><nav aria-label="Navegação"><a href="../#modulos">Módulos</a><a href="./">Portal AnnA One</a><a href="../">← Página principal</a></nav></div></header>
 <main id="conteudo"><section class="hero"><div class="wrap hero-inner"><div><div class="eyebrow">Ecossistema AnnA One · Projetos e equipes</div><h1>AnnA <span>Nexus</span></h1><h2>Conecte projetos, pessoas e responsabilidades em um só lugar.</h2><p>Organize projetos, acompanhe tarefas, gerencie membros da equipe e mantenha a visão dos clientes em um ambiente pensado para a colaboração.</p><div class="actions"><a class="btn primary" href="https://anna-nexus-dev.onrender.com/" target="_blank" rel="noopener noreferrer">Acessar AnnA Nexus ↗</a><a class="btn secondary" href="#recursos">Explorar funcionalidades ↓</a></div><span class="pill">v0.1.9 · Ambiente de desenvolvimento</span></div><div><div class="mock" role="img" aria-label="Painel ilustrativo do AnnA Nexus com menu, indicadores de projetos, progresso de atividades e tarefas compartilhadas"><div class="mock-top"><div class="mock-logo"><span class="mock-mark">✦</span><strong>AnnA <span>Nexus</span></strong></div><div class="mock-top-right"><span class="mock-search">⌕ Buscar projetos</span><span class="mock-avatar">AN</span></div></div><div class="mock-body"><div class="mock-side"><div class="mock-side-title">ESPAÇO DE TRABALHO</div><div class="active">▦ <span>Visão geral</span></div><div>▤ <span>Projetos</span></div><div>☑ <span>Tarefas</span></div><div>♙ <span>Equipes</span></div><div>◇ <span>Clientes</span></div><div class="mock-side-footer">● Ambiente de desenvolvimento</div></div><div class="mock-main"><div class="mock-welcome"><div><span class="mock-kicker">PAINEL DE CONTROLE</span><h3>Visão geral <span class="mock-wave">✦</span></h3><small>Acompanhe suas iniciativas em um só lugar</small></div><span class="mock-period">◷ Esta semana</span></div><div class="stats"><div class="stat"><span class="stat-icon">▤</span><small>Projetos ativos</small><b>04</b><span class="stat-foot">↗ Em acompanhamento</span></div><div class="stat"><span class="stat-icon purple">☑</span><small>Tarefas abertas</small><b>12</b><span class="stat-foot">Distribuídas pela equipe</span></div><div class="stat"><span class="stat-icon teal">♙</span><small>Colaboradores</small><b>06</b><span class="stat-foot">Trabalho compartilhado</span></div></div><div class="mock-board"><div class="mock-board-head"><strong>Projetos em destaque</strong><span>Visão ilustrativa</span></div><div class="mock-project"><div class="project-line"><strong>Portal institucional</strong><span class="project-chip">Em andamento</span></div><div class="progress-track"><span style="width:72%"></span></div><div class="project-meta"><span>Progresso ilustrativo</span><b>72%</b></div></div><div class="mock-project"><div class="project-line"><strong>Organização de equipes</strong><span class="project-chip lavender">Planejamento</span></div><div class="progress-track"><span style="width:43%"></span></div><div class="project-meta"><span>Progresso ilustrativo</span><b>43%</b></div></div></div><div class="mock-board task-board"><div class="mock-board-head"><strong>Próximas atividades</strong><span>Equipe</span></div><div class="mock-task"><span class="task-check">✓</span><strong>Revisar entregas do projeto</strong><span class="task-avatars">EB · AN</span></div><div class="mock-task"><span class="task-check pending">○</span><strong>Organizar responsabilidades</strong><span class="task-avatars">Equipe</span></div></div></div></div></div><p class="mock-caption">Composição visual ilustrativa — não é uma captura do sistema real.</p></div></div></section>
 <section class="section" id="recursos"><div class="wrap"><div class="eyebrow" style="color:#5741b5">Funcionalidades</div><h2>Um espaço para cada parte do trabalho</h2><p class="section-lead">Os recursos abaixo representam as áreas trabalhadas no desenvolvimento atual do AnnA Nexus.</p><div class="grid"><article class="card"><span class="ico">📁</span><h3>Projetos</h3><p>Centralize a organização e o acompanhamento das iniciativas da equipe.</p></article><article class="card"><span class="ico">☑️</span><h3>Tarefas</h3><p>Distribua atividades e acompanhe responsabilidades e andamento.</p></article><article class="card"><span class="ico">👥</span><h3>Equipes e membros</h3><p>Gerencie participantes e organize o trabalho colaborativo.</p></article><article class="card"><span class="ico">🔀</span><h3>Múltiplos responsáveis</h3><p>Associe mais de uma pessoa às tarefas quando o trabalho for compartilhado.</p></article><article class="card"><span class="ico">🏢</span><h3>Clientes</h3><p>Identifique visualmente os clientes associados aos projetos.</p></article><article class="card"><span class="ico">🧩</span><h3>Ecossistema AnnA One</h3><p>Módulo independente, com integração progressiva planejada para o ecossistema.</p></article></div></div></section>

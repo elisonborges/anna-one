@@ -504,6 +504,13 @@ const route=async(req,res)=>{
    if(action==='request'){
     const admins=await sql`SELECT auth_subject FROM teamhub.memberships WHERE organization_id=${org} AND role='admin' AND active=true`;
     await notifyMembers(org,subject,admins.map(x=>x.auth_subject),'project.review','Projeto aguardando aprovação',proj.name,projectId);
+   }else{
+    const requesters=await sql`SELECT actor_subject FROM teamhub.project_approvals
+      WHERE organization_id=${org} AND project_id=${projectId} AND action='requested'
+      ORDER BY created_at DESC LIMIT 1`;
+    const recipients=[...new Set([proj.owner_subject,requesters[0]?.actor_subject].filter(Boolean))];
+    const titles={approve:'Projeto aprovado e concluído',reject:'Projeto devolvido para ajustes',reopen:'Projeto reaberto'};
+    await notifyMembers(org,subject,recipients,'project.completion.'+action,titles[action],note||proj.name,projectId);
    }
    return reply(res,200,{project:updated[0],status:step.to});
   }

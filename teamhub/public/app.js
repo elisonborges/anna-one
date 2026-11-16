@@ -22,7 +22,7 @@ function applyRoleMenus(){
    const name=element.querySelector('span');if(name&&element.closest('#nexus-sidebar'))name.textContent=state.role==='manager'?'Meus projetos':state.role==='guest'?'Projetos compartilhados':'Projetos';
   }
  }
- $('dash-alerts').hidden=!['admin','manager'].includes(state.role);
+ $('dash-alerts').hidden=state.role!=='admin';
  $('dash-export').hidden=!['admin','manager'].includes(state.role);
  $('dash-wallboard').hidden=state.role==='member';
  $('show-archived').disabled=state.role==='member';
@@ -66,7 +66,7 @@ compactMedia.addEventListener('change',()=>setMobileNav(false));
 try{setSidebarCollapsed(localStorage.getItem(layoutPrefsKey)==='true')}catch{setSidebarCollapsed(false)}
 const show=(view)=>{if(state.role&&!(roleViews[state.role]||[]).includes(view))return;setMobileNav(false);state.view=view;for(const id of ['overview','projects','board','mytasks','team','reports','notifications','calendar','approvals'])$(id).hidden=id!==view;$('welcome-banner').hidden=view!=='overview';
 document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);b.setAttribute('aria-current',b.dataset.view===view?'page':'false')});
- $('title').textContent=view==='overview'?'Visão geral':view==='projects'?'Projetos':view==='board'?state.project?.name||'Quadro':view==='team'?'Equipe':view==='approvals'?'Solicitações e Aprovações':view==='reports'?'Relatórios':view==='notifications'?'Notificações':view==='calendar'?'Calendário':'Minhas tarefas';
+ $('title').textContent=view==='overview'?(state.role==='member'?'Meu painel':'Visão geral'):view==='projects'?(state.role==='manager'?'Meus projetos e participações':state.role==='guest'?'Projetos compartilhados':'Projetos'):view==='board'?state.project?.name||'Quadro':view==='team'?'Equipe':view==='approvals'?'Solicitações e Aprovações':view==='reports'?'Relatórios':view==='notifications'?'Notificações':view==='calendar'?'Calendário':'Minhas tarefas';
  $('subtitle').textContent=view==='overview'?'Acompanhe os projetos e as atividades da sua equipe.':view==='projects'?'Organize seus projetos e entregas.':view==='board'?'Acompanhe o trabalho por etapas.':view==='team'?'Pessoas autorizadas da organização.':view==='approvals'?'Acompanhe solicitações e registre decisões autorizadas.':view==='reports'?'Histórico e tempo dedicado a pendências.':view==='notifications'?'Atribuições e avisos importantes.':view==='calendar'?'Prazos e entregas por mês.':'Atividades sob sua responsabilidade.';
 };
 async function api(route,options={}){
@@ -775,7 +775,7 @@ async function loadMyTasks(){
 }
 let reportSnapshot=null;
 async function loadAutomationMonitor(){
- const panel=$('automation-admin');panel.hidden=!['admin','manager'].includes(state.role);
+ const panel=$('automation-admin');panel.hidden=state.role!=='admin';
  if(panel.hidden)return;
  try{
   const [jobs,mail]=await Promise.all([
@@ -1027,7 +1027,7 @@ async function refreshProjects(){
  $('projects-invite').disabled=state.role!=='admin';
  const selector=$('dash-project'),selected=selector.value;selector.replaceChildren();
  const any=document.createElement('option');any.value='';any.textContent='Todos os projetos';selector.append(any);
- for(const p of state.projects){const option=document.createElement('option');option.value=p.id;option.textContent=p.name;selector.append(option);}
+ for(const p of state.projects.filter(p=>state.role!=='manager'||canManageUI(p))){const option=document.createElement('option');option.value=p.id;option.textContent=p.name;selector.append(option);}
  selector.value=state.projects.some(p=>p.id===selected)?selected:'';
  if(state.role!=='guest'){await loadDashboard();await loadAttention();}
  if(state.role==='member')await loadPersonalHome();
@@ -1043,10 +1043,10 @@ async function manageBoardTask(task,act){
  if(!confirm((act==='delete'?'Excluir logicamente':act==='archive'?'Arquivar':'Restaurar')+' a tarefa '+task.title+'?'))return;
  try{
   await api('/api/tasks/'+task.id+'/'+act+qs(),{method:'POST',body:'{}'});
-  const project=state.project;
+  const project=state.project,wasOpen=!$('board-archived-panel').hidden;
   await openProject(project);
   await refreshProjects();
-  if(!$('board-archived-panel').hidden)await loadArchivedProjectTasks();
+  if(wasOpen){$('board-archived-panel').hidden=false;await loadArchivedProjectTasks();}
   message(act==='delete'?'Tarefa excluída logicamente.':act==='archive'?'Tarefa arquivada.':'Tarefa restaurada.');
  }catch(e){message(e.message,true)}
 }

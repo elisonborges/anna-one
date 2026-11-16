@@ -261,3 +261,13 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Quando qualquer filtro/pesquisa estiver ativo, a reordenação fica desabilitada para evitar perder tarefas ocultas; o quadro exibe uma orientação.
 - Movimentação entre etapas, subtarefas, histórico, anexos e aprovação de projetos permanecem separados.
 - Ambiente de desenvolvimento apenas, sem alterações em produção.
+
+
+## AnnA Nexus v0.1.38 — Correção de arraste de cards e Kanban (desenvolvimento)
+- A alça de tarefa usa eventos `pointermove/pointerup` no documento, evitando perder o arraste ao mover o elemento de posição.
+- O início do arraste de reordenação cancela a ação nativa HTML5 da tarefa, removendo conflito entre os dois mecanismos.
+- Na mesma coluna, a alça reorganiza a ordem e utiliza a API autenticada existente para persistência; ao arrastar a alça para outra coluna, solicita mudança de etapa pela API de tarefas.
+- Arraste nativo pela área do card para outra coluna no desktop e seletor de etapa continuam disponíveis.
+- Projetos conservam reordenação por ponteiro e teclado, com ordem por pessoa e organização.
+- Mudanças restritas a arquivos estáticos e documentação; sem migrações, alterações de permissões, banco de produção ou serviços pagos.
+- Verificação de sintaxe e invariantes de código não equivalem a teste físico autenticado com mouse/toque: **homologação visual e persistência após recarregar seguem pendentes**.

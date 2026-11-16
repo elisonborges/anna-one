@@ -516,6 +516,14 @@ async function loadReports(){
   secondsLabel(p.elapsed_seconds)
  ]);
  renderTable('reports-pauses',['Projeto','Tipo','Motivo','Início','Fim','Duração'],pauses);
+ const approvalRows=(data.approvals||[]).map(a=>[
+  a.project_name,({requested:'Solicitada',approved:'Aprovada',rejected:'Devolvida',reopened:'Reaberta'})[a.action]||a.action,
+  a.actor_subject===state.subject?'Você':memberName(a.actor_subject),a.note||'—',
+  a.action==='requested'||a.action==='approved'?Object.values(a.checklist||{}).filter(Boolean).length+'/5 checks':'—',
+  new Date(a.created_at).toLocaleString('pt-BR',{timeZone:'America/Fortaleza'})
+ ]);
+ renderTable('reports-approvals',['Projeto','Decisão','Responsável','Justificativa','Conferência','Data'],approvalRows);
+
  $('reports-summary').textContent='Relatório gerado em '+new Date(data.generated_at).toLocaleString('pt-BR')+'. O tempo total continua correndo durante as pausas.';
 }
 function exportReport(){
@@ -525,6 +533,7 @@ function exportReport(){
  for(const p of data.projects)lines.push(['Projeto',p.project_name,p.project_id,p.project_paused_at?'Em pausa':'Ativo',p.project_created_at,'',p.project_pending_seconds,p.project_pauses]);
  for(const t of data.tasks)lines.push(['Tarefa',data.projects.find(p=>p.project_id===t.project_id)?.project_name||'',t.title,t.deleted_at?'Excluída':t.archived_at?'Arquivada':t.paused_at?'Pausada':t.status,t.created_at,'',t.pending_seconds,t.pauses]);
  for(const x of (data.subtasks||[]))lines.push(['Subtarefa',x.project_name,x.parent_title+' / '+x.title,x.status,x.created_at,'',0,0]);
+ for(const a of (data.approvals||[]))lines.push(['Validação',a.project_name,a.action,a.note,a.created_at,'',Object.values(a.checklist||{}).filter(Boolean).length,'']);
  for(const x of data.pauses)lines.push(['Pausa',data.projects.find(p=>p.project_id===x.project_id)?.project_name||'',x.task_id||x.project_id,x.reason,x.started_at,x.ended_at||'Em aberto',x.elapsed_seconds,'']);
  const csv='\uFEFF'+lines.map(cols=>cols.map(v=>{let x=String(v??'');if(/^[=+@\-]/.test(x))x="'"+x;return '"'+x.replace(/"/g,'""')+'"';}).join(';')).join('\r\n');
  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));

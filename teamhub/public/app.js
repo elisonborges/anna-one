@@ -344,7 +344,7 @@ async function loadInvitations(){
    const status=invite.status==='accepted'?'Aceito':invite.status==='cancelled'?'Cancelado':expired?'Expirado':'Pendente';
    const role=({admin:'Administrador',manager:'Gestor',member:'Membro',guest:'Convidado'})[invite.role]||invite.role;
    let action='—';
-   if(invite.status==='pending'){
+   if(invite.status==='pending'&&!expired){
     action=makeAction('Cancelar',async()=>{
      if(!confirm('Cancelar este convite?'))return;
      action.disabled=true;

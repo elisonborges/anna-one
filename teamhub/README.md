@@ -301,3 +301,13 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Convidados sem projetos explicitamente compartilhados veem aviso orientativo, pedido de contato com Administrador e botão de atualização. Nenhum acesso a projetos é concedido automaticamente pelo aceite do convite.
 - Mudanças limitadas à interface do Nexus e documentação, sem alterações de tabela, regras de acesso ou Portal de produção.
 - Homologação real de cadastro/e-mail verificado, convite e troca de conta ainda depende de contas de teste autorizadas.
+
+## AnnA Nexus v0.1.42 — Convites automáticos no padrão AnnA One
+- Ao clicar em **Gerar e enviar convite**, apenas o Administrador cria um token individual válido por sete dias. O token bruto existe apenas no retorno da criação/reenvio e no link enviado, enquanto o banco conserva seu hash SHA-256.
+- O backend tenta enviar o e-mail pelo Resend com HTML responsivo no padrão AnnA One (cabeçalho azul, logomarca, organização, perfil, botão Aceitar convite, endereço alternativo e rodapé). Usa remetente institucional com o `NEXUS_EMAIL_FROM` já configurado, e aplica o logotipo HTTPS da organização quando disponível; na falta dele, usa o símbolo público do Nexus.
+- A mesma configuração já existente de notificações é reaproveitada: `NEXUS_EMAIL_ENABLED=true`, `RESEND_API_KEY` válida, `NEXUS_EMAIL_FROM` de domínio verificado no Resend. Não há nenhuma chave de API no repositório.
+- A API retorna `email_status=sent` somente quando o Resend aceita a solicitação e informa um ID. Isso **não confirma entrega ao destinatário**; `failed` e `not_configured` mantêm o link manual em destaque e a possibilidade de envio pelo aplicativo local.
+- Status e tentativas do convite são registrados na tabela `teamhub.invitations`, com migração aditiva `0033-invitation-email-status.sql`, executada no banco DEV.
+- Reenvio de convite pendente (apenas Administrador) emite **novo link**, invalida o anterior e renova o prazo para sete dias; exige ao menos 60 segundos desde a tentativa anterior, com no máximo cinco tentativas, e usa chave de idempotência exclusiva por tentativa. Em caso de falha, mantém o link novo à disposição do Administrador.
+- O painel Equipe mostra disponibilidade do Resend, resultado da última tentativa e opção de reenvio; o Histórico de convites diferencia aceito pelo provedor, falha, envio não configurado e link manual.
+- Os envios reais requerem credenciais de remetente verificadas e um teste autorizado com endereço de destinatário. Nenhum convite é criado durante testes estáticos, e o Portal AnnA One e a base de produção não são alterados.

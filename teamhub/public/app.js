@@ -90,6 +90,11 @@ async function loadMembers(){
  for(const member of state.members.filter(x=>x.active)){
   const opt=document.createElement('option');opt.value=member.auth_subject;opt.textContent=memberName(member.auth_subject);projectOwner.append(opt);
  }
+ const subOwner=$('subtask-owner');subOwner.replaceChildren();
+ const blank=document.createElement('option');blank.value='';blank.textContent='Sem responsável';subOwner.append(blank);
+ for(const member of state.members.filter(x=>x.active)){
+  const opt=document.createElement('option');opt.value=member.auth_subject;opt.textContent=memberName(member.auth_subject);subOwner.append(opt);
+ }
  const checks=$('field-assignees');checks.replaceChildren();
  const active=state.members.filter(m=>m.active);
  if(!active.length)checks.textContent='Nenhum membro disponível.';
@@ -361,6 +366,7 @@ function renderTasks(){
    const edit=document.createElement('button');edit.type='button';edit.className='task-edit';edit.textContent='Editar tarefa';edit.disabled=!['admin','manager','member'].includes(state.role);edit.onclick=()=>modal('edit',t);
    if(t.pending_reason){const p=document.createElement('span');p.className='pending-summary';p.textContent='Pendência: '+t.pending_reason;meta.append(p);}
    if(t.next_action){const p=document.createElement('span');p.textContent='Próxima ação: '+t.next_action;meta.append(p);}
+   if(t.subtask_total){const p=document.createElement('span');p.textContent='Subtarefas: '+t.subtask_done+'/'+t.subtask_total+' concluídas';meta.append(p);}
    footer.append(label,select);card.append(title,badge,meta,footer,edit);list.append(card);
   }
  }
@@ -399,12 +405,61 @@ function modal(type,task=null){
  $('history-new-note').value='';
  $('history-add').disabled=!['admin','manager','member'].includes(state.role);
  $('task-history-wrap').hidden=type!=='edit';
+ $('subtasks-panel').hidden=type!=='edit';
+ $('subtask-name').value='';$('subtask-owner').value='';$('subtask-due').value='';
+ $('subtask-due').min=todayInFortaleza();
+ if(type==='edit')loadSubtasks(task.id);
  if(type==='edit')loadHistory(task.id);
 
  $('field-description').maxLength=type==='project'||type==='project-edit'?1000:2000;
  $('dialog').showModal();$('field-name').focus();
 }
 
+async function loadSubtasks(taskId){
+ const host=$('subtasks-list');host.textContent='Carregando subtarefas…';
+ try{
+  const data=await api('/api/tasks/'+taskId+'/subtasks'+qs());
+  $('subtasks-summary').textContent=data.subtasks.filter(x=>x.status==='done').length+'/'+data.subtasks.length+' concluídas';
+  host.replaceChildren();
+  if(!data.subtasks.length){host.textContent='Nenhuma subtarefa. Adicione a primeira abaixo.';return;}
+  for(const item of data.subtasks){
+   const row=document.createElement('div');row.className='subtask-row';
+   const name=document.createElement('strong');name.textContent=item.title;
+   const status=document.createElement('select');status.setAttribute('aria-label','Situação da subtarefa '+item.title);
+   for(const [v,label] of [['todo','A fazer'],['doing','Em andamento'],['done','Concluída']]){
+    const option=document.createElement('option');option.value=v;option.textContent=label;status.append(option);
+   }
+   status.value=item.status;status.disabled=!['admin','manager','member'].includes(state.role);
+   status.onchange=async()=>{status.disabled=true;try{await api('/api/subtasks/'+item.id+qs(),{method:'PATCH',body:JSON.stringify({status:status.value})});await loadSubtasks(taskId);message('Subtarefa atualizada.')}catch(e){message(e.message,true);status.disabled=false;}};
+   const details=document.createElement('small');
+   details.textContent=memberName(item.owner_subject)+(item.due_at?' · '+new Date(item.due_at).toLocaleDateString('pt-BR',{timeZone:'UTC'}):' · Sem prazo');
+   const edit=makeAction('Editar',async()=>{
+    const title=prompt('Título da subtarefa:',item.title);
+    if(title===null)return;
+    edit.disabled=true;
+    try{await api('/api/subtasks/'+item.id+qs(),{method:'PATCH',body:JSON.stringify({title:title.trim()})});await loadSubtasks(taskId);message('Subtarefa renomeada.')}
+    catch(e){message(e.message,true);edit.disabled=false;}
+   });
+   edit.disabled=!['admin','manager','member'].includes(state.role);
+   const text=document.createElement('div');text.append(name,details);
+   row.append(text,status,edit);host.append(row);
+  }
+ }catch(e){host.textContent='Erro ao consultar subtarefas: '+e.message;}
+}
+$('subtask-add').addEventListener('click',async()=>{
+ if(mode!=='edit'||!editing)return;
+ const title=$('subtask-name').value.trim();
+ if(title.length<2){message('Informe o título da subtarefa.',true);return;}
+ const button=$('subtask-add');button.disabled=true;
+ try{
+  await api('/api/tasks/'+editing.id+'/subtasks'+qs(),{method:'POST',body:JSON.stringify({
+   title,owner_subject:$('subtask-owner').value||null,
+   due_at:$('subtask-due').value||null,priority:$('subtask-priority').value
+  })});
+  $('subtask-name').value='';$('subtask-due').value='';$('subtask-owner').value='';
+  await loadSubtasks(editing.id);message('Subtarefa adicionada.');
+ }catch(e){message(e.message,true)}finally{button.disabled=false;}
+});
 async function loadHistory(taskId){
  const list=$('task-history');list.textContent='Carregando histórico…';
  try{

@@ -405,7 +405,13 @@ const route=async(req,res)=>{
      FROM teamhub.pause_periods x WHERE x.organization_id=${org} AND x.task_id=t.id) AS pending_seconds,
     (SELECT count(*)::int FROM teamhub.pause_periods x WHERE x.organization_id=${org} AND x.task_id=t.id) AS pauses
    FROM teamhub.tasks t WHERE t.organization_id=${org} ORDER BY t.created_at DESC LIMIT 1000`;
-  return reply(res,200,{projects:rows,tasks:taskRows,pauses,generated_at:new Date().toISOString()});
+  const subtaskRows=await sql`SELECT s.id,s.task_id,s.project_id,s.title,s.status,s.priority,s.owner_subject,s.created_at,s.due_at,
+   t.title AS parent_title,p.name AS project_name,
+   COALESCE((SELECT jsonb_agg(a.auth_subject ORDER BY a.auth_subject) FROM teamhub.subtask_assignees a WHERE a.organization_id=s.organization_id AND a.subtask_id=s.id),'[]'::jsonb) AS assignees
+   FROM teamhub.subtasks s JOIN teamhub.tasks t ON t.id=s.task_id AND t.organization_id=s.organization_id
+   JOIN teamhub.projects p ON p.id=s.project_id AND p.organization_id=s.organization_id
+   WHERE s.organization_id=${org} ORDER BY s.created_at DESC LIMIT 1000`;
+  return reply(res,200,{projects:rows,tasks:taskRows,subtasks:subtaskRows,pauses,generated_at:new Date().toISOString()});
  }
  const pm=/^\/api\/projects\/([0-9a-f-]+)\/tasks$/.exec(p);
  if(pm&&validId(pm[1])){

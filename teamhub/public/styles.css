@@ -466,3 +466,13 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
 .project-card-actions .project-card-open{font-weight:800}
 .project-card{min-width:0}
 @media(max-width:650px){.project-card-actions{grid-template-columns:repeat(3,minmax(0,1fr))}.project-card-actions .table-action{font-size:10.5px!important}}
+
+/* v0.1.18 — permissões opcionais por projeto */
+#project-access-fields[hidden]{display:none!important}
+#project-access-fields:not([hidden]){display:grid;grid-column:1/-1;grid-template-columns:1fr;gap:9px;border-top:1px solid var(--line);padding:13px 0 0;margin-top:5px}
+#project-access-fields h3{font-size:15px;margin:0}
+#project-access-fields>label{font-weight:800;font-size:12px}
+#project-access-fields select{width:100%;min-height:42px}
+#project-member-choices{grid-template-columns:repeat(auto-fit,minmax(145px,1fr))}
+#project-access-fields small{line-height:1.5}
+.project-card-tags span:last-child{font-weight:700}

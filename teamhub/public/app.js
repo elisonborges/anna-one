@@ -47,16 +47,34 @@ function renderProjects(){
   const name=makeAction(p.name,()=>openProject(p));name.classList.add('recent-project-link');
   return [name,p.description||'—',String(p.total),progress+'%'];
  });
- const projectRows=state.projects.map(p=>{
-  const progress=p.total?Math.round(p.done/p.total*100):0;
-  const cell=document.createElement('div');cell.className='project-entry';
-  const name=document.createElement('strong');name.className='project-name';name.textContent=p.name;
-  const open=makeAction('Abrir',()=>openProject(p));open.classList.add('project-open-button');
-  cell.append(name,open);
-  return [cell,p.description||'—',String(p.total),progress+'%'];
- });
  renderTable('overview-projects',['Projeto','Descrição','Tarefas','Progresso'],overviewRows);
- renderTable('projects-list',['Projeto / abrir','Descrição','Tarefas','Progresso'],projectRows);
+ const container=$('projects-list');container.replaceChildren();
+ const allowed=['blue','violet','green','orange','pink','teal','slate'];
+ for(const p of state.projects){
+  const card=document.createElement('article');card.className='project-card color-'+(allowed.includes(p.card_color)?p.card_color:'blue');
+  const cover=document.createElement('div');cover.className='project-card-cover';
+  const title=document.createElement('h3');title.textContent=p.name;
+  const description=document.createElement('p');description.textContent=p.description||'Sem descrição';
+  const tags=document.createElement('div');tags.className='project-card-tags';
+  const percent=p.total?Math.round(p.done/p.total*100):0;
+  for(const label of [p.total+' tarefas',percent+'% concluído',p.paused_at?'Em pausa':'Ativo']){
+   const span=document.createElement('span');span.textContent=label;tags.append(span);
+  }
+  const progress=document.createElement('div');progress.className='project-card-progress';
+  const bar=document.createElement('span');bar.style.width=percent+'%';progress.append(bar);
+  const owner=document.createElement('small');owner.textContent='Responsável: '+memberName(p.owner_subject);
+  const actions=document.createElement('div');actions.className='project-card-actions';
+  const open=makeAction('Abrir projeto',()=>openProject(p));open.classList.add('project-card-open');
+  actions.append(open);
+  if(['admin','manager'].includes(state.role)){
+   const edit=makeAction('Personalizar',()=>modal('project-edit',p));
+   const invite=makeAction('Convidar',async()=>{try{await loadMembers();await loadInvitations();show('team');$('invite-email').focus();}catch(e){message(e.message,true)}});
+   actions.append(edit,invite);
+  }
+  card.append(cover,title,description,owner,tags,progress,actions);container.append(card);
+ }
+ const add=document.createElement('button');add.type='button';add.className='project-card-add';add.disabled=!['admin','manager'].includes(state.role);
+ add.textContent='+ Criar novo card';add.onclick=()=>modal('project');container.append(add);
  $('stat-projects').textContent=state.projects.length;
 }
 function memberName(subject){
@@ -67,6 +85,11 @@ function memberName(subject){
 }
 async function loadMembers(){
  const data=await api('/api/members'+qs());state.members=data.members;
+ const projectOwner=$('project-owner');projectOwner.replaceChildren();
+ const option=document.createElement('option');option.value='';option.textContent='Não atribuído';projectOwner.append(option);
+ for(const member of state.members.filter(x=>x.active)){
+  const opt=document.createElement('option');opt.value=member.auth_subject;opt.textContent=memberName(member.auth_subject);projectOwner.append(opt);
+ }
  const checks=$('field-assignees');checks.replaceChildren();
  const active=state.members.filter(m=>m.active);
  if(!active.length)checks.textContent='Nenhum membro disponível.';
@@ -272,6 +295,7 @@ function exportReport(){
  const link=document.createElement('a');link.href=url;link.download='nexus-relatorio-pendencias.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 $('report-export').addEventListener('click',exportReport);
+$('projects-invite').addEventListener('click',async()=>{try{await loadMembers();await loadInvitations();show('team');$('invite-email').focus();}catch(e){message(e.message,true)}});
 $('show-archived').addEventListener('change',()=>loadMyTasks().catch(e=>message(e.message,true)));
 $('project-pause').addEventListener('click',async()=>{
  if(!state.project)return;
@@ -304,6 +328,7 @@ async function loadAttention(){
 async function refreshProjects(){
  const data=await api('/api/projects'+qs());state.projects=data.projects;state.role=data.role;renderProjects();
  $('new-project').disabled=!['admin','manager'].includes(state.role);
+ $('projects-invite').disabled=state.role!=='admin';
  const summary=await api('/api/dashboard'+qs());$('stat-projects').textContent=summary.summary.projects;$('stat-open').textContent=summary.summary.open;$('stat-doing').textContent=summary.summary.doing;$('stat-done').textContent=summary.summary.done;$('stat-attention').textContent=summary.summary.attention||0;await loadAttention();
 }
 async function openProject(p){
@@ -354,10 +379,13 @@ function todayInFortaleza(){
 let mode=null,editing=null;
 function modal(type,task=null){
  mode=type;editing=task;
- $('modal-title').textContent=type==='project'?'Novo projeto':type==='edit'?'Editar tarefa':'Nova tarefa';
- $('field-name').value=task?.title||'';
+ $('modal-title').textContent=type==='project'?'Novo projeto':type==='project-edit'?'Personalizar projeto':type==='edit'?'Editar tarefa':'Nova tarefa';
+ $('field-name').value=type==='project-edit'?task?.name||'':task?.title||'';
  $('field-description').value=task?.description||'';
- $('task-fields').hidden=type==='project';
+ $('task-fields').hidden=type==='project'||type==='project-edit';
+ $('project-fields').hidden=!(type==='project'||type==='project-edit');
+ $('project-color').value=task?.card_color||'blue';
+ $('project-owner').value=task?.owner_subject||'';
  $('field-priority').value=task?.priority||'medium';
  $('field-due').value=task?.due_at?String(task.due_at).slice(0,10):'';
  $('field-due').min=todayInFortaleza();
@@ -373,7 +401,7 @@ function modal(type,task=null){
  $('task-history-wrap').hidden=type!=='edit';
  if(type==='edit')loadHistory(task.id);
 
- $('field-description').maxLength=type==='project'?1000:2000;
+ $('field-description').maxLength=type==='project'||type==='project-edit'?1000:2000;
  $('dialog').showModal();$('field-name').focus();
 }
 
@@ -468,8 +496,10 @@ $('history-add').addEventListener('click',async()=>{
 $('editor').addEventListener('submit',async e=>{
  e.preventDefault();const name=$('field-name').value.trim(),description=$('field-description').value.trim();$('save').disabled=true;
  try{
-  if(mode==='project'){
-   await api('/api/projects'+qs(),{method:'POST',body:JSON.stringify({name,description})});
+  if(mode==='project'||mode==='project-edit'){
+   const payload={name,description,card_color:$('project-color').value,owner_subject:$('project-owner').value||null};
+   if(mode==='project')await api('/api/projects'+qs(),{method:'POST',body:JSON.stringify(payload)});
+   else await api('/api/projects/'+editing.id+qs(),{method:'PATCH',body:JSON.stringify(payload)});
    await refreshProjects();show('projects');
   }else{
    const priority=$('field-priority').value;

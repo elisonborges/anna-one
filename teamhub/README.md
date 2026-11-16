@@ -196,3 +196,11 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Alertas internos enviados aos administradores quando um projeto é submetido. Não há e-mails automáticos nem exclusão definitiva de projetos.
 - Migração aditiva `migrations/0027-project-approvals.sql` aplicada somente ao Neon de desenvolvimento. Nenhum projeto foi encerrado automaticamente.
 - Sem publicação no Portal AnnA One principal; exige homologação funcional com autenticação para liberação em produção.
+
+## AnnA Nexus v0.1.27 — Preferências, prazos de subtarefas e decisões
+- Cada membro configura suas preferências **por organização** na tela Notificações: atribuições, menções, prazos e aprovações. As configurações se aplicam aos **novos** avisos internos; não apagam o histórico já criado.
+- Filtros rápidos na caixa de entrada: todas, não lidas, atribuições, menções, prazos e aprovações.
+- As decisões de aprovação, devolução e reabertura de projetos geram notificações internas ao solicitante e ao responsável, respeitando preferências pessoais.
+- O botão Verificar prazos também considera subtarefas pendentes, inclusive com múltiplos responsáveis, e respeita as permissões dos projetos e preferências de prazos. Proteção contra novos avisos repetidos em 24 h.
+- **E-mail desativado por padrão e nesta versão:** há estrutura para preferências futuras, mas nenhum envio externo/Resend foi ativado. Um agendador real depende da configuração segura de um serviço cron, ainda não ativado. Não chamar o botão manual de agendamento.
+- Migração aditiva `migrations/0028-notification-preferences.sql` no Neon de desenvolvimento; banco e portal de produção preservados. Testes autenticados entre vários usuários permanecem pendentes.

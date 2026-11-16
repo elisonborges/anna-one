@@ -169,3 +169,29 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
 /* v0.1.6 — registro rápido de andamento */
 .history-add{width:100%;min-height:44px;margin-bottom:14px}
 #history-new-note{width:100%;min-height:64px;resize:vertical}
+
+/* v0.1.7 — gestao de convites para desktop e smartphones */
+#team{display:grid;gap:16px}
+#team[hidden],.invite-admin[hidden],#invite-result[hidden]{display:none!important}
+.invite-form{display:grid;gap:10px;grid-template-columns:minmax(0,1fr) minmax(155px,.48fr) auto;align-items:end}
+.invite-form label{grid-row:1;margin:0}
+.invite-form #invite-email,.invite-form #invite-role,.invite-form button{grid-row:2;min-height:44px;width:100%}
+.invite-form label[for="invite-email"]{grid-column:1}.invite-form label[for="invite-role"]{grid-column:2}
+.invite-result{padding:15px;margin-top:15px;background:var(--tint);border:1px solid var(--line);border-radius:12px}
+.invite-result input{width:100%;font-size:12px}
+.invite-actions{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0}
+.invite-actions .secondary{display:inline-flex;align-items:center;justify-content:center}
+.invite-list{display:grid;gap:9px}
+.invite-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px;border:1px solid var(--line);border-radius:11px}
+.invite-row strong,.invite-row small{display:block;overflow-wrap:anywhere}
+.invite-row strong{font-size:14px}
+.invite-row small{margin-top:5px;font-size:12px;color:var(--muted)}
+@media(max-width:750px){
+ .invite-form{grid-template-columns:1fr;gap:7px}
+ .invite-form label,.invite-form #invite-email,.invite-form #invite-role,.invite-form button{grid-column:1!important;grid-row:auto}
+ .invite-form label[for="invite-role"]{margin-top:7px}
+ .invite-row{align-items:stretch;flex-direction:column}
+ .invite-row button{width:100%;min-height:44px}
+ .invite-actions{flex-direction:column}
+ .invite-actions>*{width:100%;min-height:44px}
+}

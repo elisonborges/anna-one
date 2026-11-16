@@ -279,3 +279,15 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Na tabela de convites, somente pendentes ainda dentro da validade oferecem o botão Cancelar; expirados exibem o estado Expirado.
 - Autorização por organização e projeto, migrações e login unificado existentes preservados. Nenhuma conta ou convite de teste criado e nenhum dado real alterado nesta entrega.
 - Testes reais com dois usuários, recebimento do e-mail verificado, troca de contas, perfis e projetos restritos ainda exigem homologação autenticada. O envio automático de convite via Resend não faz parte desta versão.
+
+
+## AnnA Nexus v0.1.40 — Telas e permissões por perfil (ambiente DEV)
+- **Administrador**: gestão completa da organização, convites, perfis, relatórios e decisões de aprovação de projetos.
+- **Gestor**: administra somente projetos criados por ele ou formalmente designados por administrador em `manager_subject`. Um Gestor participante de projeto alheio segue o limite de edição por atribuição, sem poderes gerenciais. Projetos antigos sem gestor identificado devem ser designados pelo administrador.
+- **Membro**: visualiza projetos autorizados, altera apenas etapa e andamento de tarefas atribuídas e etapa de subtarefas atribuídas; comentários e anexos ficam limitados às tarefas com atribuição. Pode pausar/retomar tarefa atribuída com justificativa na pausa. Não pode alterar nome, descrição, prioridade, prazo, responsáveis, arquivar, restaurar ou excluir.
+- **Convidado**: apenas leitura de projetos explicitamente compartilhados, calendário e avisos informativos, sem API de edição, Central interna, relatórios ou equipe.
+- **Conclusão compartilhada**: qualquer responsável atribuído pode concluir a tarefa. Reabrir após conclusão requer decisão na Central por gestor responsável ou administrador, e retorna automaticamente a **Em andamento**.
+- **Central de Solicitações e Aprovações**: reabertura de tarefas e validação de projetos no mesmo local. Solicitação exige justificativa e há índice único para um pedido pendente por tarefa. Recusa exige justificativa; aprovação permite nota opcional. Todas as decisões registram autor, horário e resultado. Notificações apenas informam e levam à Central.
+- **Arquivo**: gestor responsável e administrador podem arquivar e restaurar tarefas, inclusive as não atribuídas ao próprio usuário, pelo quadro; exclusão lógica continua exclusiva do administrador.
+- Migração aditiva `0032-role-views-and-reopen.sql` aplicada **somente ao Neon anna-nexus-dev**. Não são criados usuários, convites ou tarefas artificiais. Nenhuma alteração no Portal AnnA One principal ou banco de produção.
+- Permanecem necessários testes multiusuário autenticados por perfil (incluindo convidado, gestor não responsável e membro com atribuições compartilhadas), e conferência do fluxo de notificações no navegador.

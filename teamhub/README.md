@@ -40,3 +40,9 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Migração aditiva: `migrations/0014-treatment.sql`, aplicada apenas ao banco `anna-nexus-dev`. Projetos e tarefas anteriores foram preservados.
 - A publicação deve atualizar o indicador da interface para v0.1.4.
 - Ainda é necessária validação funcional no navegador com a identidade central. Não houve alteração do Portal AnnA One de produção.
+
+## Entrega v0.1.5 — Pendências em destaque no Dashboard
+- Lista de tarefas bloqueadas e aguardando retorno, com suas pendências e próximas ações.
+- Botão para abrir diretamente o projeto, com navegação responsiva.
+- Dados isolados por organização e submetidos à verificação de acesso.
+- Mantém o histórico e a modelagem da v0.1.4, sem alterar outras estruturas.

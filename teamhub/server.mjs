@@ -127,6 +127,93 @@ function emailTransportConfigured(){
   typeof process.env.RESEND_API_KEY==='string'&&process.env.RESEND_API_KEY.startsWith('re_')&&
   typeof process.env.NEXUS_EMAIL_FROM==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(process.env.NEXUS_EMAIL_FROM);
 }
+
+const NEXUS_INVITE_URL='https://anna-nexus-dev.onrender.com/';
+const escapeEmailHtml=value=>String(value??'').replace(/[&<>"']/g,char=>({
+ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+})[char]);
+function inviteEmailContent({organizationName,logoUrl,role,inviteUrl}){
+ const org=escapeEmailHtml(organizationName||'Sua organização');
+ const roleLabel=({admin:'Administrador',manager:'Gestor',member:'Membro',guest:'Convidado'})[role]||'Convidado';
+ const logo=typeof logoUrl==='string'&&/^https:\/\//i.test(logoUrl)&&logoUrl.length<1000
+  ?logoUrl:NEXUS_INVITE_URL+'anna-symbol.svg';
+ const safeLogo=escapeEmailHtml(logo);
+ const safeUrl=escapeEmailHtml(inviteUrl);
+ const subject='Convite para participar de '+(organizationName||'uma equipe')+' no AnnA Nexus';
+ const textBody='Você recebeu um convite para participar de '+(organizationName||'uma organização')+
+  ' no AnnA Nexus. Perfil: '+roleLabel+
+  '. Para aceitar, acesse: '+inviteUrl+
+  '\n\nEste convite é individual, válido por 7 dias e deve ser usado com o mesmo endereço de e-mail. Se não esperava este convite, ignore esta mensagem.\nAnnA One · Tecnologia e Educação Juntas.';
+ const html=`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+ <meta name="viewport" content="width=device-width,initial-scale=1"></head>
+ <body style="margin:0;background:#eff5fb;font-family:Arial,Helvetica,sans-serif;color:#173451">
+ <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background:#eff5fb">
+ <tr><td align="center" style="padding:26px 12px">
+ <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width:560px;background:#ffffff;border:1px solid #dce7f3;border-radius:16px;overflow:hidden">
+ <tr><td style="background:#0c2646;padding:26px;text-align:center">
+ <img alt="" src="${safeLogo}" width="52" height="52" style="display:block;margin:0 auto 8px;object-fit:contain">
+ <div style="font-size:28px;font-weight:bold;color:#ffffff">AnnA <span style="color:#69baff">One</span></div>
+ <div style="color:#ccdef0;letter-spacing:2px;font-size:11px;padding-top:5px">NEXUS · GESTÃO COLABORATIVA</div>
+ </td></tr>
+ <tr><td style="padding:29px 29px 12px">
+ <h1 style="font-size:23px;line-height:1.35;margin:0 0 16px;color:#123965">Você foi convidado!</h1>
+ <p style="font-size:15px;line-height:1.7;margin:0 0 17px">Você recebeu um convite para participar de uma equipe no <strong>AnnA Nexus</strong>, ambiente colaborativo da AnnA One.</p>
+ <table role="presentation" cellspacing="0" cellpadding="0" width="100%" style="background:#f1f6fc;border-radius:10px">
+ <tr><td style="padding:16px;font-size:14px;line-height:1.8">
+ <span style="color:#54708a">Organização</span><br><strong>${org}</strong><br>
+ <span style="color:#54708a">Perfil de acesso</span><br><strong>${escapeEmailHtml(roleLabel)}</strong>
+ </td></tr></table>
+ <div style="text-align:center;margin:28px 0 24px">
+ <a href="${safeUrl}" style="background:#0870ca;color:#fff;text-decoration:none;border-radius:9px;padding:15px 28px;display:inline-block;font-size:15px;font-weight:bold">Aceitar convite</a>
+ </div>
+ <p style="color:#5d7288;font-size:13px;line-height:1.6">Este convite é individual e válido por <strong>7 dias</strong>. Entre ou crie sua conta AnnA One com o mesmo e-mail destinatário.</p>
+ <p style="color:#5d7288;font-size:12px;line-height:1.6;overflow-wrap:anywhere">Se o botão não funcionar, copie o endereço abaixo:<br>
+ <a href="${safeUrl}" style="color:#0870ca;word-break:break-all">${safeUrl}</a></p>
+ </td></tr>
+ <tr><td style="padding:18px 28px 22px;border-top:1px solid #e6edf5;text-align:center;color:#6b7c8f;font-size:12px;line-height:1.6">
+ AnnA One · Tecnologia e Educação Juntas<br>
+ Mensagem automática de convite. Se não esperava este e-mail, pode ignorá-lo.<br>
+ Não compartilhe o link individual de acesso.
+ </td></tr></table>
+ </td></tr></table></body></html>`;
+ return {subject,html,text:textBody};
+}
+async function dispatchInvitationEmail({invitationId,email,role,inviteUrl,organizationName,logoUrl}){
+ if(!emailTransportConfigured()){
+  await sql`UPDATE teamhub.invitations SET email_status='not_configured',
+   email_error='Envio automático não configurado no ambiente.',email_attempted_at=NULL
+   WHERE id=${invitationId} AND email_attempts=0`;
+  return {delivery:'manual',email_status:'not_configured'};
+ }
+ const content=inviteEmailContent({organizationName,logoUrl,role,inviteUrl});
+ // Resend idempotency prevents accidental duplicate submissions of the same invitation.
+ try{
+  const response=await fetch('https://api.resend.com/emails',{
+   method:'POST',
+   headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,
+    'Content-Type':'application/json',
+    'Idempotency-Key':'nexus-invitation-'+invitationId},
+   body:JSON.stringify({from:'AnnA One | Nexus <'+process.env.NEXUS_EMAIL_FROM+'>',
+    to:[email],subject:content.subject,html:content.html,text:content.text}),
+   signal:AbortSignal.timeout(10000)
+  });
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok)throw Error('Resend HTTP '+response.status);
+  const providerId=typeof result.id==='string'?result.id.slice(0,128):'';
+  if(!providerId)throw Error('Resend não confirmou um identificador de envio.');
+  await sql`UPDATE teamhub.invitations SET email_status='sent',
+   email_attempted_at=now(),email_provider_id=${providerId},email_error=NULL,
+   email_attempts=email_attempts+1 WHERE id=${invitationId}`;
+  return {delivery:'email',email_status:'sent'};
+ }catch(error){
+  const note=String(error?.message||'Falha do provedor').slice(0,160);
+  await sql`UPDATE teamhub.invitations SET email_status='failed',
+   email_attempted_at=now(),email_error=${note},
+   email_attempts=email_attempts+1 WHERE id=${invitationId}`;
+  console.warn('Nexus invitation email was not accepted by the provider.',note);
+  return {delivery:'manual',email_status:'failed'};
+ }
+}
 let emailWorkerBusy=false;
 async function processEmailOutbox(){
  if(emailWorkerBusy||!emailTransportConfigured())return;
@@ -443,7 +530,7 @@ const route=async(req,res)=>{
  }
  if(p==='/api/invitations'&&req.method==='GET'){
   if(role!=='admin')bad('Apenas administradores podem consultar convites.',403);
-  const rows=await sql`SELECT id,email,role,status,created_at,expires_at,accepted_at FROM teamhub.invitations WHERE organization_id=${org} ORDER BY created_at DESC LIMIT 100`;
+  const rows=await sql`SELECT id,email,role,status,created_at,expires_at,accepted_at,email_status,email_attempted_at,email_attempts,email_error FROM teamhub.invitations WHERE organization_id=${org} ORDER BY created_at DESC LIMIT 100`;
   return reply(res,200,{invitations:rows});
  }
  if(p==='/api/invitations'&&req.method==='POST'){
@@ -460,7 +547,15 @@ const route=async(req,res)=>{
    const rows=await sql`INSERT INTO teamhub.invitations(organization_id,email,role,token_hash,invited_by_subject,expires_at)
      VALUES(${org},${email},${invitedRole},${tokenHash},${subject},now()+interval '7 days') RETURNING id,email,role,status,expires_at`;
    await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action) VALUES(${org},${subject},'invitation.created')`;
-   return reply(res,201,{invitation:rows[0],invite_url:'https://anna-nexus-dev.onrender.com/#invite='+token,delivery:'manual'});
+   const inviteUrl=NEXUS_INVITE_URL+'#invite='+token;
+   const [organization]=await sql`SELECT name,display_name,logo_url FROM teamhub.organizations WHERE id=${org}`;
+   const sending=await dispatchInvitationEmail({
+    invitationId:rows[0].id,email,role:invitedRole,inviteUrl,
+    organizationName:organization?.display_name||organization?.name||'Sua organização',
+    logoUrl:organization?.logo_url||''
+   });
+   return reply(res,201,{invitation:{...rows[0],email_status:sending.email_status},
+    invite_url:inviteUrl,delivery:sending.delivery,email_status:sending.email_status});
   }catch(e){
    if(e?.code==='23505'||String(e?.message||'').includes('invitations_one_pending'))bad('Este e-mail já possui um convite pendente. Cancele-o antes de enviar outro.',409);
    throw e;

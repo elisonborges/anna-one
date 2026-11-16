@@ -62,6 +62,11 @@ function renderTasks(){
  const mine=all.filter(t=>t.assignee_subject&&t.assignee_subject===state.subject);
  $('mine').textContent=mine.length?mine.map(t=>t.title).join(' · '):'Sem tarefas atribuídas neste projeto.';
 }
+function todayInFortaleza(){
+ const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/Fortaleza',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+ const part=k=>parts.find(p=>p.type===k).value;
+ return part('year')+'-'+part('month')+'-'+part('day');
+}
 let mode=null,editing=null;
 function modal(type,task=null){
  mode=type;editing=task;
@@ -71,6 +76,7 @@ function modal(type,task=null){
  $('task-fields').hidden=type==='project';
  $('field-priority').value=task?.priority||'medium';
  $('field-due').value=task?.due_at?String(task.due_at).slice(0,10):'';
+ $('field-due').min=todayInFortaleza();
  $('field-description').maxLength=type==='project'?1000:2000;
  $('dialog').showModal();$('field-name').focus();
 }
@@ -120,6 +126,7 @@ $('editor').addEventListener('submit',async e=>{
   }else{
    const priority=$('field-priority').value;
    const due_at=$('field-due').value||null;
+   if(due_at&&due_at<todayInFortaleza())throw Error('Escolha um prazo igual ou posterior à data de hoje.');
    if(mode==='edit'){
     await api('/api/tasks/'+editing.id+qs(),{method:'PATCH',body:JSON.stringify({title:name,description,priority,due_at})});
    }else{

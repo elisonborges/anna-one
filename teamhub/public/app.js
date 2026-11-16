@@ -198,7 +198,7 @@ function enableProjectCardReorder(card,handle){
   // Let action buttons and form controls keep their original click behavior.
   if(e.target.closest('button,a,input,select,textarea')&&e.target!==handle)return;
   drag={id:e.pointerId,x:e.clientX,y:e.clientY,started:false,initialOrder:cards().map(x=>x.dataset.projectId).join(',')};
-  if(e.target===handle)e.preventDefault();
+  if(e.target===handle||e.pointerType==='touch')e.preventDefault();
   card.classList.add('is-reordering');
   document.body.classList.add('project-reorder-active');
   // Listeners belong to document, not the moving card: moving a captured
@@ -967,43 +967,73 @@ async function persistTaskOrder(status,orderedIds){
  }catch(error){state.tasks=previous;renderTasks();message(error.message,true);}
 }
 function enableTaskOrderHandle(card,handle,status){
- let dragging=null;
- const list=card.parentElement;
- handle.addEventListener('pointerdown',e=>{
-  if(e.button!==0||!canReorderTasks())return;
-  dragging={id:e.pointerId,x:e.clientX,y:e.clientY,moved:false};
-  card.draggable=false;
-  handle.setPointerCapture?.(e.pointerId);
-  card.classList.add('is-reordering');
- });
- handle.addEventListener('pointermove',e=>{
-  if(!dragging||dragging.id!==e.pointerId)return;
-  if(!dragging.moved&&Math.hypot(e.clientX-dragging.x,e.clientY-dragging.y)<6)return;
-  dragging.moved=true;
-  const target=document.elementFromPoint(e.clientX,e.clientY)?.closest('.task');
-  if(target&&target!==card&&target.parentElement===list){
-   const box=target.getBoundingClientRect();
-   if(e.clientY<box.top+box.height/2)target.before(card);else target.after(card);
+ let drag=null;
+ const board=$('board-columns'),list=card.parentElement;
+ const order=()=>[...list.querySelectorAll(':scope > .task')].map(x=>x.dataset.taskId);
+ const finish=(event,cancelled=false)=>{
+  if(!drag||event.pointerId!==drag.id)return;
+  const {original,started,targetStatus}=drag;
+  drag=null;
+  document.removeEventListener('pointermove',onMove,true);
+  document.removeEventListener('pointerup',onUp,true);
+  document.removeEventListener('pointercancel',onCancel,true);
+  window.removeEventListener('blur',onBlur);
+  card.classList.remove('is-reordering');
+  board.querySelectorAll('.column').forEach(c=>c.classList.remove('is-drop-target'));
+  card.draggable=!!card.dataset.canDrag;
+  if(cancelled){renderTasks();return;}
+  if(!started)return;
+  if(targetStatus&&targetStatus!==status){
+   moveTaskTo(card.dataset.taskId,targetStatus).catch(e=>{message(e.message,true);renderTasks();});
+   return;
   }
- });
- const stop=e=>{
-  if(!dragging||dragging.id!==e.pointerId)return;
-  const moved=dragging.moved;dragging=null;
-  card.classList.remove('is-reordering');card.draggable=canReorderTasks()&&!card.dataset.paused;
-  if(moved)persistTaskOrder(status,[...list.querySelectorAll(':scope > .task')].map(x=>x.dataset.taskId)).catch(err=>message(err.message,true));
+  const ordered=order();
+  if(ordered.join(',')!==original.join(',')){
+   persistTaskOrder(status,ordered).catch(e=>{message(e.message,true);renderTasks();});
+  }
  };
- handle.addEventListener('pointerup',stop);
- handle.addEventListener('pointercancel',e=>{
-  if(dragging?.id!==e.pointerId)return;
-  dragging=null;card.classList.remove('is-reordering');renderTasks();
+ const onMove=e=>{
+  if(!drag||e.pointerId!==drag.id)return;
+  if(!drag.started&&Math.hypot(e.clientX-drag.x,e.clientY-drag.y)<7)return;
+  drag.started=true;
+  e.preventDefault();
+  const target=document.elementFromPoint(e.clientX,e.clientY);
+  const col=target?.closest('.column');
+  board.querySelectorAll('.column').forEach(c=>c.classList.toggle('is-drop-target',c===col&&c.dataset.status!==status));
+  drag.targetStatus=col?.dataset.status||null;
+  if(!col||col.dataset.status!==status)return;
+  const other=[...list.querySelectorAll(':scope > .task')].filter(x=>x!==card);
+  const candidate=other.find(item=>{
+   const r=item.getBoundingClientRect();
+   return e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom;
+  });
+  if(!candidate)return;
+  const b=candidate.getBoundingClientRect();
+  if(e.clientY<b.top+b.height/2)candidate.before(card);else candidate.after(card);
+ };
+ const onUp=e=>finish(e);
+ const onCancel=e=>finish(e,true);
+ const onBlur=()=>{if(drag)finish({pointerId:drag.id},true);};
+ handle.addEventListener('pointerdown',e=>{
+  if(e.button!==0||!canReorderTasks()||drag)return;
+  e.preventDefault();
+  e.stopPropagation();
+  drag={id:e.pointerId,x:e.clientX,y:e.clientY,started:false,original:order(),targetStatus:null};
+  card.draggable=false;
+  card.classList.add('is-reordering');
+  document.addEventListener('pointermove',onMove,{capture:true,passive:false});
+  document.addEventListener('pointerup',onUp,true);
+  document.addEventListener('pointercancel',onCancel,true);
+  window.addEventListener('blur',onBlur);
  });
+ handle.addEventListener('dragstart',e=>e.preventDefault());
  handle.addEventListener('keydown',e=>{
   if(!['ArrowUp','ArrowDown'].includes(e.key)||!canReorderTasks())return;
   e.preventDefault();
   const cards=[...list.querySelectorAll(':scope > .task')],i=cards.indexOf(card);
   const next=i+(e.key==='ArrowUp'?-1:1);if(next<0||next>=cards.length)return;
   if(next<i)cards[next].before(card);else cards[next].after(card);
-  persistTaskOrder(status,[...list.querySelectorAll(':scope > .task')].map(x=>x.dataset.taskId)).catch(err=>message(err.message,true));
+  persistTaskOrder(status,order()).catch(err=>message(err.message,true));
  });
 }
 let draggedTaskId=null;
@@ -1044,10 +1074,11 @@ function renderTasks(){
    handle.disabled=!canReorderTasks();
    controls.append(handle,up,down);
    const editable=['admin','manager','member'].includes(state.role)&&state.project?.completion_status==='active';
-   card.draggable=editable&&!t.paused_at;
+   card.dataset.canDrag=editable&&!t.paused_at?'1':'';
+   card.draggable=card.dataset.canDrag==='1';
    if(card.draggable){
     card.title='Arraste para outra coluna ou use o seletor de etapa';
-    card.addEventListener('dragstart',e=>{draggedTaskId=t.id;card.classList.add('is-dragged');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',t.id);});
+    card.addEventListener('dragstart',e=>{if(e.target.closest?.('.task-order-handle')){e.preventDefault();return;}draggedTaskId=t.id;card.classList.add('is-dragged');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',t.id);});
     card.addEventListener('dragend',()=>{draggedTaskId=null;card.classList.remove('is-dragged');board.querySelectorAll('.column').forEach(c=>c.classList.remove('is-drop-target'));});
    }
    const title=document.createElement('strong');title.textContent=t.title;

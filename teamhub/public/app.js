@@ -44,10 +44,14 @@ function makeAction(label,handler){
 function renderProjects(){
  const rows=state.projects.map(p=>{
   const progress=p.total?Math.round(p.done/p.total*100):0;
-  return [p.name,p.description||'—',String(p.total),progress+'%',makeAction('Abrir projeto',()=>openProject(p))];
+  const cell=document.createElement('div');cell.className='project-entry';
+  const name=makeAction(p.name,()=>openProject(p));name.classList.add('project-name-link');
+  const open=makeAction('Abrir',()=>openProject(p));open.classList.add('project-open-button');
+  cell.append(name,open);
+  return [cell,p.description||'—',String(p.total),progress+'%'];
  });
- renderTable('projects-list',['Projeto','Descrição','Tarefas','Progresso','Ação'],rows);
- renderTable('overview-projects',['Projeto','Descrição','Tarefas','Progresso','Ação'],rows.slice(0,6));
+ renderTable('projects-list',['Projeto / abrir','Descrição','Tarefas','Progresso'],rows);
+ renderTable('overview-projects',['Projeto / abrir','Descrição','Tarefas','Progresso'],rows.slice(0,6));
  $('stat-projects').textContent=state.projects.length;
 }
 function memberName(subject){

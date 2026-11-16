@@ -83,8 +83,8 @@ async function loadMembers(){
     try{await api('/api/members/'+encodeURIComponent(m.auth_subject)+qs(),{method:'PATCH',body:JSON.stringify({role:select.value})});message('Perfil atualizado.');await loadMembers();}
     catch(e){message(e.message,true);select.value=m.role;select.disabled=false}
    });
-   const toggle=makeAction(m.active?'Desativar':'Reativar',async()=>{
-    if(!confirm((m.active?'Desativar':'Reativar')+' acesso deste integrante?'))return;
+   const toggle=makeAction(m.active?'Remover acesso':'Reativar',async()=>{
+    if(!confirm((m.active?'Remover':'Reativar')+' acesso deste integrante? O histórico será preservado.'))return;
     toggle.disabled=true;
     try{await api('/api/members/'+encodeURIComponent(m.auth_subject)+qs(),{method:'PATCH',body:JSON.stringify({active:!m.active})});message('Acesso atualizado.');await loadMembers()}
     catch(e){message(e.message,true);toggle.disabled=false}

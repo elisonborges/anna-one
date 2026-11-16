@@ -628,3 +628,19 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
  .dash-activity-chart{height:150px;gap:3px}
  .dash-bar-cell small{font-size:8px}
 }
+
+/* v0.1.24 — Modo Telão do Dashboard, mantém identidade do cliente */
+#overview:fullscreen,#overview.dashboard-presentation{background:var(--bg);color:var(--ink);padding:25px;overflow:auto;min-height:100vh}
+#overview:fullscreen .nexus-dashboard-head,#overview.dashboard-presentation .nexus-dashboard-head{padding-bottom:10px}
+#overview:fullscreen .stats article,#overview.dashboard-presentation .stats article{padding:18px}
+#overview:fullscreen .stats strong,#overview.dashboard-presentation .stats strong{font-size:clamp(27px,3vw,40px)}
+#overview:fullscreen .dash-visual-grid,#overview.dashboard-presentation .dash-visual-grid{grid-template-columns:minmax(340px,.9fr) minmax(440px,1.1fr)}
+#overview:fullscreen .dash-donut,#overview.dashboard-presentation .dash-donut{height:190px;width:190px;flex-basis:190px}
+#overview:fullscreen .dash-donut-core,#overview.dashboard-presentation .dash-donut-core{height:137px;width:137px}
+#overview:fullscreen .dash-activity-chart,#overview.dashboard-presentation .dash-activity-chart{height:200px}
+@media(max-width:900px){
+ #overview:fullscreen .dash-visual-grid,#overview.dashboard-presentation .dash-visual-grid{grid-template-columns:1fr}
+ #overview:fullscreen,#overview.dashboard-presentation{padding:12px}
+ #overview:fullscreen .dash-donut,#overview.dashboard-presentation .dash-donut{width:135px;height:135px;flex-basis:135px}
+ #overview:fullscreen .dash-donut-core,#overview.dashboard-presentation .dash-donut-core{width:94px;height:94px}
+}

@@ -444,3 +444,17 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
  .subtask-row>.table-action{grid-row:2;grid-column:auto}
  .subtask-row .subtask-assign-editor{grid-column:1/-1}
 }
+
+/* v0.1.17 — acesso rápido a notificações e subtarefas pessoais */
+.notify-header{position:relative;display:inline-flex;align-items:center;justify-content:center;min-width:40px;min-height:40px;font-size:22px}
+#notify-header-count{position:absolute;right:-4px;top:-5px;display:grid;place-items:center;min-width:19px;height:19px;padding:1px 4px;border-radius:999px;background:#db4539;color:white;font-weight:900;font-size:10px;line-height:1}
+#notify-header-count[hidden]{display:none}
+#mytasks{display:grid;gap:14px}
+.subtask-personal-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+#my-subtasks .nexus-table td:last-child{min-width:180px}
+#my-subtasks .nexus-table td .table-action{min-height:38px;padding:7px 9px}
+@media(max-width:750px){
+ .notify-header{min-width:34px;min-height:36px}
+ #mytasks{gap:10px}
+ #my-subtasks .nexus-table td:last-child{min-width:140px}
+}

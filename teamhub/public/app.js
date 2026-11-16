@@ -577,11 +577,21 @@ async function loadDashboard(){
   column.append(num);cell.append(column,cap);chart.append(cell);
  }
  $('dash-export').disabled=false;
+ $('dash-alerts').disabled=!['admin','manager'].includes(state.role);
 }
 $('dash-period').addEventListener('change',()=>loadDashboard().catch(e=>message(e.message,true)));
 $('dash-project').addEventListener('change',()=>Promise.all([loadDashboard(),loadAttention()]).catch(e=>message(e.message,true)));
 $('dash-refresh').addEventListener('click',()=>Promise.all([loadDashboard(),loadAttention()]).catch(e=>message(e.message,true)));
 $('dash-export').addEventListener('click',dashboardCsv);
+$('dash-alerts').addEventListener('click',async()=>{
+ const button=$('dash-alerts');button.disabled=true;
+ try{
+  const result=await api('/api/automation/check-deadlines'+qs(),{method:'POST',body:'{}'});
+  message(result.created?'Foram criadas '+result.created+' notificação(ões) internas sobre prazos.':'Nenhum novo aviso de prazo foi necessário.');
+  await loadNotifications();
+ }catch(e){message(e.message,true)}finally{button.disabled=!['admin','manager'].includes(state.role);}
+});
+
 async function refreshProjects(){
  const data=await api('/api/projects'+qs());state.projects=data.projects;state.role=data.role;renderProjects();
  $('new-project').disabled=!['admin','manager'].includes(state.role);

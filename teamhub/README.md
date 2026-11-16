@@ -215,3 +215,12 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Monitor de tentativas/aceites de e-mail disponível para gestores e administradores, com dados limitados ao cliente e sem divulgar endereços de destinatários.
 - Migração aditiva `migrations/0029-automation-and-email-audit.sql` aplicada apenas no Neon de desenvolvimento. Portal AnnA One principal e Neon de produção inalterados.
 - Homologação de SMTP/Resend real, aprovação financeira de cron externo e validação com várias contas autenticadas permanecem pendentes; não interpretar deploy do código como confirmação desses serviços.
+
+## AnnA Nexus v0.1.29 — Navegação e conclusão aprimoradas
+- Desktop: botão com seta no topo do menu lateral alterna entre navegação expandida e compacta por ícones; escolha persistida no navegador.
+- Mobile: botão ☰ no cabeçalho abre a navegação lateral como gaveta; fecha ao escolher uma tela, tocar fora ou pressionar Escape, mantendo a barra inferior existente.
+- O conteúdo usa toda a largura liberada pelo menu recolhido; navegação e labels acessíveis por aria-label/title.
+- No quadro de cada projeto, barra de progresso mostra tarefas e subtarefas concluídas, computadas dos dados atuais do projeto.
+- A conferência de conclusão de projeto ativo só aparece no quadro depois que todas as tarefas e subtarefas estão concluídas, sem pausas ou tratamentos aguardando/bloqueados; projetos em revisão/concluídos preservam entrada para decisão ou reabertura.
+- Quando a API retorna 401, a área privada é escondida e o formulário de autenticação reaparece.
+- Todos os arquivos são mudanças estáticas na branch de desenvolvimento; sem migração de banco ou alteração da produção.

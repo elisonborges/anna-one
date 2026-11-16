@@ -747,15 +747,23 @@ async function loadMyTasks(){
  const data=await api('/api/my-tasks'+qs()+includeArchived);
  const rows=data.tasks.map(task=>{
   const controls=document.createElement('div');controls.className='mytask-actions';
-  const actions=[['Abrir','open'],['Editar','edit'],[task.paused_at?'Retomar':'Pausar',task.paused_at?'resume':'pause'],[task.archived_at?'Restaurar':'Arquivar',task.archived_at?'restore':'archive'],['Excluir','delete']];
+  const project=state.projects.find(p=>p.id===task.project_id),planner=canManageUI(project);
+  const actions=[['Abrir','open']];
+  if(task.status==='done'&&!task.archived_at)actions.push(['Solicitar reabertura','reopen']);
+  else if(!task.archived_at){
+   actions.push([planner?'Editar':'Atualizar execução','edit']);
+   actions.push([task.paused_at?'Retomar':'Pausar',task.paused_at?'resume':'pause']);
+  }
+  if(planner)actions.push([task.archived_at?'Restaurar':'Arquivar',task.archived_at?'restore':'archive']);
+  if(state.role==='admin')actions.push(['Excluir','delete']);
   for(const [label,key] of actions){
    const btn=makeAction(label,async()=>{
-    btn.disabled=true;try{if(key==='open')await openTaskFromList(task);else await taskAction(task,key);}catch(e){message(e.message,true)}finally{btn.disabled=false}
+    btn.disabled=true;try{if(key==='open')await openTaskFromList(task);else if(key==='reopen')await requestTaskReopen(task);else await taskAction(task,key);}catch(e){message(e.message,true)}finally{btn.disabled=false}
    });
    if(key==='delete'&&state.role!=='admin')btn.disabled=true;
    if(task.archived_at&&['edit','pause','resume','archive'].includes(key))btn.disabled=true;
    if(task.paused_at&&key==='archive')btn.title='Arquivar encerra a pausa atual';
-   if(!['admin','manager','member'].includes(state.role)&&key!=='open')btn.disabled=true;
+
    controls.append(btn);
   }
   const stateLabel=task.archived_at?'Arquivada':task.paused_at?'Pausada':({todo:'A fazer',doing:'Em andamento',done:'Concluída'})[task.status]||task.status;

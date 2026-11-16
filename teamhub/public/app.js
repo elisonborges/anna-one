@@ -3,10 +3,10 @@ const AUTH='https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech
 const state={jwt:null,org:null,role:null,projects:[],tasks:[],project:null,view:'overview',subject:null,auth:null,members:[],organizations:[]};
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const message=(s,error=false)=>{const el=$('status');el.textContent=s;el.style.background=error?'#fff0ef':'';el.style.color=error?'#a31931':''};
-const show=(view)=>{state.view=view;for(const id of ['overview','projects','board','mytasks','team','reports'])$(id).hidden=id!==view;$('welcome-banner').hidden=view!=='overview';
+const show=(view)=>{state.view=view;for(const id of ['overview','projects','board','mytasks','team','reports','notifications'])$(id).hidden=id!==view;$('welcome-banner').hidden=view!=='overview';
 document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);b.setAttribute('aria-current',b.dataset.view===view?'page':'false')});
- $('title').textContent=view==='overview'?'Visão geral':view==='projects'?'Projetos':view==='board'?state.project?.name||'Quadro':view==='team'?'Equipe':view==='reports'?'Relatórios':'Minhas tarefas';
- $('subtitle').textContent=view==='overview'?'Acompanhe os projetos e as atividades da sua equipe.':view==='projects'?'Organize seus projetos e entregas.':view==='board'?'Acompanhe o trabalho por etapas.':view==='team'?'Pessoas autorizadas da organização.':view==='reports'?'Histórico e tempo dedicado a pendências.':'Atividades sob sua responsabilidade.';
+ $('title').textContent=view==='overview'?'Visão geral':view==='projects'?'Projetos':view==='board'?state.project?.name||'Quadro':view==='team'?'Equipe':view==='reports'?'Relatórios':view==='notifications'?'Notificações':'Minhas tarefas';
+ $('subtitle').textContent=view==='overview'?'Acompanhe os projetos e as atividades da sua equipe.':view==='projects'?'Organize seus projetos e entregas.':view==='board'?'Acompanhe o trabalho por etapas.':view==='team'?'Pessoas autorizadas da organização.':view==='reports'?'Histórico e tempo dedicado a pendências.':view==='notifications'?'Atribuições e avisos importantes.':'Atividades sob sua responsabilidade.';
 };
 async function api(route,options={}){
  const res=await fetch(route,{...options,headers:{'Content-Type':'application/json','Authorization':'Bearer '+state.jwt,...(options.headers||{})},cache:'no-store'});
@@ -90,10 +90,12 @@ async function loadMembers(){
  for(const member of state.members.filter(x=>x.active)){
   const opt=document.createElement('option');opt.value=member.auth_subject;opt.textContent=memberName(member.auth_subject);projectOwner.append(opt);
  }
- const subOwner=$('subtask-owner');subOwner.replaceChildren();
- const blank=document.createElement('option');blank.value='';blank.textContent='Sem responsável';subOwner.append(blank);
- for(const member of state.members.filter(x=>x.active)){
-  const opt=document.createElement('option');opt.value=member.auth_subject;opt.textContent=memberName(member.auth_subject);subOwner.append(opt);
+ const subChoices=$('subtask-assignees');subChoices.replaceChildren();
+ for(const m of state.members.filter(x=>x.active)){
+  const label=document.createElement('label');label.className='assignee-choice';
+  const input=document.createElement('input');input.type='checkbox';input.value=m.auth_subject;
+  const span=document.createElement('span');span.textContent=memberName(m.auth_subject);
+  label.append(input,span);subChoices.append(label);
  }
  const checks=$('field-assignees');checks.replaceChildren();
  const active=state.members.filter(m=>m.active);
@@ -239,6 +241,32 @@ async function taskAction(task,action){
  message(({pause:'Tarefa pausada.',resume:'Tarefa retomada.',archive:'Tarefa arquivada.',restore:'Tarefa restaurada.',delete:'Tarefa excluída das listas.'})[action]);
  await loadMyTasks();await refreshProjects();
 }
+async function loadNotifications(){
+ const data=await api('/api/notifications'+qs());
+ const counter=$('notification-count');counter.hidden=!data.unread;counter.textContent=data.unread>99?'99+':String(data.unread);
+ const rows=data.notifications.map(n=>{
+  const status=n.read_at?'Lida':'Nova';
+  const actions=document.createElement('div');actions.className='notification-actions';
+  if(!n.read_at)actions.append(makeAction('Marcar lida',async()=>{
+   try{await api('/api/notifications/'+n.id+'/read'+qs(),{method:'POST'});await loadNotifications()}catch(e){message(e.message,true)}
+  }));
+  if(n.project_id)actions.append(makeAction('Abrir projeto',async()=>{
+   try{
+    const p=state.projects.find(x=>x.id===n.project_id);
+    if(!p)throw Error('Projeto indisponível.');
+    await openProject(p);
+    await api('/api/notifications/'+n.id+'/read'+qs(),{method:'POST'});
+    await loadNotifications();
+   }catch(e){message(e.message,true)}
+  }));
+  return [n.title,n.details||'—',new Date(n.created_at).toLocaleString('pt-BR'),status,actions];
+ });
+ renderTable('notifications-list',['Notificação','Detalhes','Quando','Situação','Ações'],rows);
+}
+$('notify-read-all').addEventListener('click',async()=>{
+ try{await api('/api/notifications/read-all'+qs(),{method:'POST'});await loadNotifications();message('Notificações marcadas como lidas.')}
+ catch(e){message(e.message,true)}
+});
 async function loadMyTasks(){
  const includeArchived=$('show-archived').checked?'&archived=1':'';
  const data=await api('/api/my-tasks'+qs()+includeArchived);
@@ -432,7 +460,8 @@ async function loadSubtasks(taskId){
    status.value=item.status;status.disabled=!['admin','manager','member'].includes(state.role);
    status.onchange=async()=>{status.disabled=true;try{await api('/api/subtasks/'+item.id+qs(),{method:'PATCH',body:JSON.stringify({status:status.value})});await loadSubtasks(taskId);message('Subtarefa atualizada.')}catch(e){message(e.message,true);status.disabled=false;}};
    const details=document.createElement('small');
-   details.textContent=memberName(item.owner_subject)+(item.due_at?' · '+new Date(item.due_at).toLocaleDateString('pt-BR',{timeZone:'UTC'}):' · Sem prazo');
+   const assigned=Array.isArray(item.assignees)?item.assignees:(item.owner_subject?[item.owner_subject]:[]);
+   details.textContent=(assigned.length?assigned.map(memberName).join(', '):'Sem responsáveis')+(item.due_at?' · '+new Date(item.due_at).toLocaleDateString('pt-BR',{timeZone:'UTC'}):' · Sem prazo');
    const edit=makeAction('Editar',async()=>{
     const title=prompt('Título da subtarefa:',item.title);
     if(title===null)return;
@@ -441,8 +470,27 @@ async function loadSubtasks(taskId){
     catch(e){message(e.message,true);edit.disabled=false;}
    });
    edit.disabled=!['admin','manager','member'].includes(state.role);
+   const assign=makeAction('Atribuir',()=>{
+    const panel=document.createElement('div');panel.className='subtask-assign-editor';
+    for(const member of state.members.filter(m=>m.active)){
+     const choice=document.createElement('label');choice.className='assignee-choice';
+     const input=document.createElement('input');input.type='checkbox';input.value=member.auth_subject;input.checked=assigned.includes(member.auth_subject);
+     const text=document.createElement('span');text.textContent=memberName(member.auth_subject);
+     choice.append(input,text);panel.append(choice);
+    }
+    const save=makeAction('Salvar responsáveis',async()=>{
+     save.disabled=true;
+     try{
+      const assignees=[...panel.querySelectorAll('input:checked')].map(x=>x.value);
+      await api('/api/subtasks/'+item.id+qs(),{method:'PATCH',body:JSON.stringify({assignees,owner_subject:assignees[0]||null})});
+      await loadSubtasks(taskId);message('Responsáveis atualizados.');
+     }catch(e){message(e.message,true);save.disabled=false;}
+    });
+    panel.append(save);row.append(panel);assign.disabled=true;
+   });
+   assign.disabled=edit.disabled;
    const text=document.createElement('div');text.append(name,details);
-   row.append(text,status,edit);host.append(row);
+   row.append(text,status,edit,assign);host.append(row);
   }
  }catch(e){host.textContent='Erro ao consultar subtarefas: '+e.message;}
 }
@@ -453,10 +501,12 @@ $('subtask-add').addEventListener('click',async()=>{
  const button=$('subtask-add');button.disabled=true;
  try{
   await api('/api/tasks/'+editing.id+'/subtasks'+qs(),{method:'POST',body:JSON.stringify({
-   title,owner_subject:$('subtask-owner').value||null,
+   title,assignees:[...$('subtask-assignees').querySelectorAll('input:checked')].map(x=>x.value),
+   owner_subject:[...$('subtask-assignees').querySelectorAll('input:checked')][0]?.value||null,
    due_at:$('subtask-due').value||null,priority:$('subtask-priority').value
   })});
-  $('subtask-name').value='';$('subtask-due').value='';$('subtask-owner').value='';
+  $('subtask-name').value='';$('subtask-due').value='';
+  $('subtask-assignees').querySelectorAll('input:checked').forEach(x=>x.checked=false);
   await loadSubtasks(editing.id);message('Subtarefa adicionada.');
  }catch(e){message(e.message,true)}finally{button.disabled=false;}
 });
@@ -502,8 +552,8 @@ async function boot(){
   const me=await api('/api/me');state.organizations=me.organizations;if(!me.organizations.length){message('Login reconhecido, mas sua conta ainda não possui acesso ao Nexus.',true);return;}
   const select=$('org');select.replaceChildren(...me.organizations.map(o=>{const opt=document.createElement('option');opt.value=o.id;opt.textContent=o.name;return opt}));
   state.org=me.organizations[0].id;
-  select.addEventListener('change',async()=>{state.org=select.value;state.tasks=[];state.project=null;await loadMembers();await refreshProjects();renderBrand();show('overview')});
-  await loadMembers();await refreshProjects();renderBrand();$('app').hidden=false;show('overview');message('');
+  select.addEventListener('change',async()=>{state.org=select.value;state.tasks=[];state.project=null;await loadMembers();await refreshProjects();renderBrand();await loadNotifications();show('overview')});
+  await loadMembers();await refreshProjects();renderBrand();await loadNotifications();$('app').hidden=false;show('overview');message('');
  }catch(e){message(e.message||'Não foi possível iniciar o Nexus.',true);$('signin').hidden=false;$('app').hidden=true;}
 }
  $('signin-form').addEventListener('submit',async e=>{
@@ -514,7 +564,7 @@ async function boot(){
   $('signin-password').value='';await boot();
  }catch(error){message('Não foi possível entrar. Confira seus dados no Portal AnnA One e tente novamente.',true)}finally{button.disabled=false}
 });
-document.querySelectorAll('[data-view]').forEach(x=>x.addEventListener('click',async()=>{if(!state.org)return;try{if(x.dataset.view==='projects'||x.dataset.view==='overview')await refreshProjects();if(x.dataset.view==='mytasks')await loadMyTasks();if(x.dataset.view==='team'){await loadMembers();await loadInvitations()}if(x.dataset.view==='reports')await loadReports();show(x.dataset.view)}catch(e){message(e.message,true)}}));
+document.querySelectorAll('[data-view]').forEach(x=>x.addEventListener('click',async()=>{if(!state.org)return;try{if(x.dataset.view==='projects'||x.dataset.view==='overview')await refreshProjects();if(x.dataset.view==='mytasks')await loadMyTasks();if(x.dataset.view==='team'){await loadMembers();await loadInvitations()}if(x.dataset.view==='reports')await loadReports();if(x.dataset.view==='notifications')await loadNotifications();show(x.dataset.view)}catch(e){message(e.message,true)}}));
 $('invite-form').addEventListener('submit',async e=>{
  e.preventDefault();const button=$('invite-create');button.disabled=true;
  const email=$('invite-email').value.trim().toLowerCase(),role=$('invite-role').value;

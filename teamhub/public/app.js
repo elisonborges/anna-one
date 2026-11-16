@@ -544,6 +544,8 @@ function modal(type,task=null){
  $('field-description').value=task?.description||'';
  $('task-fields').hidden=type==='project'||type==='project-edit';
  $('project-fields').hidden=!(type==='project'||type==='project-edit');
+ $('project-template-field').hidden=type!=='project';
+ $('project-template').value='blank';
  $('project-access-fields').hidden=type!=='project-edit';
  projectAccessReady=type!=='project-edit';
  if(type==='project-edit')loadProjectAccess(task).catch(e=>message(e.message,true));
@@ -749,7 +751,7 @@ $('editor').addEventListener('submit',async e=>{
  e.preventDefault();const name=$('field-name').value.trim(),description=$('field-description').value.trim();$('save').disabled=true;
  try{
   if(mode==='project'||mode==='project-edit'){
-   const payload={name,description,card_color:$('project-color').value,owner_subject:$('project-owner').value||null};
+   const payload={name,description,card_color:$('project-color').value,owner_subject:$('project-owner').value||null,template:mode==='project'?$('project-template').value:undefined};
    if(mode==='project')await api('/api/projects'+qs(),{method:'POST',body:JSON.stringify(payload)});
    else{
     if(!projectAccessReady)throw Error('Aguarde o carregamento dos participantes antes de salvar.');

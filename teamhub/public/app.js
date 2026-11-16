@@ -4,14 +4,6 @@ const state={jwt:null,org:null,role:null,projects:[],tasks:[],project:null,view:
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const message=(s,error=false)=>{const el=$('status');el.textContent=s;el.style.background=error?'#fff0ef':'';el.style.color=error?'#a31931':''};
 const show=(view)=>{state.view=view;for(const id of ['overview','projects','board','mytasks'])$(id).hidden=id!==view;
- $('signin-form').addEventListener('submit',async e=>{
- e.preventDefault();const button=$('signin-button');button.disabled=true;message('Autenticando com sua conta AnnA One…');
- try{
-  const result=await state.auth.signIn.email({email:$('signin-email').value.trim(),password:$('signin-password').value});
-  if(result?.error)throw Error('Credenciais inválidas ou acesso indisponível.');
-  $('signin-password').value='';await boot();
- }catch(error){message('Não foi possível entrar. Confira seus dados no Portal AnnA One e tente novamente.',true)}finally{button.disabled=false}
-});
 document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);b.setAttribute('aria-current',b.dataset.view===view?'page':'false')});
  $('title').textContent=view==='overview'?'Visão geral':view==='projects'?'Projetos':view==='board'?state.project?.name||'Quadro':'Minhas tarefas';
  $('subtitle').textContent=view==='overview'?'Acompanhe os projetos e as atividades da sua equipe.':view==='projects'?'Organize seus projetos e entregas.':view==='board'?'Acompanhe o trabalho por etapas.':'Atividades sob sua responsabilidade.';
@@ -38,6 +30,7 @@ function renderProjects(){
 async function refreshProjects(){
  const data=await api('/api/projects'+qs());state.projects=data.projects;state.role=data.role;renderProjects();
  $('new-project').disabled=!['admin','manager'].includes(state.role);
+ const summary=await api('/api/dashboard'+qs());$('stat-projects').textContent=summary.summary.projects;$('stat-open').textContent=summary.summary.open;$('stat-doing').textContent=summary.summary.doing;$('stat-done').textContent=summary.summary.done;
 }
 async function openProject(p){
  state.project=p;const data=await api('/api/projects/'+encodeURIComponent(p.id)+'/tasks'+qs());
@@ -57,17 +50,31 @@ function renderTasks(){
    select.value=t.status;select.disabled=!['admin','manager','member'].includes(state.role);
    select.addEventListener('change',async()=>{const next=select.value;select.disabled=true;try{await api('/api/tasks/'+t.id+qs(),{method:'PATCH',body:JSON.stringify({status:next})});t.status=next;renderTasks();await refreshProjects();message('Tarefa atualizada.')}catch(e){select.value=t.status;message(e.message,true)}finally{select.disabled=false}});
    const label=document.createElement('span');label.className='priority';label.textContent=({high:'Alta',medium:'Média',low:'Baixa'})[t.priority]||'Média';
-   footer.append(label,select);card.append(title,footer);list.append(card);
+   const meta=document.createElement('div');meta.className='task-meta';
+   if(t.due_at){const due=document.createElement('span');due.textContent='Prazo: '+new Date(t.due_at).toLocaleDateString('pt-BR',{timeZone:'UTC'});meta.append(due);}
+   const edit=document.createElement('button');edit.type='button';edit.className='task-edit';edit.textContent='Editar tarefa';edit.disabled=!['admin','manager','member'].includes(state.role);edit.onclick=()=>modal('edit',t);
+   footer.append(label,select);card.append(title,meta,footer,edit);list.append(card);
   }
  }
  $('new-task').disabled=!['admin','manager','member'].includes(state.role);
  const all=state.tasks;done=all.filter(t=>t.status==='done').length;doing=all.filter(t=>t.status==='doing').length;
- $('stat-open').textContent=all.length-done;$('stat-doing').textContent=doing;$('stat-done').textContent=done;
+ /* Indicadores gerais calculados pela API da organização, não pelo quadro atual. */
  const mine=all.filter(t=>t.assignee_subject&&t.assignee_subject===state.subject);
  $('mine').textContent=mine.length?mine.map(t=>t.title).join(' · '):'Sem tarefas atribuídas neste projeto.';
 }
-let mode=null;
-function modal(type){mode=type;$('modal-title').textContent=type==='project'?'Novo projeto':'Nova tarefa';$('field-name').value='';$('field-description').value='';$('dialog').showModal();$('field-name').focus();}
+let mode=null,editing=null;
+function modal(type,task=null){
+ mode=type;editing=task;
+ $('modal-title').textContent=type==='project'?'Novo projeto':type==='edit'?'Editar tarefa':'Nova tarefa';
+ $('field-name').value=task?.title||'';
+ $('field-description').value=task?.description||'';
+ $('task-fields').hidden=type==='project';
+ $('field-priority').value=task?.priority||'medium';
+ $('field-due').value=task?.due_at?String(task.due_at).slice(0,10):'';
+ $('field-description').maxLength=type==='project'?1000:2000;
+ $('dialog').showModal();$('field-name').focus();
+}
+
 async function boot(){
  message('Verificando login do Portal AnnA One…');
  try{
@@ -91,6 +98,14 @@ async function boot(){
   $('app').hidden=false;await refreshProjects();show('overview');message('');
  }catch(e){message(e.message||'Não foi possível iniciar o Nexus.',true);$('signin').hidden=false;$('app').hidden=true;}
 }
+ $('signin-form').addEventListener('submit',async e=>{
+ e.preventDefault();const button=$('signin-button');button.disabled=true;message('Autenticando com sua conta AnnA One…');
+ try{
+  const result=await state.auth.signIn.email({email:$('signin-email').value.trim(),password:$('signin-password').value});
+  if(result?.error)throw Error('Credenciais inválidas ou acesso indisponível.');
+  $('signin-password').value='';await boot();
+ }catch(error){message('Não foi possível entrar. Confira seus dados no Portal AnnA One e tente novamente.',true)}finally{button.disabled=false}
+});
 document.querySelectorAll('[data-view]').forEach(x=>x.addEventListener('click',async()=>{if(!state.org)return;try{if(x.dataset.view==='projects'||x.dataset.view==='overview')await refreshProjects();if(x.dataset.view==='mytasks'&&!state.project){$('mine').textContent='Abra um projeto para consultar as tarefas.'}show(x.dataset.view)}catch(e){message(e.message,true)}}));
 $('back-projects').onclick=async()=>{await refreshProjects();show('projects')};
 $('new-project').onclick=()=>modal('project');
@@ -99,12 +114,23 @@ $('close-modal').onclick=$('cancel').onclick=()=>$('dialog').close();
 $('editor').addEventListener('submit',async e=>{
  e.preventDefault();const name=$('field-name').value.trim(),description=$('field-description').value.trim();$('save').disabled=true;
  try{
-  if(mode==='project'){await api('/api/projects'+qs(),{method:'POST',body:JSON.stringify({name,description})});await refreshProjects();show('projects');}
-  else{await api('/api/projects/'+state.project.id+'/tasks'+qs(),{method:'POST',body:JSON.stringify({title:name,description})});await openProject(state.project);}
+  if(mode==='project'){
+   await api('/api/projects'+qs(),{method:'POST',body:JSON.stringify({name,description})});
+   await refreshProjects();show('projects');
+  }else{
+   const priority=$('field-priority').value;
+   const due_at=$('field-due').value||null;
+   if(mode==='edit'){
+    await api('/api/tasks/'+editing.id+qs(),{method:'PATCH',body:JSON.stringify({title:name,description,priority,due_at})});
+   }else{
+    const created=await api('/api/projects/'+state.project.id+'/tasks'+qs(),{method:'POST',body:JSON.stringify({title:name,description})});
+    if(priority!=='medium'||due_at)await api('/api/tasks/'+created.task.id+qs(),{method:'PATCH',body:JSON.stringify({priority,due_at})});
+   }
+   await openProject(state.project);await refreshProjects();
+  }
   $('dialog').close();message('Dados salvos com sucesso.');
  }catch(e){message(e.message,true)}finally{$('save').disabled=false}
 });
 $('theme').onclick=()=>{const dark=document.documentElement.dataset.theme==='dark';document.documentElement.dataset.theme=dark?'light':'dark';localStorage.setItem('anna-teamhub-theme',dark?'light':'dark')};
 const preference=localStorage.getItem('anna-teamhub-theme');document.documentElement.dataset.theme=preference|| (matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
-show('overview');
 boot();

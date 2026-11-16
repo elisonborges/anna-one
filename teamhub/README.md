@@ -231,3 +231,11 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Layout mobile-first com indicadores em grade 2×2 e botão de filtros em largura total.
 - Kanban respeita o status de projeto em validação ou concluído, impedindo mudanças de etapa sem reabertura.
 - Sem mudanças de banco, integrações pagas ou dados de produção.
+
+## AnnA Nexus v0.1.31 — Calendário compacto, novas cores e detalhes da tarefa
+- Calendário mensal com células cerca de um terço menores em desktop; dimensões e tipografia adaptadas também para smartphones. A lista de entregas e o cronograma permanecem.
+- Cinco cores adicionais de projetos: **Índigo, Coral, Dourado, Menta e Grafite**, somando 12 opções de aparência.
+- Migração aditiva `migrations/0030-project-card-themes.sql` no Neon DEV. `card_theme` preserva a restrição legada de sete valores da coluna `card_color`; nenhuma cor anterior é perdida.
+- Ao editar uma tarefa, painel maior, responsivo e dividido em **Detalhes**, **Subtarefas**, **Comentários** e **Anexos**. As seções utilizam os mesmos campos e APIs já existentes. Navegação por clique, Tab e setas, com contagens de subtarefas e anexos.
+- Na aba Detalhes mantém título, descrição, responsáveis, tratamento e o botão Salvar. Nas outras abas permanecem as ações específicas (criar subtarefa, comentar, enviar anexo) sem exigir salvar a ficha inteira.
+- Não altera arquivos existentes nem dados reais de projeto, além da nova coluna vazia por padrão. Banco e portal de produção preservados.

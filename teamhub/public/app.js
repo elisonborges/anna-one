@@ -158,25 +158,37 @@ function enableProjectCardReorder(card,handle){
  const container=$('projects-list');
  handle.addEventListener('pointerdown',event=>{
   if(event.button!==0||pointer)return;
-  pointer={id:event.pointerId,x:event.clientX,y:event.clientY,moved:false};
-  handle.setPointerCapture?.(event.pointerId);
+  event.preventDefault();
+  pointer={id:event.pointerId,x:event.clientX,y:event.clientY,changed:false,started:false};
+  handle.setPointerCapture(event.pointerId);
   card.classList.add('is-reordering');
  });
  handle.addEventListener('pointermove',event=>{
   if(!pointer||pointer.id!==event.pointerId)return;
-  if(!pointer.moved&&Math.hypot(event.clientX-pointer.x,event.clientY-pointer.y)<6)return;
-  pointer.moved=true;
-  const target=document.elementFromPoint(event.clientX,event.clientY)?.closest('.project-card');
-  if(!target||target===card||target.parentElement!==container)return;
-  const bounds=target.getBoundingClientRect();
-  const after=event.clientY>bounds.top+bounds.height*.70
-    || (event.clientY>=bounds.top+bounds.height*.30&&event.clientX>bounds.left+bounds.width/2);
+  if(!pointer.started&&Math.hypot(event.clientX-pointer.x,event.clientY-pointer.y)<6)return;
+  pointer.started=true;
+  // Identify the closest card by geometry: hit-testing the captured handle
+  // can repeatedly select the dragged card on touch and desktop.
+  const others=[...container.querySelectorAll(':scope > .project-card')].filter(x=>x!==card);
+  const target=others.find(other=>{
+   const b=other.getBoundingClientRect();
+   return event.clientX>=b.left&&event.clientX<=b.right
+     &&event.clientY>=b.top&&event.clientY<=b.bottom;
+  });
+  if(!target)return;
+  const b=target.getBoundingClientRect();
+  const rect=card.getBoundingClientRect();
+  const horizontal=Math.abs(b.top-rect.top)<Math.min(b.height,rect.height)*.5;
+  const after=horizontal?event.clientX>b.left+b.width/2:event.clientY>b.top+b.height/2;
+  const beforeOrder=[...container.querySelectorAll(':scope > .project-card')].map(x=>x.dataset.projectId).join(',');
   if(after)target.after(card);else target.before(card);
+  if(beforeOrder!==[...container.querySelectorAll(':scope > .project-card')].map(x=>x.dataset.projectId).join(','))pointer.changed=true;
  });
  const stop=event=>{
   if(!pointer||pointer.id!==event.pointerId)return;
-  const changed=pointer.moved;
+  const changed=pointer.changed;
   pointer=null;card.classList.remove('is-reordering');
+  if(handle.hasPointerCapture(event.pointerId))handle.releasePointerCapture(event.pointerId);
   if(changed)persistProjectCardOrder();
  };
  handle.addEventListener('pointerup',stop);
@@ -359,6 +371,7 @@ async function optimizeLogo(file){
  }finally{URL.revokeObjectURL(url);}
 }
 $('brand-file').addEventListener('change',async()=>{
+ if($('brand-file').files.length)$('brand-default-logo').checked=false;
  logoUploadData=null;$('brand-file-info').textContent='';
  const file=$('brand-file').files[0];
  if(!file)return;
@@ -379,18 +392,23 @@ function renderBrand(){
  else dashboardLogo.removeAttribute('src');
  $('brand-name').value=display;
  $('brand-logo').value=org?.logo_url?.startsWith('https://')?org.logo_url:'';
+ $('brand-default-logo').checked=!org?.logo_url;
  $('brand-admin').hidden=state.role!=='admin';
  const logo=$('client-logo'),defaultLogo=$('default-banner-symbol');
  logo.hidden=!org?.logo_url;defaultLogo.hidden=!!org?.logo_url;
  if(org?.logo_url){logo.src=org.logo_url;logo.onerror=()=>{logo.hidden=true;defaultLogo.hidden=false};}
  else logo.removeAttribute('src');
 }
+$('brand-default-logo').addEventListener('change',()=>{
+ if($('brand-default-logo').checked){logoUploadData=null;$('brand-file').value='';$('brand-logo').value='';$('brand-file-info').textContent='Será usada a imagem padrão AnnA One.';}
+});
+$('brand-logo').addEventListener('input',()=>{if($('brand-logo').value.trim())$('brand-default-logo').checked=false;});
 $('brand-form').addEventListener('submit',async e=>{
  e.preventDefault();const button=$('brand-save');button.disabled=true;
  try{
   const org=state.organizations.find(o=>o.id===state.org);
   const urlInput=$('brand-logo').value.trim();
-  const logo_url=logoUploadData||urlInput||(org?.logo_url?.startsWith('data:image/')?org.logo_url:'');
+  const logo_url=$('brand-default-logo').checked?'':(logoUploadData||urlInput||(org?.logo_url?.startsWith('data:image/')?org.logo_url:''));
   const data=await api('/api/organization'+qs(),{method:'PATCH',body:JSON.stringify({display_name:$('brand-name').value.trim(),logo_url})});
   const i=state.organizations.findIndex(o=>o.id===state.org);
   if(i!==-1)state.organizations[i]={...state.organizations[i],...data.organization};

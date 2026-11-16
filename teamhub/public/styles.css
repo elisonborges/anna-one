@@ -509,3 +509,35 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
  #board #filter-count{margin-left:0;grid-column:1/-1}
  #board #clear-filters{grid-column:1/-1}
 }
+
+/* v0.1.20 — calendário responsivo */
+#calendar{display:grid;gap:14px}
+#calendar[hidden]{display:none!important}
+#calendar .panel{padding:17px}
+.calendar-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+.calendar-heading h2{font-size:19px;margin:0}
+.calendar-heading p{margin:4px 0 0;font-size:12px}
+.calendar-controls{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.calendar-controls strong{font-size:14px;min-width:150px;text-align:center;text-transform:capitalize}
+.calendar-controls button{min-height:38px;min-width:35px;padding:7px 11px}
+.calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+.calendar-weekday{text-align:center;padding:8px 3px;font-weight:800;font-size:11px;color:var(--muted);background:var(--tint);border-radius:6px}
+.calendar-day{border:1px solid var(--line);border-radius:9px;min-height:95px;min-width:0;padding:7px;background:var(--surface);display:flex;flex-direction:column;gap:5px}
+.calendar-day.is-today{border:2px solid var(--accent);padding:6px}
+.calendar-day.is-empty{background:transparent;border:0}
+.calendar-day>strong{font-size:12px}
+.calendar-day-count{font-size:10px;color:var(--accent);font-weight:800;overflow-wrap:anywhere}
+.calendar-hints{display:grid;gap:4px}
+.calendar-hint{font-size:10px;color:var(--ink);background:var(--tint);padding:3px 4px;border-radius:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#calendar-list .nexus-table td:nth-child(2){max-width:330px;overflow-wrap:anywhere}
+@media(max-width:750px){
+ #calendar .panel{padding:11px}
+ .calendar-grid{gap:3px}
+ .calendar-day{min-height:64px;padding:4px;border-radius:5px}
+ .calendar-day.is-today{padding:3px}
+ .calendar-day-count{font-size:9px}
+ .calendar-hints{display:none}
+ .calendar-controls strong{min-width:125px;font-size:13px}
+ .calendar-controls button{min-width:34px}
+ .calendar-weekday{font-size:10px}
+}

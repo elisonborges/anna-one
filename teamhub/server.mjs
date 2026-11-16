@@ -350,6 +350,8 @@ const route=async(req,res)=>{
  };
  const requireTaskExecution=async id=>{
   const t=await taskInfo(id);
+  if(t){const [pr]=await sql`SELECT paused_at,completion_status FROM teamhub.projects WHERE organization_id=${org} AND id=${t.project_id}`;
+   if(!pr||pr.paused_at||pr.completion_status!=='active')bad('Projeto pausado ou encerrado: execução bloqueada.',409);}
   if(!t||t.deleted_at||t.archived_at||!((await canManageProject(t.project_id))||((role==='member'||role==='manager')&&t.assigned)))
    bad('Ação reservada ao responsável atribuído ou gestor responsável.',403);
   return t;
@@ -1198,7 +1200,7 @@ const route=async(req,res)=>{
     const info=await requireTaskExecution(taskId);
     if(info.status==='done')bad('Tarefa concluída: anexos bloqueados.',409);
     const rows=await sql`DELETE FROM teamhub.task_attachments WHERE id=${attachFile[2]} AND task_id=${taskId}
-      AND organization_id=${org} AND (${['admin','manager'].includes(role)} OR uploaded_by_subject=${subject}) RETURNING id,file_name`;
+      AND organization_id=${org} AND (${role==='admin'||(await canManageProject(task[0].project_id))} OR uploaded_by_subject=${subject}) RETURNING id,file_name`;
     if(!rows.length)bad('Anexo não encontrado ou sem permissão para excluir.',403);
     await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id,task_id)
       VALUES(${org},${subject},'task.attachment.removed',${task[0].project_id},${taskId})`;

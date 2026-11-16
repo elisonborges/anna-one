@@ -87,3 +87,9 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - A opção de logotipo por link HTTPS continua disponível.
 - A migração do banco **não é necessária** nesta atualização; o conteúdo vai para o campo já existente.
 - Não alterar o portal principal de produção. Recomenda-se confirmar visualmente botão de projeto e upload local no navegador.
+
+## v0.1.11 — Correção de Projetos
+- Os botões da página Projetos agora possuem elementos DOM próprios; não são reutilizados na tabela de Projetos recentes.
+- Em Visão geral / Projetos recentes, mostrar apenas os dados compactos, sem botão Abrir.
+- Em Projetos, exibir o nome com botão Abrir ao lado, na primeira coluna.
+- Alteração exclusivamente de interface; banco e API preservados.

@@ -52,7 +52,7 @@ async function showApproval(project){
   const marks=Object.values(request.checklist||{}).filter(Boolean).length;
   $('approval-description').textContent+=' · Solicitante conferiu '+marks+'/5 itens. O administrador deve realizar conferência independente.';
  }
- $('approval-progress').textContent=data.tasks.total+' tarefas ('+data.tasks.open+' abertas) · '+data.subtasks.total+' subtarefas ('+data.subtasks.open+' abertas)';
+ $('approval-progress').textContent=data.tasks.total+' tarefas ('+data.tasks.open+' abertas) · '+data.subtasks.total+' subtarefas ('+data.subtasks.open+' abertas) · '+data.tasks.blocked+' tratamentos pendentes · '+data.tasks.paused+' pausadas';
  for(const input of $('approval-checks').querySelectorAll('input'))input.checked=false;
  $('approval-note').value='';
  $('approval-checks').hidden=!['active','review'].includes(data.status);
@@ -60,7 +60,7 @@ async function showApproval(project){
  $('approval-approve').hidden=data.status!=='review'||state.role!=='admin';
  $('approval-reject').hidden=data.status!=='review'||state.role!=='admin';
  $('approval-reopen').hidden=data.status!=='completed'||state.role!=='admin';
- $('approval-approve').disabled=data.tasks.open>0||data.subtasks.open>0;
+ $('approval-approve').disabled=data.tasks.open>0||data.subtasks.open>0||data.tasks.blocked>0||data.tasks.paused>0;
  const lines=data.history.map(x=>[
   ({requested:'Solicitada',approved:'Aprovada',rejected:'Devolvida',reopened:'Reaberta'})[x.action]||x.action,
   x.actor_subject===state.subject?'Você':'Integrante da equipe',

@@ -51,3 +51,14 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Na ficha de tarefa existente, registrar uma nota de andamento sem precisar alterar ou salvar novamente os demais campos.
 - O evento fica associado à identidade autenticada e à data/hora no histórico da tarefa.
 - Autorização de edição verificada no backend; formulário responsivo para dispositivos móveis.
+
+## AnnA Nexus v0.1.7 — Convites de membros (desenvolvimento)
+- Administradores geram convites individuais de 7 dias, com papel inicial e link de utilização única.
+- O link é compartilhado por cópia ou pelo cliente de e-mail do administrador; **envio automático ainda não está configurado**.
+- Não exibir o segredo em listas, não armazená-lo em texto claro; banco guarda apenas o hash SHA-256.
+- O destinatário precisa autenticar-se com o Neon Auth do Portal AnnA One usando o **mesmo e-mail assinado no JWT** e confirmar a aceitação.
+- O fluxo aceita participantes novos e associa o ID autenticado à organização, sem duplicar contas ou armazenar senhas.
+- Administradores consultam pendentes, aceitos, expirados e cancelados; convites pendentes podem ser cancelados.
+- Migração aditiva `migrations/0017-invitations.sql`, aplicada somente ao banco `anna-nexus-dev`.
+- Ao trocar de conta para aceitar um convite, use o login do portal com o e-mail convidado.
+- O envio automático via Resend poderá ser acrescentado somente após validar domínio, credenciais e políticas de entrega.

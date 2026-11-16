@@ -822,10 +822,20 @@ const taskFilterMatches=t=>{
  &&(label==='all'||(Array.isArray(t.labels)&&t.labels.includes(label)))&&deadline
  &&(!search||[t.title,t.description,t.pending_reason,t.next_action].some(x=>String(x||'').toLocaleLowerCase('pt-BR').includes(search)));
 };
+let boardFiltersExpanded=false;
+function setBoardFiltersExpanded(open){
+ boardFiltersExpanded=!!open;
+ $('board-filter-panel').hidden=!boardFiltersExpanded;
+ $('toggle-board-filters').setAttribute('aria-expanded',String(boardFiltersExpanded));
+ $('toggle-board-filters').textContent=boardFiltersExpanded?'Ocultar filtros':'Mostrar filtros';
+}
+$('toggle-board-filters').addEventListener('click',()=>setBoardFiltersExpanded(!boardFiltersExpanded));
+setBoardFiltersExpanded(false);
 let draggedTaskId=null;
 async function moveTaskTo(taskId,status){
  const task=state.tasks.find(t=>t.id===taskId);
  if(!task||task.status===status||!['admin','manager','member'].includes(state.role))return;
+ if(state.project?.completion_status!=='active')throw Error('Projeto em validação ou concluído: reabra antes de editar.');
  if(task.paused_at)throw Error('Retome a tarefa antes de mudar sua etapa.');
  await api('/api/tasks/'+task.id+qs(),{method:'PATCH',body:JSON.stringify({status})});
  task.status=status;renderTasks();await refreshProjects();message('Etapa atualizada.');
@@ -838,7 +848,7 @@ function renderTasks(){
   col.querySelector('.count').textContent=tasks.length;
   for(const t of tasks){
    const card=document.createElement('article');card.className='task';card.dataset.taskId=t.id;
-   const editable=['admin','manager','member'].includes(state.role);
+   const editable=['admin','manager','member'].includes(state.role)&&state.project?.completion_status==='active';
    card.draggable=editable&&!t.paused_at;
    if(card.draggable){
     card.title='Arraste para outra coluna ou use o seletor de etapa';
@@ -869,6 +879,16 @@ function renderTasks(){
   }
  }
  const all=state.tasks,completed=all.filter(t=>t.status==='done').length;
+ const today=todayInFortaleza();
+ const open=all.filter(t=>t.status!=='done').length;
+ const overdue=all.filter(t=>t.status!=='done'&&t.due_at&&String(t.due_at).slice(0,10)<today).length;
+ const blocked=all.filter(t=>t.status!=='done'&&t.treatment_status==='blocked').length;
+ const waiting=all.filter(t=>t.status!=='done'&&t.treatment_status==='waiting').length;
+ $('quick-open').textContent=open+' aberta'+(open===1?'':'s');
+ $('quick-overdue').textContent=overdue+' atrasada'+(overdue===1?'':'s');
+ $('quick-blocked').textContent=blocked+' bloqueada'+(blocked===1?'':'s');
+ $('quick-waiting').textContent=waiting+' aguardando';
+
  const subTotal=all.reduce((sum,t)=>sum+Number(t.subtask_total||0),0);
  const subDone=all.reduce((sum,t)=>sum+Number(t.subtask_done||0),0);
  $('board-progress-tasks').textContent=completed+' de '+all.length+' tarefas concluídas';
@@ -878,6 +898,9 @@ function renderTasks(){
  $('board-progress-fill').style.width=progress+'%';
  $('board-progress').setAttribute('aria-label',progress+'% de atividades concluídas');
  $('filter-count').textContent=state.tasks.filter(taskFilterMatches).length+' de '+state.tasks.length+' tarefa(s)';
+ const anyFilter=['filter-treatment','filter-priority','filter-label','filter-due'].some(id=>$(id).value!=='all')||!!$('filter-search').value.trim();
+ $('toggle-board-filters').classList.toggle('has-active-filters',anyFilter);
+ $('toggle-board-filters').title=anyFilter?'Há filtros ativos no quadro.':'Filtros opcionais.';
  $('new-task').disabled=state.project?.completion_status!=='active'||!['admin','manager','member'].includes(state.role);
  if(state.project) $('project-validation').hidden=!(readyForFinalReview(state.project,state.tasks)||['review','completed'].includes(state.project.completion_status));
 }

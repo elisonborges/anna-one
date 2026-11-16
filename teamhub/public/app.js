@@ -419,6 +419,25 @@ async function loadReports(){
   secondsLabel((now-new Date(sub.created_at).getTime())/1000)
  ]);
  renderTable('reports-subtasks',['Projeto','Tarefa','Subtarefa','Situação','Responsáveis','Prazo','Tempo total'],subRows);
+ const workload=new Map();
+ const collect=(ids,type)=>{
+  for(const id of [...new Set(ids.filter(Boolean))]){
+   if(!workload.has(id))workload.set(id,{id,tasks:0,subtasks:0});
+   workload.get(id)[type]++;
+  }
+ };
+ for(const t of data.tasks){
+  if(t.deleted_at||t.archived_at||t.status==='done')continue;
+  collect(Array.isArray(t.assignees)&&t.assignees.length?t.assignees:[t.assignee_subject],'tasks');
+ }
+ for(const st of data.subtasks||[]){
+  const parent=data.tasks.find(t=>t.id===st.task_id);
+  if(st.status==='done'||parent?.deleted_at||parent?.archived_at)continue;
+  collect(Array.isArray(st.assignees)&&st.assignees.length?st.assignees:[st.owner_subject],'subtasks');
+ }
+ const load=[...workload.values()].sort((a,b)=>(b.tasks+b.subtasks)-(a.tasks+a.subtasks));
+ renderTable('reports-workload',['Integrante','Tarefas em aberto','Subtarefas em aberto','Total de atribuições'],
+  load.map(x=>[memberName(x.id),String(x.tasks),String(x.subtasks),String(x.tasks+x.subtasks)]));
  const pauses=data.pauses.map(p=>[
   data.projects.find(x=>x.project_id===p.project_id)?.project_name||'Projeto',
   p.task_id?'Tarefa':'Projeto',p.reason,

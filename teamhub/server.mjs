@@ -306,6 +306,41 @@ const route=async(req,res)=>{
   const rows=await sql`SELECT COUNT(DISTINCT p.id)::int AS projects, COUNT(t.id) FILTER(WHERE t.status!='done')::int AS open, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status!='done' AND t.treatment_status IN ('blocked','waiting'))::int AS attention FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id AND t.archived_at IS NULL AND t.deleted_at IS NULL WHERE p.organization_id=${org} AND p.archived_at IS NULL AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject}))`;
   return reply(res,200,{summary:rows[0]});
  }
+ if(p==='/api/automation/check-deadlines'&&req.method==='POST'){
+  requireManager(role);
+  const rows=await sql`WITH candidates AS(
+    SELECT t.id AS task_id,t.project_id,t.title,t.due_at,assignee.auth_subject,
+      ((t.due_at AT TIME ZONE 'UTC')::date < (now() AT TIME ZONE 'America/Fortaleza')::date) AS overdue
+    FROM teamhub.tasks t
+    JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id
+    JOIN LATERAL (
+      SELECT DISTINCT x.auth_subject FROM (
+       SELECT a.auth_subject FROM teamhub.task_assignees a WHERE a.organization_id=t.organization_id AND a.task_id=t.id
+       UNION SELECT t.assignee_subject WHERE t.assignee_subject IS NOT NULL
+      ) x
+    ) assignee ON true
+    JOIN teamhub.memberships m ON m.organization_id=t.organization_id AND m.auth_subject=assignee.auth_subject AND m.active=true
+    WHERE t.organization_id=${org} AND t.status!='done'
+      AND t.archived_at IS NULL AND t.deleted_at IS NULL AND t.due_at IS NOT NULL AND p.archived_at IS NULL
+      AND (t.due_at AT TIME ZONE 'UTC')::date <= (now() AT TIME ZONE 'America/Fortaleza')::date+2
+      AND (p.access_mode='organization' OR m.role IN ('admin','manager') OR p.owner_subject=m.auth_subject
+       OR EXISTS(SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=m.auth_subject))
+  ), inserted AS(
+    INSERT INTO teamhub.notifications(organization_id,recipient_subject,actor_subject,event_type,title,details,project_id,task_id)
+    SELECT ${org}::uuid,c.auth_subject,${subject},
+      CASE WHEN c.overdue THEN 'task.overdue' ELSE 'task.due_soon' END,
+      CASE WHEN c.overdue THEN 'Tarefa atrasada' ELSE 'Prazo próximo' END,
+      c.title,c.project_id,c.task_id
+    FROM candidates c WHERE NOT EXISTS(
+      SELECT 1 FROM teamhub.notifications n WHERE n.organization_id=${org}
+        AND n.recipient_subject=c.auth_subject AND n.task_id=c.task_id
+        AND n.event_type=CASE WHEN c.overdue THEN 'task.overdue' ELSE 'task.due_soon' END
+        AND n.created_at>=now()-interval '24 hours'
+    )
+    RETURNING id
+  ) SELECT count(*)::int AS sent FROM inserted`;
+  return reply(res,200,{created:rows[0]?.sent||0,delivery:'internal',checked_at:new Date().toISOString()});
+ }
  if(p==='/api/dashboard/insights'&&req.method==='GET'){
   const period=Number(url.searchParams.get('days')||30);
   if(![7,30,90].includes(period))bad('Selecione um período de 7, 30 ou 90 dias.');

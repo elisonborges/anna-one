@@ -26,6 +26,7 @@ function applyRoleMenus(){
  $('dash-export').hidden=!['admin','manager'].includes(state.role);
  $('dash-wallboard').hidden=state.role==='member';
  $('show-archived').disabled=state.role==='member';
+ $('member-home').hidden=state.role!=='member';
 }
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const message=(s,error=false)=>{const el=$('status');el.textContent=s;el.style.background=error?'#fff0ef':'';el.style.color=error?'#a31931':''};
@@ -362,7 +363,7 @@ function renderProjects(){
   const actions=document.createElement('div');actions.className='project-card-actions';
   const open=makeAction('Abrir projeto',()=>openProject(p));open.classList.add('project-card-open');
   actions.append(open);
-  if(['admin','manager'].includes(state.role)){
+  if(canManageUI(p)){
    const edit=makeAction('Personalizar',()=>modal('project-edit',p));
    actions.append(edit);
    if(state.role==='admin'){
@@ -370,13 +371,14 @@ function renderProjects(){
     actions.append(invite);
    }
   }
-  const validation=makeAction(p.completion_status==='review'?'Aguardando validação':p.completion_status==='completed'?'Conferir encerramento':'Checklist de conclusão',()=>showApproval(p));
-  validation.hidden=!['review','completed'].includes(p.completion_status);
+  const validation=makeAction(p.completion_status==='review'?'Aguardando validação':p.completion_status==='completed'?'Conferir encerramento':'Checklist de conclusão',async()=>{try{await loadCentral();show('approvals')}catch(e){message(e.message,true)}});
+  validation.hidden=!canManageUI(p)||!['review','completed'].includes(p.completion_status);
   validation.classList.add('project-validation-link');
   card.append(cover,title,description,owner,tags,progress,validation,actions);container.append(card);
-  enableProjectCardReorder(card,handle);
+  handle.hidden=state.role==='guest';
+  if(state.role!=='guest')enableProjectCardReorder(card,handle);
  }
- const add=document.createElement('button');add.type='button';add.className='project-card-add';add.disabled=!['admin','manager'].includes(state.role);
+ const add=document.createElement('button');add.type='button';add.className='project-card-add';add.hidden=!['admin','manager'].includes(state.role);add.disabled=add.hidden;
  add.textContent='+ Criar novo card';add.onclick=()=>modal('project');container.append(add);
  $('stat-projects').textContent=state.projects.length;
 }
@@ -389,6 +391,9 @@ function memberName(subject){
 async function loadMembers(){
  const data=await api('/api/members'+qs());state.members=data.members;
  const projectOwner=$('project-owner');projectOwner.replaceChildren();
+ const managerSelect=$('project-manager');managerSelect.replaceChildren();
+ const noManager=document.createElement('option');noManager.value='';noManager.textContent='Sem gestor designado';managerSelect.append(noManager);
+ for(const manager of state.members.filter(m=>m.active&&m.role==='manager')){const option=document.createElement('option');option.value=manager.auth_subject;option.textContent=memberName(manager.auth_subject);managerSelect.append(option);}
  const option=document.createElement('option');option.value='';option.textContent='Não atribuído';projectOwner.append(option);
  for(const member of state.members.filter(x=>x.active)){
   const opt=document.createElement('option');opt.value=member.auth_subject;opt.textContent=memberName(member.auth_subject);projectOwner.append(opt);
@@ -1028,15 +1033,16 @@ function readyForFinalReview(project,tasks){
 async function openProject(p){
  state.project=p;const data=await api('/api/projects/'+encodeURIComponent(p.id)+'/tasks'+qs());
  state.tasks=data.tasks;$('board-description').textContent=p.description||'Quadro de tarefas do projeto.';
- $('project-pause').disabled=!['admin','manager'].includes(state.role);
+ $('project-pause').disabled=!canManageUI(p);
  $('project-pause').textContent=p.paused_at?'Retomar projeto':'Pausar projeto';
  $('project-pause-status').textContent=p.completion_status==='completed'?'Projeto concluído':p.completion_status==='review'?'Aguardando validação':p.paused_at?'Pausado por pendência':'Projeto ativo';
  const finalReview=readyForFinalReview(p,state.tasks);
- $('project-validation').hidden=!(finalReview||['review','completed'].includes(p.completion_status));
+ $('project-validation').hidden=!canManageUI(p)||!(finalReview||['review','completed'].includes(p.completion_status));
  $('project-validation').textContent=p.completion_status==='review'?'Ver validação':p.completion_status==='completed'?'Reabrir / histórico':'Conferir conclusão';
- $('project-validation').onclick=()=>showApproval(p);
- $('project-pause').disabled=p.completion_status!=='active'||!['admin','manager'].includes(state.role);
- $('new-task').disabled=p.completion_status!=='active'||!['admin','manager','member'].includes(state.role);
+ $('project-validation').onclick=async()=>{try{await loadCentral();show('approvals')}catch(e){message(e.message,true)}};
+ $('project-pause').disabled=p.completion_status!=='active'||!canManageUI(p);
+ $('new-task').hidden=!canManageUI(p);
+ $('new-task').disabled=p.completion_status!=='active'||!canManageUI(p);
  renderTasks();show('board');
 }
 const taskFilterMatches=t=>{
@@ -1064,7 +1070,7 @@ function taskOrderFilterActive(){
 }
 function canReorderTasks(){
  return state.project?.completion_status==='active'&&!state.project.paused_at
-  &&['admin','manager','member'].includes(state.role)&&!taskOrderFilterActive();
+  &&canManageUI(state.project)&&!taskOrderFilterActive();
 }
 async function persistTaskOrder(status,orderedIds){
  if(!canReorderTasks())throw Error('Retire os filtros ou reabra o projeto para ordenar as tarefas.');
@@ -1338,6 +1344,8 @@ function modal(type,task=null){
  if(type==='project-edit')loadProjectAccess(task).catch(e=>message(e.message,true));
  $('project-color').value=task?.card_color||'blue';
  $('project-owner').value=task?.owner_subject||'';
+ $('project-manager-field').hidden=state.role!=='admin';
+ $('project-manager').value=task?.manager_subject||(state.role==='manager'?state.subject:'');
  $('field-priority').value=task?.priority||'medium';
  for(const x of $('field-labels').querySelectorAll('input'))x.checked=Array.isArray(task?.labels)&&task.labels.includes(x.value);
  $('field-due').value=task?.due_at?String(task.due_at).slice(0,10):'';
@@ -1603,6 +1611,7 @@ $('editor').addEventListener('submit',async e=>{
  try{
   if(mode==='project'||mode==='project-edit'){
    const payload={name,description,card_color:$('project-color').value,owner_subject:$('project-owner').value||null,template:mode==='project'?$('project-template').value:undefined};
+   if(state.role==='admin')payload.manager_subject=$('project-manager').value||null;
    if(mode==='project')await api('/api/projects'+qs(),{method:'POST',body:JSON.stringify(payload)});
    else{
     if(!projectAccessReady)throw Error('Aguarde o carregamento dos participantes antes de salvar.');

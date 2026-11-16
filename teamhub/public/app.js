@@ -220,6 +220,17 @@ function renderCentral(){
   rows.push(['Validação de projeto',item.name,item.name,'Pendente',item.completion_note||'—',
    item.completion_requested_at?new Date(item.completion_requested_at).toLocaleString('pt-BR'):'—',action]);
  }
+ if(allowedProject)for(const item of centralData.project_history||[]){
+  const itemStatus=({approved:'approved',rejected:'rejected',reopened:'reopened'})[item.action]||item.action;
+  if(filter!=='all'&&filter!==itemStatus)continue;
+  const labels={approved:'Aprovada',rejected:'Devolvida',reopened:'Reaberta'};
+  const open=makeAction('Abrir projeto',async()=>{
+   try{const p=state.projects.find(x=>x.id===item.project_id);if(!p)throw Error('Projeto indisponível.');await openProject(p)}
+   catch(e){message(e.message,true)}
+  });
+  rows.push(['Decisão de projeto',item.project_name,item.project_name,labels[item.action]||item.action,
+    item.note||'—',new Date(item.created_at).toLocaleString('pt-BR'),open]);
+ }
  $('approvals-count').textContent=rows.length+' solicitação(ões)';
  renderTable('approvals-list',['Tipo','Tarefa/Projeto','Projeto','Situação','Justificativa','Solicitado em','Ação'],rows);
 }

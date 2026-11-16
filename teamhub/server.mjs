@@ -238,6 +238,17 @@ const route=async(req,res)=>{
   const tasks=await sql`SELECT t.id,t.title,t.status,t.priority,t.due_at,t.project_id,p.name AS project_name,t.paused_at,t.archived_at,t.created_at,t.treatment_status FROM teamhub.tasks t JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id WHERE t.organization_id=${org} AND t.deleted_at IS NULL AND (t.archived_at IS NULL OR ${showArchived}) AND (t.assignee_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.task_assignees a WHERE a.task_id=t.id AND a.organization_id=t.organization_id AND a.auth_subject=${subject})) AND p.archived_at IS NULL ORDER BY (t.status='done'),t.due_at NULLS LAST,t.created_at DESC LIMIT 200`;
   return reply(res,200,{tasks});
  }
+ if(p==='/api/my-subtasks'&&req.method==='GET'){
+  const rows=await sql`SELECT s.id,s.task_id,s.project_id,s.title,s.status,s.priority,s.due_at,s.created_at,
+    t.title AS task_title,p.name AS project_name
+   FROM teamhub.subtasks s
+   JOIN teamhub.tasks t ON t.id=s.task_id AND t.organization_id=s.organization_id
+   JOIN teamhub.projects p ON p.id=s.project_id AND p.organization_id=s.organization_id
+   WHERE s.organization_id=${org} AND t.archived_at IS NULL AND t.deleted_at IS NULL AND p.archived_at IS NULL
+   AND (s.owner_subject=${subject} OR EXISTS(SELECT 1 FROM teamhub.subtask_assignees a WHERE a.organization_id=s.organization_id AND a.subtask_id=s.id AND a.auth_subject=${subject}))
+   ORDER BY (s.status='done'),s.due_at NULLS LAST,s.created_at DESC LIMIT 200`;
+  return reply(res,200,{subtasks:rows});
+ }
  if(p==='/api/projects'&&req.method==='GET'){
   const projects=await sql`SELECT p.id,p.name,p.description,p.created_at,p.paused_at,p.card_color,p.owner_subject, COUNT(t.id)::int AS total, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id AND t.deleted_at IS NULL AND t.archived_at IS NULL WHERE p.organization_id=${org} AND p.archived_at IS NULL GROUP BY p.id ORDER BY p.created_at DESC`;
   return reply(res,200,{projects,role});

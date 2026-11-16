@@ -1308,9 +1308,10 @@ function showTaskDetailTab(tab){
   }
  }
  const details=value==='details';
- for(const id of ['field-name','field-description'])$(id).hidden=!details;
+ const executionOnly=$('editor').dataset.executionOnly==='true';
+ for(const id of ['field-name','field-description'])$(id).hidden=!details||executionOnly;
  for(const selector of ['label[for="field-name"]','label[for="field-description"]']){
-  const field=$('editor').querySelector(selector);if(field)field.hidden=!details;
+  const field=$('editor').querySelector(selector);if(field)field.hidden=!details||executionOnly;
  }
  $('task-detail-summary').hidden=details;
  $('save').hidden=!details;
@@ -1328,6 +1329,8 @@ for(const button of $('task-detail-tabs').querySelectorAll('[data-task-tab]')){
 }
 function modal(type,task=null){
  mode=type;editing=task;
+ $('editor').dataset.executionOnly='false';
+ $('field-name').disabled=false;$('field-description').disabled=false;
  $('task-detail-tabs').hidden=type!=='edit';
  $('editor').dataset.taskTab='';
  // Tabs do not change the existing project and new-task forms.
@@ -1385,6 +1388,22 @@ function modal(type,task=null){
  if(type==='edit')loadHistory(task.id);
 
  $('field-description').maxLength=type==='project'||type==='project-edit'?1000:2000;
+ const executionOnly=type==='edit'&&!canManageUI(state.project);
+ $('editor').dataset.executionOnly=String(executionOnly);
+ $('member-execution').hidden=!executionOnly;
+ $('execution-status').value=task?.status||'todo';
+ $('execution-status').disabled=!canExecuteUI(task)||task?.status==='done'||!!task?.paused_at;
+ $('execution-note').value='';
+ $('field-name').disabled=executionOnly;
+ $('field-description').disabled=executionOnly;
+ for(const child of $('task-fields').children){
+  if(child.id!=='member-execution')child.hidden=executionOnly;
+ }
+ $('save').textContent=executionOnly?'Salvar execução':'Salvar';
+ $('save').hidden=type==='edit'&&executionOnly&&!canExecuteUI(task);
+ $('history-add').disabled=type==='edit'&&(!canExecuteUI(task)||task?.status==='done');
+ $('attachment-upload').disabled=type==='edit'&&(!canExecuteUI(task)||task?.status==='done');
+ $('subtask-add').disabled=type==='edit'&&!canManageUI(state.project);
  if(type==='edit')showTaskDetailTab('details');
  $('dialog').showModal();
  if(type==='edit')$('tab-task-details').focus();else $('field-name').focus();
@@ -1641,7 +1660,10 @@ $('editor').addEventListener('submit',async e=>{
    const update_note=$('field-update-note').value.trim();
 
    if(due_at&&due_at<todayInFortaleza())throw Error('Escolha um prazo igual ou posterior à data de hoje.');
-   if(mode==='edit'){
+   if(mode==='edit'&&$('editor').dataset.executionOnly==='true'){
+    if(!canExecuteUI(editing))throw Error('Esta tarefa não está atribuída à sua conta.');
+    await api('/api/tasks/'+editing.id+qs(),{method:'PATCH',body:JSON.stringify({status:$('execution-status').value,update_note:$('execution-note').value.trim()})});
+   }else if(mode==='edit'){
     await api('/api/tasks/'+editing.id+qs(),{method:'PATCH',body:JSON.stringify({title:name,description,priority,due_at,assignee_subject,assignees,labels,...tracking,update_note})});
    }else{
     await api('/api/projects/'+state.project.id+'/tasks'+qs(),{method:'POST',body:JSON.stringify({title:name,description,priority,due_at,assignee_subject,assignees,labels,...tracking})});

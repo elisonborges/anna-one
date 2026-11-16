@@ -89,7 +89,7 @@ async function syncSubtaskAssignees(org,subtask,subjects){
 function preferenceCategory(event){
  if(event.startsWith('task.mention'))return 'mentions';
  if(event.startsWith('task.due')||event.startsWith('task.overdue')||event.startsWith('subtask.due')||event.startsWith('subtask.overdue'))return 'deadlines';
- if(event.startsWith('project.review')||event.startsWith('project.completion'))return 'approvals';
+ if(event.startsWith('project.review')||event.startsWith('project.completion')||event.startsWith('task.reopen'))return 'approvals';
  return 'assignments';
 }
 async function notifyMembers(org,actor,subjects,event,title,details,projectId,taskId=null){
@@ -108,13 +108,13 @@ async function notifyMembers(org,actor,subjects,event,title,details,projectId,ta
 }
 async function verifyProjectRecipients(org,projectId,subjects){
  if(!subjects.length)return;
- const rows=await sql`SELECT access_mode,owner_subject FROM teamhub.projects WHERE id=${projectId} AND organization_id=${org}`;
+ const rows=await sql`SELECT access_mode,owner_subject,manager_subject FROM teamhub.projects WHERE id=${projectId} AND organization_id=${org}`;
  if(!rows.length)bad('Projeto não encontrado.',404);
  if(rows[0].access_mode!=='restricted')return;
  const allowed=await sql`SELECT m.auth_subject FROM teamhub.memberships m
   WHERE m.organization_id=${org} AND m.active=true AND m.auth_subject IN
    (SELECT jsonb_array_elements_text(${JSON.stringify(subjects)}::jsonb))
-   AND (m.role IN ('admin','manager') OR m.auth_subject=${rows[0].owner_subject}
+   AND (m.role='admin' OR m.auth_subject=${rows[0].manager_subject} OR m.auth_subject=${rows[0].owner_subject}
    OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=${projectId} AND pm.auth_subject=m.auth_subject))`;
  if(allowed.length!==subjects.length)bad('Para atribuir uma tarefa em projeto restrito, primeiro autorize os responsáveis no projeto.',403);
 }
@@ -139,7 +139,7 @@ async function processEmailOutbox(){
    JOIN teamhub.memberships m ON m.organization_id=n.organization_id AND m.auth_subject=n.recipient_subject AND m.active=true
    LEFT JOIN teamhub.projects p ON p.id=n.project_id AND p.organization_id=n.organization_id
    WHERE n.read_at IS NULL AND n.created_at>=pref.updated_at AND n.created_at>now()-interval '7 days'
-    AND (n.project_id IS NULL OR p.access_mode='organization' OR m.role IN ('admin','manager') OR p.owner_subject=n.recipient_subject
+    AND (n.project_id IS NULL OR p.access_mode='organization' OR m.role='admin' OR p.manager_subject=n.recipient_subject OR p.owner_subject=n.recipient_subject
       OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=n.organization_id AND pm.project_id=n.project_id AND pm.auth_subject=n.recipient_subject))
     AND NOT EXISTS(SELECT 1 FROM teamhub.email_delivery_log e WHERE e.notification_id=n.id)
    ORDER BY n.created_at ASC LIMIT 15`;
@@ -186,7 +186,7 @@ async function createDeadlineNotifications(org,subject){
     WHERE t.organization_id=${org} AND t.status!='done'
       AND t.archived_at IS NULL AND t.deleted_at IS NULL AND t.due_at IS NOT NULL AND p.archived_at IS NULL
       AND (t.due_at AT TIME ZONE 'UTC')::date <= (now() AT TIME ZONE 'America/Fortaleza')::date+2
-      AND (p.access_mode='organization' OR m.role IN ('admin','manager') OR p.owner_subject=m.auth_subject
+      AND (p.access_mode='organization' OR m.role='admin' OR p.manager_subject=m.auth_subject OR p.owner_subject=m.auth_subject
        OR EXISTS(SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=m.auth_subject))
   ), inserted AS(
     INSERT INTO teamhub.notifications(organization_id,recipient_subject,actor_subject,event_type,title,details,project_id,task_id)
@@ -221,7 +221,7 @@ async function createDeadlineNotifications(org,subject){
     WHERE s.organization_id=${org} AND s.status!='done' AND s.due_at IS NOT NULL
       AND (s.due_at AT TIME ZONE 'UTC')::date <=(now() AT TIME ZONE 'America/Fortaleza')::date+2
       AND COALESCE(pref.deadlines,true)
-      AND (p.access_mode='organization' OR m.role IN ('admin','manager') OR p.owner_subject=m.auth_subject
+      AND (p.access_mode='organization' OR m.role='admin' OR p.manager_subject=m.auth_subject OR p.owner_subject=m.auth_subject
        OR EXISTS(SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=m.auth_subject))
    ), inserted AS(
     INSERT INTO teamhub.notifications(organization_id,recipient_subject,actor_subject,event_type,title,details,project_id,task_id)
@@ -547,7 +547,7 @@ const route=async(req,res)=>{
    FROM teamhub.tasks t JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id
    WHERE t.organization_id=${org} AND t.deleted_at IS NULL AND t.archived_at IS NULL
    AND p.archived_at IS NULL AND t.due_at IS NOT NULL
-   AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject}
+   AND (${unrestricted} OR (p.access_mode='organization' AND ${role!=='guest'}) OR (p.owner_subject=${subject} AND ${role!=='guest'}) OR p.manager_subject=${subject}
      OR EXISTS(SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject}))
    ORDER BY t.due_at,t.created_at LIMIT 2000`;
   const subtasks=await sql`SELECT s.id,s.project_id,s.title,s.due_at,s.created_at,s.status,p.name AS project_name,'subtask' AS kind
@@ -555,7 +555,7 @@ const route=async(req,res)=>{
    JOIN teamhub.projects p ON p.id=s.project_id AND p.organization_id=s.organization_id
    WHERE s.organization_id=${org} AND t.deleted_at IS NULL AND t.archived_at IS NULL AND p.archived_at IS NULL
    AND s.due_at IS NOT NULL
-   AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject}
+   AND (${unrestricted} OR (p.access_mode='organization' AND ${role!=='guest'}) OR (p.owner_subject=${subject} AND ${role!=='guest'}) OR p.manager_subject=${subject}
      OR EXISTS(SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject}))
    ORDER BY s.due_at,s.created_at LIMIT 2000`;
   return reply(res,200,{items:[...tasks,...subtasks]});
@@ -582,6 +582,7 @@ const route=async(req,res)=>{
   return reply(res,200,{projects,role});
  }
  if(p==='/api/dashboard'&&req.method==='GET'){
+  if(role==='guest')bad('Painel interno indisponível ao convidado.',403);
   const rows=await sql`SELECT COUNT(DISTINCT p.id)::int AS projects, COUNT(t.id) FILTER(WHERE t.status!='done')::int AS open, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status!='done' AND t.treatment_status IN ('blocked','waiting'))::int AS attention FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id AND t.archived_at IS NULL AND t.deleted_at IS NULL WHERE p.organization_id=${org} AND p.archived_at IS NULL AND (${unrestricted} OR (p.access_mode='organization' AND ${role!=='guest'}) OR (p.owner_subject=${subject} AND ${role!=='guest'}) OR p.manager_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject}))`;
   return reply(res,200,{summary:rows[0]});
  }
@@ -592,7 +593,7 @@ const route=async(req,res)=>{
   return reply(res,200,{...result,delivery:'internal',checked_at:new Date().toISOString()});
  }
  if(p==='/api/automation/email-deliveries'&&req.method==='GET'){
-  requireManager(role);
+  if(role!=='admin')bad('Monitor da organização exclusivo do administrador.',403);
   const rows=await sql`SELECT attempted_at,status,error_message,provider_message_id
    FROM teamhub.email_delivery_log WHERE organization_id=${org} ORDER BY attempted_at DESC LIMIT 100`;
   const totals=await sql`SELECT status,count(*)::int AS total FROM teamhub.email_delivery_log
@@ -600,13 +601,14 @@ const route=async(req,res)=>{
   return reply(res,200,{configured:emailTransportConfigured(),deliveries:rows,totals});
  }
  if(p==='/api/automation/runs'&&req.method==='GET'){
-  requireManager(role);
+  if(role!=='admin')bad('Monitor da organização exclusivo do administrador.',403);
   const rows=await sql`SELECT id,local_day,trigger_type,status,started_at,finished_at,
    tasks_created,subtasks_created,error_message FROM teamhub.automation_runs
    WHERE organization_id=${org} ORDER BY started_at DESC LIMIT 100`;
   return reply(res,200,{runs:rows,scheduled_mode:'best-effort'});
  }
  if(p==='/api/dashboard/insights'&&req.method==='GET'){
+  if(role==='guest')bad('Painel interno indisponível ao convidado.',403);
   const period=Number(url.searchParams.get('days')||30);
   if(![7,30,90].includes(period))bad('Selecione um período de 7, 30 ou 90 dias.');
   const projectId=url.searchParams.get('project')||null;
@@ -623,6 +625,7 @@ const route=async(req,res)=>{
     LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id AND t.archived_at IS NULL AND t.deleted_at IS NULL
     WHERE p.organization_id=${org} AND p.archived_at IS NULL
      AND (${projectId}::uuid IS NULL OR p.id=${projectId}::uuid)
+     AND (${role!=='manager'} OR p.manager_subject=${subject})
      AND (${unrestricted} OR (p.access_mode='organization' AND ${role!=='guest'}) OR (p.owner_subject=${subject} AND ${role!=='guest'}) OR p.manager_subject=${subject} OR EXISTS
        (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject}))
     GROUP BY p.id ORDER BY p.name`;
@@ -634,6 +637,7 @@ const route=async(req,res)=>{
     JOIN teamhub.tasks t ON t.id=s.task_id AND t.organization_id=s.organization_id AND t.archived_at IS NULL AND t.deleted_at IS NULL
     JOIN teamhub.projects p ON p.id=s.project_id AND p.organization_id=s.organization_id AND p.archived_at IS NULL
     WHERE s.organization_id=${org} AND (${projectId}::uuid IS NULL OR s.project_id=${projectId}::uuid)
+     AND (${role!=='manager'} OR p.manager_subject=${subject})
      AND (${unrestricted} OR (p.access_mode='organization' AND ${role!=='guest'}) OR (p.owner_subject=${subject} AND ${role!=='guest'}) OR p.manager_subject=${subject} OR EXISTS
        (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject}))`;
   const activity=await sql`SELECT (a.created_at AT TIME ZONE 'America/Fortaleza')::date::text AS day, count(*)::int AS total
@@ -642,12 +646,14 @@ const route=async(req,res)=>{
       AND a.created_at>=now()-${period}*interval '1 day'
       AND (${projectId}::uuid IS NULL OR a.project_id=${projectId}::uuid)
       AND (a.project_id IS NOT NULL OR ${unrestricted})
+      AND (${role!=='manager'} OR p.manager_subject=${subject})
       AND (a.project_id IS NULL OR ${unrestricted} OR (p.access_mode='organization' AND ${role!=='guest'}) OR (p.owner_subject=${subject} AND ${role!=='guest'}) OR p.manager_subject=${subject} OR EXISTS
        (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=a.project_id AND pm.auth_subject=${subject}))
     GROUP BY 1 ORDER BY 1`;
   const pending=await sql`SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(pp.ended_at,now())-pp.started_at))),0)::bigint AS seconds
     FROM teamhub.pause_periods pp JOIN teamhub.projects p ON p.id=pp.project_id AND p.organization_id=pp.organization_id
     WHERE pp.organization_id=${org} AND p.archived_at IS NULL AND (${projectId}::uuid IS NULL OR p.id=${projectId}::uuid)
+     AND (${role!=='manager'} OR p.manager_subject=${subject})
      AND (${unrestricted} OR (p.access_mode='organization' AND ${role!=='guest'}) OR (p.owner_subject=${subject} AND ${role!=='guest'}) OR p.manager_subject=${subject} OR EXISTS
        (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject}))`;
   const total=(field)=>projects.reduce((sum,p)=>sum+Number(p[field]||0),0);
@@ -966,6 +972,7 @@ const route=async(req,res)=>{
   const rows=await sql`SELECT id,task_id,title,status,priority,owner_subject,due_at FROM teamhub.subtasks WHERE id=${subEdit[1]} AND organization_id=${org}`;
   if(!rows.length)bad('Subtarefa não encontrada.',404);
   const prev=rows[0],b=await json(req);
+  if(prev.status==='done')bad('Subtarefa concluída: alterações bloqueadas.',409);
   const [subContext]=await sql`SELECT project_id FROM teamhub.subtasks WHERE id=${prev.id} AND organization_id=${org}`;
   if(!(await canManageProject(subContext.project_id))&&Object.keys(b).some(k=>k!=='status'))bad('Responsável só pode alterar a etapa da subtarefa.',403);
   if(prev.status==='done'&&b.status!==undefined&&b.status!=='done')bad('Subtarefa concluída: solicite análise do gestor.',409);
@@ -1138,7 +1145,8 @@ const route=async(req,res)=>{
    return reply(res,200,{attachments:rows,max_bytes:262144});
   }
   if(attachList&&req.method==='POST'){
-   await requireTaskExecution(taskId);
+   const info=await requireTaskExecution(taskId);
+   if(info.status==='done')bad('Tarefa concluída: anexos bloqueados.',409);
    const b=await json(req,370000);
    const name=typeof b.file_name==='string'?b.file_name.trim():'',mime=b.media_type;
    if(!name||name.length>180||/[\\/\u0000-\u001f\u007f]/.test(name))bad('Nome de arquivo inválido.');
@@ -1188,7 +1196,8 @@ const route=async(req,res)=>{
   return reply(res,200,{history});
  }
  if(hm&&validId(hm[1])&&req.method==='POST'){
-  await requireTaskExecution(hm[1]);
+  const info=await requireTaskExecution(hm[1]);
+  if(info.status==='done')bad('Tarefa concluída: comentários bloqueados.',409);
   const target=await sql`SELECT id FROM teamhub.tasks WHERE id=${hm[1]} AND organization_id=${org}`;
   if(!target.length)bad('Tarefa não encontrada.',404);
   const body=await json(req),summary=safeNote(body.summary,2000);
@@ -1204,6 +1213,7 @@ const route=async(req,res)=>{
  const tm=/^\/api\/tasks\/([0-9a-f-]+)$/.exec(p);
  if(tm&&validId(tm[1])&&req.method==='PATCH'){
   const context=await requireTaskExecution(tm[1]);const b=await json(req);
+  if(context.status==='done')bad('Tarefa concluída: solicite reabertura para continuar a execução.',409);
   if(!(await canManageProject(context.project_id))&&Object.keys(b).some(k=>!['status','update_note'].includes(k)))bad('Responsável só pode alterar etapa e andamento.',403);
   if(context.status==='done'&&b.status!==undefined&&b.status!=='done')bad('Reabertura exige decisão na Central.',409);
   if(context.paused_at&&b.status!==undefined)bad('Retome a tarefa antes de alterar a etapa.',409);

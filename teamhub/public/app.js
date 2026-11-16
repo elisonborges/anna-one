@@ -77,10 +77,34 @@ async function loadMyTasks(){
   card.append(title,details,button);list.append(card);
  }
 }
+async function loadAttention(){
+ const list=$('attention-list');list.textContent='Carregando pendências…';
+ try{
+  const data=await api('/api/attention'+qs());list.replaceChildren();
+  if(!data.items.length){list.textContent='Nenhuma tarefa bloqueada ou aguardando retorno. ';return;}
+  for(const t of data.items){
+   const card=document.createElement('div');card.className='attention-item';
+   const info=document.createElement('div');
+   const name=document.createElement('strong');name.textContent=t.title;
+   const desc=document.createElement('small');desc.textContent=t.project_name+' · '+(t.treatment_status==='blocked'?'Bloqueada':'Aguardando retorno');
+   info.append(name,desc);
+   if(t.pending_reason){const pending=document.createElement('p');pending.textContent=t.pending_reason;info.append(pending);}
+   if(t.next_action){const next=document.createElement('p');next.textContent='Próxima ação: '+t.next_action;info.append(next);}
+   const button=document.createElement('button');button.className='secondary';button.type='button';button.textContent='Abrir projeto';
+   button.onclick=async()=>{try{
+    let project=state.projects.find(x=>x.id===t.project_id);
+    if(!project){await refreshProjects();project=state.projects.find(x=>x.id===t.project_id);}
+    if(!project)throw Error('Projeto não encontrado.');
+    await openProject(project);
+   }catch(e){message(e.message,true)}};
+   card.append(info,button);list.append(card);
+  }
+ }catch(e){list.textContent='Não foi possível carregar as pendências.';}
+}
 async function refreshProjects(){
  const data=await api('/api/projects'+qs());state.projects=data.projects;state.role=data.role;renderProjects();
  $('new-project').disabled=!['admin','manager'].includes(state.role);
- const summary=await api('/api/dashboard'+qs());$('stat-projects').textContent=summary.summary.projects;$('stat-open').textContent=summary.summary.open;$('stat-doing').textContent=summary.summary.doing;$('stat-done').textContent=summary.summary.done;$('stat-attention').textContent=summary.summary.attention||0;
+ const summary=await api('/api/dashboard'+qs());$('stat-projects').textContent=summary.summary.projects;$('stat-open').textContent=summary.summary.open;$('stat-doing').textContent=summary.summary.doing;$('stat-done').textContent=summary.summary.done;$('stat-attention').textContent=summary.summary.attention||0;await loadAttention();
 }
 async function openProject(p){
  state.project=p;const data=await api('/api/projects/'+encodeURIComponent(p.id)+'/tasks'+qs());

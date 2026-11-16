@@ -158,3 +158,11 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Tarefas atrasadas e ainda não concluídas são destacadas no quadro.
 - Menu móvel adaptado para seis áreas (Início, Projetos, Tarefas, Agenda, Relatórios, Equipe).
 - Conclui o pacote v0.1.19–v0.1.22 sem alterar produção nem realizar envio de e-mail ou armazenamento de anexos.
+
+## AnnA Nexus v0.1.23 — Comentários, menções, cronograma e carga de trabalho
+- Na ficha de tarefa, o registro de andamento aceita comentários textuais e menções explícitas aos membros ativos da organização. Cada pessoa mencionada recebe uma notificação interna individual, respeitando as permissões do projeto.
+- Não envia e-mails nem interpreta automaticamente nomes escritos no comentário como menções.
+- Na tela Calendário, o cronograma exibe as entregas do mês como barras da criação ao prazo; é uma visualização de datas existentes, sem campo adicional de estimativa ou dependências.
+- Em Relatórios, tabela de carga de trabalho por integrante, contando separadamente atribuições de tarefas e subtarefas abertas, sem duplicar o mesmo integrante na mesma atividade.
+- Sem novas migrações. Não houve mudança de produção ou criação de dados artificiais.
+- A versão exige validação funcional de comentários, permissões e visualizações com login real antes de homologação.

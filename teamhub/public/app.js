@@ -1160,7 +1160,8 @@ function enableTaskOrderHandle(card,handle,status){
 let draggedTaskId=null;
 async function moveTaskTo(taskId,status){
  const task=state.tasks.find(t=>t.id===taskId);
- if(!task||task.status===status||!['admin','manager','member'].includes(state.role))return;
+ if(!task||task.status===status||!canExecuteUI(task))return;
+ if(task.status==='done')throw Error('Tarefa concluída. Solicite reabertura na Central.');
  if(state.project?.completion_status!=='active')throw Error('Projeto em validação ou concluído: reabra antes de editar.');
  if(task.paused_at)throw Error('Retome a tarefa antes de mudar sua etapa.');
  await api('/api/tasks/'+task.id+qs(),{method:'PATCH',body:JSON.stringify({status})});
@@ -1194,7 +1195,7 @@ function renderTasks(){
    }
    handle.disabled=!canReorderTasks();
    controls.append(handle,up,down);
-   const editable=['admin','manager','member'].includes(state.role)&&state.project?.completion_status==='active';
+   const editable=canExecuteUI(t)&&state.project?.completion_status==='active'&&!state.project?.paused_at&&t.status!=='done';
    card.dataset.canDrag=editable&&!t.paused_at?'1':'';
    card.draggable=card.dataset.canDrag==='1';
    if(card.draggable){
@@ -1218,11 +1219,13 @@ function renderTasks(){
    if(t.due_at){const due=document.createElement('span');const late=String(t.due_at).slice(0,10)<todayInFortaleza()&&t.status!=='done';due.textContent=(late?'Atrasada · ':'Prazo: ')+new Date(t.due_at).toLocaleDateString('pt-BR',{timeZone:'UTC'});if(late)due.className='task-overdue';meta.append(due);}
    const assignedIds=Array.isArray(t.assignees)?t.assignees:(t.assignee_subject?[t.assignee_subject]:[]);
    if(assignedIds.length){const assigned=document.createElement('span');assigned.textContent='Responsáveis: '+assignedIds.map(memberName).join(', ');meta.append(assigned);}
-   const edit=document.createElement('button');edit.type='button';edit.className='task-edit';edit.textContent='Editar tarefa';edit.disabled=!editable;edit.onclick=()=>modal('edit',t);
+   const edit=document.createElement('button');edit.type='button';edit.className='task-edit';edit.textContent=canManageUI(state.project)?'Editar tarefa':'Atualizar execução';edit.hidden=!editable;edit.disabled=!editable;edit.onclick=()=>modal('edit',t);
+   const reopen=makeAction('Solicitar reabertura',()=>requestTaskReopen(t));
+   reopen.hidden=t.status!=='done'||!canExecuteUI(t)||state.project?.completion_status!=='active';
    if(t.pending_reason){const p=document.createElement('span');p.className='pending-summary';p.textContent='Pendência: '+t.pending_reason;meta.append(p);}
    if(t.next_action){const p=document.createElement('span');p.textContent='Próxima ação: '+t.next_action;meta.append(p);}
    if(t.subtask_total){const p=document.createElement('span');p.textContent='Subtarefas: '+t.subtask_done+'/'+t.subtask_total+' concluídas';meta.append(p);}
-   footer.append(priority,select);card.append(controls,title,labels,badge,meta,footer,edit);list.append(card);
+   footer.append(priority,select);card.append(controls,title,labels,badge,meta,footer,edit,reopen);list.append(card);
    enableTaskOrderHandle(card,handle,status);
   }
  }

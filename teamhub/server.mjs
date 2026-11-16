@@ -1,4 +1,5 @@
 import http from 'node:http';
+import {randomBytes,createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
@@ -47,6 +48,7 @@ async function user(req){
  try{
   const {payload}=await jwtVerify(token,jwks,{issuer:process.env.AUTH_ISSUER,algorithms:['EdDSA']});
   if(typeof payload.sub!=='string'||!payload.sub)bad('Identidade inválida',401);
+  req.identityEmail=typeof payload.email==='string'?payload.email.trim().toLowerCase():null;
   return payload.sub;
  }catch(e){if(e.status)throw e;console.warn('Nexus auth verification failed:',String(e?.code||e?.name||'unknown'));bad('Sessão inválida ou expirada.',401);}
 }
@@ -72,6 +74,29 @@ const route=async(req,res)=>{
   res.writeHead(200,{'Content-Type':file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':file.endsWith('.webmanifest')?'application/manifest+json':file.endsWith('.svg')?'image/svg+xml':'text/html; charset=utf-8','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self' https://esm.sh; connect-src 'self' https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"});return res.end(data);
  }
  const subject=await user(req);
+ if(p==='/api/invitations/accept'&&req.method==='POST'){
+  const b=await json(req);
+  const token=typeof b.token==='string'?b.token:'';
+  if(!/^[a-f0-9]{64}$/.test(token))bad('Convite inválido.',400);
+  if(!req.identityEmail)bad('O token de identidade não contém e-mail. Faça login novamente no portal.',403);
+  const hash=createHash('sha256').update(token).digest('hex');
+  const invitations=await sql`SELECT id,organization_id,email,role FROM teamhub.invitations WHERE token_hash=${hash} AND status='pending' AND expires_at>now()`;
+  if(!invitations.length)bad('Convite expirado, cancelado ou já utilizado.',410);
+  const invitation=invitations[0];
+  if(invitation.email!==req.identityEmail)bad('Este convite foi emitido para outro e-mail. Entre com a conta convidada do Portal AnnA One.',403);
+  const linked=await sql`WITH claimed AS (
+   UPDATE teamhub.invitations SET status='accepted',accepted_by_subject=${subject},accepted_at=now()
+   WHERE id=${invitation.id} AND status='pending' AND expires_at>now() RETURNING organization_id,role
+  ), membership AS (
+   INSERT INTO teamhub.memberships(organization_id,auth_subject,role,active)
+   SELECT organization_id,${subject},role,true FROM claimed
+   ON CONFLICT (organization_id,auth_subject) DO UPDATE SET role=EXCLUDED.role,active=true
+   RETURNING organization_id
+  ) SELECT organization_id FROM membership`;
+  if(!linked.length)bad('O convite não está mais disponível.',409);
+  await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action) VALUES(${invitation.organization_id},${subject},'invitation.accepted')`;
+  return reply(res,200,{accepted:true,organization_id:invitation.organization_id});
+ }
  if(p==='/api/me'&&req.method==='GET'){
   const orgs=await sql`SELECT o.id,o.name,m.role FROM teamhub.memberships m JOIN teamhub.organizations o ON o.id=m.organization_id WHERE m.auth_subject=${subject} AND m.active=true ORDER BY o.name`;
   return reply(res,200,{organizations:orgs});
@@ -79,6 +104,39 @@ const route=async(req,res)=>{
  const org=url.searchParams.get('org')||req.headers['x-organization-id'];
  if(!validId(org))bad('Selecione uma organização válida.');
  const role=await membership(subject,org);
+ if(p==='/api/invitations'&&req.method==='GET'){
+  if(role!=='admin')bad('Apenas administradores podem consultar convites.',403);
+  const rows=await sql`SELECT id,email,role,status,created_at,expires_at,accepted_at FROM teamhub.invitations WHERE organization_id=${org} ORDER BY created_at DESC LIMIT 100`;
+  return reply(res,200,{invitations:rows});
+ }
+ if(p==='/api/invitations'&&req.method==='POST'){
+  if(role!=='admin')bad('Apenas administradores podem convidar membros.',403);
+  const b=await json(req);
+  const email=typeof b.email==='string'?b.email.trim().toLowerCase():'';
+  const invitedRole=b.role;
+  if(email.length>254||!/^\S+@[^\s@]+\.[^\s@]+$/.test(email))bad('Informe um e-mail válido.');
+  if(!['admin','manager','member','guest'].includes(invitedRole))bad('Papel inválido.');
+  if(req.identityEmail===email)bad('Sua conta já está na organização.');
+  const token=randomBytes(32).toString('hex');
+  const tokenHash=createHash('sha256').update(token).digest('hex');
+  try{
+   const rows=await sql`INSERT INTO teamhub.invitations(organization_id,email,role,token_hash,invited_by_subject,expires_at)
+     VALUES(${org},${email},${invitedRole},${tokenHash},${subject},now()+interval '7 days') RETURNING id,email,role,status,expires_at`;
+   await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action) VALUES(${org},${subject},'invitation.created')`;
+   return reply(res,201,{invitation:rows[0],invite_url:'https://anna-nexus-dev.onrender.com/?invite='+token,delivery:'manual'});
+  }catch(e){
+   if(e?.code==='23505'||String(e?.message||'').includes('invitations_one_pending'))bad('Este e-mail já possui um convite pendente. Cancele-o antes de enviar outro.',409);
+   throw e;
+  }
+ }
+ const cancel=/^\/api\/invitations\/([0-9a-f-]+)\/cancel$/.exec(p);
+ if(cancel&&validId(cancel[1])&&req.method==='POST'){
+  if(role!=='admin')bad('Apenas administradores podem cancelar convites.',403);
+  const rows=await sql`UPDATE teamhub.invitations SET status='cancelled',cancelled_at=now() WHERE id=${cancel[1]} AND organization_id=${org} AND status='pending' RETURNING id`;
+  if(!rows.length)bad('Convite não está mais pendente.',404);
+  await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action) VALUES(${org},${subject},'invitation.cancelled')`;
+  return reply(res,200,{cancelled:true});
+ }
  if(p==='/api/members'&&req.method==='GET'){
   const members=await sql`SELECT auth_subject,role FROM teamhub.memberships WHERE organization_id=${org} AND active=true ORDER BY CASE role WHEN 'admin' THEN 0 WHEN 'manager' THEN 1 ELSE 2 END,auth_subject`;
   return reply(res,200,{members,viewer:subject});

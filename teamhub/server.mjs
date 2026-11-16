@@ -5,7 +5,7 @@ import path from 'node:path';
 import {neon} from '@neondatabase/serverless';
 import {createRemoteJWKSet,jwtVerify} from 'jose';
 
-const vars=['DATABASE_URL','AUTH_JWKS_URL','AUTH_ISSUER','AUTH_AUDIENCE'];
+const vars=['DATABASE_URL','AUTH_JWKS_URL','AUTH_ISSUER'];
 for(const key of vars) if(!process.env[key]) throw Error('Configuração ausente: '+key);
 const sql=neon(process.env.DATABASE_URL);
 const jwks=createRemoteJWKSet(new URL(process.env.AUTH_JWKS_URL));
@@ -22,10 +22,10 @@ function bad(message,status=400){throw Object.assign(Error(message),{status});}
 async function user(req){
  const token=/^Bearer\s+(.+)$/i.exec(req.headers.authorization||'')?.[1]; if(!token)bad('Faça login no Portal AnnA One.',401);
  try{
-  const {payload}=await jwtVerify(token,jwks,{issuer:process.env.AUTH_ISSUER,audience:process.env.AUTH_AUDIENCE,algorithms:['RS256','ES256','EdDSA']});
+  const {payload}=await jwtVerify(token,jwks,{issuer:process.env.AUTH_ISSUER,algorithms:['EdDSA']});
   if(typeof payload.sub!=='string'||!payload.sub)bad('Identidade inválida',401);
   return payload.sub;
- }catch(e){if(e.status)throw e;bad('Sessão inválida ou expirada.',401);}
+ }catch(e){if(e.status)throw e;console.warn('Nexus auth verification failed:',String(e?.code||e?.name||'unknown'));bad('Sessão inválida ou expirada.',401);}
 }
 async function membership(subject,org){
  const r=await sql`SELECT role FROM teamhub.memberships WHERE auth_subject=${subject} AND organization_id=${org} AND active=true`;

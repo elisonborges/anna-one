@@ -700,3 +700,20 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
  .approval-buttons button{flex:1 1 100%}
  .project-card-actions .table-action{font-size:10.5px!important}
 }
+
+/* v0.1.27 — preferências e filtros de notificações */
+#notifications{display:grid;gap:14px}
+#notifications[hidden]{display:none!important}
+#notifications .panel{min-width:0}
+.notification-filters{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:13px 0}
+.notification-filters label{margin:0;font-size:12px;font-weight:800}
+.notification-filters select{min-width:170px;min-height:42px;font-size:12px}
+.notification-filters .muted{font-size:11px}
+.notification-pref-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0}
+.notification-pref-options label{display:flex;align-items:center;gap:9px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:12px;font-weight:750;line-height:1.4;min-height:56px;cursor:pointer}
+.notification-pref-options label:has(input:checked){background:var(--tint);border-color:var(--accent)}
+.notification-pref-options input{width:19px;height:19px;flex-shrink:0;accent-color:var(--accent)}
+.notification-pref-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.notification-pref-actions button{min-height:42px;white-space:nowrap}
+.notification-pref-actions .muted{font-size:11px;line-height:1.45;flex:1}
+@media(max-width:680px){.notification-pref-options{grid-template-columns:1fr}.notification-pref-options label{min-height:48px}.notification-pref-actions{align-items:stretch}.notification-pref-actions button{width:100%}}

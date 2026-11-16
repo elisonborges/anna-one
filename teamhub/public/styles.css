@@ -650,3 +650,21 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
 #dash-company-logo{width:46px;height:46px;object-fit:contain;border-radius:8px;flex-shrink:0}
 #dash-company-logo[hidden]{display:none!important}
 #overview:fullscreen #dash-company-logo{width:68px;height:68px}
+
+/* v0.1.25 — anexos privados pequenos, responsivos */
+#editor>.attachments-panel{grid-column:1/-1;border-top:1px solid var(--line);padding-top:12px;display:grid;gap:10px}
+#editor>.attachments-panel[hidden]{display:none!important}
+.attachments-panel .section-head{margin:0;align-items:center}
+.attachments-panel h3{font-size:16px;margin:0}
+.attachments-panel>.muted{font-size:12px;margin:0;line-height:1.45}
+.attachments-list{display:grid;gap:6px}
+.attachment-row{border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.attachment-name{flex:1;min-width:140px}
+.attachment-name strong{display:block;font-size:12px;overflow-wrap:anywhere}
+.attachment-name small{display:block;font-size:11px;color:var(--muted);margin-top:3px}
+.attachment-row .table-action{min-height:39px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--accent);font-weight:800;padding:7px 12px;font-size:12px}
+.attachments-upload{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px}
+.attachments-upload label{grid-column:1/-1;margin:0}
+.attachments-upload input{width:100%;min-width:0;min-height:42px;padding:8px}
+.attachments-upload button{min-height:42px}
+@media(max-width:560px){.attachments-upload{grid-template-columns:1fr}.attachments-upload button{width:100%}}

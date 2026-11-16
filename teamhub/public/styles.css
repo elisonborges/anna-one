@@ -103,3 +103,9 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
  .modal-actions{display:grid;grid-template-columns:1fr 1fr}
  .modal-actions button{min-height:44px}
 }
+
+/* Banner primeiro, título Visão geral logo abaixo. */
+.nexus-banner[hidden]{display:none!important}
+.main>.nexus-banner{margin-bottom:20px}
+.main>.heading{margin-bottom:18px}
+@media(max-width:850px){.main>.nexus-banner{margin-bottom:16px}}

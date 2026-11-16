@@ -89,7 +89,7 @@ async function boot(){
   state.org=me.organizations[0].id;
   select.addEventListener('change',async()=>{state.org=select.value;state.tasks=[];state.project=null;await refreshProjects();show('overview')});
   $('app').hidden=false;await refreshProjects();show('overview');message('');
- }catch(e){message(e.message||'Não foi possível iniciar o Nexus.',true);if(!state.jwt)$('signin').hidden=false;}
+ }catch(e){message(e.message||'Não foi possível iniciar o Nexus.',true);$('signin').hidden=false;$('app').hidden=true;}
 }
 document.querySelectorAll('[data-view]').forEach(x=>x.addEventListener('click',async()=>{if(!state.org)return;try{if(x.dataset.view==='projects'||x.dataset.view==='overview')await refreshProjects();if(x.dataset.view==='mytasks'&&!state.project){$('mine').textContent='Abra um projeto para consultar as tarefas.'}show(x.dataset.view)}catch(e){message(e.message,true)}}));
 $('back-projects').onclick=async()=>{await refreshProjects();show('projects')};

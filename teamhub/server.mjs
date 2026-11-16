@@ -90,7 +90,7 @@ async function notifyMembers(org,actor,subjects,event,title,details,projectId,ta
  JOIN teamhub.memberships m ON m.organization_id=${org} AND m.auth_subject=x.auth_subject AND m.active=true`;
 }
 async function project(org,id){
- const rows=await sql`SELECT id,name,description,created_at,paused_at,card_color,owner_subject FROM teamhub.projects WHERE organization_id=${org} AND id=${id} AND archived_at IS NULL`;
+ const rows=await sql`SELECT id,name,description,created_at,paused_at,card_color,owner_subject,access_mode FROM teamhub.projects WHERE organization_id=${org} AND id=${id} AND archived_at IS NULL`;
  if(!rows.length)bad('Projeto indisponível.',404);return rows[0];
 }
 const route=async(req,res)=>{
@@ -135,6 +135,21 @@ const route=async(req,res)=>{
  const org=url.searchParams.get('org')||req.headers['x-organization-id'];
  if(!validId(org))bad('Selecione uma organização válida.');
  const role=await membership(subject,org);
+ const unrestricted=['admin','manager'].includes(role);
+ const authorized=unrestricted?null:await sql`SELECT p.id FROM teamhub.projects p WHERE p.organization_id=${org} AND
+  (p.access_mode='organization' OR p.owner_subject=${subject} OR EXISTS
+   (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject}))`;
+ const allowedSet=new Set(authorized?.map(x=>x.id)||[]);
+ const canSee=id=>unrestricted||allowedSet.has(id);
+ const projectRoute=/^\/api\/projects\/([0-9a-f-]+)(?:\/.*)?$/.exec(p);
+ const taskRoute=/^\/api\/tasks\/([0-9a-f-]+)(?:\/.*)?$/.exec(p);
+ const subtaskRoute=/^\/api\/subtasks\/([0-9a-f-]+)$/.exec(p);
+ if(!unrestricted){
+  let targetProject=projectRoute?.[1]||null;
+  if(taskRoute){const rows=await sql`SELECT project_id FROM teamhub.tasks WHERE id=${taskRoute[1]} AND organization_id=${org}`;targetProject=rows[0]?.project_id||null;}
+  if(subtaskRoute){const rows=await sql`SELECT project_id FROM teamhub.subtasks WHERE id=${subtaskRoute[1]} AND organization_id=${org}`;targetProject=rows[0]?.project_id||null;}
+  if((projectRoute||taskRoute||subtaskRoute)&&(!targetProject||!canSee(targetProject)))bad('Acesso ao projeto não autorizado.',403);
+ }
  if(p==='/api/organization'&&req.method==='PATCH'){
   if(role!=='admin')bad('Apenas administradores podem personalizar a organização.',403);
   const b=await json(req,120000);
@@ -217,7 +232,7 @@ const route=async(req,res)=>{
    FROM teamhub.notifications WHERE organization_id=${org} AND recipient_subject=${subject}
    ORDER BY created_at DESC LIMIT 100`;
   const unread=await sql`SELECT count(*)::int AS total FROM teamhub.notifications WHERE organization_id=${org} AND recipient_subject=${subject} AND read_at IS NULL`;
-  return reply(res,200,{notifications:rows,unread:unread[0].total});
+  return reply(res,200,{notifications:rows.filter(n=>!n.project_id||canSee(n.project_id)),unread:rows.filter(n=>!n.read_at&&(!n.project_id||canSee(n.project_id))).length});
  }
  const mark=/^\/api\/notifications\/([0-9a-f-]+)\/read$/.exec(p);
  if(mark&&validId(mark[1])&&req.method==='POST'){
@@ -235,7 +250,7 @@ const route=async(req,res)=>{
  }
  if(p==='/api/my-tasks'&&req.method==='GET'){
   const showArchived=url.searchParams.get('archived')==='1';
-  const tasks=await sql`SELECT t.id,t.title,t.status,t.priority,t.due_at,t.project_id,p.name AS project_name,t.paused_at,t.archived_at,t.created_at,t.treatment_status FROM teamhub.tasks t JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id WHERE t.organization_id=${org} AND t.deleted_at IS NULL AND (t.archived_at IS NULL OR ${showArchived}) AND (t.assignee_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.task_assignees a WHERE a.task_id=t.id AND a.organization_id=t.organization_id AND a.auth_subject=${subject})) AND p.archived_at IS NULL ORDER BY (t.status='done'),t.due_at NULLS LAST,t.created_at DESC LIMIT 200`;
+  const tasks=await sql`SELECT t.id,t.title,t.status,t.priority,t.due_at,t.project_id,p.name AS project_name,t.paused_at,t.archived_at,t.created_at,t.treatment_status FROM teamhub.tasks t JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id WHERE t.organization_id=${org} AND t.deleted_at IS NULL AND (t.archived_at IS NULL OR ${showArchived}) AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject})) AND (t.assignee_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.task_assignees a WHERE a.task_id=t.id AND a.organization_id=t.organization_id AND a.auth_subject=${subject})) AND p.archived_at IS NULL ORDER BY (t.status='done'),t.due_at NULLS LAST,t.created_at DESC LIMIT 200`;
   return reply(res,200,{tasks});
  }
  if(p==='/api/my-subtasks'&&req.method==='GET'){
@@ -244,22 +259,46 @@ const route=async(req,res)=>{
    FROM teamhub.subtasks s
    JOIN teamhub.tasks t ON t.id=s.task_id AND t.organization_id=s.organization_id
    JOIN teamhub.projects p ON p.id=s.project_id AND p.organization_id=s.organization_id
-   WHERE s.organization_id=${org} AND t.archived_at IS NULL AND t.deleted_at IS NULL AND p.archived_at IS NULL
+   WHERE s.organization_id=${org} AND t.archived_at IS NULL AND t.deleted_at IS NULL AND p.archived_at IS NULL AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject}))
    AND (s.owner_subject=${subject} OR EXISTS(SELECT 1 FROM teamhub.subtask_assignees a WHERE a.organization_id=s.organization_id AND a.subtask_id=s.id AND a.auth_subject=${subject}))
    ORDER BY (s.status='done'),s.due_at NULLS LAST,s.created_at DESC LIMIT 200`;
   return reply(res,200,{subtasks:rows});
  }
  if(p==='/api/projects'&&req.method==='GET'){
-  const projects=await sql`SELECT p.id,p.name,p.description,p.created_at,p.paused_at,p.card_color,p.owner_subject, COUNT(t.id)::int AS total, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id AND t.deleted_at IS NULL AND t.archived_at IS NULL WHERE p.organization_id=${org} AND p.archived_at IS NULL GROUP BY p.id ORDER BY p.created_at DESC`;
+  const projects=await sql`SELECT p.id,p.name,p.description,p.created_at,p.paused_at,p.card_color,p.owner_subject,p.access_mode, COUNT(t.id)::int AS total, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id AND t.deleted_at IS NULL AND t.archived_at IS NULL WHERE p.organization_id=${org} AND p.archived_at IS NULL AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject})) GROUP BY p.id ORDER BY p.created_at DESC`;
   return reply(res,200,{projects,role});
  }
  if(p==='/api/dashboard'&&req.method==='GET'){
-  const rows=await sql`SELECT COUNT(DISTINCT p.id)::int AS projects, COUNT(t.id) FILTER(WHERE t.status!='done')::int AS open, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status!='done' AND t.treatment_status IN ('blocked','waiting'))::int AS attention FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id WHERE p.organization_id=${org} AND p.archived_at IS NULL`;
+  const rows=await sql`SELECT COUNT(DISTINCT p.id)::int AS projects, COUNT(t.id) FILTER(WHERE t.status!='done')::int AS open, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status!='done' AND t.treatment_status IN ('blocked','waiting'))::int AS attention FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id WHERE p.organization_id=${org} AND p.archived_at IS NULL AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject}))`;
   return reply(res,200,{summary:rows[0]});
  }
  if(p==='/api/attention'&&req.method==='GET'){
-  const items=await sql`SELECT t.id,t.project_id,p.name AS project_name,t.title,t.treatment_status,t.pending_reason,t.next_action,t.due_at FROM teamhub.tasks t JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id WHERE t.organization_id=${org} AND t.archived_at IS NULL AND t.deleted_at IS NULL AND p.archived_at IS NULL AND t.status!='done' AND t.treatment_status IN ('blocked','waiting') ORDER BY CASE WHEN t.treatment_status='blocked' THEN 0 ELSE 1 END,t.due_at NULLS LAST,t.updated_at DESC LIMIT 50`;
+  const items=await sql`SELECT t.id,t.project_id,p.name AS project_name,t.title,t.treatment_status,t.pending_reason,t.next_action,t.due_at FROM teamhub.tasks t JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id WHERE t.organization_id=${org} AND t.archived_at IS NULL AND t.deleted_at IS NULL AND p.archived_at IS NULL AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject})) AND t.status!='done' AND t.treatment_status IN ('blocked','waiting') ORDER BY CASE WHEN t.treatment_status='blocked' THEN 0 ELSE 1 END,t.due_at NULLS LAST,t.updated_at DESC LIMIT 50`;
   return reply(res,200,{items});
+ }
+ const accessRoute=/^\/api\/projects\/([0-9a-f-]+)\/access$/.exec(p);
+ if(accessRoute&&validId(accessRoute[1])&&req.method==='GET'){
+  requireManager(role);
+  const proj=await project(org,accessRoute[1]);
+  const members=await sql`SELECT pm.auth_subject FROM teamhub.project_members pm
+   JOIN teamhub.memberships m ON m.organization_id=pm.organization_id AND m.auth_subject=pm.auth_subject
+   WHERE pm.project_id=${proj.id} AND pm.organization_id=${org} AND m.active=true ORDER BY pm.created_at`;
+  return reply(res,200,{access_mode:proj.access_mode,members:members.map(x=>x.auth_subject)});
+ }
+ if(accessRoute&&validId(accessRoute[1])&&req.method==='PATCH'){
+  requireManager(role);
+  const proj=await project(org,accessRoute[1]),b=await json(req);
+  const mode=b.access_mode;
+  if(!['organization','restricted'].includes(mode))bad('Modo de acesso inválido.');
+  const members=await checkAssignees(org,b.members||[]);
+  await sql`DELETE FROM teamhub.project_members WHERE project_id=${proj.id} AND organization_id=${org}`;
+  if(members.length)await sql`INSERT INTO teamhub.project_members(organization_id,project_id,auth_subject,added_by_subject)
+   SELECT ${org}::uuid,${proj.id}::uuid,x.auth_subject,${subject}
+   FROM jsonb_array_elements_text(${JSON.stringify(members)}::jsonb) x(auth_subject)`;
+  await sql`UPDATE teamhub.projects SET access_mode=${mode} WHERE id=${proj.id} AND organization_id=${org}`;
+  await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id)
+   VALUES(${org},${subject},'project.access.updated',${proj.id})`;
+  return reply(res,200,{access_mode:mode,members});
  }
  const colorAllowed=['blue','violet','green','orange','pink','teal','slate'];
  const projectEdit=/^\/api\/projects\/([0-9a-f-]+)$/.exec(p);
@@ -426,7 +465,10 @@ const route=async(req,res)=>{
    FROM teamhub.subtasks s JOIN teamhub.tasks t ON t.id=s.task_id AND t.organization_id=s.organization_id
    JOIN teamhub.projects p ON p.id=s.project_id AND p.organization_id=s.organization_id
    WHERE s.organization_id=${org} ORDER BY s.created_at DESC LIMIT 1000`;
-  return reply(res,200,{projects:rows,tasks:taskRows,subtasks:subtaskRows,pauses,generated_at:new Date().toISOString()});
+  return reply(res,200,{projects:rows.filter(x=>canSee(x.project_id)),
+   tasks:taskRows.filter(x=>canSee(x.project_id)),
+   subtasks:subtaskRows.filter(x=>canSee(x.project_id)),
+   pauses:pauses.filter(x=>canSee(x.project_id)),generated_at:new Date().toISOString()});
  }
  const pm=/^\/api\/projects\/([0-9a-f-]+)\/tasks$/.exec(p);
  if(pm&&validId(pm[1])){

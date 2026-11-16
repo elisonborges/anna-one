@@ -130,3 +130,26 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
 /* Versão visível no topo, inclusive em celulares. */
 .version-tag{display:inline-flex;align-items:center;justify-content:center;min-width:54px;padding:6px 8px;border-radius:8px;border:1px solid #ffffff55;color:#d4edff;background:#ffffff12;font-weight:800;font-size:11px;letter-spacing:.02em;white-space:nowrap}
 @media(max-width:410px){.version-tag{min-width:0;padding:5px 6px;font-size:10px}.top-actions{gap:5px}}
+
+/* v0.1.4 — tratamento, acompanhamento e pendências */
+.stats{grid-template-columns:repeat(5,minmax(0,1fr))}
+.stat-attention strong{color:#c66f1c}
+.board-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.board-toolbar label{margin:0}
+.board-toolbar select{min-height:44px;max-width:100%}
+.board-toolbar #filter-count{font-size:12px}
+.treatment-badge{display:inline-flex;width:fit-content;padding:5px 8px;margin:0 0 8px;border:1px solid var(--line);background:var(--tint);color:var(--accent);border-radius:7px;font-size:11px;font-weight:800}
+.treatment-badge.blocked{background:#fff0ec;color:#9f3c24;border-color:#f2cec2}
+.treatment-badge.waiting{background:#fff7df;color:#865c10;border-color:#f2dea7}
+.treatment-badge.resolved{background:#e3f7ee;color:#116544;border-color:#c2e7d7}
+.pending-summary{color:#9b452c}
+.treatment-block{display:grid;gap:9px;border-top:1px solid var(--line);padding-top:16px;margin-top:10px}
+.treatment-block h3{margin:0 0 4px;font-size:16px}
+.treatment-block label{margin:2px 0 0}
+#task-history-wrap{border-top:1px solid var(--line);padding-top:12px;margin-top:6px}
+.history-list{display:grid;gap:8px;max-height:200px;overflow-y:auto}
+.history-item{background:var(--tint);border:1px solid var(--line);padding:10px;border-radius:9px}
+.history-item p{margin:0 0 4px;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}
+.history-item small{color:var(--muted);font-size:11px}
+@media(max-width:1050px){.stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:650px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.board-toolbar{align-items:stretch;flex-direction:column;gap:7px}.board-toolbar select{width:100%}}

@@ -948,3 +948,17 @@ html,body{background:var(--bg);color:var(--ink)}
 .project-card.is-reordering,.project-reorder-active .project-card.is-reordering{cursor:grabbing;z-index:2}
 .project-reorder-active{user-select:none}
 .project-card-cover,.project-drag-handle{touch-action:none}
+
+/* v0.1.37 — reset da identidade e convites em duas colunas */
+.brand-form .brand-buttons{display:flex;align-items:center;gap:9px;flex-wrap:wrap;grid-column:1/-1}
+.brand-form .brand-buttons button{width:auto;flex:0 0 auto}
+.team-invites-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:14px;align-items:start}
+.team-invites-grid>.panel{min-width:0;height:100%}
+.team-invites-grid .invite-form{grid-template-columns:minmax(0,1fr) minmax(125px,.45fr);gap:9px}
+.team-invites-grid .invite-form label[for="invite-email"]{grid-column:1}
+.team-invites-grid .invite-form label[for="invite-role"]{grid-column:2}
+.team-invites-grid .invite-form #invite-create{grid-row:3;grid-column:1/-1;justify-self:start;width:auto}
+.team-invites-grid #invite-list{min-width:0}
+.team-invites-grid .data-container{overflow-x:auto}
+@media(max-width:1050px){.team-invites-grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:480px){.team-invites-grid .invite-form{grid-template-columns:minmax(0,1fr)}.team-invites-grid .invite-form label[for="invite-role"]{grid-column:1;grid-row:3}.team-invites-grid .invite-form #invite-role{grid-column:1;grid-row:4}.team-invites-grid .invite-form #invite-create{grid-column:1;grid-row:5}.brand-form .brand-buttons button{flex:1 1 100%}}

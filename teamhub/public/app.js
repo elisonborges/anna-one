@@ -123,8 +123,7 @@ $('editor').addEventListener('submit',async e=>{
    if(mode==='edit'){
     await api('/api/tasks/'+editing.id+qs(),{method:'PATCH',body:JSON.stringify({title:name,description,priority,due_at})});
    }else{
-    const created=await api('/api/projects/'+state.project.id+'/tasks'+qs(),{method:'POST',body:JSON.stringify({title:name,description})});
-    if(priority!=='medium'||due_at)await api('/api/tasks/'+created.task.id+qs(),{method:'PATCH',body:JSON.stringify({priority,due_at})});
+    await api('/api/projects/'+state.project.id+'/tasks'+qs(),{method:'POST',body:JSON.stringify({title:name,description,priority,due_at})});
    }
    await openProject(state.project);await refreshProjects();
   }

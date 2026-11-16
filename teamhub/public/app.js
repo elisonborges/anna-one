@@ -275,7 +275,7 @@ async function loadMySubtasks(){
   const actions=document.createElement('div');actions.className='subtask-personal-actions';
   const open=makeAction('Abrir tarefa',async()=>{
    try{
-    const item=await openTaskFromList(sub);
+    const item=await openTaskFromList({project_id:sub.project_id,id:sub.task_id});
     if(!item)throw Error('Tarefa não disponível.');
     modal('edit',item);
    }catch(e){message(e.message,true)}

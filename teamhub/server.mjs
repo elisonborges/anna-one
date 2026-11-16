@@ -850,7 +850,7 @@ const route=async(req,res)=>{
    return reply(res,200,{subtasks:rows});
   }
   if(req.method==='POST'){
-   requireEditor(role);
+   await requireProjectManagement(parent[0].project_id);
    const b=await json(req),title=String(b.title||'').trim();
    if(title.length<2||title.length>240)bad('Título entre 2 e 240 caracteres.');
    const owner=b.owner_subject||null;
@@ -875,14 +875,16 @@ const route=async(req,res)=>{
  }
  const subEdit=/^\/api\/subtasks\/([0-9a-f-]+)$/.exec(p);
  if(subEdit&&validId(subEdit[1])&&req.method==='PATCH'){
-  requireEditor(role);
+  await requireSubtaskExecution(subEdit[1]);
   const rows=await sql`SELECT id,task_id,title,status,priority,owner_subject,due_at FROM teamhub.subtasks WHERE id=${subEdit[1]} AND organization_id=${org}`;
   if(!rows.length)bad('Subtarefa não encontrada.',404);
   const prev=rows[0],b=await json(req);
+  const [subContext]=await sql`SELECT project_id FROM teamhub.subtasks WHERE id=${prev.id} AND organization_id=${org}`;
+  if(!(await canManageProject(subContext.project_id))&&Object.keys(b).some(k=>k!=='status'))bad('Responsável só pode alterar a etapa da subtarefa.',403);
+  if(prev.status==='done'&&b.status!==undefined&&b.status!=='done')bad('Subtarefa concluída: solicite análise do gestor.',409);
   if(Object.keys(b).some(k=>!['title','status','priority','owner_subject','assignees','due_at'].includes(k)))bad('Campo inválido.');
   const assignees=b.assignees===undefined?null:await checkAssignees(org,b.assignees);
-  if(assignees!==null){const ps=await sql`SELECT project_id FROM teamhub.subtasks WHERE id=${prev.id} AND organization_id=${org}`;if(ps.length)await verifyProjectRecipients(org,ps[0].project_id,[...new Set([...assignees,...(owner?[owner]:[])])]);}
-  if(assignees!==null||b.assignee_subject!==undefined)await verifyProjectRecipients(org,t.project_id,[...new Set([...(assignees||[]),...(assignee?[assignee]:[])])]);
+  if(assignees!==null)await verifyProjectRecipients(org,subContext.project_id,assignees);
   const title=b.title===undefined?prev.title:String(b.title||'').trim();
   const status=b.status===undefined?prev.status:b.status;
   const priority=b.priority===undefined?prev.priority:b.priority;
@@ -907,9 +909,13 @@ const route=async(req,res)=>{
  const lifecycle=/^\/api\/tasks\/([0-9a-f-]+)\/(pause|resume|archive|restore|delete)$/.exec(p);
  if(lifecycle&&validId(lifecycle[1])&&req.method==='POST'){
   requireEditor(role);
-  const [task]=await sql`SELECT id,project_id,title,paused_at,archived_at,deleted_at FROM teamhub.tasks WHERE id=${lifecycle[1]} AND organization_id=${org}`;
+  const [task]=await sql`SELECT id,project_id,title,status,paused_at,archived_at,deleted_at FROM teamhub.tasks WHERE id=${lifecycle[1]} AND organization_id=${org}`;
   if(!task||task.deleted_at)bad('Tarefa não encontrada.',404);
   const act=lifecycle[2];
+  if(['pause','resume'].includes(act))await requireTaskExecution(task.id);
+  else if(act==='delete'){if(role!=='admin')bad('Exclusão exclusiva do administrador.',403);}
+  else await requireProjectManagement(task.project_id);
+  if(task.status==='done'&&['pause','resume'].includes(act))bad('Tarefa concluída: solicite reabertura.',409);
   if(act==='pause'){
    if(task.paused_at||task.archived_at)bad('A tarefa não pode ser pausada nesse estado.');
    const b=await json(req),reason=safeNote(b.reason);
@@ -936,6 +942,7 @@ const route=async(req,res)=>{
   return reply(res,200,{ok:true});
  }
  if(p==='/api/reports'&&req.method==='GET'){
+  if(!['admin','manager'].includes(role))bad('Relatórios gerenciais indisponíveis.',403);
   const rows=await sql`SELECT pr.id AS project_id,pr.name AS project_name,pr.created_at AS project_created_at,pr.paused_at AS project_paused_at,pr.completion_status,pr.completed_at,
     (SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(x.ended_at,now())-x.started_at))),0)::bigint FROM teamhub.pause_periods x WHERE x.organization_id=${org} AND x.project_id=pr.id AND x.task_id IS NULL) AS project_pending_seconds,
     (SELECT count(*)::int FROM teamhub.pause_periods x WHERE x.organization_id=${org} AND x.project_id=pr.id AND x.task_id IS NULL) AS project_pauses,
@@ -961,11 +968,12 @@ const route=async(req,res)=>{
     FROM teamhub.project_approvals a
     JOIN teamhub.projects p ON p.id=a.project_id AND p.organization_id=a.organization_id
     WHERE a.organization_id=${org} ORDER BY a.created_at DESC LIMIT 1000`;
-  return reply(res,200,{projects:rows.filter(x=>canSee(x.project_id)),
-   tasks:taskRows.filter(x=>canSee(x.project_id)),
-   subtasks:subtaskRows.filter(x=>canSee(x.project_id)),
-   pauses:pauses.filter(x=>canSee(x.project_id)),
-   approvals:approvals.filter(x=>canSee(x.project_id)),
+  const reportIds=new Set(role==='admin'?rows.map(x=>x.project_id):(await sql`SELECT id FROM teamhub.projects WHERE organization_id=${org} AND manager_subject=${subject}`).map(x=>x.id));
+  return reply(res,200,{projects:rows.filter(x=>reportIds.has(x.project_id)),
+   tasks:taskRows.filter(x=>reportIds.has(x.project_id)),
+   subtasks:subtaskRows.filter(x=>reportIds.has(x.project_id)),
+   pauses:pauses.filter(x=>reportIds.has(x.project_id)),
+   approvals:approvals.filter(x=>reportIds.has(x.project_id)),
    generated_at:new Date().toISOString()});
  }
  // Reordenação dentro de um projeto: operação atômica, escopada à organização.
@@ -1043,7 +1051,7 @@ const route=async(req,res)=>{
    return reply(res,200,{attachments:rows,max_bytes:262144});
   }
   if(attachList&&req.method==='POST'){
-   requireEditor(role);
+   await requireTaskExecution(taskId);
    const b=await json(req,370000);
    const name=typeof b.file_name==='string'?b.file_name.trim():'',mime=b.media_type;
    if(!name||name.length>180||/[\\/\u0000-\u001f\u007f]/.test(name))bad('Nome de arquivo inválido.');
@@ -1075,7 +1083,7 @@ const route=async(req,res)=>{
     return reply(res,200,{file:rows[0]});
    }
    if(req.method==='DELETE'){
-    requireEditor(role);
+    await requireTaskExecution(taskId);
     const rows=await sql`DELETE FROM teamhub.task_attachments WHERE id=${attachFile[2]} AND task_id=${taskId}
       AND organization_id=${org} AND (${['admin','manager'].includes(role)} OR uploaded_by_subject=${subject}) RETURNING id,file_name`;
     if(!rows.length)bad('Anexo não encontrado ou sem permissão para excluir.',403);
@@ -1093,7 +1101,7 @@ const route=async(req,res)=>{
   return reply(res,200,{history});
  }
  if(hm&&validId(hm[1])&&req.method==='POST'){
-  requireEditor(role);
+  await requireTaskExecution(hm[1]);
   const target=await sql`SELECT id FROM teamhub.tasks WHERE id=${hm[1]} AND organization_id=${org}`;
   if(!target.length)bad('Tarefa não encontrada.',404);
   const body=await json(req),summary=safeNote(body.summary,2000);
@@ -1108,7 +1116,10 @@ const route=async(req,res)=>{
  }
  const tm=/^\/api\/tasks\/([0-9a-f-]+)$/.exec(p);
  if(tm&&validId(tm[1])&&req.method==='PATCH'){
-  requireEditor(role);const b=await json(req);
+  const context=await requireTaskExecution(tm[1]);const b=await json(req);
+  if(!(await canManageProject(context.project_id))&&Object.keys(b).some(k=>!['status','update_note'].includes(k)))bad('Responsável só pode alterar etapa e andamento.',403);
+  if(context.status==='done'&&b.status!==undefined&&b.status!=='done')bad('Reabertura exige decisão na Central.',409);
+  if(context.paused_at&&b.status!==undefined)bad('Retome a tarefa antes de alterar a etapa.',409);
   const keys=Object.keys(b);
   if(!keys.length||keys.some(k=>!['status','priority','title','description','due_at','assignee_subject','assignees','labels','treatment_status','treatment_notes','pending_reason','next_action','update_note'].includes(k)))bad('Campos não permitidos.');
   const existing=await sql`SELECT id,project_id,title,description,status,priority,due_at,assignee_subject,treatment_status,treatment_notes,pending_reason,next_action,labels FROM teamhub.tasks WHERE id=${tm[1]} AND organization_id=${org}`;

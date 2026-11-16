@@ -119,7 +119,7 @@ async function verifyProjectRecipients(org,projectId,subjects){
  if(allowed.length!==subjects.length)bad('Para atribuir uma tarefa em projeto restrito, primeiro autorize os responsáveis no projeto.',403);
 }
 async function project(org,id){
- const rows=await sql`SELECT id,name,description,created_at,paused_at,card_color,owner_subject,access_mode,completion_status,completed_at FROM teamhub.projects WHERE organization_id=${org} AND id=${id} AND archived_at IS NULL`;
+ const rows=await sql`SELECT id,name,description,created_at,paused_at,COALESCE(card_theme,card_color) AS card_color,owner_subject,access_mode,completion_status,completed_at FROM teamhub.projects WHERE organization_id=${org} AND id=${id} AND archived_at IS NULL`;
  if(!rows.length)bad('Projeto indisponível.',404);return rows[0];
 }
 function emailTransportConfigured(){
@@ -521,7 +521,7 @@ const route=async(req,res)=>{
   return reply(res,200,{items:[...tasks,...subtasks]});
  }
  if(p==='/api/projects'&&req.method==='GET'){
-  const projects=await sql`SELECT p.id,p.name,p.description,p.created_at,p.paused_at,p.card_color,p.owner_subject,p.access_mode,p.completion_status,p.completed_at, COUNT(t.id)::int AS total, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id AND t.deleted_at IS NULL AND t.archived_at IS NULL WHERE p.organization_id=${org} AND p.archived_at IS NULL AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject})) GROUP BY p.id ORDER BY p.created_at DESC`;
+  const projects=await sql`SELECT p.id,p.name,p.description,p.created_at,p.paused_at,COALESCE(p.card_theme,p.card_color) AS card_color,p.owner_subject,p.access_mode,p.completion_status,p.completed_at, COUNT(t.id)::int AS total, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id AND t.deleted_at IS NULL AND t.archived_at IS NULL WHERE p.organization_id=${org} AND p.archived_at IS NULL AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject})) GROUP BY p.id ORDER BY p.created_at DESC`;
   return reply(res,200,{projects,role});
  }
  if(p==='/api/dashboard'&&req.method==='GET'){
@@ -697,7 +697,8 @@ const route=async(req,res)=>{
    VALUES(${org},${subject},'project.access.updated',${proj.id})`;
   return reply(res,200,{access_mode:mode,members});
  }
- const colorAllowed=['blue','violet','green','orange','pink','teal','slate'];
+ const colorAllowed=['blue','violet','green','orange','pink','teal','slate','indigo','coral','gold','mint','charcoal'];
+ const legacyColors=['blue','violet','green','orange','pink','teal','slate'];
  const projectEdit=/^\/api\/projects\/([0-9a-f-]+)$/.exec(p);
  if(projectEdit&&validId(projectEdit[1])&&req.method==='PATCH'){
   requireManager(role);
@@ -714,7 +715,11 @@ const route=async(req,res)=>{
   const name=b.name===undefined?proj.name:String(b.name||'').trim();
   const description=b.description===undefined?proj.description:String(b.description||'').trim();
   if(name.length<2||name.length>160||description.length>1000)bad('Informe um nome e descrição válidos.');
-  const rows=await sql`UPDATE teamhub.projects SET name=${name},description=${description},card_color=${cardColor},owner_subject=${owner} WHERE id=${proj.id} AND organization_id=${org} RETURNING id,name,card_color,owner_subject`;
+  const rows=await sql`UPDATE teamhub.projects SET name=${name},description=${description},
+  card_color=CASE WHEN ${legacyColors.includes(cardColor)} THEN ${legacyColors.includes(cardColor)?cardColor:'blue'} ELSE card_color END,
+  card_theme=${cardColor},owner_subject=${owner}
+  WHERE id=${proj.id} AND organization_id=${org}
+  RETURNING id,name,COALESCE(card_theme,card_color) AS card_color,owner_subject`;
   if(owner&&owner!==proj.owner_subject)await notifyMembers(org,subject,[owner],'project.assigned','Você recebeu um projeto',name,proj.id);
   await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id) VALUES(${org},${subject},'project.updated',${proj.id})`;
   return reply(res,200,{project:rows[0]});
@@ -739,9 +744,9 @@ const route=async(req,res)=>{
   if(!Object.hasOwn(templates,template))bad('Modelo de projeto inválido.');
   const titles=templates[template];
   const rows=await sql`WITH created_project AS(
-   INSERT INTO teamhub.projects(organization_id,name,description,card_color,owner_subject)
-   VALUES(${org},${name},${String(body.description||'').slice(0,1000)},${cardColor},${owner})
-   RETURNING id,name,description,card_color,owner_subject
+   INSERT INTO teamhub.projects(organization_id,name,description,card_color,card_theme,owner_subject)
+   VALUES(${org},${name},${String(body.description||'').slice(0,1000)},${legacyColors.includes(cardColor)?cardColor:'blue'},${cardColor},${owner})
+   RETURNING id,name,description,COALESCE(card_theme,card_color) AS card_color,owner_subject
   ), created_tasks AS(
    INSERT INTO teamhub.tasks(organization_id,project_id,title,created_by_subject,position)
    SELECT ${org}::uuid,p.id,x.title,${subject},x.ord::integer

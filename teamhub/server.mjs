@@ -203,7 +203,8 @@ const route=async(req,res)=>{
   return reply(res,200,{members,viewer:subject,role});
  }
  if(p==='/api/my-tasks'&&req.method==='GET'){
-  const tasks=await sql`SELECT t.id,t.title,t.status,t.priority,t.due_at,t.project_id,p.name AS project_name,t.paused_at,t.created_at,t.treatment_status FROM teamhub.tasks t JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id WHERE t.organization_id=${org} AND t.deleted_at IS NULL AND t.archived_at IS NULL AND (t.assignee_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.task_assignees a WHERE a.task_id=t.id AND a.organization_id=t.organization_id AND a.auth_subject=${subject})) AND p.archived_at IS NULL ORDER BY (t.status='done'),t.due_at NULLS LAST,t.created_at DESC LIMIT 200`;
+  const showArchived=url.searchParams.get('archived')==='1';
+  const tasks=await sql`SELECT t.id,t.title,t.status,t.priority,t.due_at,t.project_id,p.name AS project_name,t.paused_at,t.archived_at,t.created_at,t.treatment_status FROM teamhub.tasks t JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id WHERE t.organization_id=${org} AND t.deleted_at IS NULL AND (t.archived_at IS NULL OR ${showArchived}) AND (t.assignee_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.task_assignees a WHERE a.task_id=t.id AND a.organization_id=t.organization_id AND a.auth_subject=${subject})) AND p.archived_at IS NULL ORDER BY (t.status='done'),t.due_at NULLS LAST,t.created_at DESC LIMIT 200`;
   return reply(res,200,{tasks});
  }
  if(p==='/api/projects'&&req.method==='GET'){

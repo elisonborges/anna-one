@@ -688,7 +688,14 @@ const route=async(req,res)=>{
       AND (${role==='admin'} OR manager_subject=${subject})
       AND completion_status='review'
      ORDER BY completion_requested_at DESC LIMIT 100`: [];
-  return reply(res,200,{requests,projects});
+  const projectHistory=role==='admin'||role==='manager'
+   ?await sql`SELECT a.project_id,p.name AS project_name,a.action,a.note,a.actor_subject,a.created_at
+     FROM teamhub.project_approvals a JOIN teamhub.projects p ON p.id=a.project_id
+      AND p.organization_id=a.organization_id
+     WHERE a.organization_id=${org} AND a.action IN ('approved','rejected','reopened')
+      AND (${role==='admin'} OR p.manager_subject=${subject})
+     ORDER BY a.created_at DESC LIMIT 150`:[];
+  return reply(res,200,{requests,projects,project_history:projectHistory});
  }
  const requestReopen=/^\/api\/tasks\/([0-9a-f-]+)\/reopen-requests$/.exec(p);
  if(requestReopen&&validId(requestReopen[1])&&req.method==='POST'){

@@ -128,3 +128,10 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - **Relatórios de subtarefas** por projeto/tarefa, incluindo situação, responsáveis, prazo e tempo de calendário; subtarefas incluídas no CSV.
 - Não há e-mail automático, notificações push, permissões específicas por projeto nem anexos nesta entrega.
 - A migração e os testes SQL são restritos ao Neon `anna-nexus-dev`, sem exclusão de dados.
+
+## AnnA Nexus v0.1.17 — Minhas subtarefas e acesso às notificações
+- Página Minhas tarefas inclui uma tabela separada de subtarefas atribuídas à conta autenticada, inclusive compartilhadas: projeto, tarefa principal, situação, prazo e ações.
+- Abrir a tarefa principal ou marcar a subtarefa como concluída sem procurar manualmente no Kanban.
+- Botão de notificações no cabeçalho, acessível também no celular, com contador de não lidas.
+- As notificações continuam **somente internas**; nenhum envio externo ou e-mail automático.
+- Relatórios, membros, projetos e banco de produção preservados.

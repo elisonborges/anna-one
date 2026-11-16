@@ -730,3 +730,22 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
 #automation-admin .muted{font-size:12px;margin:0;line-height:1.55}
 #automation-runs,#email-deliveries{max-width:100%;overflow-x:auto}
 @media(max-width:650px){#automation-admin .section-head{flex-wrap:wrap}#automation-admin .section-head button{width:100%}}
+
+/* Revisão UX: conclusão só aparece após concluir todas as etapas */
+#project-validation[hidden],.project-validation-link[hidden]{display:none!important}
+#board .section-head{align-items:center;gap:12px;flex-wrap:wrap}
+#board .project-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+#board .project-toolbar button{min-height:41px;white-space:nowrap}
+#board #project-pause-status{font-size:12px;font-weight:750;color:var(--muted)}
+#board .board-toolbar{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:12px;column-gap:9px;row-gap:7px;align-items:center}
+#board .board-toolbar input,#board .board-toolbar select{min-height:42px}
+#board .board-toolbar #filter-search{min-width:175px}
+#board .tasklist{min-height:150px}
+#board .column{min-width:0}
+@media(max-width:750px){
+ #board .section-head{align-items:stretch}
+ #board .project-toolbar{justify-content:flex-start}
+ #board .project-toolbar button{flex:1}
+ #board .board-toolbar{padding:10px}
+ #board .board-toolbar #filter-search{min-width:0}
+}

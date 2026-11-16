@@ -3,7 +3,41 @@ const AUTH='https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech
 const state={jwt:null,org:null,role:null,projects:[],tasks:[],project:null,view:'overview',subject:null,auth:null,members:[],organizations:[]};
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const message=(s,error=false)=>{const el=$('status');el.textContent=s;el.style.background=error?'#fff0ef':'';el.style.color=error?'#a31931':''};
-const show=(view)=>{state.view=view;for(const id of ['overview','projects','board','mytasks','team','reports','notifications','calendar'])$(id).hidden=id!==view;$('welcome-banner').hidden=view!=='overview';
+const compactMedia=window.matchMedia('(max-width:850px)');
+let mobileNavOpen=false;
+const layoutPrefsKey='anna-nexus-sidebar-collapsed';
+function setSidebarCollapsed(collapsed){
+ const app=$('app');app.classList.toggle('sidebar-collapsed',!!collapsed);
+ const button=$('sidebar-toggle');
+ button.setAttribute('aria-expanded',String(!collapsed));
+ button.setAttribute('aria-label',collapsed?'Expandir menu':'Recolher menu');
+ button.title=collapsed?'Expandir menu':'Recolher menu';
+ button.querySelector('[aria-hidden]').textContent=collapsed?'›':'‹';
+ button.querySelector('.sidebar-toggle-label').textContent=collapsed?'Expandir menu':'Recolher menu';
+ for(const item of $('nexus-sidebar').querySelectorAll('.nav')){
+  const caption=item.querySelector('span');
+  if(caption)item.title=caption.textContent.trim();
+ }
+ try{localStorage.setItem(layoutPrefsKey,collapsed?'true':'false')}catch{}
+}
+function setMobileNav(open){
+ mobileNavOpen=!!open&&compactMedia.matches;
+ $('app').classList.toggle('mobile-nav-open',mobileNavOpen);
+ $('side-backdrop').hidden=!mobileNavOpen;
+ const button=$('mobile-menu-toggle');button.setAttribute('aria-expanded',String(mobileNavOpen));
+ button.setAttribute('aria-label',mobileNavOpen?'Fechar menu de navegação':'Abrir menu de navegação');
+ button.textContent=mobileNavOpen?'×':'☰';
+}
+$('sidebar-toggle').addEventListener('click',()=>{
+ if(compactMedia.matches){setMobileNav(false);return;}
+ setSidebarCollapsed(!$('app').classList.contains('sidebar-collapsed'));
+});
+$('mobile-menu-toggle').addEventListener('click',()=>setMobileNav(!mobileNavOpen));
+$('side-backdrop').addEventListener('click',()=>setMobileNav(false));
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&mobileNavOpen)setMobileNav(false)});
+compactMedia.addEventListener('change',()=>setMobileNav(false));
+try{setSidebarCollapsed(localStorage.getItem(layoutPrefsKey)==='true')}catch{setSidebarCollapsed(false)}
+const show=(view)=>{setMobileNav(false);state.view=view;for(const id of ['overview','projects','board','mytasks','team','reports','notifications','calendar'])$(id).hidden=id!==view;$('welcome-banner').hidden=view!=='overview';
 document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);b.setAttribute('aria-current',b.dataset.view===view?'page':'false')});
  $('title').textContent=view==='overview'?'Visão geral':view==='projects'?'Projetos':view==='board'?state.project?.name||'Quadro':view==='team'?'Equipe':view==='reports'?'Relatórios':view==='notifications'?'Notificações':view==='calendar'?'Calendário':'Minhas tarefas';
  $('subtitle').textContent=view==='overview'?'Acompanhe os projetos e as atividades da sua equipe.':view==='projects'?'Organize seus projetos e entregas.':view==='board'?'Acompanhe o trabalho por etapas.':view==='team'?'Pessoas autorizadas da organização.':view==='reports'?'Histórico e tempo dedicado a pendências.':view==='notifications'?'Atribuições e avisos importantes.':view==='calendar'?'Prazos e entregas por mês.':'Atividades sob sua responsabilidade.';
@@ -834,6 +868,15 @@ function renderTasks(){
    footer.append(priority,select);card.append(title,labels,badge,meta,footer,edit);list.append(card);
   }
  }
+ const all=state.tasks,completed=all.filter(t=>t.status==='done').length;
+ const subTotal=all.reduce((sum,t)=>sum+Number(t.subtask_total||0),0);
+ const subDone=all.reduce((sum,t)=>sum+Number(t.subtask_done||0),0);
+ $('board-progress-tasks').textContent=completed+' de '+all.length+' tarefas concluídas';
+ $('board-progress-subtasks').textContent=subDone+' de '+subTotal+' subtarefas concluídas';
+ const items=all.length+subTotal,achieved=completed+subDone;
+ const progress=items?Math.round(achieved/items*100):0;
+ $('board-progress-fill').style.width=progress+'%';
+ $('board-progress').setAttribute('aria-label',progress+'% de atividades concluídas');
  $('filter-count').textContent=state.tasks.filter(taskFilterMatches).length+' de '+state.tasks.length+' tarefa(s)';
  $('new-task').disabled=state.project?.completion_status!=='active'||!['admin','manager','member'].includes(state.role);
  if(state.project) $('project-validation').hidden=!(readyForFinalReview(state.project,state.tasks)||['review','completed'].includes(state.project.completion_status));

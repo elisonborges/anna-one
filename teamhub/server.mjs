@@ -920,6 +920,33 @@ const route=async(req,res)=>{
    approvals:approvals.filter(x=>canSee(x.project_id)),
    generated_at:new Date().toISOString()});
  }
+ // Reordenação dentro de um projeto: operação atômica, escopada à organização.
+ const taskOrder=/^\/api\/projects\/([0-9a-f-]+)\/tasks\/order$/.exec(p);
+ if(taskOrder&&validId(taskOrder[1])&&req.method==='PATCH'){
+  requireEditor(role);
+  const proj=await project(org,taskOrder[1]);
+  if(proj.completion_status!=='active'||proj.paused_at)bad('Projeto em pausa, validação ou concluído: não é possível reordenar.',409);
+  const b=await json(req),ids=b.task_ids;
+  if(!Array.isArray(ids)||ids.length>200||ids.some(id=>typeof id!=='string'||!validId(id))||new Set(ids).size!==ids.length){
+   bad('Informe a ordem válida das tarefas.',400);
+  }
+  const existing=await sql`SELECT id FROM teamhub.tasks
+   WHERE organization_id=${org} AND project_id=${proj.id} AND deleted_at IS NULL AND archived_at IS NULL`;
+  const allowed=new Set(existing.map(x=>x.id));
+  if(ids.length!==allowed.size||ids.some(id=>!allowed.has(id)))bad('A lista de tarefas mudou. Atualize o projeto antes de reordenar.',409);
+  if(ids.length){
+   const rows=await sql`WITH ord AS(
+     SELECT value::uuid AS id,ordinality::integer AS pos
+     FROM jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb) WITH ORDINALITY
+    )
+    UPDATE teamhub.tasks t SET position=ord.pos,updated_at=now()
+    FROM ord WHERE t.id=ord.id AND t.organization_id=${org} AND t.project_id=${proj.id}
+     AND t.deleted_at IS NULL AND t.archived_at IS NULL
+    RETURNING t.id`;
+   if(rows.length!==ids.length)bad('Não foi possível aplicar toda a ordenação.',409);
+  }
+  return reply(res,200,{saved:true,count:ids.length});
+ }
  const pm=/^\/api\/projects\/([0-9a-f-]+)\/tasks$/.exec(p);
  if(pm&&validId(pm[1])){
   const proj=await project(org,pm[1]);

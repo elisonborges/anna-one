@@ -75,6 +75,20 @@ async function syncAssignees(org,task,subjects){
  SELECT ${org}::uuid,${task}::uuid,x.auth_subject FROM jsonb_array_elements_text(${JSON.stringify(subjects)}::jsonb) AS x(auth_subject)
  ON CONFLICT DO NOTHING`;
 }
+async function syncSubtaskAssignees(org,subtask,subjects){
+ await sql`DELETE FROM teamhub.subtask_assignees WHERE organization_id=${org} AND subtask_id=${subtask}`;
+ if(subjects.length)await sql`INSERT INTO teamhub.subtask_assignees(organization_id,subtask_id,auth_subject)
+ SELECT ${org}::uuid,${subtask}::uuid,x.auth_subject FROM jsonb_array_elements_text(${JSON.stringify(subjects)}::jsonb) AS x(auth_subject)
+ ON CONFLICT DO NOTHING`;
+}
+async function notifyMembers(org,actor,subjects,event,title,details,projectId,taskId=null){
+ const targets=[...new Set(subjects)].filter(x=>x!==actor);
+ if(!targets.length)return;
+ await sql`INSERT INTO teamhub.notifications(organization_id,recipient_subject,actor_subject,event_type,title,details,project_id,task_id)
+ SELECT ${org}::uuid,x.auth_subject,${actor},${event},${title},${details},${projectId}::uuid,${taskId}::uuid
+ FROM jsonb_array_elements_text(${JSON.stringify(targets)}::jsonb) AS x(auth_subject)
+ JOIN teamhub.memberships m ON m.organization_id=${org} AND m.auth_subject=x.auth_subject AND m.active=true`;
+}
 async function project(org,id){
  const rows=await sql`SELECT id,name,description,created_at,paused_at,card_color,owner_subject FROM teamhub.projects WHERE organization_id=${org} AND id=${id} AND archived_at IS NULL`;
  if(!rows.length)bad('Projeto indisponível.',404);return rows[0];
@@ -198,6 +212,23 @@ const route=async(req,res)=>{
   await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action) VALUES(${org},${subject},'invitation.cancelled')`;
   return reply(res,200,{cancelled:true});
  }
+ if(p==='/api/notifications'&&req.method==='GET'){
+  const rows=await sql`SELECT id,event_type,title,details,project_id,task_id,read_at,created_at
+   FROM teamhub.notifications WHERE organization_id=${org} AND recipient_subject=${subject}
+   ORDER BY created_at DESC LIMIT 100`;
+  const unread=await sql`SELECT count(*)::int AS total FROM teamhub.notifications WHERE organization_id=${org} AND recipient_subject=${subject} AND read_at IS NULL`;
+  return reply(res,200,{notifications:rows,unread:unread[0].total});
+ }
+ const mark=/^\/api\/notifications\/([0-9a-f-]+)\/read$/.exec(p);
+ if(mark&&validId(mark[1])&&req.method==='POST'){
+  const rows=await sql`UPDATE teamhub.notifications SET read_at=COALESCE(read_at,now()) WHERE id=${mark[1]} AND organization_id=${org} AND recipient_subject=${subject} RETURNING id`;
+  if(!rows.length)bad('Notificação não encontrada.',404);
+  return reply(res,200,{read:true});
+ }
+ if(p==='/api/notifications/read-all'&&req.method==='POST'){
+  await sql`UPDATE teamhub.notifications SET read_at=now() WHERE organization_id=${org} AND recipient_subject=${subject} AND read_at IS NULL`;
+  return reply(res,200,{ok:true});
+ }
  if(p==='/api/members'&&req.method==='GET'){
   const members=await sql`SELECT auth_subject,role,active FROM teamhub.memberships WHERE organization_id=${org} ORDER BY CASE role WHEN 'admin' THEN 0 WHEN 'manager' THEN 1 ELSE 2 END,auth_subject`;
   return reply(res,200,{members,viewer:subject,role});
@@ -237,6 +268,7 @@ const route=async(req,res)=>{
   const description=b.description===undefined?proj.description:String(b.description||'').trim();
   if(name.length<2||name.length>160||description.length>1000)bad('Informe um nome e descrição válidos.');
   const rows=await sql`UPDATE teamhub.projects SET name=${name},description=${description},card_color=${cardColor},owner_subject=${owner} WHERE id=${proj.id} AND organization_id=${org} RETURNING id,name,card_color,owner_subject`;
+  if(owner&&owner!==proj.owner_subject)await notifyMembers(org,subject,[owner],'project.assigned','Você recebeu um projeto',name,proj.id);
   await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id) VALUES(${org},${subject},'project.updated',${proj.id})`;
   return reply(res,200,{project:rows[0]});
  }
@@ -250,6 +282,7 @@ const route=async(req,res)=>{
    if(!check.length)bad('Responsável não pertence à organização.',403);
   }
   const rows=await sql`INSERT INTO teamhub.projects(organization_id,name,description,card_color,owner_subject) VALUES(${org},${name},${String(body.description||'').slice(0,1000)},${cardColor},${owner}) RETURNING id,name,description,card_color,owner_subject`;
+  if(owner)await notifyMembers(org,subject,[owner],'project.assigned','Você recebeu um projeto',name,rows[0].id);
   await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id) VALUES(${org},${subject},'project.created',${rows[0].id})`;
   return reply(res,201,{project:rows[0]});
  }
@@ -276,7 +309,7 @@ const route=async(req,res)=>{
   const parent=await sql`SELECT id,project_id FROM teamhub.tasks WHERE id=${subList[1]} AND organization_id=${org} AND deleted_at IS NULL`;
   if(!parent.length)bad('Tarefa não encontrada.',404);
   if(req.method==='GET'){
-   const rows=await sql`SELECT id,title,status,priority,owner_subject,due_at,created_at FROM teamhub.subtasks WHERE organization_id=${org} AND task_id=${subList[1]} ORDER BY created_at`;
+   const rows=await sql`SELECT s.id,s.title,s.status,s.priority,s.owner_subject,s.due_at,s.created_at,COALESCE((SELECT jsonb_agg(a.auth_subject ORDER BY a.auth_subject) FROM teamhub.subtask_assignees a WHERE a.organization_id=s.organization_id AND a.subtask_id=s.id),'[]'::jsonb) AS assignees FROM teamhub.subtasks s WHERE s.organization_id=${org} AND s.task_id=${subList[1]} ORDER BY s.created_at`;
    return reply(res,200,{subtasks:rows});
   }
   if(req.method==='POST'){
@@ -288,12 +321,15 @@ const route=async(req,res)=>{
     const members=await sql`SELECT 1 FROM teamhub.memberships WHERE organization_id=${org} AND auth_subject=${owner} AND active=true`;
     if(!members.length)bad('Responsável não está ativo.',403);
    }
+   const assignees=await checkAssignees(org,b.assignees===undefined?(owner?[owner]:[]):b.assignees);
    const due=b.due_at||null;checkDueDate(due);
    const priority=b.priority||'medium';
    if(!['low','medium','high'].includes(priority))bad('Prioridade inválida.');
    const rows=await sql`INSERT INTO teamhub.subtasks(organization_id,project_id,task_id,title,owner_subject,due_at,priority,created_by_subject)
     VALUES(${org},${parent[0].project_id},${subList[1]},${title},${owner},${due?due+'T12:00:00Z':null},${priority},${subject})
     RETURNING id,title,status,priority,owner_subject,due_at`;
+   await syncSubtaskAssignees(org,rows[0].id,assignees);
+   await notifyMembers(org,subject,assignees,'subtask.assigned','Nova subtarefa atribuída',title,parent[0].project_id,subList[1]);
    await sql`INSERT INTO teamhub.task_updates(organization_id,task_id,actor_subject,event_type,summary) VALUES(${org},${subList[1]},${subject},'progress',${'Subtarefa criada: '+title})`;
    return reply(res,201,{subtask:rows[0]});
   }
@@ -304,7 +340,8 @@ const route=async(req,res)=>{
   const rows=await sql`SELECT id,task_id,title,status,priority,owner_subject,due_at FROM teamhub.subtasks WHERE id=${subEdit[1]} AND organization_id=${org}`;
   if(!rows.length)bad('Subtarefa não encontrada.',404);
   const prev=rows[0],b=await json(req);
-  if(Object.keys(b).some(k=>!['title','status','priority','owner_subject','due_at'].includes(k)))bad('Campo inválido.');
+  if(Object.keys(b).some(k=>!['title','status','priority','owner_subject','assignees','due_at'].includes(k)))bad('Campo inválido.');
+  const assignees=b.assignees===undefined?null:await checkAssignees(org,b.assignees);
   const title=b.title===undefined?prev.title:String(b.title||'').trim();
   const status=b.status===undefined?prev.status:b.status;
   const priority=b.priority===undefined?prev.priority:b.priority;
@@ -314,6 +351,11 @@ const route=async(req,res)=>{
   if(title.length<2||title.length>240||!['todo','doing','done'].includes(status)||!['low','medium','high'].includes(priority))bad('Valores inválidos.');
   if(owner){const members=await sql`SELECT 1 FROM teamhub.memberships WHERE organization_id=${org} AND auth_subject=${owner} AND active=true`;if(!members.length)bad('Responsável não está ativo.',403);}
   const result=await sql`UPDATE teamhub.subtasks SET title=${title},status=${status},priority=${priority},owner_subject=${owner},due_at=${due},updated_at=now() WHERE id=${prev.id} AND organization_id=${org} RETURNING id,title,status,priority,owner_subject,due_at`;
+  if(assignees!==null){
+   await syncSubtaskAssignees(org,prev.id,assignees);
+   const parent=await sql`SELECT project_id FROM teamhub.tasks WHERE id=${prev.task_id} AND organization_id=${org}`;
+   if(parent.length)await notifyMembers(org,subject,assignees,'subtask.assigned','Responsabilidade de subtarefa',title,parent[0].project_id,prev.task_id);
+  }
   await sql`INSERT INTO teamhub.task_updates(organization_id,task_id,actor_subject,event_type,summary) VALUES(${org},${prev.task_id},${subject},'progress',${'Subtarefa atualizada: '+title})`;
   return reply(res,200,{subtask:result[0]});
  }
@@ -393,6 +435,7 @@ const route=async(req,res)=>{
    const assignees=await checkAssignees(org,b.assignees===undefined?(assignee?[assignee]:[]):b.assignees);
    const rows=await sql`INSERT INTO teamhub.tasks(organization_id,project_id,title,description,priority,due_at,assignee_subject,treatment_status,treatment_notes,pending_reason,next_action,created_by_subject,position) VALUES(${org},${proj.id},${title},${String(b.description||'').slice(0,2000)},${priority},${due_at},${assignee},${treatment},${treatmentNotes},${pendingReason},${nextAction},${subject},(SELECT COALESCE(MAX(position),0)+1 FROM teamhub.tasks WHERE project_id=${proj.id})) RETURNING *`;
    await syncAssignees(org,rows[0].id,assignees);
+   await notifyMembers(org,subject,assignees,'task.assigned','Nova tarefa atribuída',title,proj.id,rows[0].id);
    await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id,task_id) VALUES(${org},${subject},'task.created',${proj.id},${rows[0].id})`;
    await sql`INSERT INTO teamhub.task_updates(organization_id,task_id,actor_subject,event_type,summary) VALUES(${org},${rows[0].id},${subject},'created','Tarefa criada')`;
    return reply(res,201,{task:rows[0]});
@@ -445,7 +488,10 @@ const route=async(req,res)=>{
   const updateNote=b.update_note===undefined?'':safeNote(b.update_note);
   if(!['todo','doing','done'].includes(status)||!['low','medium','high'].includes(priority)||title.length<2||title.length>240||description.length>2000)bad('Valores inválidos.');
   const result=await sql`UPDATE teamhub.tasks SET status=${status},priority=${priority},title=${title},description=${description},due_at=${dueAt},assignee_subject=${assignee},treatment_status=${treatment},treatment_notes=${treatmentNotes},pending_reason=${pendingReason},next_action=${nextAction},updated_at=now() WHERE id=${t.id} AND organization_id=${org} RETURNING id,title,description,status,priority,due_at,assignee_subject,treatment_status,treatment_notes,pending_reason,next_action`;
-  if(assignees!==null)await syncAssignees(org,t.id,assignees);
+  if(assignees!==null){
+   await syncAssignees(org,t.id,assignees);
+   await notifyMembers(org,subject,assignees,'task.assigned','Tarefa atribuída',title,t.project_id,t.id);
+  }
   await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id,task_id) VALUES(${org},${subject},'task.updated',${t.project_id},${t.id})`;
   const changed=treatment!==t.treatment_status||status!==t.status||treatmentNotes!==t.treatment_notes||pendingReason!==t.pending_reason||nextAction!==t.next_action;
   if(updateNote||changed){

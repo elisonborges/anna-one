@@ -58,53 +58,42 @@ function memberName(subject){
  return index<0?'Integrante inativo':'Integrante '+(index+1);
 }
 async function loadMembers(){
- const data=await api('/api/members'+qs());
- state.members=data.members;
- const select=$('field-assignee');
- select.replaceChildren();
+ const data=await api('/api/members'+qs());state.members=data.members;
+ const select=$('field-assignee');select.replaceChildren();
  const empty=document.createElement('option');empty.value='';empty.textContent='Sem responsável';select.append(empty);
  for(const member of state.members){
   const opt=document.createElement('option');opt.value=member.auth_subject;
   opt.textContent=memberName(member.auth_subject)+' · '+({admin:'Administrador',manager:'Gestor',member:'Membro',guest:'Convidado'}[member.role]||member.role);
   select.append(opt);
  }
- const list=$('members-list');list.replaceChildren();
- if(!state.members.length){list.textContent='Nenhum membro ativo.';return;}
- for(const member of state.members){
-  const item=document.createElement('div');item.className='member-row';
-  const avatar=document.createElement('span');avatar.className='member-avatar';avatar.textContent=member.auth_subject===state.subject?'EU':'•';
-  const info=document.createElement('div');
-  const label=document.createElement('strong');label.textContent=memberName(member.auth_subject);
-  const role=document.createElement('small');role.textContent=({admin:'Administrador',manager:'Gestor',member:'Membro',guest:'Convidado'})[member.role]||member.role;
-  info.append(label,role);item.append(avatar,info);list.append(item);
- }
+ renderTable('members-list',['Integrante','Perfil','Situação'],state.members.map(m=>[
+  memberName(m.auth_subject),({admin:'Administrador',manager:'Gestor',member:'Membro',guest:'Convidado'})[m.role]||m.role,'Ativo'
+ ]));
 }
 async function loadInvitations(){
  const admin=state.role==='admin';
  $('invite-admin').hidden=!admin;$('invite-history-panel').hidden=!admin;
  if(!admin)return;
- const box=$('invite-list');box.textContent='Carregando convites…';
+ $('invite-list').textContent='Carregando convites…';
  try{
-  const data=await api('/api/invitations'+qs());box.replaceChildren();
-  if(!data.invitations.length){box.textContent='Nenhum convite criado.';return;}
-  for(const invite of data.invitations){
-   const row=document.createElement('div');row.className='invite-row';
-   const info=document.createElement('div');
-   const name=document.createElement('strong');name.textContent=invite.email;
-   const status=document.createElement('small');
+  const data=await api('/api/invitations'+qs());
+  const rows=data.invitations.map(invite=>{
    const expired=invite.status==='pending'&&Date.parse(invite.expires_at)<=Date.now();
-   const label=invite.status==='accepted'?'Aceito':invite.status==='cancelled'?'Cancelado':expired?'Expirado':'Pendente';
+   const status=invite.status==='accepted'?'Aceito':invite.status==='cancelled'?'Cancelado':expired?'Expirado':'Pendente';
    const role=({admin:'Administrador',manager:'Gestor',member:'Membro',guest:'Convidado'})[invite.role]||invite.role;
-   status.textContent=role+' · '+label+' · Validade: '+new Date(invite.expires_at).toLocaleDateString('pt-BR');
-   info.append(name,status);row.append(info);
+   let action='—';
    if(invite.status==='pending'){
-    const cancel=document.createElement('button');cancel.className='secondary';cancel.type='button';cancel.textContent='Cancelar';
-    cancel.onclick=async()=>{if(!confirm('Cancelar este convite?'))return;cancel.disabled=true;try{await api('/api/invitations/'+invite.id+'/cancel'+qs(),{method:'POST'});message('Convite cancelado.');await loadInvitations()}catch(e){message(e.message,true);cancel.disabled=false}};
-    row.append(cancel);
+    action=makeAction('Cancelar',async()=>{
+     if(!confirm('Cancelar este convite?'))return;
+     action.disabled=true;
+     try{await api('/api/invitations/'+invite.id+'/cancel'+qs(),{method:'POST'});message('Convite cancelado.');await loadInvitations()}
+     catch(e){message(e.message,true);action.disabled=false}
+    });
    }
-   box.append(row);
-  }
- }catch(e){box.textContent='Erro ao consultar convites: '+e.message;}
+   return [invite.email,role,status,new Date(invite.expires_at).toLocaleDateString('pt-BR'),action];
+  });
+  renderTable('invite-list',['E-mail','Perfil','Situação','Validade','Ação'],rows);
+ }catch(e){$('invite-list').textContent='Erro ao consultar convites: '+e.message;}
 }
 async function redeemInvitation(){
  const match=/^#invite=([a-f0-9]{64})$/i.exec(window.location.hash);
@@ -117,47 +106,34 @@ async function redeemInvitation(){
 }
 async function loadMyTasks(){
  const data=await api('/api/my-tasks'+qs());
- const list=$('mine');list.replaceChildren();
- if(!data.tasks.length){list.textContent='Nenhuma tarefa atribuída a você nesta organização.';return;}
- for(const task of data.tasks){
-  const card=document.createElement('article');card.className='mytask-card';
-  const title=document.createElement('strong');title.textContent=task.title;
-  const details=document.createElement('small');
-  details.textContent=task.project_name+' · '+({todo:'A fazer',doing:'Em andamento',done:'Concluído'})[task.status]+(task.due_at?' · Prazo '+new Date(task.due_at).toLocaleDateString('pt-BR',{timeZone:'UTC'}):'');
-  const button=document.createElement('button');button.type='button';button.className='secondary';button.textContent='Abrir projeto';
-  button.onclick=async()=>{try{
-   const project=state.projects.find(p=>p.id===task.project_id);
-   if(!project){await refreshProjects();}
-   const selected=state.projects.find(p=>p.id===task.project_id);
-   if(!selected)throw Error('Projeto indisponível.');
-   await openProject(selected);
-  }catch(e){message(e.message,true)}};
-  card.append(title,details,button);list.append(card);
- }
+ const rows=data.tasks.map(task=>{
+  const button=makeAction('Abrir',async()=>{try{
+   let project=state.projects.find(p=>p.id===task.project_id);
+   if(!project){await refreshProjects();project=state.projects.find(p=>p.id===task.project_id);}
+   if(!project)throw Error('Projeto indisponível.');
+   await openProject(project);
+  }catch(e){message(e.message,true)}});
+  return [task.title,task.project_name,({todo:'A fazer',doing:'Em andamento',done:'Concluído'})[task.status]||task.status,
+   task.due_at?new Date(task.due_at).toLocaleDateString('pt-BR',{timeZone:'UTC'}):'—',button];
+ });
+ renderTable('mine',['Tarefa','Projeto','Etapa','Prazo','Ação'],rows);
 }
 async function loadAttention(){
- const list=$('attention-list');list.textContent='Carregando pendências…';
+ $('attention-list').textContent='Carregando pendências…';
  try{
-  const data=await api('/api/attention'+qs());list.replaceChildren();
-  if(!data.items.length){list.textContent='Nenhuma tarefa bloqueada ou aguardando retorno. ';return;}
-  for(const t of data.items){
-   const card=document.createElement('div');card.className='attention-item';
-   const info=document.createElement('div');
-   const name=document.createElement('strong');name.textContent=t.title;
-   const desc=document.createElement('small');desc.textContent=t.project_name+' · '+(t.treatment_status==='blocked'?'Bloqueada':'Aguardando retorno');
-   info.append(name,desc);
-   if(t.pending_reason){const pending=document.createElement('p');pending.textContent=t.pending_reason;info.append(pending);}
-   if(t.next_action){const next=document.createElement('p');next.textContent='Próxima ação: '+t.next_action;info.append(next);}
-   const button=document.createElement('button');button.className='secondary';button.type='button';button.textContent='Abrir projeto';
-   button.onclick=async()=>{try{
+  const data=await api('/api/attention'+qs());
+  const rows=data.items.map(t=>{
+   const button=makeAction('Abrir',async()=>{try{
     let project=state.projects.find(x=>x.id===t.project_id);
     if(!project){await refreshProjects();project=state.projects.find(x=>x.id===t.project_id);}
     if(!project)throw Error('Projeto não encontrado.');
     await openProject(project);
-   }catch(e){message(e.message,true)}};
-   card.append(info,button);list.append(card);
-  }
- }catch(e){list.textContent='Não foi possível carregar as pendências.';}
+   }catch(e){message(e.message,true)}});
+   return [t.title,t.project_name,t.treatment_status==='blocked'?'Bloqueada':'Aguardando retorno',
+    t.pending_reason||'—',t.next_action||'—',button];
+  });
+  renderTable('attention-list',['Tarefa','Projeto','Situação','Pendência','Próxima ação','Abrir'],rows);
+ }catch(e){$('attention-list').textContent='Não foi possível carregar as pendências.';}
 }
 async function refreshProjects(){
  const data=await api('/api/projects'+qs());state.projects=data.projects;state.role=data.role;renderProjects();

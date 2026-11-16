@@ -281,14 +281,14 @@ const route=async(req,res)=>{
   return reply(res,200,{subtasks:rows});
  }
  if(p==='/api/calendar'&&req.method==='GET'){
-  const tasks=await sql`SELECT t.id,t.project_id,t.title,t.due_at,t.status,p.name AS project_name,'task' AS kind
+  const tasks=await sql`SELECT t.id,t.project_id,t.title,t.due_at,t.created_at,t.status,p.name AS project_name,'task' AS kind
    FROM teamhub.tasks t JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id
    WHERE t.organization_id=${org} AND t.deleted_at IS NULL AND t.archived_at IS NULL
    AND p.archived_at IS NULL AND t.due_at IS NOT NULL
    AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject}
      OR EXISTS(SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject}))
    ORDER BY t.due_at,t.created_at LIMIT 2000`;
-  const subtasks=await sql`SELECT s.id,s.project_id,s.title,s.due_at,s.status,p.name AS project_name,'subtask' AS kind
+  const subtasks=await sql`SELECT s.id,s.project_id,s.title,s.due_at,s.created_at,s.status,p.name AS project_name,'subtask' AS kind
    FROM teamhub.subtasks s JOIN teamhub.tasks t ON t.id=s.task_id AND t.organization_id=s.organization_id
    JOIN teamhub.projects p ON p.id=s.project_id AND p.organization_id=s.organization_id
    WHERE s.organization_id=${org} AND t.deleted_at IS NULL AND t.archived_at IS NULL AND p.archived_at IS NULL
@@ -576,7 +576,12 @@ const route=async(req,res)=>{
   if(!target.length)bad('Tarefa não encontrada.',404);
   const body=await json(req),summary=safeNote(body.summary,2000);
   if(!summary)bad('Informe o andamento ou a observação.');
+  const mentions=await checkAssignees(org,body.mentions===undefined?[]:body.mentions);
+  const parent=await sql`SELECT project_id,title FROM teamhub.tasks WHERE organization_id=${org} AND id=${hm[1]} AND deleted_at IS NULL`;
+  if(!parent.length)bad('Tarefa não encontrada.',404);
+  await verifyProjectRecipients(org,parent[0].project_id,mentions);
   const [item]=await sql`INSERT INTO teamhub.task_updates(organization_id,task_id,actor_subject,event_type,summary) VALUES(${org},${hm[1]},${subject},'comment',${summary}) RETURNING id,created_at`;
+  if(mentions.length)await notifyMembers(org,subject,mentions,'task.mention','Você foi mencionado em uma tarefa',parent[0].title,parent[0].project_id,hm[1]);
   return reply(res,201,{update:item});
  }
  const tm=/^\/api\/tasks\/([0-9a-f-]+)$/.exec(p);

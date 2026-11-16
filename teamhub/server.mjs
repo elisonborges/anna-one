@@ -303,8 +303,59 @@ const route=async(req,res)=>{
   return reply(res,200,{projects,role});
  }
  if(p==='/api/dashboard'&&req.method==='GET'){
-  const rows=await sql`SELECT COUNT(DISTINCT p.id)::int AS projects, COUNT(t.id) FILTER(WHERE t.status!='done')::int AS open, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status!='done' AND t.treatment_status IN ('blocked','waiting'))::int AS attention FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id WHERE p.organization_id=${org} AND p.archived_at IS NULL AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject}))`;
+  const rows=await sql`SELECT COUNT(DISTINCT p.id)::int AS projects, COUNT(t.id) FILTER(WHERE t.status!='done')::int AS open, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status!='done' AND t.treatment_status IN ('blocked','waiting'))::int AS attention FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id AND t.archived_at IS NULL AND t.deleted_at IS NULL WHERE p.organization_id=${org} AND p.archived_at IS NULL AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject}))`;
   return reply(res,200,{summary:rows[0]});
+ }
+ if(p==='/api/dashboard/insights'&&req.method==='GET'){
+  const period=Number(url.searchParams.get('days')||30);
+  if(![7,30,90].includes(period))bad('Selecione um período de 7, 30 ou 90 dias.');
+  const projectId=url.searchParams.get('project')||null;
+  if(projectId&&(!validId(projectId)||!canSee(projectId)))bad('Projeto não autorizado.',403);
+  const projects=await sql`SELECT p.id,p.name,p.card_color,p.paused_at,
+     COUNT(t.id)::int AS tasks,
+     COUNT(t.id) FILTER (WHERE t.status='done')::int AS completed,
+     COUNT(t.id) FILTER (WHERE t.status='doing')::int AS doing,
+     COUNT(t.id) FILTER (WHERE t.status='todo')::int AS todo,
+     COUNT(t.id) FILTER (WHERE t.status!='done' AND t.due_at IS NOT NULL
+       AND (t.due_at AT TIME ZONE 'UTC')::date < (now() AT TIME ZONE 'America/Fortaleza')::date)::int AS overdue,
+     COUNT(t.id) FILTER (WHERE t.status!='done' AND t.treatment_status IN ('waiting','blocked'))::int AS attention
+    FROM teamhub.projects p
+    LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id AND t.archived_at IS NULL AND t.deleted_at IS NULL
+    WHERE p.organization_id=${org} AND p.archived_at IS NULL
+     AND (${projectId}::uuid IS NULL OR p.id=${projectId}::uuid)
+     AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject} OR EXISTS
+       (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject}))
+    GROUP BY p.id ORDER BY p.name`;
+  const subtasks=await sql`SELECT count(s.id)::int AS total,
+     count(s.id) FILTER (WHERE s.status='done')::int AS completed,
+     count(s.id) FILTER (WHERE s.status!='done' AND s.due_at IS NOT NULL AND
+       (s.due_at AT TIME ZONE 'UTC')::date < (now() AT TIME ZONE 'America/Fortaleza')::date)::int AS overdue
+    FROM teamhub.subtasks s
+    JOIN teamhub.tasks t ON t.id=s.task_id AND t.organization_id=s.organization_id AND t.archived_at IS NULL AND t.deleted_at IS NULL
+    JOIN teamhub.projects p ON p.id=s.project_id AND p.organization_id=s.organization_id AND p.archived_at IS NULL
+    WHERE s.organization_id=${org} AND (${projectId}::uuid IS NULL OR s.project_id=${projectId}::uuid)
+     AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject} OR EXISTS
+       (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject}))`;
+  const activity=await sql`SELECT (a.created_at AT TIME ZONE 'America/Fortaleza')::date::text AS day, count(*)::int AS total
+    FROM teamhub.activities a LEFT JOIN teamhub.projects p ON p.id=a.project_id AND p.organization_id=a.organization_id
+    WHERE a.organization_id=${org}
+      AND a.created_at>=now()-${period}*interval '1 day'
+      AND (${projectId}::uuid IS NULL OR a.project_id=${projectId}::uuid)
+      AND (a.project_id IS NOT NULL OR ${unrestricted})
+      AND (a.project_id IS NULL OR ${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject} OR EXISTS
+       (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=a.project_id AND pm.auth_subject=${subject}))
+    GROUP BY 1 ORDER BY 1`;
+  const pending=await sql`SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(pp.ended_at,now())-pp.started_at))),0)::bigint AS seconds
+    FROM teamhub.pause_periods pp JOIN teamhub.projects p ON p.id=pp.project_id AND p.organization_id=pp.organization_id
+    WHERE pp.organization_id=${org} AND p.archived_at IS NULL AND (${projectId}::uuid IS NULL OR p.id=${projectId}::uuid)
+     AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject} OR EXISTS
+       (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject}))`;
+  const total=(field)=>projects.reduce((sum,p)=>sum+Number(p[field]||0),0);
+  return reply(res,200,{summary:{projects:projects.length,tasks:total('tasks'),todo:total('todo'),doing:total('doing'),
+      done:total('completed'),overdue:total('overdue'),attention:total('attention'),paused_projects:projects.filter(p=>p.paused_at).length,
+      subtasks:subtasks[0]?.total||0,subtasks_done:subtasks[0]?.completed||0,subtasks_overdue:subtasks[0]?.overdue||0,
+      pending_seconds:Number(pending[0]?.seconds||0)},
+    projects,activity,period,generated_at:new Date().toISOString()});
  }
  if(p==='/api/attention'&&req.method==='GET'){
   const items=await sql`SELECT t.id,t.project_id,p.name AS project_name,t.title,t.treatment_status,t.pending_reason,t.next_action,t.due_at FROM teamhub.tasks t JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id WHERE t.organization_id=${org} AND t.archived_at IS NULL AND t.deleted_at IS NULL AND p.archived_at IS NULL AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject})) AND t.status!='done' AND t.treatment_status IN ('blocked','waiting') ORDER BY CASE WHEN t.treatment_status='blocked' THEN 0 ELSE 1 END,t.due_at NULLS LAST,t.updated_at DESC LIMIT 50`;

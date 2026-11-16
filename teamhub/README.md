@@ -166,3 +166,14 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Em Relatórios, tabela de carga de trabalho por integrante, contando separadamente atribuições de tarefas e subtarefas abertas, sem duplicar o mesmo integrante na mesma atividade.
 - Sem novas migrações. Não houve mudança de produção ou criação de dados artificiais.
 - A versão exige validação funcional de comentários, permissões e visualizações com login real antes de homologação.
+
+## AnnA Nexus v0.1.24 — Dashboard gerencial e automação interna
+- Visão geral ganhou Dashboard gerencial inspirado na identidade AnnA One / Health Monitor: indicadores, gráfico donut de etapas, gráfico de atividades registradas, progresso dos projetos e tabela de acompanhamento.
+- Filtros por projeto autorizado e janela de atividades de 7, 30 ou 90 dias. Indicadores de tarefas e projetos são **estado atual**, enquanto o gráfico de atividades respeita o período selecionado.
+- Indicadores adicionais: tarefas atrasadas, projetos pausados, subtarefas concluídas, tempo acumulado de pausas de projetos e tarefas. O total acumulado não representa tempo trabalhado, e paralelismos não são descontados.
+- Exportar dados consolidados em CSV, com proteção contra fórmulas em planilhas.
+- Modo Telão nativo no navegador, com alternativa visual simples quando a API fullscreen não existir.
+- Botão Verificar prazos, disponível a administradores e gestores, cria notificações **internas** para responsáveis ativos de tarefas atrasadas ou com prazo nos próximos 2 dias, respeitando projetos restritos e evitando repetição em 24 horas. Não é uma automação em background; não envia e-mail.
+- API `/api/dashboard/insights` retorna apenas métricas e projetos autorizados; filtros e relatórios não expõem dados de outros clientes.
+- Corrigida a contagem antiga de tarefas arquivadas/excluídas no cartão-resumo.
+- Nenhuma migração necessária; banco e portal de produção preservados. Homologação multiusuário ainda pendente.

@@ -138,7 +138,7 @@ function renderProjects(){
    }
   }
   const validation=makeAction(p.completion_status==='review'?'Aguardando validação':p.completion_status==='completed'?'Conferir encerramento':'Checklist de conclusão',()=>showApproval(p));
-  validation.hidden=!(p.completion_status==='review'||p.completion_status==='completed'||(Number(p.total)>0&&Number(p.done)===Number(p.total)));
+  validation.hidden=!['review','completed'].includes(p.completion_status);
   validation.classList.add('project-validation-link');
   card.append(cover,title,description,owner,tags,progress,validation,actions);container.append(card);
  }

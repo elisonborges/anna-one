@@ -3,7 +3,7 @@ ALTER TABLE teamhub.projects ADD COLUMN IF NOT EXISTS manager_subject text;
 -- Preserve original ownership. Only infer initial management from creator activity when
 -- the creator is still an active manager; otherwise leave management unassigned for admin.
 UPDATE teamhub.projects p SET manager_subject=a.actor_subject
-FROM LATERAL (SELECT 1) guard, teamhub.activities a
+FROM teamhub.activities a
 JOIN teamhub.memberships m ON m.organization_id=a.organization_id
  AND m.auth_subject=a.actor_subject AND m.active=true AND m.role='manager'
 WHERE p.manager_subject IS NULL AND a.organization_id=p.organization_id

@@ -247,7 +247,7 @@ async function loadReports(){
  const taskRows=data.tasks.map(t=>{
   const name=data.projects.find(p=>p.project_id===t.project_id)?.project_name||'Projeto';
   const status=t.deleted_at?'Excluída':t.archived_at?'Arquivada':t.paused_at?'Pausada':({todo:'A fazer',doing:'Em andamento',done:'Concluída'})[t.status]||t.status;
-  return [t.title,name,status,secondsLabel((now-new Date(t.created_at).getTime())/1000),secondsLabel(t.pending_seconds),String(t.pauses)];
+  return [t.title,name,status,secondsLabel((Math.min(now,t.archived_at?new Date(t.archived_at).getTime():t.deleted_at?new Date(t.deleted_at).getTime():now)-new Date(t.created_at).getTime())/1000),secondsLabel(t.pending_seconds),String(t.pauses)];
  });
  renderTable('reports-tasks',['Tarefa','Projeto','Situação','Tempo total','Em pendência','Pausas'],taskRows);
  const pauses=data.pauses.map(p=>[
@@ -267,7 +267,7 @@ function exportReport(){
  for(const p of data.projects)lines.push(['Projeto',p.project_name,p.project_id,p.project_paused_at?'Em pausa':'Ativo',p.project_created_at,'',p.project_pending_seconds,p.project_pauses]);
  for(const t of data.tasks)lines.push(['Tarefa',data.projects.find(p=>p.project_id===t.project_id)?.project_name||'',t.title,t.deleted_at?'Excluída':t.archived_at?'Arquivada':t.paused_at?'Pausada':t.status,t.created_at,'',t.pending_seconds,t.pauses]);
  for(const x of data.pauses)lines.push(['Pausa',data.projects.find(p=>p.project_id===x.project_id)?.project_name||'',x.task_id||x.project_id,x.reason,x.started_at,x.ended_at||'Em aberto',x.elapsed_seconds,'']);
- const csv='\uFEFF'+lines.map(cols=>cols.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\r\n');
+ const csv='\uFEFF'+lines.map(cols=>cols.map(v=>{let x=String(v??'');if(/^[=+@\-]/.test(x))x="'"+x;return '"'+x.replace(/"/g,'""')+'"';}).join(';')).join('\r\n');
  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
  const link=document.createElement('a');link.href=url;link.download='nexus-relatorio-pendencias.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }

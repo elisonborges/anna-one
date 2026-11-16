@@ -17,16 +17,38 @@ async function api(route,options={}){
 const qs=()=>'?org='+encodeURIComponent(state.org);
 const treatmentLabels={pending:'Pendente',analysis:'Em análise',executing:'Em execução',waiting:'Aguardando retorno',blocked:'Bloqueada',resolved:'Resolvida'};
 
-function projectButton(p){
- const btn=document.createElement('button');btn.className='project';btn.type='button';
- const progress=p.total?Math.round(p.done/p.total*100):0;
- btn.innerHTML='<strong>'+escapeHtml(p.name)+'</strong><small>'+escapeHtml(p.description||'Projeto AnnA One')+'</small><div class="meter"><b style="width:'+progress+'%"></b></div><small>'+progress+'% concluído · '+p.total+' tarefas</small>';
- btn.addEventListener('click',()=>openProject(p));return btn;
+function renderTable(id,headings,rows){
+ const host=$(id);host.replaceChildren();
+ if(!rows.length){host.textContent='Nenhum registro disponível.';return;}
+ const scroll=document.createElement('div');scroll.className='table-scroll';
+ const table=document.createElement('table');table.className='nexus-table';
+ const thead=document.createElement('thead'),header=document.createElement('tr');
+ for(const heading of headings){const th=document.createElement('th');th.scope='col';th.textContent=heading;header.append(th);}
+ thead.append(header);
+ const tbody=document.createElement('tbody');
+ for(const cells of rows){
+  const tr=document.createElement('tr');
+  for(const item of cells){
+   const td=document.createElement('td');
+   if(item instanceof Node)td.append(item);else td.textContent=item==null?'—':String(item);
+   tr.append(td);
+  }
+  tbody.append(tr);
+ }
+ table.append(thead,tbody);scroll.append(table);host.append(scroll);
+}
+function makeAction(label,handler){
+ const button=document.createElement('button');button.type='button';button.className='table-action';button.textContent=label;
+ button.addEventListener('click',handler);return button;
 }
 function renderProjects(){
- $('projects-list').replaceChildren(...state.projects.map(projectButton));
- $('overview-projects').replaceChildren(...state.projects.slice(0,6).map(projectButton));
- if(!state.projects.length){$('projects-list').textContent='Nenhum projeto cadastrado. Crie o primeiro projeto para começar.';$('overview-projects').textContent='Nenhum projeto disponível.';}
+ const rows=state.projects.map(p=>{
+  const name=makeAction(p.name,()=>openProject(p));
+  const progress=p.total?Math.round(p.done/p.total*100):0;
+  return [name,p.description||'—',String(p.total),progress+'%'];
+ });
+ renderTable('projects-list',['Projeto','Descrição','Tarefas','Progresso'],rows);
+ renderTable('overview-projects',['Projeto','Descrição','Tarefas','Progresso'],rows.slice(0,6));
  $('stat-projects').textContent=state.projects.length;
 }
 function memberName(subject){

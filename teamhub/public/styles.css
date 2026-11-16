@@ -109,3 +109,20 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
 .main>.nexus-banner{margin-bottom:20px}
 .main>.heading{margin-bottom:18px}
 @media(max-width:850px){.main>.nexus-banner{margin-bottom:16px}}
+
+/* Equipe e acompanhamento das minhas tarefas */
+.members-list,.mytask-list{display:grid;gap:11px}
+.member-row,.mytask-card{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:14px;display:flex;gap:13px;align-items:center}
+.member-avatar{width:44px;height:44px;flex:none;display:grid;place-items:center;background:var(--tint);color:var(--accent);font-weight:800;border-radius:50%}
+.member-row strong,.mytask-card strong{display:block;font-size:14px}
+.member-row small,.mytask-card small{display:block;color:var(--muted);font-size:12px;margin-top:5px;line-height:1.5}
+.mytask-card{justify-content:space-between;flex-wrap:wrap}
+.mytask-card .secondary{min-width:130px}
+.task-meta{display:grid;gap:3px}
+.bottom:has(button:nth-child(4)){grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:850px){
+ .mytask-card{align-items:stretch;flex-direction:column}
+ .mytask-card button{width:100%}
+ .member-row{padding:12px}
+ .bottom button{min-width:0}
+}

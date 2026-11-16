@@ -154,52 +154,68 @@ async function persistProjectCardOrder(){
  }
 }
 function enableProjectCardReorder(card,handle){
- let pointer=null;
  const container=$('projects-list');
- handle.addEventListener('pointerdown',event=>{
-  if(event.button!==0||pointer)return;
+ let drag=null;
+ const cards=()=>[...container.querySelectorAll(':scope > .project-card')];
+ const endDrag=(event,cancelled=false)=>{
+  if(!drag||event.pointerId!==drag.id)return;
+  const {initialOrder,started}=drag;
+  drag=null;
+  document.removeEventListener('pointermove',onMove,true);
+  document.removeEventListener('pointerup',onUp,true);
+  document.removeEventListener('pointercancel',onCancel,true);
+  window.removeEventListener('blur',onBlur);
+  card.classList.remove('is-reordering');
+  document.body.classList.remove('project-reorder-active');
+  if(cancelled){renderProjects();return;}
+  if(!started)return;
+  const finalOrder=cards().map(x=>x.dataset.projectId).join(',');
+  if(finalOrder!==initialOrder)persistProjectCardOrder();
+ };
+ const onMove=event=>{
+  if(!drag||event.pointerId!==drag.id)return;
+  if(!drag.started&&Math.hypot(event.clientX-drag.x,event.clientY-drag.y)<6)return;
+  drag.started=true;
   event.preventDefault();
-  pointer={id:event.pointerId,x:event.clientX,y:event.clientY,changed:false,started:false};
-  handle.setPointerCapture(event.pointerId);
-  card.classList.add('is-reordering');
- });
- handle.addEventListener('pointermove',event=>{
-  if(!pointer||pointer.id!==event.pointerId)return;
-  if(!pointer.started&&Math.hypot(event.clientX-pointer.x,event.clientY-pointer.y)<6)return;
-  pointer.started=true;
-  // Identify the closest card by geometry: hit-testing the captured handle
-  // can repeatedly select the dragged card on touch and desktop.
-  const others=[...container.querySelectorAll(':scope > .project-card')].filter(x=>x!==card);
+  const others=cards().filter(x=>x!==card);
   const target=others.find(other=>{
    const b=other.getBoundingClientRect();
    return event.clientX>=b.left&&event.clientX<=b.right
-     &&event.clientY>=b.top&&event.clientY<=b.bottom;
+      &&event.clientY>=b.top&&event.clientY<=b.bottom;
   });
   if(!target)return;
   const b=target.getBoundingClientRect();
-  const rect=card.getBoundingClientRect();
-  const horizontal=Math.abs(b.top-rect.top)<Math.min(b.height,rect.height)*.5;
-  const after=horizontal?event.clientX>b.left+b.width/2:event.clientY>b.top+b.height/2;
-  const beforeOrder=[...container.querySelectorAll(':scope > .project-card')].map(x=>x.dataset.projectId).join(',');
+  const current=card.getBoundingClientRect();
+  const sameRow=Math.abs(b.top-current.top)<Math.min(b.height,current.height)*.5;
+  const after=sameRow?event.clientX>b.left+b.width/2:event.clientY>b.top+b.height/2;
   if(after)target.after(card);else target.before(card);
-  if(beforeOrder!==[...container.querySelectorAll(':scope > .project-card')].map(x=>x.dataset.projectId).join(','))pointer.changed=true;
- });
- const stop=event=>{
-  if(!pointer||pointer.id!==event.pointerId)return;
-  const changed=pointer.changed;
-  pointer=null;card.classList.remove('is-reordering');
-  if(handle.hasPointerCapture(event.pointerId))handle.releasePointerCapture(event.pointerId);
-  if(changed)persistProjectCardOrder();
  };
- handle.addEventListener('pointerup',stop);
- handle.addEventListener('pointercancel',event=>{if(pointer?.id===event.pointerId){pointer=null;card.classList.remove('is-reordering');renderProjects();}});
+ const onUp=e=>endDrag(e);
+ const onCancel=e=>endDrag(e,true);
+ const onBlur=()=>{if(drag)endDrag({pointerId:drag.id},true);};
+ const onDown=e=>{
+  if(e.button!==0||drag)return;
+  // Let action buttons and form controls keep their original click behavior.
+  if(e.target.closest('button,a,input,select,textarea')&&e.target!==handle)return;
+  drag={id:e.pointerId,x:e.clientX,y:e.clientY,started:false,initialOrder:cards().map(x=>x.dataset.projectId).join(',')};
+  if(e.target===handle)e.preventDefault();
+  card.classList.add('is-reordering');
+  document.body.classList.add('project-reorder-active');
+  // Listeners belong to document, not the moving card: moving a captured
+  // element inside the grid can otherwise discard pointer capture.
+  document.addEventListener('pointermove',onMove,{capture:true,passive:false});
+  document.addEventListener('pointerup',onUp,true);
+  document.addEventListener('pointercancel',onCancel,true);
+  window.addEventListener('blur',onBlur);
+ };
+ card.addEventListener('pointerdown',onDown);
  handle.addEventListener('keydown',event=>{
   if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;
   event.preventDefault();
-  const cards=[...container.querySelectorAll(':scope > .project-card')],i=cards.indexOf(card);
+  const items=cards(),i=items.indexOf(card);
   const next=i+(['ArrowLeft','ArrowUp'].includes(event.key)?-1:1);
-  if(next<0||next>=cards.length)return;
-  if(next<i)cards[next].before(card);else cards[next].after(card);
+  if(next<0||next>=items.length)return;
+  if(next<i)items[next].before(card);else items[next].after(card);
   persistProjectCardOrder();
  });
 }

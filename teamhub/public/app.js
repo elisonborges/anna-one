@@ -469,19 +469,51 @@ async function loadMembers(){
  });
  renderTable('members-list',['Integrante','Perfil','Situação','Gerenciar'],rows);
 }
+function showInvitationDelivery(data,email,role){
+ $('invite-link').value=data.invite_url;
+ $('invite-result').hidden=false;
+ const statuses={
+  sent:'O Resend aceitou o e-mail para envio. A entrega na caixa de entrada ainda não foi confirmada.',
+  failed:'Convite criado, mas o serviço de e-mail recusou ou não concluiu o envio. Copie o link ou envie pelo seu aplicativo de e-mail.',
+  not_configured:'Convite criado. O envio automático ainda não está habilitado neste ambiente; compartilhe o link manualmente.'
+ };
+ const status=data.email_status||'not_configured';
+ $('invite-delivery-status').textContent=statuses[status]||'Convite criado. Utilize o link manual caso necessário.';
+ $('invite-delivery-status').dataset.delivery=status;
+ $('invite-mail').href='mailto:'+encodeURIComponent(email)+'?subject='+encodeURIComponent('Convite para AnnA Nexus')+
+  '&body='+encodeURIComponent('Você foi convidado para colaborar na AnnA Nexus. Entre com sua conta do Portal AnnA One usando o mesmo e-mail e acesse o convite válido por 7 dias:\n\n'+data.invite_url+'\n\nO acesso será liberado após aceitar o convite.');
+}
 async function loadInvitations(){
  const admin=state.role==='admin';
  $('invite-admin').hidden=!admin;$('invite-history-panel').hidden=!admin;
  if(!admin)return;
  $('invite-list').textContent='Carregando convites…';
  try{
-  const data=await api('/api/invitations'+qs());
+  const [data,config]=await Promise.all([
+   api('/api/invitations'+qs()),api('/api/invitations/config'+qs())
+  ]);
+  $('invite-provider-status').textContent=config.email_enabled
+   ?'Envio automático pelo Resend habilitado. O resultado da tentativa aparecerá após gerar o convite.'
+   :'Envio automático indisponível neste ambiente: o link manual continuará funcionando.';
   const rows=data.invitations.map(invite=>{
    const expired=invite.status==='pending'&&Date.parse(invite.expires_at)<=Date.now();
    const status=invite.status==='accepted'?'Aceito':invite.status==='cancelled'?'Cancelado':expired?'Expirado':'Pendente';
    const role=({admin:'Administrador',manager:'Gestor',member:'Membro',guest:'Convidado'})[invite.role]||invite.role;
-   let action='—';
+   let action='—',controls=null;
    if(invite.status==='pending'&&!expired){
+    controls=document.createElement('div');controls.className='invite-row-actions';
+    const resend=makeAction('Reenviar e-mail',async()=>{
+     if(!confirm('Reemitir este convite? O link anterior será invalidado e um novo link será criado.'))return;
+     resend.disabled=true;
+     try{
+      const response=await api('/api/invitations/'+invite.id+'/resend'+qs(),{method:'POST',body:'{}'});
+      showInvitationDelivery(response,invite.email,invite.role);
+      message(response.email_status==='sent'?'Novo convite aceito pelo Resend. Link anterior invalidado.':'Novo link criado. O envio não foi confirmado; compartilhe o novo link manualmente.');
+      await loadInvitations();
+     }catch(e){message(e.message,true);resend.disabled=false}
+    });
+    resend.disabled=Number(invite.email_attempts||0)>=5;
+    controls.append(resend);
     action=makeAction('Cancelar',async()=>{
      if(!confirm('Cancelar este convite?'))return;
      action.disabled=true;
@@ -491,6 +523,7 @@ async function loadInvitations(){
    }
    const delivery=({sent:'Aceito pelo Resend',failed:'Falha no envio',not_configured:'Envio não configurado',manual:'Link manual'})[invite.email_status]||'Não informado';
    const result=invite.email_status==='failed'&&invite.email_error?delivery+' ('+invite.email_error+')':delivery;
+   if(controls){controls.append(action);action=controls;}
    return [invite.email,role,status,result,new Date(invite.expires_at).toLocaleDateString('pt-BR'),action];
   });
   renderTable('invite-list',['E-mail','Perfil','Situação','E-mail enviado','Validade','Ação'],rows);
@@ -1763,17 +1796,7 @@ $('invite-form').addEventListener('submit',async e=>{
  const email=$('invite-email').value.trim().toLowerCase(),role=$('invite-role').value;
  try{
   const data=await api('/api/invitations'+qs(),{method:'POST',body:JSON.stringify({email,role})});
-  $('invite-link').value=data.invite_url;
-  $('invite-result').hidden=false;
-  const deliveryMessages={
-   sent:'O Resend aceitou o e-mail para envio. A entrega na caixa de entrada ainda não foi confirmada.',
-   failed:'Convite criado, mas o serviço de e-mail recusou ou não concluiu o envio. Copie o link ou envie pelo seu aplicativo de e-mail.',
-   not_configured:'Convite criado. O envio automático ainda não está habilitado neste ambiente; compartilhe o link manualmente.'
-  };
-  const currentStatus=data.email_status||'not_configured';
-  $('invite-delivery-status').textContent=deliveryMessages[currentStatus]||'Convite criado. Confira o resultado e compartilhe o link, se necessário.';
-  $('invite-delivery-status').dataset.delivery=currentStatus;
-  $('invite-mail').href='mailto:'+encodeURIComponent(email)+'?subject='+encodeURIComponent('Convite para AnnA Nexus')+'&body='+encodeURIComponent('Você foi convidado para colaborar na AnnA Nexus. Entre com sua conta do Portal AnnA One usando o mesmo e-mail e acesse o convite válido por 7 dias:\n\n'+data.invite_url+'\n\nO acesso será liberado após aceitar o convite.');
+  showInvitationDelivery(data,email,role);
   $('invite-email').value='';
   message(data.email_status==='sent'?'Convite criado. E-mail aceito pelo Resend.':'Convite criado, mas o envio automático não foi confirmado; utilize o link manual.');
   await loadInvitations();

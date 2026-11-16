@@ -583,6 +583,18 @@ $('dash-period').addEventListener('change',()=>loadDashboard().catch(e=>message(
 $('dash-project').addEventListener('change',()=>Promise.all([loadDashboard(),loadAttention()]).catch(e=>message(e.message,true)));
 $('dash-refresh').addEventListener('click',()=>Promise.all([loadDashboard(),loadAttention()]).catch(e=>message(e.message,true)));
 $('dash-export').addEventListener('click',dashboardCsv);
+$('dash-wallboard').addEventListener('click',async()=>{
+ const board=$('overview');
+ try{
+  if(document.fullscreenElement===board)await document.exitFullscreen();
+  else if(board.requestFullscreen)await board.requestFullscreen();
+  else{board.classList.toggle('dashboard-presentation');$('dash-wallboard').textContent=board.classList.contains('dashboard-presentation')?'Sair do telão':'Modo telão';}
+ }catch(e){message('Seu navegador não permitiu o modo telão.',true)}
+});
+document.addEventListener('fullscreenchange',()=>{
+ $('dash-wallboard').textContent=document.fullscreenElement===$('overview')?'Sair do telão':'Modo telão';
+});
+
 $('dash-alerts').addEventListener('click',async()=>{
  const button=$('dash-alerts');button.disabled=true;
  try{

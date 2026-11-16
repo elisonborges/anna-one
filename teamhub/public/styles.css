@@ -195,3 +195,85 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
  .invite-actions{flex-direction:column}
  .invite-actions>*{width:100%;min-height:44px}
 }
+
+/* Nexus v0.1.8 — densidade informacional, tabelas reais e responsividade */
+#app .main{max-width:1600px}
+#team{gap:12px}
+#team .panel,#mytasks .panel,#overview .panel{padding:16px 18px}
+#team .panel>h2,#mytasks .panel>h2,#overview .panel h2{font-size:18px;margin-bottom:8px}
+#team .panel>.muted,#mytasks .panel>.muted{margin:4px 0 12px;font-size:12px}
+.table-scroll{width:100%;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+.nexus-table{width:100%;border-collapse:collapse;table-layout:auto;font-size:13px;text-align:left}
+.nexus-table th{font-size:11px;text-transform:uppercase;letter-spacing:.035em;color:var(--muted);background:var(--tint);font-weight:850;white-space:nowrap}
+.nexus-table th,.nexus-table td{padding:9px 11px;border-bottom:1px solid var(--line);vertical-align:middle;line-height:1.35}
+.nexus-table tbody tr:last-child td{border-bottom:0}
+.nexus-table tbody tr:hover{background:var(--tint)}
+.nexus-table td{overflow-wrap:anywhere}
+.nexus-table th:last-child,.nexus-table td:last-child{width:1%;white-space:nowrap}
+.nexus-table td .table-action{border:0;background:transparent;color:var(--accent);font-size:13px;font-weight:800;text-align:left;padding:7px 6px;border-radius:7px;min-height:36px;max-width:260px;white-space:normal;overflow-wrap:anywhere}
+.nexus-table .table-action:hover{background:var(--tint);text-decoration:underline}
+#invite-list .nexus-table td:first-child{min-width:170px}
+#attention-list .nexus-table td:nth-child(4),#attention-list .nexus-table td:nth-child(5){max-width:300px}
+.data-container:not(:has(.table-scroll)){font-size:13px;color:var(--muted);padding:8px 0}
+#overview .stats{gap:9px;margin-bottom:14px}
+.stats article{min-height:86px;padding:12px 15px}
+.stats strong{font-size:27px;margin-top:3px}
+.stats span{font-size:12px}
+.attention-panel{margin-bottom:12px}
+#projects .section-head{margin-bottom:10px}
+#invite-form{grid-template-columns:minmax(0,1fr) minmax(135px,180px) auto}
+#invite-form button{padding:10px 14px}
+#dialog{width:min(740px,calc(100vw - 28px));max-height:min(93dvh,850px)}
+#editor{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px}
+#editor .modal-head,#editor>.modal-actions,#editor>#task-fields{grid-column:1 / -1}
+#editor>.modal-head{margin-bottom:3px}
+#editor>label[for="field-name"]{grid-column:1;grid-row:2}
+#editor>#field-name{grid-column:1;grid-row:3}
+#editor>label[for="field-description"]{grid-column:2;grid-row:2}
+#editor>#field-description{grid-column:2;grid-row:3;min-height:44px}
+#task-fields:not([hidden]){display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 12px}
+#task-fields>label{margin:0}
+#task-fields>label[for="field-priority"]{grid-column:1;grid-row:1}
+#task-fields>#field-priority{grid-column:1;grid-row:2}
+#task-fields>label[for="field-due"]{grid-column:2;grid-row:1}
+#task-fields>#field-due{grid-column:2;grid-row:2}
+#task-fields>label[for="field-assignee"]{grid-column:3;grid-row:1}
+#task-fields>#field-assignee{grid-column:3;grid-row:2}
+#task-fields>.treatment-block{grid-column:1/-1}
+.treatment-block{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 12px}
+.treatment-block>h3,.treatment-block>#task-history-wrap{grid-column:1/-1}
+.treatment-block>label[for="field-treatment"]{grid-column:1;grid-row:2}
+.treatment-block>#field-treatment{grid-column:1;grid-row:3}
+.treatment-block>label[for="field-treatment-notes"]{grid-column:2;grid-row:2}
+.treatment-block>#field-treatment-notes{grid-column:2;grid-row:3}
+.treatment-block>label[for="field-pending"]{grid-column:1;grid-row:4}
+.treatment-block>#field-pending{grid-column:1;grid-row:5}
+.treatment-block>label[for="field-next"]{grid-column:2;grid-row:4}
+.treatment-block>#field-next{grid-column:2;grid-row:5}
+.treatment-block>label[for="field-update-note"],.treatment-block>#field-update-note{grid-column:1/-1}
+.treatment-block>textarea{min-height:62px}
+#history-add{width:auto}
+@media(max-width:850px){
+ .nexus-table{font-size:12px}
+ .nexus-table th,.nexus-table td{padding:8px 9px}
+ #app .main{max-width:100%}
+ .stats article{min-height:76px;padding:11px}
+ #dialog{width:calc(100vw - 22px);padding:16px}
+}
+@media(max-width:580px){
+ #team .panel,#mytasks .panel,#overview .panel{padding:12px}
+ #editor{grid-template-columns:1fr}
+ #editor>label[for="field-name"],#editor>#field-name,#editor>label[for="field-description"],#editor>#field-description{grid-column:1;grid-row:auto}
+ #task-fields:not([hidden]),.treatment-block{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #task-fields>label[for="field-assignee"],#task-fields>#field-assignee{grid-column:1/-1;grid-row:auto}
+ #task-fields>label[for="field-priority"],#task-fields>#field-priority,#task-fields>label[for="field-due"],#task-fields>#field-due{grid-row:auto}
+ #task-fields>label[for="field-priority"]{grid-column:1;grid-row:1}
+ #task-fields>#field-priority{grid-column:1;grid-row:2}
+ #task-fields>label[for="field-due"]{grid-column:2;grid-row:1}
+ #task-fields>#field-due{grid-column:2;grid-row:2}
+ #task-fields>label[for="field-assignee"]{grid-row:3}
+ #task-fields>#field-assignee{grid-row:4}
+ .treatment-block>label[for="field-treatment-notes"],.treatment-block>#field-treatment-notes,.treatment-block>label[for="field-pending"],.treatment-block>#field-pending,.treatment-block>label[for="field-next"],.treatment-block>#field-next{grid-column:1/-1;grid-row:auto}
+ .treatment-block>label[for="field-treatment"]{grid-column:1/-1;grid-row:auto}
+ .treatment-block>#field-treatment{grid-column:1/-1;grid-row:auto}
+}

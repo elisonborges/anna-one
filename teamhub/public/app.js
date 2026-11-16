@@ -478,7 +478,8 @@ async function loadAttention(){
  $('attention-list').textContent='Carregando pendências…';
  try{
   const data=await api('/api/attention'+qs());
-  const rows=data.items.map(t=>{
+  const selected=$('dash-project').value;
+  const rows=data.items.filter(t=>!selected||t.project_id===selected).map(t=>{
    const button=makeAction('Abrir',async()=>{try{
     let project=state.projects.find(x=>x.id===t.project_id);
     if(!project){await refreshProjects();project=state.projects.find(x=>x.id===t.project_id);}
@@ -491,11 +492,103 @@ async function loadAttention(){
   renderTable('attention-list',['Tarefa','Projeto','Situação','Pendência','Próxima ação','Abrir'],rows);
  }catch(e){$('attention-list').textContent='Não foi possível carregar as pendências.';}
 }
+let dashboardSnapshot=null;
+function dashboardCsv(){
+ if(!dashboardSnapshot)return;
+ const data=dashboardSnapshot;
+ const rows=[['Projeto','Tarefas','A fazer','Em andamento','Concluídas','Atrasadas','Exigem atenção','Pausado']];
+ for(const p of data.projects)rows.push([p.name,p.tasks,p.todo,p.doing,p.completed,p.overdue,p.attention,p.paused_at?'Sim':'Não']);
+ rows.push([],['Resumo','Projetos','Tarefas','Subtarefas','Concluídas','Atrasadas','Em atenção','Segundos de pendência']);
+ rows.push(['Total',data.summary.projects,data.summary.tasks,data.summary.subtasks,data.summary.done,data.summary.overdue,data.summary.attention,data.summary.pending_seconds]);
+ const csv='\uFEFF'+rows.map(cols=>cols.map(v=>{let x=String(v??'');if(/^[=+@\-]/.test(x))x="'"+x;return '"'+x.replace(/"/g,'""')+'"';}).join(';')).join('\r\n');
+ const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+ const a=document.createElement('a');a.href=url;a.download='nexus-dashboard-'+data.period+'dias.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+async function loadDashboard(){
+ const selector=$('dash-project'),period=Number($('dash-period').value)||30;
+ const selected=state.projects.some(p=>p.id===selector.value)?selector.value:'';
+ const url='/api/dashboard/insights'+qs()+'&days='+period+(selected?'&project='+encodeURIComponent(selected):'');
+ const data=await api(url);dashboardSnapshot=data;
+ const summary=data.summary,total=Number(summary.tasks)||0,done=Number(summary.done)||0,
+  todo=Number(summary.todo)||0,doing=Number(summary.doing)||0;
+ const values=[todo,doing,done],palette=['#8da6c5','#f5a623','#2bb783'];
+ const degrees=values.map(v=>total?v/total*360:0);
+ const degrees1=degrees[0],degrees2=degrees[0]+degrees[1];
+ $('stat-projects').textContent=summary.projects;
+ $('stat-open').textContent=todo+doing;
+ $('stat-doing').textContent=doing;
+ $('stat-done').textContent=done;
+ $('stat-attention').textContent=summary.attention;
+ $('dash-overdue').textContent=summary.overdue;
+ $('dash-paused').textContent=summary.paused_projects;
+ $('dash-subtasks').textContent=summary.subtasks_done+'/'+summary.subtasks;
+ $('dash-pending').textContent=secondsLabel(summary.pending_seconds);
+ $('dash-task-count').textContent=total+' tarefa(s)';
+ $('dash-donut-percent').textContent=(total?Math.round(done/total*100):0)+'%';
+ const donut=$('dash-donut');
+ donut.style.background=total?'conic-gradient('+palette[0]+' 0deg '+degrees1+'deg,'+palette[1]+' '+degrees1+'deg '+degrees2+'deg,'+palette[2]+' '+degrees2+'deg 360deg)':'conic-gradient(var(--line) 0deg 360deg)';
+ donut.setAttribute('aria-label',total?'Tarefas: '+todo+' a fazer, '+doing+' em andamento, '+done+' concluídas':'Nenhuma tarefa');
+ const legend=$('dash-legend');legend.replaceChildren();
+ for(const [i,label] of ['A fazer','Em andamento','Concluídas'].entries()){
+  const line=document.createElement('div');line.className='dash-legend-row';
+  const dot=document.createElement('span');dot.className='dash-color-dot';dot.style.background=palette[i];
+  const text=document.createElement('span');text.textContent=label;
+  const num=document.createElement('strong');num.textContent=String(values[i]);
+  line.append(dot,text,num);legend.append(line);
+ }
+ const projects=data.projects.map(p=>{
+  const ratio=Number(p.tasks)?Math.round(p.completed/p.tasks*100):0;
+  const info=document.createElement('div');info.className='dash-project-progress';
+  const pct=document.createElement('span');pct.textContent=ratio+'%';
+  const rail=document.createElement('div');rail.className='dash-progress-track';
+  const bar=document.createElement('div');bar.style.width=ratio+'%';rail.append(bar);
+  info.append(pct,rail);
+  const open=makeAction('Abrir',()=>{const item=state.projects.find(x=>x.id===p.id);if(item)openProject(item);});
+  return [p.name,info,p.tasks,p.overdue,p.attention,p.paused_at?'Em pausa':'Ativo',open];
+ });
+ renderTable('dash-project-rows',['Projeto','Progresso','Tarefas','Atrasadas','Pendências','Situação','Ação'],projects);
+ const counts=new Map(data.activity.map(x=>[x.day,Number(x.total)]));
+ const day=new Date();
+ const dayKey=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Fortaleza',year:'numeric',month:'2-digit',day:'2-digit'}).format(day);
+ const daily=[];
+ for(let i=period-1;i>=0;i--){
+  const current=new Date(Date.now()-i*86400000);
+  const key=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Fortaleza',year:'numeric',month:'2-digit',day:'2-digit'}).format(current);
+  daily.push({date:key,count:counts.get(key)||0});
+ }
+ const buckets=period===7?7:period===30?10:15,bucketSize=Math.ceil(daily.length/buckets);
+ const grouped=[];
+ for(let i=0;i<daily.length;i+=bucketSize){
+  const subset=daily.slice(i,i+bucketSize);grouped.push({start:subset[0].date,end:subset.at(-1).date,total:subset.reduce((sum,x)=>sum+x.count,0)});
+ }
+ const totalActivities=daily.reduce((sum,x)=>sum+x.count,0);
+ $('dash-activity-total').textContent=totalActivities+' registro(s) em '+period+' dias';
+ const chart=$('dash-activity-chart');chart.replaceChildren();
+ const max=Math.max(1,...grouped.map(x=>x.total));
+ for(const bucket of grouped){
+  const cell=document.createElement('div');cell.className='dash-bar-cell';
+  const column=document.createElement('div');column.className='dash-bar';
+  column.style.height=Math.max(bucket.total?6:2,Math.round(bucket.total/max*100))+'%';
+  column.title=bucket.start+(bucket.start!==bucket.end?' a '+bucket.end:'')+': '+bucket.total+' atividades';
+  const num=document.createElement('span');num.textContent=bucket.total?String(bucket.total):'';
+  const cap=document.createElement('small');cap.textContent=bucket.end.slice(8,10)+'/'+bucket.end.slice(5,7);
+  column.append(num);cell.append(column,cap);chart.append(cell);
+ }
+ $('dash-export').disabled=false;
+}
+$('dash-period').addEventListener('change',()=>loadDashboard().catch(e=>message(e.message,true)));
+$('dash-project').addEventListener('change',()=>Promise.all([loadDashboard(),loadAttention()]).catch(e=>message(e.message,true)));
+$('dash-refresh').addEventListener('click',()=>Promise.all([loadDashboard(),loadAttention()]).catch(e=>message(e.message,true)));
+$('dash-export').addEventListener('click',dashboardCsv);
 async function refreshProjects(){
  const data=await api('/api/projects'+qs());state.projects=data.projects;state.role=data.role;renderProjects();
  $('new-project').disabled=!['admin','manager'].includes(state.role);
  $('projects-invite').disabled=state.role!=='admin';
- const summary=await api('/api/dashboard'+qs());$('stat-projects').textContent=summary.summary.projects;$('stat-open').textContent=summary.summary.open;$('stat-doing').textContent=summary.summary.doing;$('stat-done').textContent=summary.summary.done;$('stat-attention').textContent=summary.summary.attention||0;await loadAttention();
+ const selector=$('dash-project'),selected=selector.value;selector.replaceChildren();
+ const any=document.createElement('option');any.value='';any.textContent='Todos os projetos';selector.append(any);
+ for(const p of state.projects){const option=document.createElement('option');option.value=p.id;option.textContent=p.name;selector.append(option);}
+ selector.value=state.projects.some(p=>p.id===selected)?selected:'';
+ await loadDashboard();await loadAttention();
 }
 async function openProject(p){
  state.project=p;const data=await api('/api/projects/'+encodeURIComponent(p.id)+'/tasks'+qs());

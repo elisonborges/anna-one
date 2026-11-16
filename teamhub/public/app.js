@@ -41,6 +41,64 @@ function makeAction(label,handler){
  const button=document.createElement('button');button.type='button';button.className='table-action';button.textContent=label;
  button.addEventListener('click',handler);return button;
 }
+let currentApprovalProject=null;
+async function showApproval(project){
+ currentApprovalProject=project;
+ const data=await api('/api/projects/'+project.id+'/completion'+qs());
+ $('approval-title').textContent='Conferência · '+project.name;
+ $('approval-description').textContent=({active:'Em andamento',review:'Aguardando aprovação',completed:'Projeto concluído'})[data.status]||data.status;
+ $('approval-progress').textContent=data.tasks.total+' tarefas ('+data.tasks.open+' abertas) · '+data.subtasks.total+' subtarefas ('+data.subtasks.open+' abertas)';
+ for(const input of $('approval-checks').querySelectorAll('input'))input.checked=false;
+ $('approval-note').value='';
+ $('approval-checks').hidden=data.status!=='active';
+ $('approval-request').hidden=data.status!=='active'||!['admin','manager','member'].includes(state.role);
+ $('approval-approve').hidden=data.status!=='review'||state.role!=='admin';
+ $('approval-reject').hidden=data.status!=='review'||state.role!=='admin';
+ $('approval-reopen').hidden=data.status!=='completed'||state.role!=='admin';
+ $('approval-approve').disabled=data.tasks.open>0||data.subtasks.open>0;
+ const lines=data.history.map(x=>[
+  ({requested:'Solicitada',approved:'Aprovada',rejected:'Devolvida',reopened:'Reaberta'})[x.action]||x.action,
+  x.actor_subject===state.subject?'Você':'Integrante da equipe',
+  x.note||'—',new Date(x.created_at).toLocaleString('pt-BR',{timeZone:'America/Fortaleza'})
+ ]);
+ renderTable('approval-history',['Decisão','Responsável','Justificativa','Data'],lines);
+ $('approval-dialog').showModal();
+}
+$('approval-close').addEventListener('click',()=>$('approval-dialog').close());
+for(const action of ['request','approve','reject','reopen']){
+ $('approval-'+action).addEventListener('click',async()=>{
+  if(!currentApprovalProject)return;
+  const note=$('approval-note').value.trim();
+  const checks={};
+  for(const input of $('approval-checks').querySelectorAll('input'))checks[input.value]=input.checked;
+  if(action==='request'&&!Object.values(checks).every(Boolean)){message('Marque todos os itens de conferência antes de enviar.',true);return;}
+  if(['reject','reopen'].includes(action)&&note.length<5){message('Informe uma justificativa com pelo menos 5 caracteres.',true);return;}
+  if(action==='approve'&&!confirm('Confirmar que o projeto foi conferido e pode ser encerrado?'))return;
+  const btn=$('approval-'+action);btn.disabled=true;
+  try{
+   await api('/api/projects/'+currentApprovalProject.id+'/completion/'+action+qs(),{method:'POST',body:JSON.stringify({...checks,note})});
+   const previous=currentApprovalProject.id;
+   $('approval-dialog').close();
+   await refreshProjects();
+   const project=state.projects.find(x=>x.id===previous);
+   if(project&&state.view==='board')await openProject(project);
+   message(({request:'Projeto enviado à fila de validação.',approve:'Projeto aprovado e concluído.',reject:'Projeto devolvido para ajustes.',reopen:'Projeto reaberto com histórico preservado.'})[action]);
+  }catch(e){message(e.message,true)}finally{btn.disabled=false}
+ });
+}
+async function refreshApprovalQueue(){
+ const panel=$('approval-queue-panel');panel.hidden=!['admin','manager'].includes(state.role);
+ if(panel.hidden)return;
+ try{
+  const data=await api('/api/approvals/queue'+qs());
+  $('approval-queue-count').textContent=data.projects.length+' aguardando decisão';
+  const rows=data.projects.map(p=>{
+   const button=makeAction('Conferir',()=>showApproval(state.projects.find(x=>x.id===p.id)||p));
+   return [p.name,p.completion_note||'—',new Date(p.completion_requested_at).toLocaleString('pt-BR'),button];
+  });
+  renderTable('approval-queue-list',['Projeto','Observação','Solicitado em','Ação'],rows);
+ }catch(e){message(e.message,true)}
+}
 function renderProjects(){
  const overviewRows=state.projects.slice(0,6).map(p=>{
   const progress=p.total?Math.round(p.done/p.total*100):0;
@@ -57,7 +115,7 @@ function renderProjects(){
   const description=document.createElement('p');description.textContent=p.description||'Sem descrição';
   const tags=document.createElement('div');tags.className='project-card-tags';
   const percent=p.total?Math.round(p.done/p.total*100):0;
-  for(const label of [p.total+' tarefas',percent+'% concluído',p.paused_at?'Em pausa':'Ativo',p.access_mode==='restricted'?'Acesso restrito':'Equipe da organização']){
+  for(const label of [p.total+' tarefas',percent+'% concluído',(p.completion_status==='completed'?'Concluído':p.completion_status==='review'?'Aguardando validação':p.paused_at?'Em pausa':'Ativo'),p.access_mode==='restricted'?'Acesso restrito':'Equipe da organização']){
    const span=document.createElement('span');span.textContent=label;tags.append(span);
   }
   const progress=document.createElement('div');progress.className='project-card-progress';
@@ -66,6 +124,7 @@ function renderProjects(){
   const actions=document.createElement('div');actions.className='project-card-actions';
   const open=makeAction('Abrir projeto',()=>openProject(p));open.classList.add('project-card-open');
   actions.append(open);
+  actions.append(makeAction('Validar',()=>showApproval(p)));
   if(['admin','manager'].includes(state.role)){
    const edit=makeAction('Personalizar',()=>modal('project-edit',p));
    actions.append(edit);
@@ -611,6 +670,7 @@ $('dash-alerts').addEventListener('click',async()=>{
 
 async function refreshProjects(){
  const data=await api('/api/projects'+qs());state.projects=data.projects;state.role=data.role;renderProjects();
+ await refreshApprovalQueue();
  $('new-project').disabled=!['admin','manager'].includes(state.role);
  $('projects-invite').disabled=state.role!=='admin';
  const selector=$('dash-project'),selected=selector.value;selector.replaceChildren();
@@ -624,7 +684,9 @@ async function openProject(p){
  state.tasks=data.tasks;$('board-description').textContent=p.description||'Quadro de tarefas do projeto.';
  $('project-pause').disabled=!['admin','manager'].includes(state.role);
  $('project-pause').textContent=p.paused_at?'Retomar projeto':'Pausar projeto';
- $('project-pause-status').textContent=p.paused_at?'Pausado por pendência':'Projeto ativo';
+ $('project-pause-status').textContent=p.completion_status==='completed'?'Projeto concluído':p.completion_status==='review'?'Aguardando validação':p.paused_at?'Pausado por pendência':'Projeto ativo';
+ $('project-validation').onclick=()=>showApproval(p);
+ $('project-pause').disabled=p.completion_status!=='active'||!['admin','manager'].includes(state.role);
  renderTasks();show('board');
 }
 const taskFilterMatches=t=>{

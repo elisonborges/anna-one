@@ -3,10 +3,10 @@ const AUTH='https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech
 const state={jwt:null,org:null,role:null,projects:[],tasks:[],project:null,view:'overview',subject:null,auth:null,members:[],organizations:[]};
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const message=(s,error=false)=>{const el=$('status');el.textContent=s;el.style.background=error?'#fff0ef':'';el.style.color=error?'#a31931':''};
-const show=(view)=>{state.view=view;for(const id of ['overview','projects','board','mytasks','team'])$(id).hidden=id!==view;$('welcome-banner').hidden=view!=='overview';
+const show=(view)=>{state.view=view;for(const id of ['overview','projects','board','mytasks','team','reports'])$(id).hidden=id!==view;$('welcome-banner').hidden=view!=='overview';
 document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);b.setAttribute('aria-current',b.dataset.view===view?'page':'false')});
- $('title').textContent=view==='overview'?'Visão geral':view==='projects'?'Projetos':view==='board'?state.project?.name||'Quadro':view==='team'?'Equipe':'Minhas tarefas';
- $('subtitle').textContent=view==='overview'?'Acompanhe os projetos e as atividades da sua equipe.':view==='projects'?'Organize seus projetos e entregas.':view==='board'?'Acompanhe o trabalho por etapas.':view==='team'?'Pessoas autorizadas da organização.':'Atividades sob sua responsabilidade.';
+ $('title').textContent=view==='overview'?'Visão geral':view==='projects'?'Projetos':view==='board'?state.project?.name||'Quadro':view==='team'?'Equipe':view==='reports'?'Relatórios':'Minhas tarefas';
+ $('subtitle').textContent=view==='overview'?'Acompanhe os projetos e as atividades da sua equipe.':view==='projects'?'Organize seus projetos e entregas.':view==='board'?'Acompanhe o trabalho por etapas.':view==='team'?'Pessoas autorizadas da organização.':view==='reports'?'Histórico e tempo dedicado a pendências.':'Atividades sob sua responsabilidade.';
 };
 async function api(route,options={}){
  const res=await fetch(route,{...options,headers:{'Content-Type':'application/json','Authorization':'Bearer '+state.jwt,...(options.headers||{})},cache:'no-store'});
@@ -194,20 +194,87 @@ $('brand-form').addEventListener('submit',async e=>{
   renderBrand();message('Identidade da empresa atualizada.');
  }catch(error){message(error.message,true)}finally{button.disabled=false}
 });
-async function loadMyTasks(){
- const data=await api('/api/my-tasks'+qs());
- const rows=data.tasks.map(task=>{
-  const button=makeAction('Abrir',async()=>{try{
-   let project=state.projects.find(p=>p.id===task.project_id);
-   if(!project){await refreshProjects();project=state.projects.find(p=>p.id===task.project_id);}
-   if(!project)throw Error('Projeto indisponível.');
-   await openProject(project);
-  }catch(e){message(e.message,true)}});
-  return [task.title,task.project_name,({todo:'A fazer',doing:'Em andamento',done:'Concluído'})[task.status]||task.status,
-   task.due_at?new Date(task.due_at).toLocaleDateString('pt-BR',{timeZone:'UTC'}):'—',button];
- });
- renderTable('mine',['Tarefa','Projeto','Etapa','Prazo','Ação'],rows);
+const secondsLabel=n=>{let s=Math.max(0,Number(n)||0);const days=Math.floor(s/86400),hours=Math.floor(s%86400/3600),minutes=Math.floor(s%3600/60);return [days?days+'d':null,hours?hours+'h':null,minutes||(!days&&!hours)?minutes+'min':null].filter(Boolean).join(' ');};
+async function openTaskFromList(task){
+ let p=state.projects.find(p=>p.id===task.project_id);
+ if(!p){await refreshProjects();p=state.projects.find(x=>x.id===task.project_id);}
+ if(!p)throw Error('Projeto indisponível.');
+ await openProject(p);return state.tasks.find(t=>t.id===task.id);
 }
+async function taskAction(task,action){
+ if(action==='edit'){const current=await openTaskFromList(task);if(!current)throw Error('Tarefa não encontrada.');modal('edit',current);return;}
+ if(action==='delete'&&!confirm('Excluir esta tarefa das listas? O histórico será preservado.'))return;
+ const pause=action==='pause';
+ const reason=pause?prompt('Qual pendência justifica a pausa? (obrigatório)'):null;
+ if(pause&&(reason===null||reason.trim().length<3)){if(reason!==null)message('Informe um motivo com pelo menos 3 caracteres.',true);return;}
+ await api('/api/tasks/'+task.id+'/'+action+qs(),{method:'POST',body:JSON.stringify(pause?{reason:reason.trim()}:{})});
+ message(({pause:'Tarefa pausada.',resume:'Tarefa retomada.',archive:'Tarefa arquivada.',restore:'Tarefa restaurada.',delete:'Tarefa excluída das listas.'})[action]);
+ await loadMyTasks();await refreshProjects();
+}
+async function loadMyTasks(){
+ const includeArchived=$('show-archived').checked?'&archived=1':'';
+ const data=await api('/api/my-tasks'+qs()+includeArchived);
+ const rows=data.tasks.map(task=>{
+  const controls=document.createElement('div');controls.className='mytask-actions';
+  const actions=[['Abrir','open'],['Editar','edit'],[task.paused_at?'Retomar':'Pausar',task.paused_at?'resume':'pause'],[task.archived_at?'Restaurar':'Arquivar',task.archived_at?'restore':'archive'],['Excluir','delete']];
+  for(const [label,key] of actions){
+   const btn=makeAction(label,async()=>{
+    btn.disabled=true;try{if(key==='open')await openTaskFromList(task);else await taskAction(task,key);}catch(e){message(e.message,true)}finally{btn.disabled=false}
+   });
+   if(key==='delete'&&state.role!=='admin')btn.disabled=true;
+   if(!['admin','manager','member'].includes(state.role)&&key!=='open')btn.disabled=true;
+   controls.append(btn);
+  }
+  const stateLabel=task.archived_at?'Arquivada':task.paused_at?'Pausada':({todo:'A fazer',doing:'Em andamento',done:'Concluída'})[task.status]||task.status;
+  return [task.title,task.project_name,stateLabel,
+   task.due_at?new Date(task.due_at).toLocaleDateString('pt-BR',{timeZone:'UTC'}):'—',controls];
+ });
+ renderTable('mine',['Tarefa','Projeto','Situação','Prazo','Ações'],rows);
+}
+let reportSnapshot=null;
+async function loadReports(){
+ const data=await api('/api/reports'+qs());reportSnapshot=data;
+ const now=new Date(data.generated_at).getTime();
+ const rows=data.projects.map(p=>[
+  p.project_name,p.project_paused_at?'Em pausa':'Em andamento',
+  secondsLabel((now-new Date(p.project_created_at).getTime())/1000),
+  secondsLabel(p.project_pending_seconds),
+  p.project_pauses+' pausa(s)',p.done_tasks+'/'+p.total_tasks
+ ]);
+ renderTable('reports-projects',['Projeto','Situação','Tempo total','Em pendência','Pausas','Concluídas'],rows);
+ const pauses=data.pauses.map(p=>[
+  data.projects.find(x=>x.project_id===p.project_id)?.project_name||'Projeto',
+  p.task_id?'Tarefa':'Projeto',p.reason,
+  new Date(p.started_at).toLocaleString('pt-BR'),
+  p.ended_at?new Date(p.ended_at).toLocaleString('pt-BR'):'Em aberto',
+  secondsLabel(p.elapsed_seconds)
+ ]);
+ renderTable('reports-pauses',['Projeto','Tipo','Motivo','Início','Fim','Duração'],pauses);
+ $('reports-summary').textContent='Relatório gerado em '+new Date(data.generated_at).toLocaleString('pt-BR')+'. O tempo total continua correndo durante as pausas.';
+}
+function exportReport(){
+ if(!reportSnapshot)return;
+ const data=reportSnapshot;
+ const lines=[['Tipo','Projeto','Referência','Motivo ou situação','Início','Fim','Segundos em pendência','Pausas']];
+ for(const p of data.projects)lines.push(['Projeto',p.project_name,p.project_id,p.project_paused_at?'Em pausa':'Ativo',p.project_created_at,'',p.project_pending_seconds,p.project_pauses]);
+ for(const x of data.pauses)lines.push(['Pausa',data.projects.find(p=>p.project_id===x.project_id)?.project_name||'',x.task_id||x.project_id,x.reason,x.started_at,x.ended_at||'Em aberto',x.elapsed_seconds,'']);
+ const csv='\uFEFF'+lines.map(cols=>cols.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(';')).join('\r\n');
+ const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+ const link=document.createElement('a');link.href=url;link.download='nexus-relatorio-pendencias.csv';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+$('report-export').addEventListener('click',exportReport);
+$('show-archived').addEventListener('change',()=>loadMyTasks().catch(e=>message(e.message,true)));
+$('project-pause').addEventListener('click',async()=>{
+ if(!state.project)return;
+ const paused=!!state.project.paused_at;
+ const reason=paused?null:prompt('Motivo da pendência que exige pausar o projeto:');
+ if(!paused&&(reason===null||reason.trim().length<3)){if(reason!==null)message('Informe o motivo da pendência.',true);return;}
+ try{
+  await api('/api/projects/'+state.project.id+'/'+(paused?'resume':'pause')+qs(),{method:'POST',body:JSON.stringify(paused?{}:{reason:reason.trim()})});
+  await refreshProjects();const p=state.projects.find(x=>x.id===state.project.id);if(p)await openProject(p);
+  message(paused?'Projeto retomado.':'Projeto pausado. O tempo total e o tempo em pendência continuam contando.');
+ }catch(e){message(e.message,true)}
+});
 async function loadAttention(){
  $('attention-list').textContent='Carregando pendências…';
  try{
@@ -233,6 +300,9 @@ async function refreshProjects(){
 async function openProject(p){
  state.project=p;const data=await api('/api/projects/'+encodeURIComponent(p.id)+'/tasks'+qs());
  state.tasks=data.tasks;$('board-description').textContent=p.description||'Quadro de tarefas do projeto.';
+ $('project-pause').disabled=!['admin','manager'].includes(state.role);
+ $('project-pause').textContent=p.paused_at?'Retomar projeto':'Pausar projeto';
+ $('project-pause-status').textContent=p.paused_at?'Pausado por pendência':'Projeto ativo';
  renderTasks();show('board');
 }
 function renderTasks(){
@@ -352,7 +422,7 @@ async function boot(){
   $('signin-password').value='';await boot();
  }catch(error){message('Não foi possível entrar. Confira seus dados no Portal AnnA One e tente novamente.',true)}finally{button.disabled=false}
 });
-document.querySelectorAll('[data-view]').forEach(x=>x.addEventListener('click',async()=>{if(!state.org)return;try{if(x.dataset.view==='projects'||x.dataset.view==='overview')await refreshProjects();if(x.dataset.view==='mytasks')await loadMyTasks();if(x.dataset.view==='team'){await loadMembers();await loadInvitations()}show(x.dataset.view)}catch(e){message(e.message,true)}}));
+document.querySelectorAll('[data-view]').forEach(x=>x.addEventListener('click',async()=>{if(!state.org)return;try{if(x.dataset.view==='projects'||x.dataset.view==='overview')await refreshProjects();if(x.dataset.view==='mytasks')await loadMyTasks();if(x.dataset.view==='team'){await loadMembers();await loadInvitations()}if(x.dataset.view==='reports')await loadReports();show(x.dataset.view)}catch(e){message(e.message,true)}}));
 $('invite-form').addEventListener('submit',async e=>{
  e.preventDefault();const button=$('invite-create');button.disabled=true;
  const email=$('invite-email').value.trim().toLowerCase(),role=$('invite-role').value;

@@ -42,16 +42,20 @@ function makeAction(label,handler){
  button.addEventListener('click',handler);return button;
 }
 function renderProjects(){
- const rows=state.projects.map(p=>{
+ const overviewRows=state.projects.slice(0,6).map(p=>{
+  const progress=p.total?Math.round(p.done/p.total*100):0;
+  return [p.name,p.description||'—',String(p.total),progress+'%'];
+ });
+ const projectRows=state.projects.map(p=>{
   const progress=p.total?Math.round(p.done/p.total*100):0;
   const cell=document.createElement('div');cell.className='project-entry';
-  const name=makeAction(p.name,()=>openProject(p));name.classList.add('project-name-link');
+  const name=document.createElement('strong');name.className='project-name';name.textContent=p.name;
   const open=makeAction('Abrir',()=>openProject(p));open.classList.add('project-open-button');
   cell.append(name,open);
   return [cell,p.description||'—',String(p.total),progress+'%'];
  });
- renderTable('projects-list',['Projeto / abrir','Descrição','Tarefas','Progresso'],rows);
- renderTable('overview-projects',['Projeto / abrir','Descrição','Tarefas','Progresso'],rows.slice(0,6));
+ renderTable('overview-projects',['Projeto','Descrição','Tarefas','Progresso'],overviewRows);
+ renderTable('projects-list',['Projeto / abrir','Descrição','Tarefas','Progresso'],projectRows);
  $('stat-projects').textContent=state.projects.length;
 }
 function memberName(subject){

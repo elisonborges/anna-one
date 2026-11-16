@@ -24,3 +24,10 @@ Node 20+.
 
 ## Limites da v0.1
 Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações do Portal AnnA One. O acesso pelo mesmo login exige validação do compartilhamento de sessão no endereço escolhido.
+
+## Pendência futura — domínio AnnA Nexus via Cloudflare (16/11/2026)
+- Endereço desejado: `https://nexus.annaone.com.br`.
+- Render (workspace AnnA One) atingiu o limite do plano de **2/2 domínios personalizados**. Não remover nenhum domínio existente sem avaliar dependências.
+- Manter por enquanto o endereço de desenvolvimento `https://anna-nexus-dev.onrender.com`.
+- **Investigar futuramente** a possibilidade de utilizar Cloudflare (DNS, Worker, proxy ou outra configuração compatível) para servir `nexus.annaone.com.br` com segurança e sem custos adicionais, verificando viabilidade técnica, autenticação, SSL/TLS, limites e dependências.
+- Não alterar DNS, Cloudflare, Render nem serviços de produção apenas com base nesta anotação; eventual implantação depende de verificação e aprovação.

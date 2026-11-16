@@ -76,7 +76,7 @@ async function syncAssignees(org,task,subjects){
  ON CONFLICT DO NOTHING`;
 }
 async function project(org,id){
- const rows=await sql`SELECT id,name,description,created_at FROM teamhub.projects WHERE organization_id=${org} AND id=${id} AND archived_at IS NULL`;
+ const rows=await sql`SELECT id,name,description,created_at,paused_at FROM teamhub.projects WHERE organization_id=${org} AND id=${id} AND archived_at IS NULL`;
  if(!rows.length)bad('Projeto indisponível.',404);return rows[0];
 }
 const route=async(req,res)=>{
@@ -203,11 +203,11 @@ const route=async(req,res)=>{
   return reply(res,200,{members,viewer:subject,role});
  }
  if(p==='/api/my-tasks'&&req.method==='GET'){
-  const tasks=await sql`SELECT t.id,t.title,t.status,t.priority,t.due_at,t.project_id,p.name AS project_name FROM teamhub.tasks t JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id WHERE t.organization_id=${org} AND (t.assignee_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.task_assignees a WHERE a.task_id=t.id AND a.organization_id=t.organization_id AND a.auth_subject=${subject})) AND p.archived_at IS NULL ORDER BY (t.status='done'),t.due_at NULLS LAST,t.created_at DESC LIMIT 200`;
+  const tasks=await sql`SELECT t.id,t.title,t.status,t.priority,t.due_at,t.project_id,p.name AS project_name,t.paused_at,t.created_at,t.treatment_status FROM teamhub.tasks t JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id WHERE t.organization_id=${org} AND t.deleted_at IS NULL AND t.archived_at IS NULL AND (t.assignee_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.task_assignees a WHERE a.task_id=t.id AND a.organization_id=t.organization_id AND a.auth_subject=${subject})) AND p.archived_at IS NULL ORDER BY (t.status='done'),t.due_at NULLS LAST,t.created_at DESC LIMIT 200`;
   return reply(res,200,{tasks});
  }
  if(p==='/api/projects'&&req.method==='GET'){
-  const projects=await sql`SELECT p.id,p.name,p.description,p.created_at, COUNT(t.id)::int AS total, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id WHERE p.organization_id=${org} AND p.archived_at IS NULL GROUP BY p.id ORDER BY p.created_at DESC`;
+  const projects=await sql`SELECT p.id,p.name,p.description,p.created_at,p.paused_at, COUNT(t.id)::int AS total, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id AND t.deleted_at IS NULL AND t.archived_at IS NULL WHERE p.organization_id=${org} AND p.archived_at IS NULL GROUP BY p.id ORDER BY p.created_at DESC`;
   return reply(res,200,{projects,role});
  }
  if(p==='/api/dashboard'&&req.method==='GET'){
@@ -215,7 +215,7 @@ const route=async(req,res)=>{
   return reply(res,200,{summary:rows[0]});
  }
  if(p==='/api/attention'&&req.method==='GET'){
-  const items=await sql`SELECT t.id,t.project_id,p.name AS project_name,t.title,t.treatment_status,t.pending_reason,t.next_action,t.due_at FROM teamhub.tasks t JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id WHERE t.organization_id=${org} AND p.archived_at IS NULL AND t.status!='done' AND t.treatment_status IN ('blocked','waiting') ORDER BY CASE WHEN t.treatment_status='blocked' THEN 0 ELSE 1 END,t.due_at NULLS LAST,t.updated_at DESC LIMIT 50`;
+  const items=await sql`SELECT t.id,t.project_id,p.name AS project_name,t.title,t.treatment_status,t.pending_reason,t.next_action,t.due_at FROM teamhub.tasks t JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id WHERE t.organization_id=${org} AND t.archived_at IS NULL AND t.deleted_at IS NULL AND p.archived_at IS NULL AND t.status!='done' AND t.treatment_status IN ('blocked','waiting') ORDER BY CASE WHEN t.treatment_status='blocked' THEN 0 ELSE 1 END,t.due_at NULLS LAST,t.updated_at DESC LIMIT 50`;
   return reply(res,200,{items});
  }
  if(p==='/api/projects'&&req.method==='POST'){
@@ -224,11 +224,72 @@ const route=async(req,res)=>{
   await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id) VALUES(${org},${subject},'project.created',${rows[0].id})`;
   return reply(res,201,{project:rows[0]});
  }
+ const pp=/^\/api\/projects\/([0-9a-f-]+)\/(pause|resume)$/.exec(p);
+ if(pp&&validId(pp[1])&&req.method==='POST'){
+  requireManager(role);const proj=await project(org,pp[1]);
+  if(pp[2]==='pause'){
+   if(proj.paused_at)bad('Projeto já está pausado.');
+   const b=await json(req),reason=safeNote(b.reason);
+   if(reason.length<3)bad('Informe o motivo da pendência (mínimo 3 caracteres).');
+   const result=await sql`UPDATE teamhub.projects SET paused_at=now() WHERE id=${proj.id} AND organization_id=${org} AND paused_at IS NULL RETURNING paused_at`;
+   if(!result.length)bad('Projeto já está pausado.',409);
+   await sql`INSERT INTO teamhub.pause_periods(organization_id,project_id,reason,started_by_subject) VALUES(${org},${proj.id},${reason},${subject})`;
+  }else{
+   if(!proj.paused_at)bad('Projeto não está pausado.');
+   await sql`UPDATE teamhub.projects SET paused_at=NULL WHERE id=${proj.id} AND organization_id=${org}`;
+   await sql`UPDATE teamhub.pause_periods SET ended_at=now(),ended_by_subject=${subject} WHERE project_id=${proj.id} AND organization_id=${org} AND task_id IS NULL AND ended_at IS NULL`;
+  }
+  await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id) VALUES(${org},${subject},${pp[2]==='pause'?'project.paused':'project.resumed'},${proj.id})`;
+  return reply(res,200,{ok:true});
+ }
+ const lifecycle=/^\/api\/tasks\/([0-9a-f-]+)\/(pause|resume|archive|restore|delete)$/.exec(p);
+ if(lifecycle&&validId(lifecycle[1])&&req.method==='POST'){
+  requireEditor(role);
+  const [task]=await sql`SELECT id,project_id,title,paused_at,archived_at,deleted_at FROM teamhub.tasks WHERE id=${lifecycle[1]} AND organization_id=${org}`;
+  if(!task||task.deleted_at)bad('Tarefa não encontrada.',404);
+  const act=lifecycle[2];
+  if(act==='pause'){
+   if(task.paused_at||task.archived_at)bad('A tarefa não pode ser pausada nesse estado.');
+   const b=await json(req),reason=safeNote(b.reason);
+   if(reason.length<3)bad('Informe o motivo da pendência (mínimo 3 caracteres).');
+   const result=await sql`UPDATE teamhub.tasks SET paused_at=now(),treatment_status='blocked',pending_reason=${reason},updated_at=now() WHERE id=${task.id} AND organization_id=${org} AND paused_at IS NULL AND archived_at IS NULL RETURNING id`;
+   if(!result.length)bad('Tarefa já pausada.',409);
+   await sql`INSERT INTO teamhub.pause_periods(organization_id,project_id,task_id,reason,started_by_subject) VALUES(${org},${task.project_id},${task.id},${reason},${subject})`;
+  }else if(act==='resume'){
+   if(!task.paused_at)bad('Tarefa não está pausada.');
+   await sql`UPDATE teamhub.tasks SET paused_at=NULL,treatment_status='executing',updated_at=now() WHERE id=${task.id} AND organization_id=${org}`;
+   await sql`UPDATE teamhub.pause_periods SET ended_at=now(),ended_by_subject=${subject} WHERE organization_id=${org} AND task_id=${task.id} AND ended_at IS NULL`;
+  }else{
+   if(act==='delete'&&role!=='admin')bad('Apenas administradores podem excluir tarefas.',403);
+   const nowArchived=act==='archive'||act==='delete';
+   if(task.paused_at&&nowArchived){
+    await sql`UPDATE teamhub.pause_periods SET ended_at=now(),ended_by_subject=${subject} WHERE organization_id=${org} AND task_id=${task.id} AND ended_at IS NULL`;
+   }
+   if(act==='archive')await sql`UPDATE teamhub.tasks SET archived_at=now(),paused_at=NULL,updated_at=now() WHERE id=${task.id} AND organization_id=${org}`;
+   if(act==='restore')await sql`UPDATE teamhub.tasks SET archived_at=NULL,updated_at=now() WHERE id=${task.id} AND organization_id=${org}`;
+   if(act==='delete')await sql`UPDATE teamhub.tasks SET deleted_at=now(),paused_at=NULL,updated_at=now() WHERE id=${task.id} AND organization_id=${org}`;
+  }
+  await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id,task_id) VALUES(${org},${subject},${'task.'+act},${task.project_id},${task.id})`;
+  await sql`INSERT INTO teamhub.task_updates(organization_id,actor_subject,task_id,event_type,summary) VALUES(${org},${subject},${task.id},'progress',${'Ação: '+act})`;
+  return reply(res,200,{ok:true});
+ }
+ if(p==='/api/reports'&&req.method==='GET'){
+  const rows=await sql`SELECT pr.id AS project_id,pr.name AS project_name,pr.created_at AS project_created_at,pr.paused_at AS project_paused_at,
+    (SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(x.ended_at,now())-x.started_at))),0)::bigint FROM teamhub.pause_periods x WHERE x.organization_id=${org} AND x.project_id=pr.id AND x.task_id IS NULL) AS project_pending_seconds,
+    (SELECT count(*)::int FROM teamhub.pause_periods x WHERE x.organization_id=${org} AND x.project_id=pr.id AND x.task_id IS NULL) AS project_pauses,
+    (SELECT count(*)::int FROM teamhub.tasks t WHERE t.organization_id=${org} AND t.project_id=pr.id AND t.deleted_at IS NULL) AS total_tasks,
+    (SELECT count(*)::int FROM teamhub.tasks t WHERE t.organization_id=${org} AND t.project_id=pr.id AND t.status='done' AND t.deleted_at IS NULL) AS done_tasks
+   FROM teamhub.projects pr WHERE pr.organization_id=${org} ORDER BY pr.created_at DESC`;
+  const pauses=await sql`SELECT x.project_id,x.task_id,x.reason,x.started_at,x.ended_at,x.started_by_subject,
+    ROUND(EXTRACT(EPOCH FROM(COALESCE(x.ended_at,now())-x.started_at)))::bigint AS elapsed_seconds
+   FROM teamhub.pause_periods x WHERE x.organization_id=${org} ORDER BY x.started_at DESC LIMIT 1000`;
+  return reply(res,200,{projects:rows,pauses,generated_at:new Date().toISOString()});
+ }
  const pm=/^\/api\/projects\/([0-9a-f-]+)\/tasks$/.exec(p);
  if(pm&&validId(pm[1])){
   const proj=await project(org,pm[1]);
   if(req.method==='GET'){
-   const tasks=await sql`SELECT t.id,t.title,t.description,t.status,t.priority,t.assignee_subject,t.due_at,t.position,t.created_at,t.treatment_status,t.treatment_notes,t.pending_reason,t.next_action,COALESCE((SELECT jsonb_agg(a.auth_subject ORDER BY a.auth_subject) FROM teamhub.task_assignees a WHERE a.task_id=t.id AND a.organization_id=t.organization_id),'[]'::jsonb) AS assignees FROM teamhub.tasks t WHERE t.organization_id=${org} AND t.project_id=${proj.id} ORDER BY t.position,t.created_at`;
+   const tasks=await sql`SELECT t.id,t.title,t.description,t.status,t.priority,t.assignee_subject,t.due_at,t.position,t.created_at,t.treatment_status,t.treatment_notes,t.pending_reason,t.next_action,t.paused_at,t.archived_at,t.deleted_at,COALESCE((SELECT jsonb_agg(a.auth_subject ORDER BY a.auth_subject) FROM teamhub.task_assignees a WHERE a.task_id=t.id AND a.organization_id=t.organization_id),'[]'::jsonb) AS assignees FROM teamhub.tasks t WHERE t.organization_id=${org} AND t.project_id=${proj.id} AND t.deleted_at IS NULL AND t.archived_at IS NULL ORDER BY t.position,t.created_at`;
    return reply(res,200,{project:proj,tasks,role});
   }
   if(req.method==='POST'){

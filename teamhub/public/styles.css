@@ -328,3 +328,31 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
 /* v0.1.12: link compacto no nome do projeto recente */
 #overview-projects .nexus-table .recent-project-link{background:transparent;border:0;color:var(--accent);font-weight:800;padding:4px 1px;text-align:left;text-decoration:underline;text-underline-offset:3px;white-space:normal;min-height:34px;max-width:none}
 #overview-projects .nexus-table .recent-project-link:hover{background:transparent;text-decoration:underline;color:var(--accent)}
+
+/* v0.1.13 — minhas tarefas, pausas de pendência, relatórios */
+.mytask-actions{display:flex;align-items:center;flex-wrap:wrap;gap:5px;min-width:360px}
+.mytask-actions .table-action{min-width:66px;min-height:38px;padding:6px 10px}
+.mytask-actions .table-action:last-child{color:#ae3541}
+#mine .nexus-table td:last-child{width:auto;min-width:360px}
+#mine .nexus-table td .table-action{width:auto}
+.toggle-archived{display:inline-flex;align-items:center;gap:7px;font-size:12px;white-space:nowrap;margin:0}
+.toggle-archived input{accent-color:var(--accent);width:17px;height:17px}
+.project-toolbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+#project-pause-status{font-size:12px;color:var(--muted);font-weight:800}
+#reports{display:grid;gap:13px}
+#reports .panel{padding:16px}
+#reports .panel h2{font-size:18px}
+#reports .section-head{margin-bottom:10px}
+.report-summary{font-size:12px;color:var(--muted);margin-bottom:10px}
+#reports-pauses .nexus-table td:nth-child(3){min-width:180px;max-width:310px;white-space:normal}
+#reports .nexus-table th:last-child,#reports .nexus-table td:last-child{min-width:86px}
+#report-export{white-space:nowrap}
+.bottom:has(button:nth-child(5)){grid-template-columns:repeat(5,minmax(0,1fr))}
+@media(max-width:850px){
+ .mytask-actions{min-width:320px}
+ .project-toolbar{gap:6px}
+ .project-toolbar button{padding:8px;font-size:12px;min-height:42px}
+ .bottom button{font-size:19px}
+ .bottom button span{font-size:10px}
+ #reports .section-head{align-items:start;flex-wrap:wrap}
+}

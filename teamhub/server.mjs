@@ -49,6 +49,7 @@ async function user(req){
   const {payload}=await jwtVerify(token,jwks,{issuer:process.env.AUTH_ISSUER,algorithms:['EdDSA']});
   if(typeof payload.sub!=='string'||!payload.sub)bad('Identidade inválida',401);
   req.identityEmail=typeof payload.email==='string'?payload.email.trim().toLowerCase():null;
+  req.identityEmailVerified=payload.email_verified===true;
   return payload.sub;
  }catch(e){if(e.status)throw e;console.warn('Nexus auth verification failed:',String(e?.code||e?.name||'unknown'));bad('Sessão inválida ou expirada.',401);}
 }
@@ -120,6 +121,54 @@ async function verifyProjectRecipients(org,projectId,subjects){
 async function project(org,id){
  const rows=await sql`SELECT id,name,description,created_at,paused_at,card_color,owner_subject,access_mode,completion_status,completed_at FROM teamhub.projects WHERE organization_id=${org} AND id=${id} AND archived_at IS NULL`;
  if(!rows.length)bad('Projeto indisponível.',404);return rows[0];
+}
+function emailTransportConfigured(){
+ return process.env.NEXUS_EMAIL_ENABLED==='true'&&
+  typeof process.env.RESEND_API_KEY==='string'&&process.env.RESEND_API_KEY.startsWith('re_')&&
+  typeof process.env.NEXUS_EMAIL_FROM==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(process.env.NEXUS_EMAIL_FROM);
+}
+let emailWorkerBusy=false;
+async function processEmailOutbox(){
+ if(emailWorkerBusy||!emailTransportConfigured())return;
+ emailWorkerBusy=true;
+ try{
+  const pending=await sql`SELECT n.id,n.organization_id,n.recipient_subject,c.email
+   FROM teamhub.notifications n
+   JOIN teamhub.notification_preferences pref ON pref.organization_id=n.organization_id AND pref.auth_subject=n.recipient_subject AND pref.email_enabled=true
+   JOIN teamhub.notification_email_contacts c ON c.organization_id=n.organization_id AND c.auth_subject=n.recipient_subject
+   JOIN teamhub.memberships m ON m.organization_id=n.organization_id AND m.auth_subject=n.recipient_subject AND m.active=true
+   LEFT JOIN teamhub.projects p ON p.id=n.project_id AND p.organization_id=n.organization_id
+   WHERE n.read_at IS NULL AND n.created_at>=pref.updated_at AND n.created_at>now()-interval '7 days'
+    AND (n.project_id IS NULL OR p.access_mode='organization' OR m.role IN ('admin','manager') OR p.owner_subject=n.recipient_subject
+      OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=n.organization_id AND pm.project_id=n.project_id AND pm.auth_subject=n.recipient_subject))
+    AND NOT EXISTS(SELECT 1 FROM teamhub.email_delivery_log e WHERE e.notification_id=n.id)
+   ORDER BY n.created_at ASC LIMIT 15`;
+  for(const n of pending){
+   const claim=await sql`INSERT INTO teamhub.email_delivery_log(notification_id,organization_id,recipient_subject,recipient_email,status,error_message)
+    VALUES(${n.id},${n.organization_id},${n.recipient_subject},${n.email},'failed','processing')
+    ON CONFLICT(notification_id) DO NOTHING RETURNING id`;
+   if(!claim.length)continue;
+   try{
+    const response=await fetch('https://api.resend.com/emails',{
+     method:'POST',
+     headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json','Idempotency-Key':'nexus-'+n.id},
+     body:JSON.stringify({from:process.env.NEXUS_EMAIL_FROM,to:[n.email],
+      subject:'Você tem um novo aviso no AnnA Nexus',
+      text:'Uma nova notificação está disponível na sua conta AnnA Nexus. Acesse https://anna-nexus-dev.onrender.com para consultar. Nenhum detalhe confidencial é enviado por e-mail.'}),
+     signal:AbortSignal.timeout(10000)
+    });
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok)throw Error('Resend HTTP '+response.status);
+    await sql`UPDATE teamhub.email_delivery_log SET status='sent',provider_message_id=${String(result.id||'').slice(0,128)},error_message=''
+     WHERE id=${claim[0].id}`;
+   }catch(error){
+    await sql`UPDATE teamhub.email_delivery_log SET status='failed',error_message=${String(error?.message||'Provider error').slice(0,160)}
+     WHERE id=${claim[0].id}`;
+    console.warn('Nexus email attempt failed; see delivery log for audit.');
+   }
+  }
+ }catch(error){console.warn('Nexus email outbox unavailable:',String(error?.message||'Unknown').slice(0,140))}
+ finally{emailWorkerBusy=false;}
 }
 async function createDeadlineNotifications(org,subject){
   const rows=await sql`WITH candidates AS(
@@ -387,24 +436,34 @@ const route=async(req,res)=>{
   const rows=await sql`SELECT assignments,mentions,deadlines,approvals,email_enabled
    FROM teamhub.notification_preferences WHERE organization_id=${org} AND auth_subject=${subject}`;
   return reply(res,200,{preferences:rows[0]||{assignments:true,mentions:true,deadlines:true,approvals:true,email_enabled:false},
-   email_available:false,delivery:'internal'});
+   email_available:emailTransportConfigured(),can_enable_email:emailTransportConfigured()&&req.identityEmailVerified&&!!req.identityEmail,
+   delivery:emailTransportConfigured()?'internal_and_opt_in_email':'internal'});
  }
  if(p==='/api/notification-preferences'&&req.method==='PATCH'){
   const b=await json(req);
-  if(Object.keys(b).some(k=>!['assignments','mentions','deadlines','approvals'].includes(k)))bad('Preferência inválida.');
+  if(Object.keys(b).some(k=>!['assignments','mentions','deadlines','approvals','email_enabled'].includes(k)))bad('Preferência inválida.');
+  if(b.email_enabled===true&&(!emailTransportConfigured()||!req.identityEmailVerified||!req.identityEmail))bad('E-mail indisponível: requer provedor configurado e endereço verificado pela autenticação.',409);
   if(!Object.keys(b).length||Object.values(b).some(x=>typeof x!=='boolean'))bad('Informe opções válidas.');
-  const prev=await sql`SELECT assignments,mentions,deadlines,approvals FROM teamhub.notification_preferences
+  const prev=await sql`SELECT assignments,mentions,deadlines,approvals,email_enabled FROM teamhub.notification_preferences
    WHERE organization_id=${org} AND auth_subject=${subject}`;
-  const old=prev[0]||{assignments:true,mentions:true,deadlines:true,approvals:true};
+  const old=prev[0]||{assignments:true,mentions:true,deadlines:true,approvals:true,email_enabled:false};
   const values={...old,...b};
   const rows=await sql`INSERT INTO teamhub.notification_preferences
     (organization_id,auth_subject,assignments,mentions,deadlines,approvals,email_enabled)
-    VALUES(${org},${subject},${values.assignments},${values.mentions},${values.deadlines},${values.approvals},false)
+    VALUES(${org},${subject},${values.assignments},${values.mentions},${values.deadlines},${values.approvals},${values.email_enabled})
     ON CONFLICT(organization_id,auth_subject) DO UPDATE SET
     assignments=excluded.assignments,mentions=excluded.mentions,deadlines=excluded.deadlines,
-    approvals=excluded.approvals,updated_at=now()
+    approvals=excluded.approvals,email_enabled=excluded.email_enabled,updated_at=now()
     RETURNING assignments,mentions,deadlines,approvals,email_enabled`;
-  return reply(res,200,{preferences:rows[0],email_available:false});
+  if(values.email_enabled){
+   await sql`INSERT INTO teamhub.notification_email_contacts(organization_id,auth_subject,email,verified_at)
+    VALUES(${org},${subject},${req.identityEmail},now())
+    ON CONFLICT(organization_id,auth_subject) DO UPDATE
+     SET email=excluded.email,verified_at=now(),updated_at=now()`;
+  }else{
+   await sql`DELETE FROM teamhub.notification_email_contacts WHERE organization_id=${org} AND auth_subject=${subject}`;
+  }
+  return reply(res,200,{preferences:rows[0],email_available:emailTransportConfigured()});
  }
  if(p==='/api/notifications'&&req.method==='GET'){
   const rows=await sql`SELECT id,event_type,title,details,project_id,task_id,read_at,created_at
@@ -474,6 +533,14 @@ const route=async(req,res)=>{
   const result=await createDeadlineNotifications(org,subject);
   await logManualDeadlineRun(org,result);
   return reply(res,200,{...result,delivery:'internal',checked_at:new Date().toISOString()});
+ }
+ if(p==='/api/automation/email-deliveries'&&req.method==='GET'){
+  requireManager(role);
+  const rows=await sql`SELECT attempted_at,status,error_message,provider_message_id
+   FROM teamhub.email_delivery_log WHERE organization_id=${org} ORDER BY attempted_at DESC LIMIT 100`;
+  const totals=await sql`SELECT status,count(*)::int AS total FROM teamhub.email_delivery_log
+   WHERE organization_id=${org} GROUP BY status`;
+  return reply(res,200,{configured:emailTransportConfigured(),deliveries:rows,totals});
  }
  if(p==='/api/automation/runs'&&req.method==='GET'){
   requireManager(role);
@@ -994,4 +1061,6 @@ http.createServer((req,res)=>Promise.resolve(route(req,res)).catch(e=>reply(res,
  // No plano Free, o Render pode suspender o processo: esta rotina é best-effort.
  setTimeout(()=>runScheduledDeadlines().catch(()=>{}),25000).unref();
  setInterval(()=>runScheduledDeadlines().catch(()=>{}),15*60*1000).unref();
+ setTimeout(()=>processEmailOutbox().catch(()=>{}),40000).unref();
+ setInterval(()=>processEmailOutbox().catch(()=>{}),10*60*1000).unref();
 });

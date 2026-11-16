@@ -152,3 +152,9 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - **v0.1.21:** modelos opcionais ao criar projeto: Vazio, Planejamento, Desenvolvimento, Atendimento e suporte, Projeto educacional. Criação do projeto e das tarefas iniciais em única instrução SQL transacional, sem duplicar tarefas existentes.
 - Não houve alteração no portal principal nem habilitação de e-mails automáticos. Anexos e automações externas seguem pendentes.
 - Todos os fluxos precisam de homologação com contas reais antes do uso em produção.
+
+## v0.1.22 — Filtros de prazos e calendário consolidado
+- Kanban: filtros por prazo (Atrasadas, Próximos 7 dias, Sem prazo) combináveis com prioridade, tratamento, etiquetas e busca.
+- Tarefas atrasadas e ainda não concluídas são destacadas no quadro.
+- Menu móvel adaptado para seis áreas (Início, Projetos, Tarefas, Agenda, Relatórios, Equipe).
+- Conclui o pacote v0.1.19–v0.1.22 sem alterar produção nem realizar envio de e-mail ou armazenamento de anexos.

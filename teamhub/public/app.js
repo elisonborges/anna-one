@@ -57,6 +57,42 @@ async function loadMembers(){
   info.append(label,role);item.append(avatar,info);list.append(item);
  }
 }
+async function loadInvitations(){
+ const admin=state.role==='admin';
+ $('invite-admin').hidden=!admin;$('invite-history-panel').hidden=!admin;
+ if(!admin)return;
+ const box=$('invite-list');box.textContent='Carregando convites…';
+ try{
+  const data=await api('/api/invitations'+qs());box.replaceChildren();
+  if(!data.invitations.length){box.textContent='Nenhum convite criado.';return;}
+  for(const invite of data.invitations){
+   const row=document.createElement('div');row.className='invite-row';
+   const info=document.createElement('div');
+   const name=document.createElement('strong');name.textContent=invite.email;
+   const status=document.createElement('small');
+   const expired=invite.status==='pending'&&Date.parse(invite.expires_at)<=Date.now();
+   const label=invite.status==='accepted'?'Aceito':invite.status==='cancelled'?'Cancelado':expired?'Expirado':'Pendente';
+   const role=({admin:'Administrador',manager:'Gestor',member:'Membro',guest:'Convidado'})[invite.role]||invite.role;
+   status.textContent=role+' · '+label+' · Validade: '+new Date(invite.expires_at).toLocaleDateString('pt-BR');
+   info.append(name,status);row.append(info);
+   if(invite.status==='pending'){
+    const cancel=document.createElement('button');cancel.className='secondary';cancel.type='button';cancel.textContent='Cancelar';
+    cancel.onclick=async()=>{if(!confirm('Cancelar este convite?'))return;cancel.disabled=true;try{await api('/api/invitations/'+invite.id+'/cancel'+qs(),{method:'POST'});message('Convite cancelado.');await loadInvitations()}catch(e){message(e.message,true);cancel.disabled=false}};
+    row.append(cancel);
+   }
+   box.append(row);
+  }
+ }catch(e){box.textContent='Erro ao consultar convites: '+e.message;}
+}
+async function redeemInvitation(){
+ const match=/^#invite=([a-f0-9]{64})$/i.exec(window.location.hash);
+ if(!match)return false;
+ const token=match[1].toLowerCase();
+ await api('/api/invitations/accept',{method:'POST',body:JSON.stringify({token})});
+ history.replaceState(null,'',location.pathname);
+ message('Convite aceito! Bem-vindo à organização.');
+ return true;
+}
 async function loadMyTasks(){
  const data=await api('/api/my-tasks'+qs());
  const list=$('mine');list.replaceChildren();
@@ -202,6 +238,15 @@ async function boot(){
   }
   if(typeof token!=='string'||token.split('.').length!==3)throw Error('Não foi possível obter token de acesso validável. Confira a configuração central de identidade.');
   state.jwt=token;
+  if(window.location.hash.startsWith('#invite=')){
+   try{await redeemInvitation()}
+   catch(e){
+    message(e.message,true);
+    $('signin').hidden=false;
+    $('app').hidden=true;
+    return;
+   }
+  }
   const me=await api('/api/me');if(!me.organizations.length){message('Login reconhecido, mas sua conta ainda não possui acesso ao Nexus.',true);return;}
   const select=$('org');select.replaceChildren(...me.organizations.map(o=>{const opt=document.createElement('option');opt.value=o.id;opt.textContent=o.name;return opt}));
   state.org=me.organizations[0].id;
@@ -217,7 +262,24 @@ async function boot(){
   $('signin-password').value='';await boot();
  }catch(error){message('Não foi possível entrar. Confira seus dados no Portal AnnA One e tente novamente.',true)}finally{button.disabled=false}
 });
-document.querySelectorAll('[data-view]').forEach(x=>x.addEventListener('click',async()=>{if(!state.org)return;try{if(x.dataset.view==='projects'||x.dataset.view==='overview')await refreshProjects();if(x.dataset.view==='mytasks')await loadMyTasks();if(x.dataset.view==='team')await loadMembers();show(x.dataset.view)}catch(e){message(e.message,true)}}));
+document.querySelectorAll('[data-view]').forEach(x=>x.addEventListener('click',async()=>{if(!state.org)return;try{if(x.dataset.view==='projects'||x.dataset.view==='overview')await refreshProjects();if(x.dataset.view==='mytasks')await loadMyTasks();if(x.dataset.view==='team'){await loadMembers();await loadInvitations()}show(x.dataset.view)}catch(e){message(e.message,true)}}));
+$('invite-form').addEventListener('submit',async e=>{
+ e.preventDefault();const button=$('invite-create');button.disabled=true;
+ const email=$('invite-email').value.trim().toLowerCase(),role=$('invite-role').value;
+ try{
+  const data=await api('/api/invitations'+qs(),{method:'POST',body:JSON.stringify({email,role})});
+  $('invite-link').value=data.invite_url;
+  $('invite-result').hidden=false;
+  $('invite-mail').href='mailto:'+encodeURIComponent(email)+'?subject='+encodeURIComponent('Convite para AnnA Nexus')+'&body='+encodeURIComponent('Você foi convidado para colaborar na AnnA Nexus. Entre com sua conta do Portal AnnA One usando o mesmo e-mail e acesse o convite válido por 7 dias:\n\n'+data.invite_url+'\n\nO acesso será liberado após aceitar o convite.');
+  $('invite-email').value='';
+  message('Convite gerado. Compartilhe o link com o destinatário.');
+  await loadInvitations();
+ }catch(e){message(e.message,true)}finally{button.disabled=false}
+});
+$('invite-copy').addEventListener('click',async()=>{
+ try{await navigator.clipboard.writeText($('invite-link').value);message('Link copiado. Compartilhe somente com o destinatário.')}
+ catch{ $('invite-link').focus();$('invite-link').select();message('Selecione e copie o link apresentado.');}
+});
 $('back-projects').onclick=async()=>{await refreshProjects();show('projects')};
 $('new-project').onclick=()=>modal('project');
 $('new-task').onclick=()=>modal('task');

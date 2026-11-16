@@ -126,3 +126,7 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
  .member-row{padding:12px}
  .bottom button{min-width:0}
 }
+
+/* Versão visível no topo, inclusive em celulares. */
+.version-tag{display:inline-flex;align-items:center;justify-content:center;min-width:54px;padding:6px 8px;border-radius:8px;border:1px solid #ffffff55;color:#d4edff;background:#ffffff12;font-weight:800;font-size:11px;letter-spacing:.02em;white-space:nowrap}
+@media(max-width:410px){.version-tag{min-width:0;padding:5px 6px;font-size:10px}.top-actions{gap:5px}}

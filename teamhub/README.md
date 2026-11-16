@@ -110,3 +110,13 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - "Mostrar arquivadas" habilita restauração em Minhas tarefas.
 - Relatórios permitem ver projetos, tarefas, pausas e exportar CSV; relatórios calculados na leitura, sem cronômetro local.
 - Notificações automáticas por e-mail não estão habilitadas. Priorizar preferências de envio, templates e domínio autenticado antes de integrar Resend.
+
+## v0.1.14–v0.1.15 — Cards de projetos e subtarefas
+- Guia de referência: https://trello.com/guide — quadros, cartões, membros, vistas e automações.
+- A aba **Projetos** usa cards com cores configuráveis (azul, roxo, verde, laranja, rosa, turquesa e cinza), descrição, métricas, proprietário e ações **Abrir**, **Personalizar**, **Convidar**.
+- Administradores/gestores podem criar novo card e editar nome, descrição, cor e proprietário (somente membros ativos). **Convidar** encaminha à área de convites da organização; permissões específicas por projeto não estão implementadas.
+- **Projetos recentes**, no Dashboard, continua em tabela com nomes clicáveis, conforme a aprovação anterior.
+- Na ficha **Editar tarefa**, criar e acompanhar subtarefas com título, responsável, prioridade, prazo e situação próprios, sem duplicar tarefas.
+- No Kanban aparece o número de subtarefas concluídas em cada tarefa.
+- Migrações aditivas executadas apenas no Neon de desenvolvimento: `migrations/0021-project-cards.sql` e `migrations/0022-subtasks.sql`.
+- Permissões por projeto, anexos e relatórios de subtarefas são melhorias posteriores; não afirmar que já foram implementados.

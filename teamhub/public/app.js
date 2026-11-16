@@ -1038,8 +1038,39 @@ function readyForFinalReview(project,tasks){
   &&!['blocked','waiting'].includes(t.treatment_status)
   &&Number(t.subtask_done||0)===Number(t.subtask_total||0));
 }
+async function manageBoardTask(task,act){
+ if(!(canManageUI(state.project)&&['archive','restore'].includes(act)||state.role==='admin'&&act==='delete'))return;
+ if(!confirm((act==='delete'?'Excluir logicamente':act==='archive'?'Arquivar':'Restaurar')+' a tarefa '+task.title+'?'))return;
+ try{
+  await api('/api/tasks/'+task.id+'/'+act+qs(),{method:'POST',body:'{}'});
+  const project=state.project;
+  await openProject(project);
+  await refreshProjects();
+  if(!$('board-archived-panel').hidden)await loadArchivedProjectTasks();
+  message(act==='delete'?'Tarefa excluída logicamente.':act==='archive'?'Tarefa arquivada.':'Tarefa restaurada.');
+ }catch(e){message(e.message,true)}
+}
+async function loadArchivedProjectTasks(){
+ if(!canManageUI(state.project))return;
+ const result=await api('/api/projects/'+state.project.id+'/tasks/archived'+qs());
+ const rows=result.tasks.map(t=>{
+  const restore=makeAction('Restaurar',()=>manageBoardTask(t,'restore'));
+  return [t.title,({todo:'A fazer',doing:'Em andamento',done:'Concluída'})[t.status]||t.status,
+   t.archived_at?new Date(t.archived_at).toLocaleString('pt-BR'):'—',restore];
+ });
+ renderTable('board-archived-list',['Tarefa','Etapa','Arquivada em','Ação'],rows);
+}
+$('board-archived-toggle').addEventListener('click',async()=>{
+ const panel=$('board-archived-panel');
+ panel.hidden=!panel.hidden;
+ if(!panel.hidden)try{await loadArchivedProjectTasks()}catch(e){message(e.message,true)}
+});
+$('board-archived-close').addEventListener('click',()=>{$('board-archived-panel').hidden=true});
 async function openProject(p){
- state.project=p;const data=await api('/api/projects/'+encodeURIComponent(p.id)+'/tasks'+qs());
+ state.project=p;
+ $('board-archived-toggle').hidden=!canManageUI(p);
+ $('board-archived-panel').hidden=true;
+ const data=await api('/api/projects/'+encodeURIComponent(p.id)+'/tasks'+qs());
  state.tasks=data.tasks;$('board-description').textContent=p.description||'Quadro de tarefas do projeto.';
  $('project-pause').disabled=!canManageUI(p);
  $('project-pause').textContent=p.paused_at?'Retomar projeto':'Pausar projeto';
@@ -1233,7 +1264,16 @@ function renderTasks(){
    if(t.pending_reason){const p=document.createElement('span');p.className='pending-summary';p.textContent='Pendência: '+t.pending_reason;meta.append(p);}
    if(t.next_action){const p=document.createElement('span');p.textContent='Próxima ação: '+t.next_action;meta.append(p);}
    if(t.subtask_total){const p=document.createElement('span');p.textContent='Subtarefas: '+t.subtask_done+'/'+t.subtask_total+' concluídas';meta.append(p);}
-   footer.append(priority,select);card.append(controls,title,labels,badge,meta,footer,edit,reopen);list.append(card);
+   footer.append(priority,select);card.append(controls,title,labels,badge,meta,footer,edit,reopen);
+   if(canManageUI(state.project)){
+    const archive=makeAction('Arquivar',()=>manageBoardTask(t,'archive'));
+    archive.classList.add('secondary');card.append(archive);
+   }
+   if(state.role==='admin'){
+    const del=makeAction('Excluir',()=>manageBoardTask(t,'delete'));
+    del.classList.add('secondary');card.append(del);
+   }
+   list.append(card);
    enableTaskOrderHandle(card,handle,status);
   }
  }

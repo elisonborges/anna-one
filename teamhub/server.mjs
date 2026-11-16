@@ -59,6 +59,10 @@ async function membership(subject,org){
 function requireEditor(role){if(!['admin','manager','member'].includes(role))bad('Operação não autorizada.',403);}
 function requireManager(role){if(!['admin','manager'].includes(role))bad('Operação reservada ao gestor.',403);}
 
+function parseTaskLabels(value){
+ if(!Array.isArray(value)||value.length>6||value.some(x=>typeof x!=='string'||x.length>32||!['Urgente','Cliente','Revisão','Bug','Melhoria','Aprovação'].includes(x))||new Set(value).size!==value.length)bad('Etiquetas inválidas.');
+ return value;
+}
 async function checkAssignees(org,values){
  if(!Array.isArray(values)||values.length>20||values.some(v=>typeof v!=='string'||v.length>200))bad('Selecione até 20 integrantes válidos.');
  const arr=[...new Set(values)];
@@ -387,6 +391,7 @@ const route=async(req,res)=>{
    await verifyProjectRecipients(org,parent[0].project_id,[...new Set([...assignees,...(owner?[owner]:[])])]);
    const due=b.due_at||null;checkDueDate(due);
    const priority=b.priority||'medium';
+   const labels=parseTaskLabels(b.labels===undefined?[]:b.labels);
    if(!['low','medium','high'].includes(priority))bad('Prioridade inválida.');
    const rows=await sql`INSERT INTO teamhub.subtasks(organization_id,project_id,task_id,title,owner_subject,due_at,priority,created_by_subject)
     VALUES(${org},${parent[0].project_id},${subList[1]},${title},${owner},${due?due+'T12:00:00Z':null},${priority},${subject})
@@ -489,7 +494,7 @@ const route=async(req,res)=>{
  if(pm&&validId(pm[1])){
   const proj=await project(org,pm[1]);
   if(req.method==='GET'){
-   const tasks=await sql`SELECT t.id,t.title,t.description,t.status,t.priority,t.assignee_subject,t.due_at,t.position,t.created_at,t.treatment_status,t.treatment_notes,t.pending_reason,t.next_action,t.paused_at,t.archived_at,t.deleted_at,(SELECT count(*)::int FROM teamhub.subtasks st WHERE st.organization_id=t.organization_id AND st.task_id=t.id) AS subtask_total,(SELECT count(*)::int FROM teamhub.subtasks st WHERE st.organization_id=t.organization_id AND st.task_id=t.id AND st.status='done') AS subtask_done,COALESCE((SELECT jsonb_agg(a.auth_subject ORDER BY a.auth_subject) FROM teamhub.task_assignees a WHERE a.task_id=t.id AND a.organization_id=t.organization_id),'[]'::jsonb) AS assignees FROM teamhub.tasks t WHERE t.organization_id=${org} AND t.project_id=${proj.id} AND t.deleted_at IS NULL AND t.archived_at IS NULL ORDER BY t.position,t.created_at`;
+   const tasks=await sql`SELECT t.id,t.title,t.description,t.status,t.priority,t.assignee_subject,t.due_at,t.position,t.created_at,t.treatment_status,t.treatment_notes,t.pending_reason,t.next_action,t.paused_at,t.archived_at,t.deleted_at,t.labels,(SELECT count(*)::int FROM teamhub.subtasks st WHERE st.organization_id=t.organization_id AND st.task_id=t.id) AS subtask_total,(SELECT count(*)::int FROM teamhub.subtasks st WHERE st.organization_id=t.organization_id AND st.task_id=t.id AND st.status='done') AS subtask_done,COALESCE((SELECT jsonb_agg(a.auth_subject ORDER BY a.auth_subject) FROM teamhub.task_assignees a WHERE a.task_id=t.id AND a.organization_id=t.organization_id),'[]'::jsonb) AS assignees FROM teamhub.tasks t WHERE t.organization_id=${org} AND t.project_id=${proj.id} AND t.deleted_at IS NULL AND t.archived_at IS NULL ORDER BY t.position,t.created_at`;
    return reply(res,200,{project:proj,tasks,role});
   }
   if(req.method==='POST'){
@@ -512,7 +517,7 @@ const route=async(req,res)=>{
    }
    const assignees=await checkAssignees(org,b.assignees===undefined?(assignee?[assignee]:[]):b.assignees);
    await verifyProjectRecipients(org,proj.id,[...new Set([...assignees,...(assignee?[assignee]:[])])]);
-   const rows=await sql`INSERT INTO teamhub.tasks(organization_id,project_id,title,description,priority,due_at,assignee_subject,treatment_status,treatment_notes,pending_reason,next_action,created_by_subject,position) VALUES(${org},${proj.id},${title},${String(b.description||'').slice(0,2000)},${priority},${due_at},${assignee},${treatment},${treatmentNotes},${pendingReason},${nextAction},${subject},(SELECT COALESCE(MAX(position),0)+1 FROM teamhub.tasks WHERE project_id=${proj.id})) RETURNING *`;
+   const rows=await sql`INSERT INTO teamhub.tasks(organization_id,project_id,title,description,priority,due_at,assignee_subject,treatment_status,treatment_notes,pending_reason,next_action,labels,created_by_subject,position) VALUES(${org},${proj.id},${title},${String(b.description||'').slice(0,2000)},${priority},${due_at},${assignee},${treatment},${treatmentNotes},${pendingReason},${nextAction},${JSON.stringify(labels)}::jsonb,${subject},(SELECT COALESCE(MAX(position),0)+1 FROM teamhub.tasks WHERE project_id=${proj.id})) RETURNING *`;
    await syncAssignees(org,rows[0].id,assignees);
    await notifyMembers(org,subject,assignees,'task.assigned','Nova tarefa atribuída',title,proj.id,rows[0].id);
    await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id,task_id) VALUES(${org},${subject},'task.created',${proj.id},${rows[0].id})`;
@@ -540,11 +545,12 @@ const route=async(req,res)=>{
  if(tm&&validId(tm[1])&&req.method==='PATCH'){
   requireEditor(role);const b=await json(req);
   const keys=Object.keys(b);
-  if(!keys.length||keys.some(k=>!['status','priority','title','description','due_at','assignee_subject','assignees','treatment_status','treatment_notes','pending_reason','next_action','update_note'].includes(k)))bad('Campos não permitidos.');
-  const existing=await sql`SELECT id,project_id,title,description,status,priority,due_at,assignee_subject,treatment_status,treatment_notes,pending_reason,next_action FROM teamhub.tasks WHERE id=${tm[1]} AND organization_id=${org}`;
+  if(!keys.length||keys.some(k=>!['status','priority','title','description','due_at','assignee_subject','assignees','labels','treatment_status','treatment_notes','pending_reason','next_action','update_note'].includes(k)))bad('Campos não permitidos.');
+  const existing=await sql`SELECT id,project_id,title,description,status,priority,due_at,assignee_subject,treatment_status,treatment_notes,pending_reason,next_action,labels FROM teamhub.tasks WHERE id=${tm[1]} AND organization_id=${org}`;
   if(!existing.length)bad('Tarefa não encontrada.',404);
   const t=existing[0];
   const status=b.status===undefined?t.status:b.status;
+  const labels=b.labels===undefined?t.labels:parseTaskLabels(b.labels);
   const priority=b.priority===undefined?t.priority:b.priority;
   const title=b.title===undefined?t.title:String(b.title).trim();
   const description=b.description===undefined?t.description:String(b.description);
@@ -566,7 +572,7 @@ const route=async(req,res)=>{
   const nextAction=b.next_action===undefined?t.next_action:safeNote(b.next_action);
   const updateNote=b.update_note===undefined?'':safeNote(b.update_note);
   if(!['todo','doing','done'].includes(status)||!['low','medium','high'].includes(priority)||title.length<2||title.length>240||description.length>2000)bad('Valores inválidos.');
-  const result=await sql`UPDATE teamhub.tasks SET status=${status},priority=${priority},title=${title},description=${description},due_at=${dueAt},assignee_subject=${assignee},treatment_status=${treatment},treatment_notes=${treatmentNotes},pending_reason=${pendingReason},next_action=${nextAction},updated_at=now() WHERE id=${t.id} AND organization_id=${org} RETURNING id,title,description,status,priority,due_at,assignee_subject,treatment_status,treatment_notes,pending_reason,next_action`;
+  const result=await sql`UPDATE teamhub.tasks SET status=${status},priority=${priority},title=${title},description=${description},due_at=${dueAt},assignee_subject=${assignee},treatment_status=${treatment},treatment_notes=${treatmentNotes},pending_reason=${pendingReason},next_action=${nextAction},labels=${JSON.stringify(labels)}::jsonb,updated_at=now() WHERE id=${t.id} AND organization_id=${org} RETURNING id,title,description,status,priority,due_at,assignee_subject,treatment_status,treatment_notes,pending_reason,next_action`;
   if(assignees!==null){
    const former=await sql`SELECT auth_subject FROM teamhub.task_assignees WHERE organization_id=${org} AND task_id=${t.id}`;
    const newlyAssigned=assignees.filter(x=>!former.some(m=>m.auth_subject===x));

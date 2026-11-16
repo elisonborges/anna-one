@@ -1284,6 +1284,6 @@ $('editor').addEventListener('submit',async e=>{
   $('dialog').close();message('Dados salvos com sucesso.');
  }catch(e){message(e.message,true)}finally{$('save').disabled=false}
 });
-$('theme').onclick=()=>{const dark=document.documentElement.dataset.theme==='dark';document.documentElement.dataset.theme=dark?'light':'dark';localStorage.setItem('anna-teamhub-theme',dark?'light':'dark')};
-const preference=localStorage.getItem('anna-teamhub-theme');document.documentElement.dataset.theme=preference|| (matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+// O controle de tema fica isolado em theme.js: continua disponível mesmo
+// se a autenticação ou qualquer outro módulo falhar durante a inicialização.
 boot();

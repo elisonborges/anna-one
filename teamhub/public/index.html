@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0c2646"><meta name="description" content="AnnA Nexus — gestão de projetos e equipes">
-<title>AnnA Nexus | AnnA One</title><link rel="stylesheet" href="./styles.css?v=0.1.26"><link rel="manifest" href="./manifest.webmanifest"></head>
+<title>AnnA Nexus | AnnA One</title><link rel="stylesheet" href="./styles.css?v=0.1.27"><link rel="manifest" href="./manifest.webmanifest"></head>
 <body>
-<header class="top"><div class="brand"><img class="logo" src="./anna-symbol.svg" alt="Símbolo AnnA One"><div><strong>AnnA <em>One</em></strong><small>NEXUS · GESTÃO DE EQUIPES</small></div></div><div class="top-actions"><span class="version-tag" title="Versão instalada do AnnA Nexus">v0.1.26</span><button id="notify-header" class="icon notify-header" type="button" aria-label="Abrir notificações">♧<span id="notify-header-count" hidden>0</span></button><button id="theme" class="icon" aria-label="Alternar tema">◐</button><span id="account">Verificando sessão…</span><a id="portal" href="https://annaone.com.br/app/login-neon.html">Portal</a></div></header>
+<header class="top"><div class="brand"><img class="logo" src="./anna-symbol.svg" alt="Símbolo AnnA One"><div><strong>AnnA <em>One</em></strong><small>NEXUS · GESTÃO DE EQUIPES</small></div></div><div class="top-actions"><span class="version-tag" title="Versão instalada do AnnA Nexus">v0.1.27</span><button id="notify-header" class="icon notify-header" type="button" aria-label="Abrir notificações">♧<span id="notify-header-count" hidden>0</span></button><button id="theme" class="icon" aria-label="Alternar tema">◐</button><span id="account">Verificando sessão…</span><a id="portal" href="https://annaone.com.br/app/login-neon.html">Portal</a></div></header>
 <div id="status" role="status" aria-live="polite"></div>
 <section id="signin" class="signin" hidden><div class="signin-card"><img src="./anna-symbol.svg" alt="" width="56" height="56"><h1>Acessar AnnA Nexus</h1><p>Use a mesma conta do Portal AnnA One. Não é necessário criar outro cadastro.</p><form id="signin-form"><label for="signin-email">E-mail</label><input id="signin-email" type="email" autocomplete="username" required><label for="signin-password">Senha</label><input id="signin-password" type="password" autocomplete="current-password" required><button id="signin-button" class="primary" type="submit">Entrar com AnnA One</button></form><p class="signin-hint">Este acesso usa o Neon Auth do portal. A sessão automática entre diferentes domínios será aperfeiçoada posteriormente.</p><a href="https://annaone.com.br/app/login-neon.html">Abrir login no portal</a></div></section>
 <div id="app" hidden>
@@ -54,7 +54,24 @@
  </div>
  </section>
  <section id="calendar" hidden><div class="panel"><div class="calendar-heading"><div><h2>Calendário de entregas</h2><p class="muted">Prazos de tarefas e subtarefas dos projetos autorizados.</p></div><div class="calendar-controls"><button id="calendar-prev" type="button" class="secondary" aria-label="Mês anterior">‹</button><strong id="calendar-month"></strong><button id="calendar-next" type="button" class="secondary" aria-label="Mês seguinte">›</button><button id="calendar-today" type="button" class="secondary">Hoje</button></div></div><div id="calendar-grid" class="calendar-grid" aria-label="Calendário mensal"></div></div><div class="panel"><h2>Entregas do mês</h2><div id="calendar-list" class="data-container"></div></div><div class="panel"><div class="section-head"><h2>Cronograma das entregas</h2><span class="muted">Intervalo entre criação e prazo, recortado ao mês exibido</span></div><div id="timeline-list" class="timeline-list"></div></div></section>
- <section id="notifications" hidden><div class="panel"><div class="section-head"><h2>Notificações</h2><button id="notify-read-all" type="button" class="secondary">Marcar todas como lidas</button></div><p class="muted">Atribuições de projetos, tarefas e subtarefas. Apenas você visualiza suas notificações.</p><div id="notifications-list" class="data-container"></div></div></section>
+ <section id="notifications" hidden>
+ <div class="panel">
+  <div class="section-head"><h2>Notificações</h2><button id="notify-read-all" type="button" class="secondary">Marcar todas como lidas</button></div>
+  <p class="muted">Avisos internos associados à sua conta. Somente você visualiza sua caixa de entrada.</p>
+  <div class="notification-filters"><label for="notification-filter">Exibir</label><select id="notification-filter"><option value="all">Todas</option><option value="unread">Não lidas</option><option value="assignments">Atribuições</option><option value="mentions">Menções</option><option value="deadlines">Prazos</option><option value="approvals">Aprovações</option></select><span id="notification-filter-count" class="muted"></span></div>
+  <div id="notifications-list" class="data-container"></div>
+ </div>
+ <div class="panel"><div class="section-head"><h2>Minhas preferências</h2><span class="muted">Por organização</span></div>
+  <p class="muted">Escolha quais novos avisos deseja receber. Avisos já recebidos permanecem no histórico.</p>
+  <div class="notification-pref-options">
+   <label><input id="pref-assignments" type="checkbox"> Novas atribuições de projetos, tarefas e subtarefas</label>
+   <label><input id="pref-mentions" type="checkbox"> Menções em comentários</label>
+   <label><input id="pref-deadlines" type="checkbox"> Prazos próximos e tarefas atrasadas</label>
+   <label><input id="pref-approvals" type="checkbox"> Solicitações de validação e aprovação</label>
+  </div>
+  <div class="notification-pref-actions"><button id="pref-save" type="button" class="primary">Salvar preferências</button><span id="pref-email-note" class="muted">E-mail automático: indisponível nesta fase; os avisos permanecem no Nexus.</span></div>
+ </div>
+</section>
  <section id="mytasks" hidden><div class="panel"><div class="section-head"><h2>Minhas tarefas</h2><label class="toggle-archived"><input type="checkbox" id="show-archived"> Mostrar arquivadas</label></div><p class="muted">Edite, pause por pendência, arquive ou exclua tarefas conforme suas permissões.</p><div id="mine" class="data-container"></div></div><div class="panel"><h2>Minhas subtarefas</h2><p class="muted">Atividades menores atribuídas diretamente a você, mesmo quando a tarefa principal é compartilhada.</p><div id="my-subtasks" class="data-container"></div></div></section>
  <section id="reports" hidden><div class="panel"><div class="section-head"><h2>Relatório de projetos e pendências</h2><button type="button" id="report-export" class="secondary">Exportar CSV</button></div><div id="reports-summary" class="report-summary"></div><div id="reports-projects" class="data-container"></div></div><div class="panel"><h2>Indicadores por tarefa</h2><div id="reports-tasks" class="data-container"></div></div><div class="panel"><h2>Carga de trabalho da equipe</h2><p class="muted">Quantidade de tarefas e subtarefas ativas atribuídas a cada integrante.</p><div id="reports-workload" class="data-container"></div></div><div class="panel"><h2>Subtarefas por projeto</h2><div id="reports-subtasks" class="data-container"></div></div><div class="panel"><h2>Validação e encerramento de projetos</h2><div id="reports-approvals" class="data-container"></div></div><div class="panel"><h2>Histórico de pausas</h2><div id="reports-pauses" class="data-container"></div></div></section>
  <section id="team" hidden>
@@ -123,4 +140,4 @@
  <button id="attachment-upload" type="button" class="secondary">Enviar anexo</button></div>
 </section>
 <div class="modal-actions"><button type="button" class="secondary" id="cancel">Cancelar</button><button class="primary" type="submit" id="save">Salvar</button></div></form></dialog>
-<script type="module" src="./app.js?v=0.1.26"></script></body></html>
+<script type="module" src="./app.js?v=0.1.27"></script></body></html>

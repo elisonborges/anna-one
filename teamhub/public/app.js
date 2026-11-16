@@ -213,6 +213,11 @@ function renderBrand(){
  const org=state.organizations.find(o=>o.id===state.org);
  const display=(org?.display_name||'').trim();
  $('client-name').textContent=display;
+ $('dash-org-name').textContent=display||org?.name||'Organização';
+ const dashboardLogo=$('dash-company-logo');
+ dashboardLogo.hidden=!org?.logo_url;
+ if(org?.logo_url){dashboardLogo.src=org.logo_url;dashboardLogo.onerror=()=>{dashboardLogo.hidden=true};}
+ else dashboardLogo.removeAttribute('src');
  $('brand-name').value=display;
  $('brand-logo').value=org?.logo_url?.startsWith('https://')?org.logo_url:'';
  $('brand-admin').hidden=state.role!=='admin';

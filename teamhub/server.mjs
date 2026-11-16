@@ -64,7 +64,7 @@ async function checkAssignees(org,values){
  const arr=[...new Set(values)];
  if(arr.length!==values.length)bad('Há responsáveis duplicados.');
  if(arr.length){
-  const rows=await sql`SELECT auth_subject FROM teamhub.memberships WHERE organization_id=${org} AND active=true AND auth_subject=ANY(${arr})`;
+  const rows=await sql`SELECT auth_subject FROM teamhub.memberships WHERE organization_id=${org} AND active=true AND auth_subject IN (SELECT jsonb_array_elements_text(${JSON.stringify(arr)}::jsonb))`;
   if(rows.length!==arr.length)bad('Um ou mais responsáveis não estão ativos na organização.',403);
  }
  return arr;
@@ -72,7 +72,7 @@ async function checkAssignees(org,values){
 async function syncAssignees(org,task,subjects){
  await sql`DELETE FROM teamhub.task_assignees WHERE organization_id=${org} AND task_id=${task}`;
  if(subjects.length)await sql`INSERT INTO teamhub.task_assignees(organization_id,task_id,auth_subject)
- SELECT ${org}::uuid,${task}::uuid,x FROM jsonb_array_elements_text(${JSON.stringify(subjects)}::jsonb) x
+ SELECT ${org}::uuid,${task}::uuid,x.auth_subject FROM jsonb_array_elements_text(${JSON.stringify(subjects)}::jsonb) AS x(auth_subject)
  ON CONFLICT DO NOTHING`;
 }
 async function project(org,id){

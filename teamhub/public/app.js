@@ -163,6 +163,8 @@ function modal(type,task=null){
  $('field-pending').value=task?.pending_reason||'';
  $('field-next').value=task?.next_action||'';
  $('field-update-note').value='';
+ $('history-new-note').value='';
+ $('history-add').disabled=!['admin','manager','member'].includes(state.role);
  $('task-history-wrap').hidden=type!=='edit';
  if(type==='edit')loadHistory(task.id);
 
@@ -220,6 +222,18 @@ $('back-projects').onclick=async()=>{await refreshProjects();show('projects')};
 $('new-project').onclick=()=>modal('project');
 $('new-task').onclick=()=>modal('task');
 $('close-modal').onclick=$('cancel').onclick=()=>$('dialog').close();
+$('history-add').addEventListener('click',async()=>{
+ if(mode!=='edit'||!editing)return;
+ const summary=$('history-new-note').value.trim();
+ if(!summary){message('Descreva o andamento antes de registrar.',true);return;}
+ const button=$('history-add');button.disabled=true;
+ try{
+  await api('/api/tasks/'+editing.id+'/history'+qs(),{method:'POST',body:JSON.stringify({summary})});
+  $('history-new-note').value='';
+  await loadHistory(editing.id);
+  message('Andamento registrado no histórico.');
+ }catch(e){message(e.message,true)}finally{button.disabled=false}
+});
 $('editor').addEventListener('submit',async e=>{
  e.preventDefault();const name=$('field-name').value.trim(),description=$('field-description').value.trim();$('save').disabled=true;
  try{

@@ -459,3 +459,10 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
  #mytasks{gap:10px}
  #my-subtasks .nexus-table td:last-child{min-width:140px}
 }
+
+/* v0.1.18 — três ações sempre na mesma linha no card */
+.project-card-actions{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px!important;width:100%;align-items:stretch;flex-wrap:nowrap!important}
+.project-card-actions .table-action{min-width:0!important;width:100%;padding:8px 4px!important;min-height:42px!important;font-size:11px!important;white-space:nowrap;text-align:center;justify-content:center;display:inline-flex;align-items:center}
+.project-card-actions .project-card-open{font-weight:800}
+.project-card{min-width:0}
+@media(max-width:650px){.project-card-actions{grid-template-columns:repeat(3,minmax(0,1fr))}.project-card-actions .table-action{font-size:10.5px!important}}

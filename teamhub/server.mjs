@@ -15,8 +15,8 @@ const port=Number(process.env.PORT||3000);
 const headers={'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
 const reply=(res,status,obj)=>{res.writeHead(status,headers);res.end(JSON.stringify(obj));};
 const validId=id=>/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id||'');
-async function json(req){
- let raw=''; for await(const c of req){raw+=c;if(raw.length>25000)throw Object.assign(Error('Payload grande'),{status:413});}
+async function json(req,maxSize=25000){
+ let raw=''; for await(const c of req){raw+=c;if(raw.length>maxSize)throw Object.assign(Error('Payload grande'),{status:413});}
  try{return raw?JSON.parse(raw):{};}catch{throw Object.assign(Error('JSON inválido'),{status:400});}
 }
 function bad(message,status=400){throw Object.assign(Error(message),{status});}
@@ -123,11 +123,23 @@ const route=async(req,res)=>{
  const role=await membership(subject,org);
  if(p==='/api/organization'&&req.method==='PATCH'){
   if(role!=='admin')bad('Apenas administradores podem personalizar a organização.',403);
-  const b=await json(req);
+  const b=await json(req,120000);
   const displayName=typeof b.display_name==='string'?b.display_name.trim():'';
   const logoUrl=typeof b.logo_url==='string'?b.logo_url.trim():'';
   if(displayName.length>100)bad('Nome da empresa muito longo.');
-  if(logoUrl.length>500||logoUrl&&!/^https:\/\/[^\s/?#]+[^\s]*$/i.test(logoUrl))bad('Informe um endereço HTTPS válido para a imagem.');
+  if(logoUrl){
+   const image=/^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(logoUrl);
+   if(image){
+    const binary=Buffer.from(image[2],'base64');
+    if(binary.length===0||binary.length>75*1024)bad('Imagem deve ter no máximo 75 KB.');
+    const valid=image[1]==='png'&&binary.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))
+     ||image[1]==='jpeg'&&binary[0]===255&&binary[1]===216&&binary[2]===255
+     ||image[1]==='webp'&&binary.subarray(0,4).toString()==='RIFF'&&binary.subarray(8,12).toString()==='WEBP';
+    if(!valid)bad('Arquivo de imagem inválido. Use PNG, JPG ou WebP.');
+   }else if(logoUrl.length>500||!/^https:\/\/[^\s/?#]+[^\s]*$/i.test(logoUrl)){
+    bad('Informe uma imagem PNG, JPG ou WebP válida ou um endereço HTTPS.');
+   }
+  }
   const rows=await sql`UPDATE teamhub.organizations SET display_name=${displayName},logo_url=${logoUrl} WHERE id=${org} RETURNING id,name,display_name,logo_url`;
   return reply(res,200,{organization:rows[0]});
  }

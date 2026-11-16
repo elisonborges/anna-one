@@ -706,7 +706,7 @@ $('dash-alerts').addEventListener('click',async()=>{
  const button=$('dash-alerts');button.disabled=true;
  try{
   const result=await api('/api/automation/check-deadlines'+qs(),{method:'POST',body:'{}'});
-  message(result.created?'Foram criadas '+result.created+' notificação(ões) internas sobre prazos.':'Nenhum novo aviso de prazo foi necessário.');
+  message(result.created?'Avisos criados: '+(result.tasks_created||0)+' de tarefas e '+(result.subtasks_created||0)+' de subtarefas.':'Nenhum novo aviso de prazo foi necessário.');
   await loadNotifications();
  }catch(e){message(e.message,true)}finally{button.disabled=!['admin','manager'].includes(state.role);}
 });

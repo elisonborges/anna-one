@@ -968,3 +968,36 @@ html,body{background:var(--bg);color:var(--ink)}
 .task.is-reordering{z-index:2;position:relative;cursor:grabbing}
 .project-card.is-reordering{position:relative}
 .column.is-drop-target{outline:2px dashed var(--accent);outline-offset:-3px}
+
+/* AnnA Nexus v0.1.40 — telas, permissões e Central */
+[data-view][hidden],.project-card-add[hidden],.project-drag-handle[hidden],
+#member-home[hidden],#project-manager-field[hidden],#member-execution[hidden],
+#task-fields > [hidden],#editor [hidden],#approvals[hidden]{display:none!important}
+body[data-nexus-role="member"] #overview > :not(#member-home){display:none!important}
+body[data-nexus-role="member"] #member-home{display:block}
+.member-home h2{font-size:21px;margin:0 0 5px}
+.member-home h3{font-size:16px;margin-top:17px}
+.member-home-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0}
+.member-home-stats article{display:grid;gap:7px;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:14px}
+.member-home-stats article span{font-size:12px;color:var(--muted)}
+.member-home-stats article strong{font-size:25px;color:var(--accent)}
+.nexus-approval-filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0}
+.nexus-approval-filters label{font-size:12px;font-weight:750}
+.nexus-approval-filters select{min-width:155px;min-height:40px}
+.nexus-central-actions{display:flex;gap:7px;align-items:center;white-space:nowrap}
+#approvals-list .data-container,#approvals-list{min-width:0;overflow-x:auto}
+#project-manager-field{grid-column:1/-1;display:grid;gap:6px;border-top:1px solid var(--line);padding-top:10px}
+#project-manager-field label{font-size:12px;font-weight:750}
+#project-manager-field select{width:100%;min-height:42px}
+#project-manager-field small{font-size:11px}
+#member-execution{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;border:1px solid var(--line);padding:15px;border-radius:12px;background:var(--tint)}
+#member-execution h3{font-size:16px;margin:0}
+#member-execution textarea,#member-execution select{width:100%}
+#member-execution small{font-size:11px}
+body[data-nexus-role="guest"] .project-card{cursor:default}
+body[data-nexus-role="guest"] .bottom{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+body[data-nexus-role="member"] .bottom{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+body[data-nexus-role="manager"] .bottom{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+@media(max-width:700px){.member-home-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+.nexus-approval-filters{display:grid;grid-template-columns:auto minmax(0,1fr)}
+.nexus-approval-filters span{grid-column:1/-1}}

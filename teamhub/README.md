@@ -177,3 +177,11 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - API `/api/dashboard/insights` retorna apenas métricas e projetos autorizados; filtros e relatórios não expõem dados de outros clientes.
 - Corrigida a contagem antiga de tarefas arquivadas/excluídas no cartão-resumo.
 - Nenhuma migração necessária; banco e portal de produção preservados. Homologação multiusuário ainda pendente.
+
+## v0.1.25 — Anexos privados e próximos passos de notificações
+- Anexos na ficha de **Editar tarefa**: upload, listagem, download e exclusão autorizada. PDF, PNG, JPEG, WebP e TXT, até **256 KB** cada, máximo **12** por tarefa.
+- Arquivos ficam na tabela `teamhub.task_attachments` do **Neon de desenvolvimento**, não são públicos e são recuperados apenas após autenticação e checagem de organização/projeto/tarefa.
+- Downloads são oferecidos como arquivos (application/octet-stream), sem execução ou visualização inline. Inclusão e exclusão registram atividades. Usuários com perfil editor enviam; exclusão limitada ao autor do arquivo ou a gestores/administradores.
+- Migração aditiva `migrations/0026-task-attachments.sql`. Essa solução é **provisória e limitada a arquivos pequenos**; armazenamento dedicado com antivírus/limites e políticas de retenção será necessário para documentos maiores e uso em produção.
+- A automação de prazos continua **manual** no Dashboard; cron externo e integração Resend para e-mails não estão habilitados. Requerem credenciais e parâmetros de segurança verificados antes de ativar.
+- Sem alterações no portal principal ou Neon de produção; testes funcionais de upload com conta autenticada ainda pendentes.

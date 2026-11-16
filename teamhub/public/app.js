@@ -100,6 +100,13 @@ async function loadMembers(){
   const span=document.createElement('span');span.textContent=memberName(m.auth_subject);
   label.append(input,span);subChoices.append(label);
  }
+ const mentionBox=$('history-mentions');mentionBox.replaceChildren();
+ for(const member of state.members.filter(m=>m.active)){
+  const choice=document.createElement('label');choice.className='assignee-choice';
+  const input=document.createElement('input');input.type='checkbox';input.value=member.auth_subject;
+  const name=document.createElement('span');name.textContent=memberName(member.auth_subject);
+  choice.append(input,name);mentionBox.append(choice);
+ }
  const checks=$('field-assignees');checks.replaceChildren();
  const active=state.members.filter(m=>m.active);
  if(!active.length)checks.textContent='Nenhum membro disponível.';
@@ -311,6 +318,25 @@ function drawCalendar(){
   return [new Date(calendarDay(item)+'T12:00:00Z').toLocaleDateString('pt-BR',{timeZone:'UTC'}),item.title,item.project_name,item.kind==='subtask'?'Subtarefa':'Tarefa',item.status==='done'?'Concluída':item.status==='doing'?'Em andamento':'A fazer',open];
  });
  renderTable('calendar-list',['Prazo','Atividade','Projeto','Tipo','Etapa','Ação'],rows);
+ const display=$('timeline-list');display.replaceChildren();
+ if(!monthly.length){display.textContent='Nenhuma entrega com prazo neste mês.';return;}
+ const msDay=86400000,windowStart=Date.UTC(year,month,1),windowEnd=Date.UTC(year,month+1,0,23,59,59);
+ const total=windowEnd-windowStart;
+ for(const item of monthly){
+  const end=Date.parse(String(item.due_at).slice(0,10)+'T12:00:00Z');
+  const created=Date.parse(item.created_at);
+  const start=Math.max(windowStart,Math.min(end,Number.isFinite(created)?created:end));
+  const left=Math.max(0,Math.min(100,(start-windowStart)/total*100));
+  const width=Math.max(1,Math.min(100-left,(end-start)/total*100));
+  const line=document.createElement('div');line.className='timeline-row';
+  const title=document.createElement('div');title.className='timeline-label';title.textContent=item.project_name+' · '+item.title;
+  const rail=document.createElement('div');rail.className='timeline-rail';
+  const bar=document.createElement('span');bar.className='timeline-bar';
+  if(item.status==='done')bar.classList.add('is-complete');
+  bar.style.left=left+'%';bar.style.width=width+'%';
+  bar.title='Criada: '+new Date(item.created_at).toLocaleDateString('pt-BR')+' · Prazo: '+new Date(item.due_at).toLocaleDateString('pt-BR',{timeZone:'UTC'});
+  rail.append(bar);line.append(title,rail);display.append(line);
+ }
 }
 async function loadCalendar(){
  const data=await api('/api/calendar'+qs());calendarItems=data.items;drawCalendar();
@@ -566,6 +592,7 @@ function modal(type,task=null){
  $('field-next').value=task?.next_action||'';
  $('field-update-note').value='';
  $('history-new-note').value='';
+ $('history-mentions').querySelectorAll('input').forEach(x=>x.checked=false);
  $('history-add').disabled=!['admin','manager','member'].includes(state.role);
  $('task-history-wrap').hidden=type!=='edit';
  $('subtasks-panel').hidden=type!=='edit';
@@ -744,8 +771,9 @@ $('history-add').addEventListener('click',async()=>{
  if(!summary){message('Descreva o andamento antes de registrar.',true);return;}
  const button=$('history-add');button.disabled=true;
  try{
-  await api('/api/tasks/'+editing.id+'/history'+qs(),{method:'POST',body:JSON.stringify({summary})});
+  await api('/api/tasks/'+editing.id+'/history'+qs(),{method:'POST',body:JSON.stringify({summary,mentions:[...$('history-mentions').querySelectorAll('input:checked')].map(x=>x.value)})});
   $('history-new-note').value='';
+  $('history-mentions').querySelectorAll('input:checked').forEach(x=>x.checked=false);
   await loadHistory(editing.id);
   message('Andamento registrado no histórico.');
  }catch(e){message(e.message,true)}finally{button.disabled=false}

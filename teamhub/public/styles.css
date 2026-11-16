@@ -792,3 +792,21 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
 /* Menu de acesso não deve aparecer na tela de login nem exibir badges vazias. */
 body:has(#signin:not([hidden])) .mobile-menu-toggle{display:none!important}
 #app .side .nav span[hidden]{display:none!important}
+
+/* v0.1.30 — filtros recolhíveis e resumo operacional */
+#board-filter-panel[hidden]{display:none!important}
+.board-quickbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:9px 0 12px}
+.board-quickstats{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.board-quickstats span{display:inline-flex;align-items:center;min-height:32px;padding:6px 9px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--muted);font-size:11px;font-weight:800}
+#quick-overdue{color:#b63a2e}
+#quick-blocked{color:#a24541}
+#quick-waiting{color:#91601b}
+#toggle-board-filters{min-height:39px;padding:8px 13px}
+#toggle-board-filters.has-active-filters{border-color:var(--accent);color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+#board-filter-panel .board-toolbar{margin:0 0 14px}
+@media(max-width:650px){
+ .board-quickbar{align-items:stretch}
+ .board-quickstats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}
+ .board-quickstats span{justify-content:center;text-align:center}
+ #toggle-board-filters{width:100%;min-height:43px}
+}

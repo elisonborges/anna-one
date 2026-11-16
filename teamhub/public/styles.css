@@ -668,3 +668,35 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
 .attachments-upload input{width:100%;min-width:0;min-height:42px;padding:8px}
 .attachments-upload button{min-height:42px}
 @media(max-width:560px){.attachments-upload{grid-template-columns:1fr}.attachments-upload button{width:100%}}
+
+/* v0.1.26 — fluxo de aprovação e conferência do encerramento */
+.approval-queue{margin-top:17px;padding:16px}
+.approval-queue[hidden]{display:none!important}
+.approval-queue .section-head{margin-bottom:10px}
+.project-validation-link{border:1px dashed var(--line);border-radius:8px;background:var(--tint);color:var(--accent);font-weight:800;font-size:12px;padding:9px 10px;width:100%;min-height:39px;cursor:pointer;text-align:center}
+.project-validation-link:hover{border-color:var(--accent)}
+.approval-dialog{width:min(680px,calc(100vw - 24px));max-height:90vh;overflow-y:auto;border:1px solid var(--line);border-radius:16px;padding:0;background:var(--surface);color:var(--ink);box-shadow:0 20px 65px #0004}
+.approval-dialog::backdrop{background:#031322a6}
+.approval-content{padding:20px;display:grid;gap:14px}
+.approval-dialog .section-head{margin:0;align-items:center}
+.approval-dialog h2{font-size:19px;margin:0}
+.approval-dialog h3{font-size:15px;margin:0}
+.approval-dialog p{margin:0;font-size:13px;line-height:1.5}
+.approval-progress{background:var(--tint);border-radius:8px;padding:12px;font-size:13px;font-weight:800}
+.approval-checks{display:grid;gap:9px}
+.approval-checks[hidden]{display:none!important}
+.approval-checks label{display:flex;align-items:center;gap:10px;margin:0;padding:11px;border:1px solid var(--line);border-radius:9px;font-size:13px;line-height:1.45;cursor:pointer;font-weight:650}
+.approval-checks label:has(input:checked){border-color:var(--accent);background:var(--tint)}
+.approval-checks input{width:19px;height:19px;flex-shrink:0;accent-color:var(--accent)}
+.approval-dialog textarea{width:100%;min-height:90px}
+.approval-buttons{display:flex;flex-wrap:wrap;gap:9px}
+.approval-buttons button{min-height:42px;font-size:12px;font-weight:800;flex:1 1 160px}
+.approval-buttons button[hidden]{display:none!important}
+#approval-history{overflow-x:auto}
+@media(max-width:600px){
+ .approval-content{padding:13px;gap:11px}
+ .approval-dialog h2{font-size:17px}
+ .approval-checks label{padding:10px;font-size:12px}
+ .approval-buttons button{flex:1 1 100%}
+ .project-card-actions .table-action{font-size:10.5px!important}
+}

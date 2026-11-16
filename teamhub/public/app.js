@@ -591,7 +591,7 @@ function classifyNotification(n){
  const event=String(n.event_type||'');
  if(event.includes('mention'))return 'mentions';
  if(event.includes('overdue')||event.includes('due_soon'))return 'deadlines';
- if(event.includes('review')||event.includes('approval')||event.includes('completion'))return 'approvals';
+ if(event.includes('review')||event.includes('approval')||event.includes('completion')||event.includes('reopen'))return 'approvals';
  return 'assignments';
 }
 function renderNotificationInbox(){
@@ -1314,7 +1314,7 @@ function showTaskDetailTab(tab){
   const field=$('editor').querySelector(selector);if(field)field.hidden=!details||executionOnly;
  }
  $('task-detail-summary').hidden=details;
- $('save').hidden=!details;
+ $('save').hidden=!details||(executionOnly&&!canExecuteUI(editing));
  $('cancel').textContent=details?'Cancelar':'Fechar';
 }
 for(const button of $('task-detail-tabs').querySelectorAll('[data-task-tab]')){
@@ -1439,7 +1439,9 @@ async function loadSubtasks(taskId){
    for(const [v,label] of [['todo','A fazer'],['doing','Em andamento'],['done','Concluída']]){
     const option=document.createElement('option');option.value=v;option.textContent=label;status.append(option);
    }
-   status.value=item.status;status.disabled=!['admin','manager','member'].includes(state.role);
+   const subAssigned=item.owner_subject===state.subject||(Array.isArray(item.assignees)&&item.assignees.includes(state.subject));
+   const subAllowed=canManageUI(state.project)||(state.role==='member'||state.role==='manager')&&subAssigned;
+   status.value=item.status;status.disabled=!subAllowed||item.status==='done'||state.project?.completion_status!=='active'||!!state.project?.paused_at;
    status.onchange=async()=>{status.disabled=true;try{await api('/api/subtasks/'+item.id+qs(),{method:'PATCH',body:JSON.stringify({status:status.value})});await loadSubtasks(taskId);message('Subtarefa atualizada.')}catch(e){message(e.message,true);status.disabled=false;}};
    const details=document.createElement('small');
    const assigned=Array.isArray(item.assignees)?item.assignees:(item.owner_subject?[item.owner_subject]:[]);
@@ -1451,7 +1453,7 @@ async function loadSubtasks(taskId){
     try{await api('/api/subtasks/'+item.id+qs(),{method:'PATCH',body:JSON.stringify({title:title.trim()})});await loadSubtasks(taskId);message('Subtarefa renomeada.')}
     catch(e){message(e.message,true);edit.disabled=false;}
    });
-   edit.disabled=!['admin','manager','member'].includes(state.role);
+   edit.disabled=!canManageUI(state.project);
    const assign=makeAction('Atribuir',()=>{
     const panel=document.createElement('div');panel.className='subtask-assign-editor';
     for(const member of state.members.filter(m=>m.active)){
@@ -1470,7 +1472,7 @@ async function loadSubtasks(taskId){
     });
     panel.append(save);row.append(panel);assign.disabled=true;
    });
-   assign.disabled=edit.disabled;
+   assign.disabled=!canManageUI(state.project);
    const text=document.createElement('div');text.append(name,details);
    row.append(text,status,edit,assign);host.append(row);
   }
@@ -1519,7 +1521,7 @@ async function loadAttachments(taskId){
     }catch(e){message(e.message,true)}finally{download.disabled=false}
    });
    row.append(name,download);
-   if(['admin','manager','member'].includes(state.role)){
+   if(canExecuteUI(editing)){
     const remove=makeAction('Excluir',async()=>{
      if(!confirm('Excluir o anexo '+item.file_name+'? Esta operação não poderá ser desfeita.'))return;
      remove.disabled=true;

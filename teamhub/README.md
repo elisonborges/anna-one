@@ -62,3 +62,10 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Migração aditiva `migrations/0017-invitations.sql`, aplicada somente ao banco `anna-nexus-dev`.
 - Ao trocar de conta para aceitar um convite, use o login do portal com o e-mail convidado.
 - O envio automático via Resend poderá ser acrescentado somente após validar domínio, credenciais e políticas de entrega.
+
+## v0.1.8 — Organização visual e tabelas
+- Projetos, projetos recentes, membros, convites, minhas tarefas e pendências prioritárias agora usam tabelas HTML compactas com cabeçalhos e colunas.
+- Tabelas possuem rolagem horizontal em telas estreitas, mantendo os nomes e controles acessíveis.
+- Ficha de tarefa usa campos em duas ou três colunas onde houver espaço; no celular reorganiza os campos responsivamente.
+- Kanban continua visualmente em três colunas. Sem alterações no banco ou API.
+- Versão no cabeçalho e nos recursos JS/CSS atualizada para 0.1.8.

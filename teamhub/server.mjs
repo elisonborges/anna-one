@@ -650,6 +650,60 @@ const route=async(req,res)=>{
    return reply(res,201,{task:rows[0]});
   }
  }
+ const attachList=/^\/api\/tasks\/([0-9a-f-]+)\/attachments$/.exec(p);
+ const attachFile=/^\/api\/tasks\/([0-9a-f-]+)\/attachments\/([0-9a-f-]+)$/.exec(p);
+ if((attachList||attachFile)&&validId((attachList||attachFile)[1])){
+  const taskId=(attachList||attachFile)[1];
+  const task=await sql`SELECT id,project_id FROM teamhub.tasks WHERE id=${taskId} AND organization_id=${org} AND deleted_at IS NULL AND archived_at IS NULL`;
+  if(!task.length)bad('Tarefa indisponível.',404);
+  if(attachList&&req.method==='GET'){
+   const rows=await sql`SELECT id,file_name,media_type,file_size,uploaded_by_subject,created_at FROM teamhub.task_attachments
+    WHERE organization_id=${org} AND task_id=${taskId} ORDER BY created_at DESC LIMIT 12`;
+   return reply(res,200,{attachments:rows,max_bytes:262144});
+  }
+  if(attachList&&req.method==='POST'){
+   requireEditor(role);
+   const b=await json(req,370000);
+   const name=typeof b.file_name==='string'?b.file_name.trim():'',mime=b.media_type;
+   if(!name||name.length>180||/[\\/\u0000-\u001f\u007f]/.test(name))bad('Nome de arquivo inválido.');
+   if(!['application/pdf','image/png','image/jpeg','image/webp','text/plain'].includes(mime))bad('Tipo não permitido.');
+   if(typeof b.base64!=='string'||b.base64.length>350000||!/^[A-Za-z0-9+/]+={0,2}$/.test(b.base64))bad('Arquivo inválido.');
+   const bytes=Buffer.from(b.base64,'base64');
+   if(bytes.length<1||bytes.length>262144)bad('Cada anexo deve ter no máximo 256 KB.');
+   if(bytes.toString('base64')!==b.base64)bad('Conteúdo inválido.');
+   const valid=mime==='text/plain'||
+    (mime==='application/pdf'&&bytes.subarray(0,5).toString()==='%PDF-')||
+    (mime==='image/png'&&bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))||
+    (mime==='image/jpeg'&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255)||
+    (mime==='image/webp'&&bytes.subarray(0,4).toString()==='RIFF'&&bytes.subarray(8,12).toString()==='WEBP');
+   if(!valid)bad('O conteúdo não corresponde ao formato declarado.');
+   const count=await sql`SELECT count(*)::int AS total FROM teamhub.task_attachments WHERE organization_id=${org} AND task_id=${taskId}`;
+   if(count[0].total>=12)bad('Limite de 12 anexos por tarefa atingido.',409);
+   const rows=await sql`INSERT INTO teamhub.task_attachments(organization_id,task_id,file_name,media_type,file_size,content,uploaded_by_subject)
+    VALUES(${org},${taskId},${name},${mime},${bytes.length},decode(${b.base64},'base64'),${subject})
+    RETURNING id,file_name,media_type,file_size,created_at`;
+   await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id,task_id)
+    VALUES(${org},${subject},'task.attachment.added',${task[0].project_id},${taskId})`;
+   return reply(res,201,{attachment:rows[0]});
+  }
+  if(attachFile&&validId(attachFile[2])){
+   if(req.method==='GET'){
+    const rows=await sql`SELECT file_name,media_type,file_size,encode(content,'base64') AS base64 FROM teamhub.task_attachments
+     WHERE id=${attachFile[2]} AND task_id=${taskId} AND organization_id=${org}`;
+    if(!rows.length)bad('Anexo não encontrado.',404);
+    return reply(res,200,{file:rows[0]});
+   }
+   if(req.method==='DELETE'){
+    requireEditor(role);
+    const rows=await sql`DELETE FROM teamhub.task_attachments WHERE id=${attachFile[2]} AND task_id=${taskId}
+      AND organization_id=${org} AND (${['admin','manager'].includes(role)} OR uploaded_by_subject=${subject}) RETURNING id,file_name`;
+    if(!rows.length)bad('Anexo não encontrado ou sem permissão para excluir.',403);
+    await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id,task_id)
+      VALUES(${org},${subject},'task.attachment.removed',${task[0].project_id},${taskId})`;
+    return reply(res,200,{deleted:true});
+   }
+  }
+ }
  const hm=/^\/api\/tasks\/([0-9a-f-]+)\/history$/.exec(p);
  if(hm&&validId(hm[1])&&req.method==='GET'){
   const target=await sql`SELECT id FROM teamhub.tasks WHERE id=${hm[1]} AND organization_id=${org}`;

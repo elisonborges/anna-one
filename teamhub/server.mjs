@@ -384,7 +384,7 @@ const route=async(req,res)=>{
     if(!members.length)bad('Responsável não está ativo.',403);
    }
    const assignees=await checkAssignees(org,b.assignees===undefined?(owner?[owner]:[]):b.assignees);
-   await verifyProjectRecipients(org,parent[0].project_id,assignees);
+   await verifyProjectRecipients(org,parent[0].project_id,[...new Set([...assignees,...(owner?[owner]:[])])]);
    const due=b.due_at||null;checkDueDate(due);
    const priority=b.priority||'medium';
    if(!['low','medium','high'].includes(priority))bad('Prioridade inválida.');
@@ -405,8 +405,8 @@ const route=async(req,res)=>{
   const prev=rows[0],b=await json(req);
   if(Object.keys(b).some(k=>!['title','status','priority','owner_subject','assignees','due_at'].includes(k)))bad('Campo inválido.');
   const assignees=b.assignees===undefined?null:await checkAssignees(org,b.assignees);
-  if(assignees!==null){const ps=await sql`SELECT project_id FROM teamhub.subtasks WHERE id=${prev.id} AND organization_id=${org}`;if(ps.length)await verifyProjectRecipients(org,ps[0].project_id,assignees);}
-  if(assignees!==null)await verifyProjectRecipients(org,t.project_id,assignees);
+  if(assignees!==null){const ps=await sql`SELECT project_id FROM teamhub.subtasks WHERE id=${prev.id} AND organization_id=${org}`;if(ps.length)await verifyProjectRecipients(org,ps[0].project_id,[...new Set([...assignees,...(owner?[owner]:[])])]);}
+  if(assignees!==null||b.assignee_subject!==undefined)await verifyProjectRecipients(org,t.project_id,[...new Set([...(assignees||[]),...(assignee?[assignee]:[])])]);
   const title=b.title===undefined?prev.title:String(b.title||'').trim();
   const status=b.status===undefined?prev.status:b.status;
   const priority=b.priority===undefined?prev.priority:b.priority;
@@ -511,7 +511,7 @@ const route=async(req,res)=>{
     if(!member.length)bad('Responsável não pertence à organização.',403);
    }
    const assignees=await checkAssignees(org,b.assignees===undefined?(assignee?[assignee]:[]):b.assignees);
-   await verifyProjectRecipients(org,proj.id,assignees);
+   await verifyProjectRecipients(org,proj.id,[...new Set([...assignees,...(assignee?[assignee]:[])])]);
    const rows=await sql`INSERT INTO teamhub.tasks(organization_id,project_id,title,description,priority,due_at,assignee_subject,treatment_status,treatment_notes,pending_reason,next_action,created_by_subject,position) VALUES(${org},${proj.id},${title},${String(b.description||'').slice(0,2000)},${priority},${due_at},${assignee},${treatment},${treatmentNotes},${pendingReason},${nextAction},${subject},(SELECT COALESCE(MAX(position),0)+1 FROM teamhub.tasks WHERE project_id=${proj.id})) RETURNING *`;
    await syncAssignees(org,rows[0].id,assignees);
    await notifyMembers(org,subject,assignees,'task.assigned','Nova tarefa atribuída',title,proj.id,rows[0].id);

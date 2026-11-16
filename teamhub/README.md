@@ -31,3 +31,12 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Manter por enquanto o endereço de desenvolvimento `https://anna-nexus-dev.onrender.com`.
 - **Investigar futuramente** a possibilidade de utilizar Cloudflare (DNS, Worker, proxy ou outra configuração compatível) para servir `nexus.annaone.com.br` com segurança e sem custos adicionais, verificando viabilidade técnica, autenticação, SSL/TLS, limites e dependências.
 - Não alterar DNS, Cloudflare, Render nem serviços de produção apenas com base nesta anotação; eventual implantação depende de verificação e aprovação.
+
+## Entrega v0.1.4 — Tratamento e pendências
+- Situação de tratamento independente do Kanban: pendente, em análise, em execução, aguardando retorno, bloqueada e resolvida.
+- Campos: tratamento realizado, pendências/impedimentos, próxima ação e nota de atualização.
+- Histórico cronológico por tarefa, associado ao usuário autenticado.
+- Filtro de situação no quadro e contador de tarefas que exigem atenção no Dashboard.
+- Migração aditiva: `migrations/0014-treatment.sql`, aplicada apenas ao banco `anna-nexus-dev`. Projetos e tarefas anteriores foram preservados.
+- A publicação deve atualizar o indicador da interface para v0.1.4.
+- Ainda é necessária validação funcional no navegador com a identidade central. Não houve alteração do Portal AnnA One de produção.

@@ -44,7 +44,8 @@ function makeAction(label,handler){
 function renderProjects(){
  const overviewRows=state.projects.slice(0,6).map(p=>{
   const progress=p.total?Math.round(p.done/p.total*100):0;
-  return [p.name,p.description||'—',String(p.total),progress+'%'];
+  const name=makeAction(p.name,()=>openProject(p));name.classList.add('recent-project-link');
+  return [name,p.description||'—',String(p.total),progress+'%'];
  });
  const projectRows=state.projects.map(p=>{
   const progress=p.total?Math.round(p.done/p.total*100):0;

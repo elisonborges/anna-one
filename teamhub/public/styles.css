@@ -923,3 +923,21 @@ html,body{background:var(--bg);color:var(--ink)}
  .task-order-hint{font-size:11px}
 }
 @media(prefers-reduced-motion:reduce){#board .task.is-reordering{transition:none}}
+
+/* v0.1.35 — calendário aproveita espaço horizontal e mantém navegação alinhada */
+.calendar-workspace{display:grid;grid-template-columns:minmax(0,2.15fr) minmax(290px,.95fr);gap:18px;align-items:stretch}
+.calendar-primary{min-width:0}
+.calendar-primary .calendar-controls{justify-content:flex-end;margin:0 0 12px;min-height:38px}
+.calendar-timeline{min-width:0;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:15px;overflow:hidden}
+.calendar-timeline h3{font-size:16px;margin:0 0 7px}
+.calendar-timeline p{font-size:11px;margin:0 0 15px}
+.calendar-timeline .timeline-list{max-height:430px;overflow:auto}
+.calendar-timeline .timeline-row{grid-template-columns:minmax(0,1fr);gap:5px;padding:8px 0}
+.calendar-timeline .timeline-rail{width:100%}
+.mytask-actions{flex-wrap:nowrap;min-width:max-content;white-space:nowrap}
+#mine .nexus-table td:last-child{min-width:max-content}
+.mytask-actions .table-action{flex:0 0 auto}
+.brand-default-choice{display:flex;align-items:center;gap:9px;font-weight:650}
+.brand-default-choice input{width:17px;height:17px;flex:none}
+@media(max-width:1050px){.calendar-workspace{grid-template-columns:minmax(0,1fr)}.calendar-timeline .timeline-row{grid-template-columns:minmax(110px,200px) minmax(0,1fr)}}
+@media(max-width:650px){.calendar-primary .calendar-controls{justify-content:center}.calendar-timeline .timeline-row{grid-template-columns:minmax(0,1fr)}}

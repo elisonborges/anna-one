@@ -151,8 +151,94 @@ for(const action of ['request','approve','reject','reopen']){
   }catch(e){message(e.message,true)}finally{btn.disabled=false}
  });
 }
+// v0.1.40 — solicitações centralizadas e painel pessoal.
+async function loadPersonalHome(){
+ if(state.role!=='member')return;
+ const host=$('member-home');if(!host)return;
+ try{
+  const [t,s]=await Promise.all([api('/api/my-tasks'+qs()),api('/api/my-subtasks'+qs())]);
+  const tasks=t.tasks||[],subtasks=s.subtasks||s.items||[];
+  const open=tasks.filter(x=>x.status!=='done');
+  const doing=tasks.filter(x=>x.status==='doing');
+  const today=todayInFortaleza(),soon=tasks.filter(x=>x.status!=='done'&&x.due_at&&String(x.due_at).slice(0,10)<=today);
+  $('member-total').textContent=String(open.length);
+  $('member-doing').textContent=String(doing.length);
+  $('member-due').textContent=String(soon.length);
+  $('member-subtasks').textContent=String(subtasks.filter(x=>x.status!=='done').length);
+  $('member-home-list').replaceChildren();
+  const rows=open.slice(0,12).map(task=>{
+   const btn=makeAction('Abrir',async()=>{try{await openTaskFromList(task)}catch(e){message(e.message,true)}});
+   return [task.title,task.project_name,task.status==='doing'?'Em andamento':'A fazer',btn];
+  });
+  renderTable('member-home-list',['Atividade','Projeto','Etapa','Ação'],rows);
+ }catch(e){host.querySelector('#member-home-list').textContent='Não foi possível carregar o painel pessoal.';}
+}
+let centralData={requests:[],projects:[]};
+async function loadCentral(){
+ if(state.role==='guest')return;
+ centralData=await api('/api/approvals/central'+qs());
+ renderCentral();
+}
+function renderCentral(){
+ const host=$('approvals-list');
+ if(!host)return;
+ const kind=$('approvals-type').value,filter=$('approvals-status').value;
+ const rows=[];
+ const allowedTask=kind==='all'||kind==='task',allowedProject=kind==='all'||kind==='project';
+ if(allowedTask)for(const item of centralData.requests||[]){
+  if(filter!=='all'&&item.status!==filter)continue;
+  const status=({pending:'Pendente',approved:'Aprovada',rejected:'Recusada'})[item.status]||item.status;
+  const actions=document.createElement('div');actions.className='nexus-central-actions';
+  if(item.status==='pending'&&['admin','manager'].includes(state.role)&&
+    (state.role==='admin'||canManageUI(state.projects.find(x=>x.id===item.project_id)))){
+   for(const [label,decision] of [['Aprovar','approved'],['Recusar','rejected']]){
+    const button=makeAction(label,async()=>{
+     const note=prompt(decision==='rejected'?'Informe o motivo da recusa (obrigatório):':'Observação da aprovação (opcional):','');
+     if(note===null)return;
+     if(decision==='rejected'&&note.trim().length<3){message('Recusa exige justificativa de pelo menos 3 caracteres.',true);return;}
+     if(!confirm((decision==='approved'?'Aprovar':'Recusar')+' esta solicitação de reabertura?'))return;
+     button.disabled=true;
+     try{
+      await api('/api/reopen-requests/'+item.id+'/decide'+qs(),{
+       method:'POST',body:JSON.stringify({decision,note:note.trim()})
+      });
+      await loadCentral();await refreshProjects();message('Decisão registrada na Central.');
+     }catch(e){message(e.message,true);button.disabled=false}
+    });
+    actions.append(button);
+   }
+  }else actions.textContent='Consulta';
+  rows.push(['Reabertura de tarefa',item.task_title||'Tarefa',item.project_name||'Projeto',status,
+   item.reason+(item.decision_note?' | Decisão: '+item.decision_note:''),new Date(item.created_at).toLocaleString('pt-BR'),actions]);
+ }
+ if(allowedProject&&['all','pending'].includes(filter))for(const item of centralData.projects||[]){
+  const action=makeAction(state.role==='admin'?'Analisar validação':'Ver validação',()=>{
+   const p=state.projects.find(x=>x.id===item.id)||{id:item.id,name:item.name};
+   showApproval(p).catch(e=>message(e.message,true));
+  });
+  rows.push(['Validação de projeto',item.name,item.name,'Pendente',item.completion_note||'—',
+   item.completion_requested_at?new Date(item.completion_requested_at).toLocaleString('pt-BR'):'—',action]);
+ }
+ $('approvals-count').textContent=rows.length+' solicitação(ões)';
+ renderTable('approvals-list',['Tipo','Tarefa/Projeto','Projeto','Situação','Justificativa','Solicitado em','Ação'],rows);
+}
+for(const key of ['approvals-type','approvals-status'])$(key).addEventListener('change',renderCentral);
+$('approvals-refresh').addEventListener('click',()=>loadCentral().catch(e=>message(e.message,true)));
+async function requestTaskReopen(task){
+ if(!task||task.status!=='done'){message('Somente tarefas concluídas podem solicitar reabertura.',true);return;}
+ const reason=prompt('Por que a tarefa precisa ser reaberta? (justificativa obrigatória)');
+ if(reason===null)return;
+ if(reason.trim().length<3){message('Informe uma justificativa com pelo menos 3 caracteres.',true);return;}
+ try{
+  await api('/api/tasks/'+task.id+'/reopen-requests'+qs(),{method:'POST',body:JSON.stringify({reason:reason.trim()})});
+  message('Solicitação enviada à Central. O gestor responsável ou administrador será notificado.');
+  if(state.view==='approvals')await loadCentral();
+ }catch(e){message(e.message,true);}
+}
 async function refreshApprovalQueue(){
- const panel=$('approval-queue-panel');panel.hidden=!['admin','manager'].includes(state.role);
+ const panel=$('approval-queue-panel');panel.hidden=true;return;
+ /* antigo painel substituído pela Central
+ panel.hidden=!['admin','manager'].includes(state.role);
  if(panel.hidden)return;
  try{
   const data=await api('/api/approvals/queue'+qs());
@@ -163,6 +249,7 @@ async function refreshApprovalQueue(){
   });
   renderTable('approval-queue-list',['Projeto','Observação','Solicitado em','Ação'],rows);
  }catch(e){message(e.message,true)}
+ */
 }
 async function persistProjectCardOrder(){
  const container=$('projects-list');
@@ -512,7 +599,8 @@ function renderNotificationInbox(){
   if(!n.read_at)actions.append(makeAction('Marcar lida',async()=>{
    try{await api('/api/notifications/'+n.id+'/read'+qs(),{method:'POST'});await loadNotifications()}catch(e){message(e.message,true)}
   }));
-  if(n.project_id)actions.append(makeAction('Abrir projeto',async()=>{
+  if(n.project_id&&(/^(task.reopen|project.review|project.completion)/.test(n.event_type))&&state.role!=='guest')actions.append(makeAction('Ver solicitação',async()=>{try{await loadCentral();show('approvals');await api('/api/notifications/'+n.id+'/read'+qs(),{method:'POST'});await loadNotifications();}catch(e){message(e.message,true)}}));
+  if(n.project_id&&!/^(task.reopen|project.review|project.completion)/.test(n.event_type))actions.append(makeAction('Abrir projeto',async()=>{
    try{
     const p=state.projects.find(x=>x.id===n.project_id);
     if(!p)throw Error('Projeto indisponível.');

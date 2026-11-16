@@ -1001,3 +1001,12 @@ body[data-nexus-role="manager"] .bottom{grid-template-columns:repeat(4,minmax(0,
 @media(max-width:700px){.member-home-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
 .nexus-approval-filters{display:grid;grid-template-columns:auto minmax(0,1fr)}
 .nexus-approval-filters span{grid-column:1/-1}}
+
+/* v0.1.40 — garantias de ocultação e navegação mobile por perfil */
+[hidden]{display:none!important}
+body[data-nexus-role="guest"] #notifications > .panel:nth-child(2){display:none!important}
+body[data-nexus-role="guest"] .bottom{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+body[data-nexus-role="manager"] .bottom{grid-template-columns:repeat(5,minmax(0,1fr))!important}
+#board-archived-panel{margin-top:16px}
+#board-archived-panel h2{margin:0;font-size:17px}
+.task .table-action{font-size:11px}

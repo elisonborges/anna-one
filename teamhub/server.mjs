@@ -661,6 +661,93 @@ const route=async(req,res)=>{
   const items=await sql`SELECT t.id,t.project_id,p.name AS project_name,t.title,t.treatment_status,t.pending_reason,t.next_action,t.due_at FROM teamhub.tasks t JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id WHERE t.organization_id=${org} AND t.archived_at IS NULL AND t.deleted_at IS NULL AND p.archived_at IS NULL AND (${unrestricted} OR (p.access_mode='organization' AND ${role!=='guest'}) OR (p.owner_subject=${subject} AND ${role!=='guest'}) OR p.manager_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject})) AND t.status!='done' AND t.treatment_status IN ('blocked','waiting') ORDER BY CASE WHEN t.treatment_status='blocked' THEN 0 ELSE 1 END,t.due_at NULLS LAST,t.updated_at DESC LIMIT 50`;
   return reply(res,200,{items});
  }
+
+ // v0.1.40 — Central de Solicitações e Aprovações.
+ if(p==='/api/approvals/central'&&req.method==='GET'){
+  if(role==='guest')bad('Convidados não acessam solicitações internas.',403);
+  const requests=await sql`SELECT r.id,r.task_id,r.project_id,r.reason,r.status,r.created_at,
+     r.requester_subject,r.decided_by_subject,r.decision_note,r.decided_at,
+     t.title AS task_title,p.name AS project_name
+   FROM teamhub.task_reopen_requests r
+   JOIN teamhub.projects p ON p.id=r.project_id AND p.organization_id=r.organization_id
+   JOIN teamhub.tasks t ON t.id=r.task_id AND t.organization_id=r.organization_id
+   WHERE r.organization_id=${org} AND
+    (${role==='admin'} OR (${role==='manager'} AND p.manager_subject=${subject})
+      OR r.requester_subject=${subject})
+   ORDER BY r.created_at DESC LIMIT 200`;
+  const projects=role==='admin'||role==='manager'
+   ?await sql`SELECT id,name,completion_requested_at,completion_note,completion_status
+     FROM teamhub.projects WHERE organization_id=${org} AND archived_at IS NULL
+      AND (${role==='admin'} OR manager_subject=${subject})
+      AND completion_status='review'
+     ORDER BY completion_requested_at DESC LIMIT 100`: [];
+  return reply(res,200,{requests,projects});
+ }
+ const requestReopen=/^\/api\/tasks\/([0-9a-f-]+)\/reopen-requests$/.exec(p);
+ if(requestReopen&&validId(requestReopen[1])&&req.method==='POST'){
+  const task=await requireTaskExecution(requestReopen[1]);
+  if(task.status!=='done')bad('Somente tarefas concluídas podem solicitar reabertura.',409);
+  const [proj]=await sql`SELECT id,name,manager_subject,completion_status,paused_at FROM teamhub.projects
+   WHERE organization_id=${org} AND id=${task.project_id} AND archived_at IS NULL`;
+  if(!proj||proj.completion_status!=='active'||proj.paused_at)
+   bad('Reabra ou retome o projeto antes de solicitar a reabertura de tarefa.',409);
+  const b=await json(req),reason=safeNote(b.reason,2000);
+  if(reason.length<3)bad('Justificativa obrigatória (mínimo de 3 caracteres).');
+  let rows;
+  try{
+   rows=await sql`INSERT INTO teamhub.task_reopen_requests
+     (organization_id,project_id,task_id,requester_subject,reason)
+     VALUES(${org},${task.project_id},${requestReopen[1]},${subject},${reason})
+     RETURNING id,status,created_at`;
+  }catch(e){
+   if(e?.code==='23505'||String(e?.message||'').includes('nexus_one_reopen_pending'))
+    bad('Já existe uma solicitação pendente para esta tarefa.',409);
+   throw e;
+  }
+  const admins=await sql`SELECT auth_subject FROM teamhub.memberships
+   WHERE organization_id=${org} AND role='admin' AND active=true`;
+  await notifyMembers(org,subject,[...admins.map(x=>x.auth_subject),proj.manager_subject].filter(Boolean),
+   'task.reopen.requested','Solicitação de reabertura de tarefa',
+   'Acesse a Central de Solicitações e Aprovações.',task.project_id,requestReopen[1]);
+  return reply(res,201,{request:rows[0]});
+ }
+ const decideReopen=/^\/api\/reopen-requests\/([0-9a-f-]+)\/decide$/.exec(p);
+ if(decideReopen&&validId(decideReopen[1])&&req.method==='POST'){
+  const b=await json(req),decision=b.decision,note=safeNote(b.note||'',1000);
+  if(!['approved','rejected'].includes(decision))bad('Decisão inválida.');
+  if(decision==='rejected'&&note.length<3)bad('A recusa exige justificativa.');
+  const [pending]=await sql`SELECT r.id,r.project_id,r.task_id,r.requester_subject
+   FROM teamhub.task_reopen_requests r WHERE r.id=${decideReopen[1]}
+    AND r.organization_id=${org} AND r.status='pending'`;
+  if(!pending)bad('Solicitação não está pendente.',409);
+  await requireProjectManagement(pending.project_id);
+  // One SQL statement handles the decision and task transition together.
+  const result=await sql`WITH decided AS (
+    UPDATE teamhub.task_reopen_requests r SET status=${decision},
+      decision_note=${note},decided_by_subject=${subject},decided_at=now()
+    FROM teamhub.projects p,teamhub.tasks t
+    WHERE r.id=${pending.id} AND r.organization_id=${org}
+      AND r.status='pending' AND p.id=r.project_id AND p.organization_id=r.organization_id
+      AND t.id=r.task_id AND t.organization_id=r.organization_id
+      AND ( ${decision}='rejected' OR
+        (p.completion_status='active' AND p.paused_at IS NULL
+         AND t.status='done' AND t.deleted_at IS NULL AND t.archived_at IS NULL))
+    RETURNING r.id,r.project_id,r.task_id
+   ), changed AS(
+    UPDATE teamhub.tasks t SET status='doing',updated_at=now()
+     FROM decided d WHERE ${decision}='approved' AND t.id=d.task_id AND t.organization_id=${org}
+     RETURNING t.id
+   ) SELECT id,project_id,task_id FROM decided`;
+  if(!result.length)bad('A solicitação não pode ser decidida neste estado.',409);
+  await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id,task_id)
+    VALUES(${org},${subject},${'task.reopen.'+decision},${pending.project_id},${pending.task_id})`;
+  await sql`INSERT INTO teamhub.task_updates(organization_id,task_id,actor_subject,event_type,summary)
+    VALUES(${org},${pending.task_id},${subject},'progress',${'Reabertura '+(decision==='approved'?'aprovada':'recusada')+(note?': '+note:'')})`;
+  await notifyMembers(org,subject,[pending.requester_subject],
+   'task.reopen.decided',decision==='approved'?'Reabertura aprovada':'Reabertura recusada',
+   'Consulte o resultado na Central de Solicitações e Aprovações.',pending.project_id,pending.task_id);
+  return reply(res,200,{decided:true,status:decision});
+ }
  const approvalQueue='/api/approvals/queue';
  if(p===approvalQueue&&req.method==='GET'){
   requireManager(role);

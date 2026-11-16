@@ -1,6 +1,32 @@
 const $=id=>document.getElementById(id);
 const AUTH='https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth';
 const state={jwt:null,org:null,role:null,projects:[],tasks:[],project:null,view:'overview',subject:null,auth:null,members:[],organizations:[]};
+const canManageUI=p=>state.role==='admin'||(state.role==='manager'&&!!p&&p.manager_subject===state.subject);
+const assignedUI=t=>!!t&&(t.assignee_subject===state.subject||(Array.isArray(t.assignees)&&t.assignees.includes(state.subject)));
+const canExecuteUI=t=>canManageUI(state.project)||(['member','manager'].includes(state.role)&&assignedUI(t));
+const roleViews={
+ admin:['overview','projects','board','mytasks','calendar','approvals','reports','notifications','team'],
+ manager:['overview','projects','board','mytasks','calendar','approvals','reports','notifications'],
+ member:['overview','projects','board','mytasks','calendar','approvals','notifications'],
+ guest:['projects','board','calendar','notifications']
+};
+function applyRoleMenus(){
+ const allowed=roleViews[state.role]||[];
+ document.body.dataset.nexusRole=state.role||'';
+ for(const element of document.querySelectorAll('[data-view]')){
+  element.hidden=!allowed.includes(element.dataset.view);
+  if(element.dataset.view==='approvals'){
+   const name=element.querySelector('span');if(name)name.textContent=state.role==='member'?'Minhas solicitações':'Solicitações e Aprovações';
+  }
+  if(element.dataset.view==='projects'){
+   const name=element.querySelector('span');if(name&&element.closest('#nexus-sidebar'))name.textContent=state.role==='manager'?'Meus projetos':state.role==='guest'?'Projetos compartilhados':'Projetos';
+  }
+ }
+ $('dash-alerts').hidden=!['admin','manager'].includes(state.role);
+ $('dash-export').hidden=!['admin','manager'].includes(state.role);
+ $('dash-wallboard').hidden=state.role==='member';
+ $('show-archived').disabled=state.role==='member';
+}
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const message=(s,error=false)=>{const el=$('status');el.textContent=s;el.style.background=error?'#fff0ef':'';el.style.color=error?'#a31931':''};
 const compactMedia=window.matchMedia('(max-width:850px)');
@@ -37,10 +63,10 @@ $('side-backdrop').addEventListener('click',()=>setMobileNav(false));
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&mobileNavOpen)setMobileNav(false)});
 compactMedia.addEventListener('change',()=>setMobileNav(false));
 try{setSidebarCollapsed(localStorage.getItem(layoutPrefsKey)==='true')}catch{setSidebarCollapsed(false)}
-const show=(view)=>{setMobileNav(false);state.view=view;for(const id of ['overview','projects','board','mytasks','team','reports','notifications','calendar'])$(id).hidden=id!==view;$('welcome-banner').hidden=view!=='overview';
+const show=(view)=>{if(state.role&&!(roleViews[state.role]||[]).includes(view))return;setMobileNav(false);state.view=view;for(const id of ['overview','projects','board','mytasks','team','reports','notifications','calendar','approvals'])$(id).hidden=id!==view;$('welcome-banner').hidden=view!=='overview';
 document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);b.setAttribute('aria-current',b.dataset.view===view?'page':'false')});
- $('title').textContent=view==='overview'?'Visão geral':view==='projects'?'Projetos':view==='board'?state.project?.name||'Quadro':view==='team'?'Equipe':view==='reports'?'Relatórios':view==='notifications'?'Notificações':view==='calendar'?'Calendário':'Minhas tarefas';
- $('subtitle').textContent=view==='overview'?'Acompanhe os projetos e as atividades da sua equipe.':view==='projects'?'Organize seus projetos e entregas.':view==='board'?'Acompanhe o trabalho por etapas.':view==='team'?'Pessoas autorizadas da organização.':view==='reports'?'Histórico e tempo dedicado a pendências.':view==='notifications'?'Atribuições e avisos importantes.':view==='calendar'?'Prazos e entregas por mês.':'Atividades sob sua responsabilidade.';
+ $('title').textContent=view==='overview'?'Visão geral':view==='projects'?'Projetos':view==='board'?state.project?.name||'Quadro':view==='team'?'Equipe':view==='approvals'?'Solicitações e Aprovações':view==='reports'?'Relatórios':view==='notifications'?'Notificações':view==='calendar'?'Calendário':'Minhas tarefas';
+ $('subtitle').textContent=view==='overview'?'Acompanhe os projetos e as atividades da sua equipe.':view==='projects'?'Organize seus projetos e entregas.':view==='board'?'Acompanhe o trabalho por etapas.':view==='team'?'Pessoas autorizadas da organização.':view==='approvals'?'Acompanhe solicitações e registre decisões autorizadas.':view==='reports'?'Histórico e tempo dedicado a pendências.':view==='notifications'?'Atribuições e avisos importantes.':view==='calendar'?'Prazos e entregas por mês.':'Atividades sob sua responsabilidade.';
 };
 async function api(route,options={}){
  const res=await fetch(route,{...options,headers:{'Content-Type':'application/json','Authorization':'Bearer '+state.jwt,...(options.headers||{})},cache:'no-store'});
@@ -894,7 +920,7 @@ $('dash-alerts').addEventListener('click',async()=>{
 });
 
 async function refreshProjects(){
- const data=await api('/api/projects'+qs());state.projects=data.projects;state.role=data.role;renderProjects();
+ const data=await api('/api/projects'+qs());state.projects=data.projects;state.role=data.role;applyRoleMenus();renderProjects();
  await refreshApprovalQueue();
  $('new-project').disabled=!['admin','manager'].includes(state.role);
  $('projects-invite').disabled=state.role!=='admin';
@@ -902,7 +928,8 @@ async function refreshProjects(){
  const any=document.createElement('option');any.value='';any.textContent='Todos os projetos';selector.append(any);
  for(const p of state.projects){const option=document.createElement('option');option.value=p.id;option.textContent=p.name;selector.append(option);}
  selector.value=state.projects.some(p=>p.id===selected)?selected:'';
- await loadDashboard();await loadAttention();
+ if(state.role!=='guest'){await loadDashboard();await loadAttention();}
+ if(state.role==='member')await loadPersonalHome();
 }
 function readyForFinalReview(project,tasks){
  if(project.completion_status!=='active'||project.paused_at||!tasks.length)return false;
@@ -1436,8 +1463,8 @@ async function boot(){
   const me=await api('/api/me');state.organizations=me.organizations;if(!me.organizations.length){message('Login reconhecido, mas sua conta ainda não possui acesso ao Nexus.',true);return;}
   const select=$('org');select.replaceChildren(...me.organizations.map(o=>{const opt=document.createElement('option');opt.value=o.id;opt.textContent=o.name;return opt}));
   state.org=me.organizations[0].id;
-  select.addEventListener('change',async()=>{state.org=select.value;state.tasks=[];state.project=null;await loadMembers();await refreshProjects();renderBrand();await loadNotifications();show('overview')});
-  await loadMembers();await refreshProjects();renderBrand();await loadNotifications();$('app').hidden=false;show('overview');message('');
+  select.addEventListener('change',async()=>{state.org=select.value;state.tasks=[];state.project=null;await refreshProjects();if(state.role!=='guest'){await loadMembers();renderProjects();}else state.members=[];renderBrand();await loadNotifications();show(state.role==='guest'?'projects':'overview')});
+  await refreshProjects();if(state.role!=='guest'){await loadMembers();renderProjects();}else state.members=[];renderBrand();await loadNotifications();$('app').hidden=false;show(state.role==='guest'?'projects':'overview');message('');
  }catch(e){message(e.message||'Não foi possível iniciar o Nexus.',true);$('signin').hidden=false;$('app').hidden=true;}
 }
  $('signin-form').addEventListener('submit',async e=>{
@@ -1448,7 +1475,7 @@ async function boot(){
   $('signin-password').value='';await boot();
  }catch(error){message('Não foi possível entrar. Confira seus dados no Portal AnnA One e tente novamente.',true)}finally{button.disabled=false}
 });
-document.querySelectorAll('[data-view]').forEach(x=>x.addEventListener('click',async()=>{if(!state.org)return;try{if(x.dataset.view==='projects'||x.dataset.view==='overview')await refreshProjects();if(x.dataset.view==='mytasks')await loadMyTasks();if(x.dataset.view==='team'){await loadMembers();await loadInvitations()}if(x.dataset.view==='reports'){await loadReports();await loadAutomationMonitor();}if(x.dataset.view==='notifications'){await loadNotifications();await loadNotificationPreferences();}if(x.dataset.view==='calendar')await loadCalendar();show(x.dataset.view)}catch(e){message(e.message,true)}}));
+document.querySelectorAll('[data-view]').forEach(x=>x.addEventListener('click',async()=>{if(!state.org)return;try{if(x.dataset.view==='projects'||x.dataset.view==='overview')await refreshProjects();if(x.dataset.view==='mytasks')await loadMyTasks();if(x.dataset.view==='team'){await loadMembers();await loadInvitations()}if(x.dataset.view==='reports'){await loadReports();await loadAutomationMonitor();}if(x.dataset.view==='notifications'){await loadNotifications();await loadNotificationPreferences();}if(x.dataset.view==='calendar')await loadCalendar();if(x.dataset.view==='approvals')await loadCentral();show(x.dataset.view)}catch(e){message(e.message,true)}}));
 $('invite-form').addEventListener('submit',async e=>{
  e.preventDefault();const button=$('invite-create');button.disabled=true;
  const email=$('invite-email').value.trim().toLowerCase(),role=$('invite-role').value;

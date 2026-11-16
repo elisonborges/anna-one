@@ -46,3 +46,8 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Botão para abrir diretamente o projeto, com navegação responsiva.
 - Dados isolados por organização e submetidos à verificação de acesso.
 - Mantém o histórico e a modelagem da v0.1.4, sem alterar outras estruturas.
+
+## Entrega v0.1.6 — Registro rápido de andamento
+- Na ficha de tarefa existente, registrar uma nota de andamento sem precisar alterar ou salvar novamente os demais campos.
+- O evento fica associado à identidade autenticada e à data/hora no histórico da tarefa.
+- Autorização de edição verificada no backend; formulário responsivo para dispositivos móveis.

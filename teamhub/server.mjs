@@ -181,8 +181,9 @@ function inviteEmailContent({organizationName,logoUrl,role,inviteUrl}){
 async function dispatchInvitationEmail({invitationId,email,role,inviteUrl,organizationName,logoUrl,attempt=0}){
  if(!emailTransportConfigured()){
   await sql`UPDATE teamhub.invitations SET email_status='not_configured',
-   email_error='Envio automático não configurado no ambiente.',email_attempted_at=NULL
-   WHERE id=${invitationId} AND email_attempts=0`;
+   email_error='Envio automático não configurado no ambiente.',
+   email_attempted_at=now(),email_attempts=email_attempts+1
+   WHERE id=${invitationId}`;
   return {delivery:'manual',email_status:'not_configured'};
  }
  const content=inviteEmailContent({organizationName,logoUrl,role,inviteUrl});

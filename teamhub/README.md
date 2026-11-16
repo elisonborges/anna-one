@@ -239,3 +239,10 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Ao editar uma tarefa, painel maior, responsivo e dividido em **Detalhes**, **Subtarefas**, **Comentários** e **Anexos**. As seções utilizam os mesmos campos e APIs já existentes. Navegação por clique, Tab e setas, com contagens de subtarefas e anexos.
 - Na aba Detalhes mantém título, descrição, responsáveis, tratamento e o botão Salvar. Nas outras abas permanecem as ações específicas (criar subtarefa, comentar, enviar anexo) sem exigir salvar a ficha inteira.
 - Não altera arquivos existentes nem dados reais de projeto, além da nova coluna vazia por padrão. Banco e portal de produção preservados.
+
+## AnnA Nexus v0.1.32 — Correção dos temas claro e escuro
+- Alternância de tema movida para `public/theme.js`, independente da inicialização da autenticação e das outras telas. O botão funciona mesmo se o módulo principal falhar.
+- Tema inicial aplicado no cabeçalho antes do carregamento dos estilos; continua seguindo a preferência salva, com alternativa automática pelo tema do sistema.
+- Botão indica a ação seguinte, com texto acessível, e preserva a escolha em `localStorage` quando disponível.
+- Corrigidos o fundo da raiz e as cores de contraste de etiquetas, pendências, botões e avisos no modo escuro.
+- Mudança somente no frontend, sem migração de banco ou serviços pagos. Homologação visual autenticada segue necessária.

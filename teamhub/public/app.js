@@ -361,13 +361,20 @@ async function loadNotifications(){
 async function loadNotificationPreferences(){
  const data=await api('/api/notification-preferences'+qs());
  for(const key of ['assignments','mentions','deadlines','approvals'])$('pref-'+key).checked=!!data.preferences[key];
- $('pref-email-note').textContent=data.email_available?'E-mail disponível mediante configuração.':'E-mail automático ainda não disponível; os avisos permanecem no Nexus.';
+ const checkbox=$('pref-email');
+ checkbox.checked=!!data.preferences.email_enabled;
+ checkbox.disabled=!data.can_enable_email;
+ $('pref-email-note').textContent=!data.email_available
+  ?'E-mail externo ainda não está configurado. Os avisos internos continuam funcionando.'
+  :data.can_enable_email?'Se ativado, avisos novos e não lidos poderão ser enviados ao e-mail verificado da conta.'
+  :'Para habilitar e-mail, a conta precisa apresentar um endereço verificado no login.';
 }
 $('notification-filter').addEventListener('change',renderNotificationInbox);
 $('pref-save').addEventListener('click',async()=>{
  const button=$('pref-save');button.disabled=true;
  try{
   const body={};for(const key of ['assignments','mentions','deadlines','approvals'])body[key]=$('pref-'+key).checked;
+  if(!$('pref-email').disabled)body.email_enabled=$('pref-email').checked;
   await api('/api/notification-preferences'+qs(),{method:'PATCH',body:JSON.stringify(body)});
   message('Preferências de notificações salvas para esta organização.');
  }catch(e){message(e.message,true)}finally{button.disabled=false;}
@@ -493,6 +500,34 @@ async function loadMyTasks(){
  await loadMySubtasks();
 }
 let reportSnapshot=null;
+async function loadAutomationMonitor(){
+ const panel=$('automation-admin');panel.hidden=!['admin','manager'].includes(state.role);
+ if(panel.hidden)return;
+ try{
+  const [jobs,mail]=await Promise.all([
+   api('/api/automation/runs'+qs()),
+   api('/api/automation/email-deliveries'+qs())
+  ]);
+  const rows=jobs.runs.map(r=>[
+   new Date(String(r.local_day).slice(0,10)+'T12:00:00Z').toLocaleDateString('pt-BR',{timeZone:'UTC'}),
+   r.trigger_type==='scheduled'?'Agendada (serviço ativo)':'Manual',
+   ({completed:'Concluída',failed:'Falhou',running:'Em andamento'})[r.status]||r.status,
+   String(r.tasks_created),String(r.subtasks_created),
+   r.error_message||'—'
+  ]);
+  renderTable('automation-runs',['Dia','Tipo','Situação','Tarefas','Subtarefas','Observação'],rows);
+  $('email-delivery-status').textContent=mail.configured
+   ?'Envio via Resend configurado. Registros abaixo representam aceite ou falha na API, não entrega confirmada na caixa de entrada.'
+   :'Envio externo desativado. Não há integração Resend ativa neste serviço.';
+  renderTable('email-deliveries',['Tentativa','Situação','Retorno do provedor'],
+   mail.deliveries.map(x=>[
+    new Date(x.attempted_at).toLocaleString('pt-BR'),
+    x.status==='sent'?'Aceita pela API':'Falha',
+    x.error_message||'—'
+   ]));
+ }catch(e){message('Não foi possível consultar o monitor: '+e.message,true)}
+}
+$('automation-refresh').addEventListener('click',()=>loadAutomationMonitor());
 async function loadReports(){
  const data=await api('/api/reports'+qs());reportSnapshot=data;
  const now=new Date(data.generated_at).getTime();
@@ -1046,7 +1081,7 @@ async function boot(){
   $('signin-password').value='';await boot();
  }catch(error){message('Não foi possível entrar. Confira seus dados no Portal AnnA One e tente novamente.',true)}finally{button.disabled=false}
 });
-document.querySelectorAll('[data-view]').forEach(x=>x.addEventListener('click',async()=>{if(!state.org)return;try{if(x.dataset.view==='projects'||x.dataset.view==='overview')await refreshProjects();if(x.dataset.view==='mytasks')await loadMyTasks();if(x.dataset.view==='team'){await loadMembers();await loadInvitations()}if(x.dataset.view==='reports')await loadReports();if(x.dataset.view==='notifications'){await loadNotifications();await loadNotificationPreferences();}if(x.dataset.view==='calendar')await loadCalendar();show(x.dataset.view)}catch(e){message(e.message,true)}}));
+document.querySelectorAll('[data-view]').forEach(x=>x.addEventListener('click',async()=>{if(!state.org)return;try{if(x.dataset.view==='projects'||x.dataset.view==='overview')await refreshProjects();if(x.dataset.view==='mytasks')await loadMyTasks();if(x.dataset.view==='team'){await loadMembers();await loadInvitations()}if(x.dataset.view==='reports'){await loadReports();await loadAutomationMonitor();}if(x.dataset.view==='notifications'){await loadNotifications();await loadNotificationPreferences();}if(x.dataset.view==='calendar')await loadCalendar();show(x.dataset.view)}catch(e){message(e.message,true)}}));
 $('invite-form').addEventListener('submit',async e=>{
  e.preventDefault();const button=$('invite-create');button.disabled=true;
  const email=$('invite-email').value.trim().toLowerCase(),role=$('invite-role').value;

@@ -79,3 +79,11 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Migração aditiva: `migrations/0019-brand-and-assignees.sql` no banco separado anna-nexus-dev, com preservação dos responsáveis anteriores.
 - Não alterar o login central, não modificar o portal principal ou os dados de produção.
 - Revisão funcional por navegador com contas reais ainda é necessária, além da checagem de sintaxe.
+
+## Entrega v0.1.10 — Abertura de projetos e logotipo local
+- O botão **Abrir** e o nome clicável ficam na primeira coluna de Projetos/Projetos recentes, sem exigir rolar até o final da tabela.
+- Em Equipe > Identidade do cliente é possível selecionar PNG, JPEG ou WebP do computador/celular (até 5 MB).
+- O navegador redimensiona o arquivo para até 320 px e o converte em WebP; o backend valida tamanho/mime e salva a imagem pequena como data URI no campo `logo_url`, dispensando armazenamento externo.
+- A opção de logotipo por link HTTPS continua disponível.
+- A migração do banco **não é necessária** nesta atualização; o conteúdo vai para o campo já existente.
+- Não alterar o portal principal de produção. Recomenda-se confirmar visualmente botão de projeto e upload local no navegador.

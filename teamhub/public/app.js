@@ -489,9 +489,11 @@ async function loadInvitations(){
      catch(e){message(e.message,true);action.disabled=false}
     });
    }
-   return [invite.email,role,status,new Date(invite.expires_at).toLocaleDateString('pt-BR'),action];
+   const delivery=({sent:'Aceito pelo Resend',failed:'Falha no envio',not_configured:'Envio não configurado',manual:'Link manual'})[invite.email_status]||'Não informado';
+   const result=invite.email_status==='failed'&&invite.email_error?delivery+' ('+invite.email_error+')':delivery;
+   return [invite.email,role,status,result,new Date(invite.expires_at).toLocaleDateString('pt-BR'),action];
   });
-  renderTable('invite-list',['E-mail','Perfil','Situação','Validade','Ação'],rows);
+  renderTable('invite-list',['E-mail','Perfil','Situação','E-mail enviado','Validade','Ação'],rows);
  }catch(e){$('invite-list').textContent='Erro ao consultar convites: '+e.message;}
 }
 async function redeemInvitation(){
@@ -1763,9 +1765,17 @@ $('invite-form').addEventListener('submit',async e=>{
   const data=await api('/api/invitations'+qs(),{method:'POST',body:JSON.stringify({email,role})});
   $('invite-link').value=data.invite_url;
   $('invite-result').hidden=false;
+  const deliveryMessages={
+   sent:'O Resend aceitou o e-mail para envio. A entrega na caixa de entrada ainda não foi confirmada.',
+   failed:'Convite criado, mas o serviço de e-mail recusou ou não concluiu o envio. Copie o link ou envie pelo seu aplicativo de e-mail.',
+   not_configured:'Convite criado. O envio automático ainda não está habilitado neste ambiente; compartilhe o link manualmente.'
+  };
+  const currentStatus=data.email_status||'not_configured';
+  $('invite-delivery-status').textContent=deliveryMessages[currentStatus]||'Convite criado. Confira o resultado e compartilhe o link, se necessário.';
+  $('invite-delivery-status').dataset.delivery=currentStatus;
   $('invite-mail').href='mailto:'+encodeURIComponent(email)+'?subject='+encodeURIComponent('Convite para AnnA Nexus')+'&body='+encodeURIComponent('Você foi convidado para colaborar na AnnA Nexus. Entre com sua conta do Portal AnnA One usando o mesmo e-mail e acesse o convite válido por 7 dias:\n\n'+data.invite_url+'\n\nO acesso será liberado após aceitar o convite.');
   $('invite-email').value='';
-  message('Convite gerado. Compartilhe o link com o destinatário.');
+  message(data.email_status==='sent'?'Convite criado. E-mail aceito pelo Resend.':'Convite criado, mas o envio automático não foi confirmado; utilize o link manual.');
   await loadInvitations();
  }catch(e){message(e.message,true)}finally{button.disabled=false}
 });

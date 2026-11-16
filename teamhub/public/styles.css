@@ -892,3 +892,18 @@ html,body{background:var(--bg);color:var(--ink)}
 :root[data-theme="dark"] .project-card-actions .table-action:not(.project-card-open){background:var(--surface);border-color:var(--line);color:var(--ink)}
 :root[data-theme="dark"] #status:not(:empty){background:#253e5e;color:#d9eaff;border-color:var(--line)}
 :root[data-theme="dark"] .task-detail-tabs button[aria-selected="true"]{background:#2378db;color:#fff}
+
+/* v0.1.33 — alça de reordenação para projetos (mouse, toque, teclado) */
+.project-card-cover{position:relative}
+.project-drag-handle{
+ position:absolute;right:9px;top:7px;z-index:1;
+ width:35px;height:34px;border:1px solid #ffffffa0;border-radius:9px;
+ background:#11283c88;color:#fff;font-size:23px;font-weight:800;
+ cursor:grab;touch-action:none;user-select:none;
+ display:inline-flex;justify-content:center;align-items:center;
+}
+.project-drag-handle:active{cursor:grabbing}
+.project-drag-handle:hover,.project-drag-handle:focus-visible{background:#102744d9;outline:2px solid #fff;outline-offset:1px}
+.project-card.is-reordering{outline:3px solid var(--accent);outline-offset:-3px;box-shadow:0 10px 30px #0c214640;opacity:.85}
+:root[data-theme="dark"] .project-drag-handle{background:#06182dc9}
+@media (prefers-reduced-motion:reduce){.project-card.is-reordering{transition:none}}

@@ -222,6 +222,8 @@ async function loadMyTasks(){
     btn.disabled=true;try{if(key==='open')await openTaskFromList(task);else await taskAction(task,key);}catch(e){message(e.message,true)}finally{btn.disabled=false}
    });
    if(key==='delete'&&state.role!=='admin')btn.disabled=true;
+   if(task.archived_at&&['edit','pause','resume','archive'].includes(key))btn.disabled=true;
+   if(task.paused_at&&key==='archive')btn.title='Arquivar encerra a pausa atual';
    if(!['admin','manager','member'].includes(state.role)&&key!=='open')btn.disabled=true;
    controls.append(btn);
   }

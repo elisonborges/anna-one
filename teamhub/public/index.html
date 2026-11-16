@@ -10,7 +10,7 @@
  <aside class="side" aria-label="Navegação principal">
  <button class="nav active" data-view="overview">▦ <span>Visão geral</span></button>
  <button class="nav" data-view="projects">▤ <span>Projetos</span></button>
- <button class="nav" data-view="mytasks">☑ <span>Minhas tarefas</span></button>
+ <button class="nav" data-view="mytasks">☑ <span>Minhas tarefas</span></button><button class="nav" data-view="team">♙ <span>Equipe</span></button>
  <a class="nav return" href="https://annaone.com.br/app/">⌂ <span>Voltar ao portal</span></a>
  </aside>
  <main class="main">
@@ -29,10 +29,11 @@
  <div class="column" data-status="done"><h2><i class="dot green"></i>Concluído <span class="count">0</span></h2><div class="tasklist"></div></div>
  </div>
  </section>
- <section id="mytasks" hidden><div class="panel"><h2>Minhas tarefas</h2><p class="muted">Tarefas atribuídas à sua identidade. No MVP inicial, a atribuição será ampliada na próxima entrega.</p><div id="mine"></div></div></section>
+ <section id="mytasks" hidden><div class="panel"><h2>Minhas tarefas</h2><p class="muted">Atividades atribuídas a você, em todos os projetos da organização.</p><div id="mine" class="mytask-list"></div></div></section>
+ <section id="team" hidden><div class="panel"><h2>Equipe</h2><p class="muted">Membros ativos com acesso ao AnnA Nexus. A gestão de convites será adicionada em uma próxima etapa.</p><div id="members-list" class="members-list"></div></div></section>
  </main>
- <nav class="bottom" aria-label="Navegação móvel"><button data-view="overview">⌂<span>Início</span></button><button data-view="projects">▤<span>Projetos</span></button><button data-view="mytasks">☑<span>Tarefas</span></button></nav>
+ <nav class="bottom" aria-label="Navegação móvel"><button data-view="overview">⌂<span>Início</span></button><button data-view="projects">▤<span>Projetos</span></button><button data-view="mytasks">☑<span>Tarefas</span></button><button data-view="team">♙<span>Equipe</span></button></nav>
 </div>
 <dialog id="dialog"><form id="editor"><div class="modal-head"><h2 id="modal-title">Novo projeto</h2><button type="button" class="icon" id="close-modal" aria-label="Fechar">×</button></div><label for="field-name">Nome</label><input id="field-name" required minlength="2" maxlength="240" autocomplete="off"><label for="field-description">Descrição (opcional)</label><textarea id="field-description" rows="3" maxlength="2000"></textarea>
-<div id="task-fields" hidden><label for="field-priority">Prioridade</label><select id="field-priority"><option value="low">Baixa</option><option value="medium" selected>Média</option><option value="high">Alta</option></select><label for="field-due">Prazo (opcional)</label><input id="field-due" type="date"></div><div class="modal-actions"><button type="button" class="secondary" id="cancel">Cancelar</button><button class="primary" type="submit" id="save">Salvar</button></div></form></dialog>
+<div id="task-fields" hidden><label for="field-priority">Prioridade</label><select id="field-priority"><option value="low">Baixa</option><option value="medium" selected>Média</option><option value="high">Alta</option></select><label for="field-due">Prazo (opcional)</label><input id="field-due" type="date"><label for="field-assignee">Responsável</label><select id="field-assignee"><option value="">Sem responsável</option></select></div><div class="modal-actions"><button type="button" class="secondary" id="cancel">Cancelar</button><button class="primary" type="submit" id="save">Salvar</button></div></form></dialog>
 <script type="module" src="./app.js"></script></body></html>

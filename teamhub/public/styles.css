@@ -37,3 +37,51 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
 @media(max-height:470px){
  body:has(#signin:not([hidden])) .signin{align-content:start;overflow-y:auto}
 }
+
+/* Nexus v0.1.1: alinhamento e padrao visual de dashboard AnnA One */
+#app{align-items:stretch}
+#app .main{margin:0 auto;min-width:0}
+#app .heading{align-items:center;margin-bottom:20px}
+#app .heading h1{line-height:1.15}
+#app .heading>div:last-child{min-width:185px}
+#app .heading select{min-height:44px}
+.nexus-banner{position:relative;display:flex;align-items:center;justify-content:space-between;gap:16px;overflow:hidden;background:linear-gradient(110deg,#07418a 0%,#0875e7 64%,#7bcfff 100%);color:white;border-radius:17px;padding:clamp(18px,3vw,30px);min-height:150px;margin-bottom:20px;box-shadow:0 8px 22px #0a4b9130}
+.nexus-banner-copy{position:relative;z-index:1}
+.nexus-banner .welcome{margin:0 0 2px;letter-spacing:.04em;font-size:13px;color:#e1efff}
+.nexus-banner h2{margin:0;font-size:clamp(27px,4vw,40px);line-height:1.1;letter-spacing:-.025em}
+.nexus-banner h2 span{color:#b8ecff}
+.nexus-banner-copy>p:not(.welcome){font-size:clamp(13px,1.5vw,16px);margin:9px 0 14px;line-height:1.4}
+.nexus-banner-copy small{font-size:10px;letter-spacing:.09em;color:#d4eeff;font-weight:750}
+.nexus-banner-symbol{width:clamp(80px,16vw,155px);height:clamp(80px,16vw,155px);object-fit:contain;filter:drop-shadow(0 10px 18px #00428277)}
+.stats article{min-height:108px;padding:18px 20px;border-radius:14px}
+.stats strong{font-size:30px;margin-top:6px}
+.side{position:sticky;top:74px;height:calc(100dvh - 74px);min-width:0}
+.side .nav{min-height:44px;align-items:center}
+.panel{padding:20px}
+#projects .section-head{flex-wrap:wrap}
+@media(max-width:850px){
+ #app .main{padding:16px 14px calc(95px + env(safe-area-inset-bottom));max-width:100%}
+ #app .heading{display:flex;flex-direction:column;align-items:stretch;gap:12px}
+ #app .heading>div:last-child{width:100%;min-width:0}
+ #app .heading select{width:100%}
+ .nexus-banner{min-height:128px;padding:20px 17px;margin-bottom:15px}
+ .nexus-banner-symbol{width:80px;height:80px}
+ .nexus-banner h2{font-size:30px}
+ .nexus-banner-copy small{font-size:9px}
+ .stats{gap:10px}
+ .stats article{min-height:94px;padding:15px}
+ .stats strong{font-size:29px}
+ .panel{padding:16px}
+ .cards{grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr))}
+ .top-actions{gap:8px}
+}
+@media(max-width:410px){
+ .nexus-banner{gap:6px}
+ .nexus-banner-symbol{width:64px;height:64px;flex:none}
+ .nexus-banner h2{font-size:27px}
+ .nexus-banner-copy>p:not(.welcome){font-size:12px}
+ .nexus-banner-copy small{font-size:8px}
+ .stats span{font-size:12px}
+ .brand strong{font-size:19px}
+ .top-actions #portal{font-size:11px}
+}

@@ -737,6 +737,10 @@ function modal(type,task=null){
  $('history-add').disabled=!['admin','manager','member'].includes(state.role);
  $('task-history-wrap').hidden=type!=='edit';
  $('subtasks-panel').hidden=type!=='edit';
+ $('attachments-panel').hidden=type!=='edit';
+ $('attachment-file').value='';
+ $('attachment-upload').disabled=!['admin','manager','member'].includes(state.role);
+ if(type==='edit')loadAttachments(task.id);
  $('subtask-add').disabled=!['admin','manager','member'].includes(state.role);
  $('subtask-name').value='';$('subtask-due').value='';
  $('subtask-assignees').querySelectorAll('input:checked').forEach(x=>x.checked=false);
@@ -829,6 +833,59 @@ $('subtask-add').addEventListener('click',async()=>{
   $('subtask-assignees').querySelectorAll('input:checked').forEach(x=>x.checked=false);
   await loadSubtasks(editing.id);message('Subtarefa adicionada.');
  }catch(e){message(e.message,true)}finally{button.disabled=false;}
+});
+async function loadAttachments(taskId){
+ const box=$('attachments-list');box.textContent='Carregando anexos…';
+ try{
+  const data=await api('/api/tasks/'+taskId+'/attachments'+qs());
+  $('attachments-count').textContent=data.attachments.length+'/12 arquivos';
+  box.replaceChildren();
+  if(!data.attachments.length){box.textContent='Nenhum anexo nesta tarefa.';return;}
+  for(const item of data.attachments){
+   const row=document.createElement('div');row.className='attachment-row';
+   const name=document.createElement('div');name.className='attachment-name';
+   const title=document.createElement('strong');title.textContent=item.file_name;
+   const detail=document.createElement('small');detail.textContent=(item.file_size/1024).toFixed(0)+' KB · '+new Date(item.created_at).toLocaleString('pt-BR');
+   name.append(title,detail);
+   const download=makeAction('Baixar',async()=>{
+    download.disabled=true;
+    try{
+     const result=await api('/api/tasks/'+taskId+'/attachments/'+item.id+qs());
+     const binary=atob(result.file.base64);
+     const bytes=new Uint8Array(binary.length);
+     for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+     const url=URL.createObjectURL(new Blob([bytes],{type:'application/octet-stream'}));
+     const link=document.createElement('a');link.href=url;link.download=result.file.file_name;link.click();
+     setTimeout(()=>URL.revokeObjectURL(url),1000);
+    }catch(e){message(e.message,true)}finally{download.disabled=false}
+   });
+   row.append(name,download);
+   if(['admin','manager','member'].includes(state.role)){
+    const remove=makeAction('Excluir',async()=>{
+     if(!confirm('Excluir o anexo '+item.file_name+'? Esta operação não poderá ser desfeita.'))return;
+     remove.disabled=true;
+     try{await api('/api/tasks/'+taskId+'/attachments/'+item.id+qs(),{method:'DELETE'});await loadAttachments(taskId);message('Anexo excluído.');}
+     catch(e){message(e.message,true);remove.disabled=false}
+    });row.append(remove);
+   }
+   box.append(row);
+  }
+ }catch(e){box.textContent='Erro ao carregar anexos: '+e.message;}
+}
+$('attachment-upload').addEventListener('click',async()=>{
+ if(mode!=='edit'||!editing)return;
+ const file=$('attachment-file').files[0];if(!file){message('Selecione um arquivo.',true);return;}
+ if(file.size<1||file.size>262144){message('Escolha um arquivo entre 1 byte e 256 KB.',true);return;}
+ const mime=(file.type||'').toLowerCase();
+ if(!['application/pdf','image/png','image/jpeg','image/webp','text/plain'].includes(mime)){message('Tipo não permitido. Use PDF, PNG, JPG, WebP ou TXT.',true);return;}
+ const button=$('attachment-upload');button.disabled=true;
+ try{
+  const bytes=new Uint8Array(await file.arrayBuffer());
+  let raw='';for(let i=0;i<bytes.length;i+=8192)raw+=String.fromCharCode(...bytes.subarray(i,i+8192));
+  await api('/api/tasks/'+editing.id+'/attachments'+qs(),{method:'POST',body:JSON.stringify({file_name:file.name,media_type:mime,base64:btoa(raw)})});
+  $('attachment-file').value='';
+  await loadAttachments(editing.id);message('Anexo enviado com segurança.');
+ }catch(e){message(e.message,true)}finally{button.disabled=false}
 });
 async function loadHistory(taskId){
  const list=$('task-history');list.textContent='Carregando histórico…';

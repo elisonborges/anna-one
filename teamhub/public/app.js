@@ -419,6 +419,25 @@ $('brand-default-logo').addEventListener('change',()=>{
  if($('brand-default-logo').checked){logoUploadData=null;$('brand-file').value='';$('brand-logo').value='';$('brand-file-info').textContent='Será usada a imagem padrão AnnA One.';}
 });
 $('brand-logo').addEventListener('input',()=>{if($('brand-logo').value.trim())$('brand-default-logo').checked=false;});
+$('brand-reset').addEventListener('click',async()=>{
+ if(!confirm('Redefinir a identidade do cliente? O nome personalizado e o logotipo serão removidos, mantendo a imagem padrão AnnA One.'))return;
+ const button=$('brand-reset');
+ button.disabled=true;
+ try{
+  const data=await api('/api/organization'+qs(),{
+   method:'PATCH',
+   body:JSON.stringify({display_name:'',logo_url:''})
+  });
+  const i=state.organizations.findIndex(o=>o.id===state.org);
+  if(i!==-1)state.organizations[i]={...state.organizations[i],...data.organization};
+  logoUploadData=null;
+  $('brand-file').value='';
+  $('brand-file-info').textContent='';
+  renderBrand();
+  message('Identidade redefinida para o padrão AnnA One.');
+ }catch(error){message('Não foi possível redefinir a identidade: '+error.message,true);}
+ finally{button.disabled=false;}
+});
 $('brand-form').addEventListener('submit',async e=>{
  e.preventDefault();const button=$('brand-save');button.disabled=true;
  try{

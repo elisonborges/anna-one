@@ -134,25 +134,58 @@ async function redeemInvitation(){
  message('Convite aceito! Bem-vindo à organização.');
  return true;
 }
+let logoUploadData=null;
+async function optimizeLogo(file){
+ if(!['image/png','image/jpeg','image/webp'].includes(file.type))throw Error('Escolha uma imagem PNG, JPG ou WebP.');
+ if(file.size>5*1024*1024)throw Error('Escolha uma imagem de até 5 MB.');
+ const url=URL.createObjectURL(file);
+ try{
+  const image=await new Promise((resolve,reject)=>{
+   const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(Error('Não foi possível abrir essa imagem.'));img.src=url;
+  });
+  const maxSide=320,ratio=Math.min(1,maxSide/Math.max(image.naturalWidth,image.naturalHeight));
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(image.naturalWidth*ratio));
+  canvas.height=Math.max(1,Math.round(image.naturalHeight*ratio));
+  canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);
+  let result=canvas.toDataURL('image/webp',0.8);
+  if(!result.startsWith('data:image/webp;'))result=canvas.toDataURL('image/png');
+  if(result.length>103000)throw Error('O logotipo ficou grande após a otimização. Tente uma imagem mais simples.');
+  return result;
+ }finally{URL.revokeObjectURL(url);}
+}
+$('brand-file').addEventListener('change',async()=>{
+ logoUploadData=null;$('brand-file-info').textContent='';
+ const file=$('brand-file').files[0];
+ if(!file)return;
+ try{
+  logoUploadData=await optimizeLogo(file);
+  $('brand-file-info').textContent='Imagem pronta: '+file.name+' (otimizada). Clique em Salvar identidade.';
+  message('Logotipo preparado para salvar.');
+ }catch(e){$('brand-file').value='';$('brand-file-info').textContent=e.message;message(e.message,true);}
+});
 function renderBrand(){
  const org=state.organizations.find(o=>o.id===state.org);
  const display=(org?.display_name||'').trim();
- $('client-name').textContent=display?display:'';
+ $('client-name').textContent=display;
  $('brand-name').value=display;
- $('brand-logo').value=org?.logo_url||'';
+ $('brand-logo').value=org?.logo_url?.startsWith('https://')?org.logo_url:'';
  $('brand-admin').hidden=state.role!=='admin';
  const logo=$('client-logo'),defaultLogo=$('default-banner-symbol');
- logo.hidden=!org?.logo_url;
- defaultLogo.hidden=!!org?.logo_url;
+ logo.hidden=!org?.logo_url;defaultLogo.hidden=!!org?.logo_url;
  if(org?.logo_url){logo.src=org.logo_url;logo.onerror=()=>{logo.hidden=true;defaultLogo.hidden=false};}
  else logo.removeAttribute('src');
 }
 $('brand-form').addEventListener('submit',async e=>{
  e.preventDefault();const button=$('brand-save');button.disabled=true;
  try{
-  const data=await api('/api/organization'+qs(),{method:'PATCH',body:JSON.stringify({display_name:$('brand-name').value.trim(),logo_url:$('brand-logo').value.trim()})});
+  const org=state.organizations.find(o=>o.id===state.org);
+  const urlInput=$('brand-logo').value.trim();
+  const logo_url=logoUploadData||urlInput||(org?.logo_url?.startsWith('data:image/')?org.logo_url:'');
+  const data=await api('/api/organization'+qs(),{method:'PATCH',body:JSON.stringify({display_name:$('brand-name').value.trim(),logo_url})});
   const i=state.organizations.findIndex(o=>o.id===state.org);
   if(i!==-1)state.organizations[i]={...state.organizations[i],...data.organization};
+  logoUploadData=null;$('brand-file').value='';$('brand-file-info').textContent='';
   renderBrand();message('Identidade da empresa atualizada.');
  }catch(error){message(error.message,true)}finally{button.disabled=false}
 });

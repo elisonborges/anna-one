@@ -556,3 +556,16 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
  .bottom:has(button:nth-child(6)) button{min-width:0;padding:6px 1px;font-size:17px}
  .bottom:has(button:nth-child(6)) button span{font-size:9px;white-space:nowrap}
 }
+
+/* v0.1.23 — comentários com menções, cronograma e carga */
+.mention-field{display:grid;gap:7px;margin:9px 0}
+.mention-field .field-label{font-size:12px;font-weight:800}
+#history-mentions{grid-template-columns:repeat(auto-fit,minmax(135px,1fr))}
+.timeline-list{display:grid;gap:7px;max-height:420px;overflow-y:auto}
+.timeline-row{display:grid;grid-template-columns:minmax(120px,230px) minmax(140px,1fr);align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid var(--line)}
+.timeline-label{font-size:12px;overflow-wrap:anywhere;line-height:1.4}
+.timeline-rail{height:16px;border-radius:5px;background:var(--tint);position:relative;overflow:hidden}
+.timeline-bar{position:absolute;top:2px;height:12px;background:var(--accent);border-radius:4px;min-width:3px}
+.timeline-bar.is-complete{background:#228b65}
+#reports-workload .nexus-table td:first-child{font-weight:750}
+@media(max-width:650px){.timeline-row{grid-template-columns:minmax(95px,140px) 1fr;gap:7px}.timeline-label{font-size:11px}}

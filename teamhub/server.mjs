@@ -271,6 +271,52 @@ const route=async(req,res)=>{
   await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id) VALUES(${org},${subject},${pp[2]==='pause'?'project.paused':'project.resumed'},${proj.id})`;
   return reply(res,200,{ok:true});
  }
+ const subList=/^\/api\/tasks\/([0-9a-f-]+)\/subtasks$/.exec(p);
+ if(subList&&validId(subList[1])){
+  const parent=await sql`SELECT id,project_id FROM teamhub.tasks WHERE id=${subList[1]} AND organization_id=${org} AND deleted_at IS NULL`;
+  if(!parent.length)bad('Tarefa não encontrada.',404);
+  if(req.method==='GET'){
+   const rows=await sql`SELECT id,title,status,priority,owner_subject,due_at,created_at FROM teamhub.subtasks WHERE organization_id=${org} AND task_id=${subList[1]} ORDER BY created_at`;
+   return reply(res,200,{subtasks:rows});
+  }
+  if(req.method==='POST'){
+   requireEditor(role);
+   const b=await json(req),title=String(b.title||'').trim();
+   if(title.length<2||title.length>240)bad('Título entre 2 e 240 caracteres.');
+   const owner=b.owner_subject||null;
+   if(owner){
+    const members=await sql`SELECT 1 FROM teamhub.memberships WHERE organization_id=${org} AND auth_subject=${owner} AND active=true`;
+    if(!members.length)bad('Responsável não está ativo.',403);
+   }
+   const due=b.due_at||null;checkDueDate(due);
+   const priority=b.priority||'medium';
+   if(!['low','medium','high'].includes(priority))bad('Prioridade inválida.');
+   const rows=await sql`INSERT INTO teamhub.subtasks(organization_id,project_id,task_id,title,owner_subject,due_at,priority,created_by_subject)
+    VALUES(${org},${parent[0].project_id},${subList[1]},${title},${owner},${due?due+'T12:00:00Z':null},${priority},${subject})
+    RETURNING id,title,status,priority,owner_subject,due_at`;
+   await sql`INSERT INTO teamhub.task_updates(organization_id,task_id,actor_subject,event_type,summary) VALUES(${org},${subList[1]},${subject},'progress',${'Subtarefa criada: '+title})`;
+   return reply(res,201,{subtask:rows[0]});
+  }
+ }
+ const subEdit=/^\/api\/subtasks\/([0-9a-f-]+)$/.exec(p);
+ if(subEdit&&validId(subEdit[1])&&req.method==='PATCH'){
+  requireEditor(role);
+  const rows=await sql`SELECT id,task_id,title,status,priority,owner_subject,due_at FROM teamhub.subtasks WHERE id=${subEdit[1]} AND organization_id=${org}`;
+  if(!rows.length)bad('Subtarefa não encontrada.',404);
+  const prev=rows[0],b=await json(req);
+  if(Object.keys(b).some(k=>!['title','status','priority','owner_subject','due_at'].includes(k)))bad('Campo inválido.');
+  const title=b.title===undefined?prev.title:String(b.title||'').trim();
+  const status=b.status===undefined?prev.status:b.status;
+  const priority=b.priority===undefined?prev.priority:b.priority;
+  const owner=b.owner_subject===undefined?prev.owner_subject:(b.owner_subject||null);
+  let due=prev.due_at;
+  if(b.due_at!==undefined){checkDueDate(b.due_at);due=b.due_at?b.due_at+'T12:00:00Z':null;}
+  if(title.length<2||title.length>240||!['todo','doing','done'].includes(status)||!['low','medium','high'].includes(priority))bad('Valores inválidos.');
+  if(owner){const members=await sql`SELECT 1 FROM teamhub.memberships WHERE organization_id=${org} AND auth_subject=${owner} AND active=true`;if(!members.length)bad('Responsável não está ativo.',403);}
+  const result=await sql`UPDATE teamhub.subtasks SET title=${title},status=${status},priority=${priority},owner_subject=${owner},due_at=${due},updated_at=now() WHERE id=${prev.id} AND organization_id=${org} RETURNING id,title,status,priority,owner_subject,due_at`;
+  await sql`INSERT INTO teamhub.task_updates(organization_id,task_id,actor_subject,event_type,summary) VALUES(${org},${prev.task_id},${subject},'progress',${'Subtarefa atualizada: '+title})`;
+  return reply(res,200,{subtask:result[0]});
+ }
  const lifecycle=/^\/api\/tasks\/([0-9a-f-]+)\/(pause|resume|archive|restore|delete)$/.exec(p);
  if(lifecycle&&validId(lifecycle[1])&&req.method==='POST'){
   requireEditor(role);

@@ -224,3 +224,10 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - A conferência de conclusão de projeto ativo só aparece no quadro depois que todas as tarefas e subtarefas estão concluídas, sem pausas ou tratamentos aguardando/bloqueados; projetos em revisão/concluídos preservam entrada para decisão ou reabertura.
 - Quando a API retorna 401, a área privada é escondida e o formulário de autenticação reaparece.
 - Todos os arquivos são mudanças estáticas na branch de desenvolvimento; sem migração de banco ou alteração da produção.
+
+## v0.1.30 — Kanban com filtros recolhíveis e resumo de pendências
+- Botão **Mostrar/Ocultar filtros** no quadro: filtros permanecem aplicados mesmo recolhidos; o botão é destacado quando existe algum filtro ativo.
+- Resumo compacto, sempre visível, de tarefas abertas, atrasadas, bloqueadas e aguardando retorno; indicadores consideram as tarefas do projeto, sem confundir com a filtragem do quadro.
+- Layout mobile-first com indicadores em grade 2×2 e botão de filtros em largura total.
+- Kanban respeita o status de projeto em validação ou concluído, impedindo mudanças de etapa sem reabertura.
+- Sem mudanças de banco, integrações pagas ou dados de produção.

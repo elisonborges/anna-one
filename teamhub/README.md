@@ -135,3 +135,12 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Botão de notificações no cabeçalho, acessível também no celular, com contador de não lidas.
 - As notificações continuam **somente internas**; nenhum envio externo ou e-mail automático.
 - Relatórios, membros, projetos e banco de produção preservados.
+
+## v0.1.18 — Cards alinhados e controle de acesso por projeto
+- Botões Abrir projeto, Personalizar e Convidar em uma única linha, em colunas iguais.
+- Visibilidade opcional em Personalizar projeto: Todos da organização (padrão) ou Restrito aos participantes selecionados.
+- Administradores, gestores e responsável designado preservam o acesso. Apenas membros ativos podem ser escolhidos.
+- Projetos, tarefas, subtarefas, dashboard, pendências, notificações e relatórios filtrados pelo acesso.
+- Rotas diretas das tarefas/subtarefas também verificam o projeto vinculado.
+- Migração aditiva `migrations/0024-project-permissions.sql` exclusivamente no Neon de desenvolvimento; todos os projetos anteriores seguem visíveis à organização.
+- Anexos e e-mails automáticos ainda pendentes; dependem de armazenamento seguro, credenciais e preferências por usuário.

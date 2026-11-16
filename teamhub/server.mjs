@@ -292,9 +292,9 @@ const route=async(req,res)=>{
  if(!p.startsWith('/api/')){
   if(req.method!=='GET')return reply(res,405,{error:'Método não permitido'});
   const file=p==='/'?'/index.html':p;
-  if(!['/index.html','/app.js','/styles.css','/manifest.webmanifest','/anna-symbol.svg'].includes(file))return reply(res,404,{error:'Não encontrado'});
+  if(!['/index.html','/app.js','/theme.js','/styles.css','/manifest.webmanifest','/anna-symbol.svg'].includes(file))return reply(res,404,{error:'Não encontrado'});
   const data=await readFile(path.join(dir,'public',file));
-  res.writeHead(200,{'Content-Type':file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':file.endsWith('.webmanifest')?'application/manifest+json':file.endsWith('.svg')?'image/svg+xml':'text/html; charset=utf-8','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self' https://esm.sh; connect-src 'self' https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech; style-src 'self'; img-src 'self' data: https:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"});return res.end(data);
+  res.writeHead(200,{'Content-Type':file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':file.endsWith('.webmanifest')?'application/manifest+json':file.endsWith('.svg')?'image/svg+xml':'text/html; charset=utf-8','X-Content-Type-Options':'nosniff','Cache-Control':'no-store','Content-Security-Policy':"default-src 'self'; script-src 'self' https://esm.sh; connect-src 'self' https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech; style-src 'self'; img-src 'self' data: https:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"});return res.end(data);
  }
  const subject=await user(req);
  if(p==='/api/invitations/accept'&&req.method==='POST'){
@@ -520,8 +520,25 @@ const route=async(req,res)=>{
    ORDER BY s.due_at,s.created_at LIMIT 2000`;
   return reply(res,200,{items:[...tasks,...subtasks]});
  }
+ if(p==='/api/projects/order'&&req.method==='PATCH'){
+  const b=await json(req);
+  const ids=b.project_ids;
+  if(!Array.isArray(ids)||ids.length>200||ids.some(id=>typeof id!=='string'||!validId(id))||new Set(ids).size!==ids.length)bad('Ordem de projetos inválida.');
+  const available=await sql`SELECT id FROM teamhub.projects WHERE organization_id=${org} AND archived_at IS NULL`;
+  const availableIds=new Set(available.map(x=>x.id));
+  if(ids.some(id=>!availableIds.has(id)||!canSee(id)))bad('A ordem contém projeto não autorizado.',403);
+  await sql`INSERT INTO teamhub.project_card_layouts(organization_id,auth_subject,project_ids)
+    VALUES(${org},${subject},${JSON.stringify(ids)}::jsonb)
+    ON CONFLICT(organization_id,auth_subject) DO UPDATE
+    SET project_ids=excluded.project_ids,updated_at=now()`;
+  return reply(res,200,{saved:true,count:ids.length});
+ }
  if(p==='/api/projects'&&req.method==='GET'){
   const projects=await sql`SELECT p.id,p.name,p.description,p.created_at,p.paused_at,COALESCE(p.card_theme,p.card_color) AS card_color,p.owner_subject,p.access_mode,p.completion_status,p.completed_at, COUNT(t.id)::int AS total, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id AND t.deleted_at IS NULL AND t.archived_at IS NULL WHERE p.organization_id=${org} AND p.archived_at IS NULL AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject})) GROUP BY p.id ORDER BY p.created_at DESC`;
+  const layout=await sql`SELECT project_ids FROM teamhub.project_card_layouts WHERE organization_id=${org} AND auth_subject=${subject}`;
+  const preferred=Array.isArray(layout[0]?.project_ids)?layout[0].project_ids:[];
+  const position=new Map(preferred.map((id,index)=>[id,index]));
+  projects.sort((a,b)=>(position.get(a.id)??Number.MAX_SAFE_INTEGER)-(position.get(b.id)??Number.MAX_SAFE_INTEGER));
   return reply(res,200,{projects,role});
  }
  if(p==='/api/dashboard'&&req.method==='GET'){

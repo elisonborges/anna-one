@@ -389,7 +389,43 @@ const route=async(req,res)=>{
     )
     RETURNING id
   ) SELECT count(*)::int AS sent FROM inserted`;
-  return reply(res,200,{created:rows[0]?.sent||0,delivery:'internal',checked_at:new Date().toISOString()});
+  const subtasks=await sql`WITH candidates AS(
+    SELECT s.id AS subtask_id,s.task_id,s.project_id,s.title,s.due_at,m.auth_subject,
+     (s.due_at AT TIME ZONE 'UTC')::date < (now() AT TIME ZONE 'America/Fortaleza')::date AS overdue
+    FROM teamhub.subtasks s
+    JOIN teamhub.tasks t ON t.id=s.task_id AND t.organization_id=s.organization_id AND t.deleted_at IS NULL AND t.archived_at IS NULL
+    JOIN teamhub.projects p ON p.id=s.project_id AND p.organization_id=s.organization_id AND p.archived_at IS NULL
+    JOIN LATERAL(
+      SELECT DISTINCT a.auth_subject FROM (
+       SELECT sa.auth_subject FROM teamhub.subtask_assignees sa WHERE sa.organization_id=s.organization_id AND sa.subtask_id=s.id
+       UNION SELECT s.owner_subject WHERE s.owner_subject IS NOT NULL
+      ) a
+    ) assigned ON true
+    JOIN teamhub.memberships m ON m.organization_id=s.organization_id AND m.auth_subject=assigned.auth_subject AND m.active=true
+    LEFT JOIN teamhub.notification_preferences pref ON pref.organization_id=s.organization_id AND pref.auth_subject=m.auth_subject
+    WHERE s.organization_id=${org} AND s.status!='done' AND s.due_at IS NOT NULL
+      AND (s.due_at AT TIME ZONE 'UTC')::date <=(now() AT TIME ZONE 'America/Fortaleza')::date+2
+      AND COALESCE(pref.deadlines,true)
+      AND (p.access_mode='organization' OR m.role IN ('admin','manager') OR p.owner_subject=m.auth_subject
+       OR EXISTS(SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=m.auth_subject))
+   ), inserted AS(
+    INSERT INTO teamhub.notifications(organization_id,recipient_subject,actor_subject,event_type,title,details,project_id,task_id)
+    SELECT ${org}::uuid,c.auth_subject,${subject},
+      CASE WHEN c.overdue THEN 'subtask.overdue' ELSE 'subtask.due_soon' END,
+      CASE WHEN c.overdue THEN 'Subtarefa atrasada' ELSE 'Prazo da subtarefa próximo' END,
+      c.title,c.project_id,c.task_id
+    FROM candidates c WHERE NOT EXISTS(
+      SELECT 1 FROM teamhub.notifications n WHERE n.organization_id=${org}
+       AND n.recipient_subject=c.auth_subject AND n.task_id=c.task_id
+       AND n.details=c.title
+       AND n.event_type=CASE WHEN c.overdue THEN 'subtask.overdue' ELSE 'subtask.due_soon' END
+       AND n.created_at>=now()-interval '24 hours'
+    )
+    RETURNING id
+   ) SELECT count(*)::int AS sent FROM inserted`;
+  return reply(res,200,{created:(rows[0]?.sent||0)+(subtasks[0]?.sent||0),
+   tasks_created:rows[0]?.sent||0,subtasks_created:subtasks[0]?.sent||0,
+   delivery:'internal',checked_at:new Date().toISOString()});
  }
  if(p==='/api/dashboard/insights'&&req.method==='GET'){
   const period=Number(url.searchParams.get('days')||30);

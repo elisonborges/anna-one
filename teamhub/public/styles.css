@@ -548,3 +548,11 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
 #project-template-field label{font-size:12px;font-weight:800;margin:0}
 #project-template-field select{width:100%;min-height:44px}
 #project-template-field small{font-size:11px;line-height:1.5}
+
+/* v0.1.22 — prazos, atrasos e navegação móvel com seis áreas */
+.task-overdue{color:#c03330;font-weight:850}
+.bottom:has(button:nth-child(6)){grid-template-columns:repeat(6,minmax(0,1fr))}
+@media(max-width:750px){
+ .bottom:has(button:nth-child(6)) button{min-width:0;padding:6px 1px;font-size:17px}
+ .bottom:has(button:nth-child(6)) button span{font-size:9px;white-space:nowrap}
+}

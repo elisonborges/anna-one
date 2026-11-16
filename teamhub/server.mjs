@@ -665,7 +665,7 @@ const route=async(req,res)=>{
  if(p===approvalQueue&&req.method==='GET'){
   requireManager(role);
   const pending=await sql`SELECT id,name,completion_requested_at,completion_note,owner_subject
-    FROM teamhub.projects WHERE organization_id=${org} AND archived_at IS NULL AND completion_status='review'
+    FROM teamhub.projects WHERE organization_id=${org} AND archived_at IS NULL AND completion_status='review' AND (${role==='admin'} OR manager_subject=${subject})
     ORDER BY completion_requested_at,id`;
   return reply(res,200,{projects:pending});
  }
@@ -689,7 +689,7 @@ const route=async(req,res)=>{
    tasks:taskCounts[0],subtasks:subCounts[0],history:checks});
   if(req.method==='POST'&&completion[2]){
    const action=completion[2];
-   if(action==='request')requireEditor(role);else if(role!=='admin')bad('Apenas administradores podem aprovar, recusar ou reabrir projetos.',403);
+   if(action==='request')await requireProjectManagement(projectId);else if(role!=='admin')bad('Apenas administradores podem aprovar, recusar ou reabrir projetos.',403);
    const b=await json(req),note=safeNote(b.note||'',1000);
    if(['reject','reopen'].includes(action)&&note.length<5)bad('Informe uma justificativa com pelo menos 5 caracteres.');
    const checklist={deliverables:!!b.deliverables,tests:!!b.tests,documentation:!!b.documentation,stakeholders:!!b.stakeholders,pendencies:!!b.pendencies};
@@ -734,6 +734,7 @@ const route=async(req,res)=>{
  if(accessRoute&&validId(accessRoute[1])&&req.method==='GET'){
   requireManager(role);
   const proj=await project(org,accessRoute[1]);
+  await requireProjectManagement(proj.id);
   const members=await sql`SELECT pm.auth_subject FROM teamhub.project_members pm
    JOIN teamhub.memberships m ON m.organization_id=pm.organization_id AND m.auth_subject=pm.auth_subject
    WHERE pm.project_id=${proj.id} AND pm.organization_id=${org} AND m.active=true ORDER BY pm.created_at`;
@@ -742,6 +743,7 @@ const route=async(req,res)=>{
  if(accessRoute&&validId(accessRoute[1])&&req.method==='PATCH'){
   requireManager(role);
   const proj=await project(org,accessRoute[1]),b=await json(req);
+  await requireProjectManagement(proj.id);
   const mode=b.access_mode;
   if(!['organization','restricted'].includes(mode))bad('Modo de acesso inválido.');
   const members=await checkAssignees(org,b.members||[]);
@@ -760,11 +762,14 @@ const route=async(req,res)=>{
  if(projectEdit&&validId(projectEdit[1])&&req.method==='PATCH'){
   requireManager(role);
   const proj=await project(org,projectEdit[1]);
+  await requireProjectManagement(proj.id);
   const b=await json(req);
-  if(Object.keys(b).some(k=>!['card_color','owner_subject','name','description'].includes(k)))bad('Campo inválido.');
+  if(Object.keys(b).some(k=>!['card_color','owner_subject','manager_subject','name','description'].includes(k)))bad('Campo inválido.');
   const cardColor=b.card_color===undefined?proj.card_color:b.card_color;
   if(!colorAllowed.includes(cardColor))bad('Cor do card inválida.');
   const owner=b.owner_subject===undefined?proj.owner_subject:(b.owner_subject||null);
+  const manager=role==='manager'?subject:(b.manager_subject===undefined?proj.manager_subject:(b.manager_subject||null));
+  if(manager&&role==='admin'){const mr=await sql`SELECT 1 FROM teamhub.memberships WHERE organization_id=${org} AND auth_subject=${manager} AND active=true AND role='manager'`;if(!mr.length)bad('Gestor inválido.',403);}
   if(owner!==null){
    const valid=await sql`SELECT 1 FROM teamhub.memberships WHERE organization_id=${org} AND auth_subject=${owner} AND active=true`;
    if(!valid.length)bad('Responsável não pertence à organização.',403);
@@ -774,9 +779,9 @@ const route=async(req,res)=>{
   if(name.length<2||name.length>160||description.length>1000)bad('Informe um nome e descrição válidos.');
   const rows=await sql`UPDATE teamhub.projects SET name=${name},description=${description},
   card_color=CASE WHEN ${legacyColors.includes(cardColor)} THEN ${legacyColors.includes(cardColor)?cardColor:'blue'} ELSE card_color END,
-  card_theme=${cardColor},owner_subject=${owner}
+  card_theme=${cardColor},owner_subject=${owner},manager_subject=${manager}
   WHERE id=${proj.id} AND organization_id=${org}
-  RETURNING id,name,COALESCE(card_theme,card_color) AS card_color,owner_subject`;
+  RETURNING id,name,COALESCE(card_theme,card_color) AS card_color,owner_subject,manager_subject`;
   if(owner&&owner!==proj.owner_subject)await notifyMembers(org,subject,[owner],'project.assigned','Você recebeu um projeto',name,proj.id);
   await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id) VALUES(${org},${subject},'project.updated',${proj.id})`;
   return reply(res,200,{project:rows[0]});
@@ -786,6 +791,8 @@ const route=async(req,res)=>{
   const cardColor=body.card_color||'blue';
   if(!colorAllowed.includes(cardColor))bad('Cor do card inválida.');
   const owner=body.owner_subject||null;
+  const manager=role==='manager'?subject:(body.manager_subject||null);
+  if(manager&&role==='admin'){const mr=await sql`SELECT 1 FROM teamhub.memberships WHERE organization_id=${org} AND auth_subject=${manager} AND active=true AND role='manager'`;if(!mr.length)bad('Gestor inválido.',403);}
   if(owner!==null){
    const check=await sql`SELECT 1 FROM teamhub.memberships WHERE organization_id=${org} AND auth_subject=${owner} AND active=true`;
    if(!check.length)bad('Responsável não pertence à organização.',403);
@@ -801,9 +808,9 @@ const route=async(req,res)=>{
   if(!Object.hasOwn(templates,template))bad('Modelo de projeto inválido.');
   const titles=templates[template];
   const rows=await sql`WITH created_project AS(
-   INSERT INTO teamhub.projects(organization_id,name,description,card_color,card_theme,owner_subject)
-   VALUES(${org},${name},${String(body.description||'').slice(0,1000)},${legacyColors.includes(cardColor)?cardColor:'blue'},${cardColor},${owner})
-   RETURNING id,name,description,COALESCE(card_theme,card_color) AS card_color,owner_subject
+   INSERT INTO teamhub.projects(organization_id,name,description,card_color,card_theme,owner_subject,manager_subject)
+   VALUES(${org},${name},${String(body.description||'').slice(0,1000)},${legacyColors.includes(cardColor)?cardColor:'blue'},${cardColor},${owner},${manager})
+   RETURNING id,name,description,COALESCE(card_theme,card_color) AS card_color,owner_subject,manager_subject
   ), created_tasks AS(
    INSERT INTO teamhub.tasks(organization_id,project_id,title,created_by_subject,position)
    SELECT ${org}::uuid,p.id,x.title,${subject},x.ord::integer
@@ -818,6 +825,7 @@ const route=async(req,res)=>{
  const pp=/^\/api\/projects\/([0-9a-f-]+)\/(pause|resume)$/.exec(p);
  if(pp&&validId(pp[1])&&req.method==='POST'){
   requireManager(role);const proj=await project(org,pp[1]);
+  await requireProjectManagement(proj.id);
   if(pp[2]==='pause'){
    if(proj.paused_at)bad('Projeto já está pausado.');
    const b=await json(req),reason=safeNote(b.reason);
@@ -965,6 +973,7 @@ const route=async(req,res)=>{
  if(taskOrder&&validId(taskOrder[1])&&req.method==='PATCH'){
   requireEditor(role);
   const proj=await project(org,taskOrder[1]);
+  await requireProjectManagement(proj.id);
   if(proj.completion_status!=='active'||proj.paused_at)bad('Projeto em pausa, validação ou concluído: não é possível reordenar.',409);
   const b=await json(req),ids=b.task_ids;
   if(!Array.isArray(ids)||ids.length>200||ids.some(id=>typeof id!=='string'||!validId(id))||new Set(ids).size!==ids.length){
@@ -995,7 +1004,7 @@ const route=async(req,res)=>{
    return reply(res,200,{project:proj,tasks,role});
   }
   if(req.method==='POST'){
-   requireEditor(role);const b=await json(req),title=String(b.title||'').trim();
+   await requireProjectManagement(proj.id);const b=await json(req),title=String(b.title||'').trim();
    if(title.length<2||title.length>240)bad('Título entre 2 e 240 caracteres.');
    const priority=b.priority||'medium';
    if(!['low','medium','high'].includes(priority))bad('Prioridade inválida.');

@@ -369,7 +369,7 @@ const route=async(req,res)=>{
  if(pm&&validId(pm[1])){
   const proj=await project(org,pm[1]);
   if(req.method==='GET'){
-   const tasks=await sql`SELECT t.id,t.title,t.description,t.status,t.priority,t.assignee_subject,t.due_at,t.position,t.created_at,t.treatment_status,t.treatment_notes,t.pending_reason,t.next_action,t.paused_at,t.archived_at,t.deleted_at,COALESCE((SELECT jsonb_agg(a.auth_subject ORDER BY a.auth_subject) FROM teamhub.task_assignees a WHERE a.task_id=t.id AND a.organization_id=t.organization_id),'[]'::jsonb) AS assignees FROM teamhub.tasks t WHERE t.organization_id=${org} AND t.project_id=${proj.id} AND t.deleted_at IS NULL AND t.archived_at IS NULL ORDER BY t.position,t.created_at`;
+   const tasks=await sql`SELECT t.id,t.title,t.description,t.status,t.priority,t.assignee_subject,t.due_at,t.position,t.created_at,t.treatment_status,t.treatment_notes,t.pending_reason,t.next_action,t.paused_at,t.archived_at,t.deleted_at,(SELECT count(*)::int FROM teamhub.subtasks st WHERE st.organization_id=t.organization_id AND st.task_id=t.id) AS subtask_total,(SELECT count(*)::int FROM teamhub.subtasks st WHERE st.organization_id=t.organization_id AND st.task_id=t.id AND st.status='done') AS subtask_done,COALESCE((SELECT jsonb_agg(a.auth_subject ORDER BY a.auth_subject) FROM teamhub.task_assignees a WHERE a.task_id=t.id AND a.organization_id=t.organization_id),'[]'::jsonb) AS assignees FROM teamhub.tasks t WHERE t.organization_id=${org} AND t.project_id=${proj.id} AND t.deleted_at IS NULL AND t.archived_at IS NULL ORDER BY t.position,t.created_at`;
    return reply(res,200,{project:proj,tasks,role});
   }
   if(req.method==='POST'){

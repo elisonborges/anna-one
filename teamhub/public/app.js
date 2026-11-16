@@ -321,11 +321,19 @@ async function taskAction(task,action){
  message(({pause:'Tarefa pausada.',resume:'Tarefa retomada.',archive:'Tarefa arquivada.',restore:'Tarefa restaurada.',delete:'Tarefa excluída das listas.'})[action]);
  await loadMyTasks();await refreshProjects();
 }
-async function loadNotifications(){
- const data=await api('/api/notifications'+qs());
- const counter=$('notification-count');counter.hidden=!data.unread;counter.textContent=data.unread>99?'99+':String(data.unread);
- const headerCount=$('notify-header-count');headerCount.hidden=!data.unread;headerCount.textContent=data.unread>99?'99+':String(data.unread);
- const rows=data.notifications.map(n=>{
+let notificationInbox=[];
+function classifyNotification(n){
+ const event=String(n.event_type||'');
+ if(event.includes('mention'))return 'mentions';
+ if(event.includes('overdue')||event.includes('due_soon'))return 'deadlines';
+ if(event.includes('review')||event.includes('approval')||event.includes('completion'))return 'approvals';
+ return 'assignments';
+}
+function renderNotificationInbox(){
+ const filter=$('notification-filter').value;
+ const visible=notificationInbox.filter(n=>filter==='all'||(filter==='unread'?!n.read_at:classifyNotification(n)===filter));
+ $('notification-filter-count').textContent=visible.length+' aviso(s)';
+ const rows=visible.map(n=>{
   const status=n.read_at?'Lida':'Nova';
   const actions=document.createElement('div');actions.className='notification-actions';
   if(!n.read_at)actions.append(makeAction('Marcar lida',async()=>{
@@ -344,7 +352,27 @@ async function loadNotifications(){
  });
  renderTable('notifications-list',['Notificação','Detalhes','Quando','Situação','Ações'],rows);
 }
-$('notify-header').addEventListener('click',async()=>{try{await loadNotifications();show('notifications')}catch(e){message(e.message,true)}});
+async function loadNotifications(){
+ const data=await api('/api/notifications'+qs());notificationInbox=data.notifications;
+ const counter=$('notification-count');counter.hidden=!data.unread;counter.textContent=data.unread>99?'99+':String(data.unread);
+ const headerCount=$('notify-header-count');headerCount.hidden=!data.unread;headerCount.textContent=data.unread>99?'99+':String(data.unread);
+ renderNotificationInbox();
+}
+async function loadNotificationPreferences(){
+ const data=await api('/api/notification-preferences'+qs());
+ for(const key of ['assignments','mentions','deadlines','approvals'])$('pref-'+key).checked=!!data.preferences[key];
+ $('pref-email-note').textContent=data.email_available?'E-mail disponível mediante configuração.':'E-mail automático ainda não disponível; os avisos permanecem no Nexus.';
+}
+$('notification-filter').addEventListener('change',renderNotificationInbox);
+$('pref-save').addEventListener('click',async()=>{
+ const button=$('pref-save');button.disabled=true;
+ try{
+  const body={};for(const key of ['assignments','mentions','deadlines','approvals'])body[key]=$('pref-'+key).checked;
+  await api('/api/notification-preferences'+qs(),{method:'PATCH',body:JSON.stringify(body)});
+  message('Preferências de notificações salvas para esta organização.');
+ }catch(e){message(e.message,true)}finally{button.disabled=false;}
+});
+$('notify-header').addEventListener('click',async()=>{try{await loadNotifications();await loadNotificationPreferences();show('notifications')}catch(e){message(e.message,true)}});
 $('notify-read-all').addEventListener('click',async()=>{
  try{await api('/api/notifications/read-all'+qs(),{method:'POST'});await loadNotifications();message('Notificações marcadas como lidas.')}
  catch(e){message(e.message,true)}
@@ -1018,7 +1046,7 @@ async function boot(){
   $('signin-password').value='';await boot();
  }catch(error){message('Não foi possível entrar. Confira seus dados no Portal AnnA One e tente novamente.',true)}finally{button.disabled=false}
 });
-document.querySelectorAll('[data-view]').forEach(x=>x.addEventListener('click',async()=>{if(!state.org)return;try{if(x.dataset.view==='projects'||x.dataset.view==='overview')await refreshProjects();if(x.dataset.view==='mytasks')await loadMyTasks();if(x.dataset.view==='team'){await loadMembers();await loadInvitations()}if(x.dataset.view==='reports')await loadReports();if(x.dataset.view==='notifications')await loadNotifications();if(x.dataset.view==='calendar')await loadCalendar();show(x.dataset.view)}catch(e){message(e.message,true)}}));
+document.querySelectorAll('[data-view]').forEach(x=>x.addEventListener('click',async()=>{if(!state.org)return;try{if(x.dataset.view==='projects'||x.dataset.view==='overview')await refreshProjects();if(x.dataset.view==='mytasks')await loadMyTasks();if(x.dataset.view==='team'){await loadMembers();await loadInvitations()}if(x.dataset.view==='reports')await loadReports();if(x.dataset.view==='notifications'){await loadNotifications();await loadNotificationPreferences();}if(x.dataset.view==='calendar')await loadCalendar();show(x.dataset.view)}catch(e){message(e.message,true)}}));
 $('invite-form').addEventListener('submit',async e=>{
  e.preventDefault();const button=$('invite-create');button.disabled=true;
  const email=$('invite-email').value.trim().toLowerCase(),role=$('invite-role').value;

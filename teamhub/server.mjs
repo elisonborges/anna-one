@@ -80,7 +80,12 @@ const route=async(req,res)=>{
   if(req.method==='POST'){
    requireEditor(role);const b=await json(req),title=String(b.title||'').trim();
    if(title.length<2||title.length>240)bad('Título entre 2 e 240 caracteres.');
-   const rows=await sql`INSERT INTO teamhub.tasks(organization_id,project_id,title,description,created_by_subject,position) VALUES(${org},${proj.id},${title},${String(b.description||'').slice(0,2000)},${subject},(SELECT COALESCE(MAX(position),0)+1 FROM teamhub.tasks WHERE project_id=${proj.id})) RETURNING *`;
+   const priority=b.priority||'medium';
+   if(!['low','medium','high'].includes(priority))bad('Prioridade inválida.');
+   const due=b.due_at===null||b.due_at===undefined?null:b.due_at;
+   if(due!==null&&(!/^\d{4}-\d{2}-\d{2}$/.test(due)||Number.isNaN(Date.parse(due+'T12:00:00Z'))||new Date(due+'T12:00:00Z').toISOString().slice(0,10)!==due))bad('Data inválida.');
+   const due_at=due===null?null:due+'T12:00:00Z';
+   const rows=await sql`INSERT INTO teamhub.tasks(organization_id,project_id,title,description,priority,due_at,created_by_subject,position) VALUES(${org},${proj.id},${title},${String(b.description||'').slice(0,2000)},${priority},${due_at},${subject},(SELECT COALESCE(MAX(position),0)+1 FROM teamhub.tasks WHERE project_id=${proj.id})) RETURNING *`;
    await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id,task_id) VALUES(${org},${subject},'task.created',${proj.id},${rows[0].id})`;
    return reply(res,201,{task:rows[0]});
   }

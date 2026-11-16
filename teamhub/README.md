@@ -271,3 +271,11 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Projetos conservam reordenação por ponteiro e teclado, com ordem por pessoa e organização.
 - Mudanças restritas a arquivos estáticos e documentação; sem migrações, alterações de permissões, banco de produção ou serviços pagos.
 - Verificação de sintaxe e invariantes de código não equivalem a teste físico autenticado com mouse/toque: **homologação visual e persistência após recarregar seguem pendentes**.
+
+## AnnA Nexus v0.1.39 — Convites e segurança de adesão (DEV)
+- O aceite exige JWT válido do Neon Auth com `email_verified=true`, e-mail normalizado igual ao destinatário e convite pendente não expirado.
+- Um convite não sobrescreve perfil existente nem reativa participante desativado. Administrador gerencia perfis/reativação pelo fluxo de membros, separado do aceite.
+- Rechecagem da existência de vínculo no mesmo comando SQL que reclama o convite, com `ON CONFLICT DO NOTHING` para proteção adicional.
+- Na tabela de convites, somente pendentes ainda dentro da validade oferecem o botão Cancelar; expirados exibem o estado Expirado.
+- Autorização por organização e projeto, migrações e login unificado existentes preservados. Nenhuma conta ou convite de teste criado e nenhum dado real alterado nesta entrega.
+- Testes reais com dois usuários, recebimento do e-mail verificado, troca de contas, perfis e projetos restritos ainda exigem homologação autenticada. O envio automático de convite via Resend não faz parte desta versão.

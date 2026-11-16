@@ -185,3 +185,14 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Migração aditiva `migrations/0026-task-attachments.sql`. Essa solução é **provisória e limitada a arquivos pequenos**; armazenamento dedicado com antivírus/limites e políticas de retenção será necessário para documentos maiores e uso em produção.
 - A automação de prazos continua **manual** no Dashboard; cron externo e integração Resend para e-mails não estão habilitados. Requerem credenciais e parâmetros de segurança verificados antes de ativar.
 - Sem alterações no portal principal ou Neon de produção; testes funcionais de upload com conta autenticada ainda pendentes.
+
+## AnnA Nexus v0.1.26 — Encerramento com dupla conferência e reabertura
+- Novo ciclo formal do projeto: `active` (em andamento) → `review` (fila de validação) → `completed` (concluído). Os projetos antigos continuam `active`.
+- O solicitante preenche **5 checks** de conferência. Solicitação bloqueada se houver tarefa/subtarefa não concluída, tarefa pausada, tratamento bloqueado ou aguardando retorno, ou projeto pausado.
+- Administradores têm aprovação final independente com seus **5 checks**. Podem devolver à execução com justificativa ou **reabrir projeto concluído**, sem perder histórico, atribuições, anexos, tarefas ou subtarefas.
+- A fila de validação aparece na área Projetos para administradores e gestores; a decisão de aprovar, rejeitar ou reabrir é exclusiva do perfil `admin`.
+- Operações em tarefas/subtarefas e pausa de projeto ficam bloqueadas enquanto o projeto estiver em revisão ou concluído; após devolução/reabertura voltam ao normal.
+- Histórico completo das decisões, data, autor, nota e checks preservado em `teamhub.project_approvals`, exibido também em Relatórios e exportação CSV.
+- Alertas internos enviados aos administradores quando um projeto é submetido. Não há e-mails automáticos nem exclusão definitiva de projetos.
+- Migração aditiva `migrations/0027-project-approvals.sql` aplicada somente ao Neon de desenvolvimento. Nenhum projeto foi encerrado automaticamente.
+- Sem publicação no Portal AnnA One principal; exige homologação funcional com autenticação para liberação em produção.

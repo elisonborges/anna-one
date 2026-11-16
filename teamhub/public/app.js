@@ -57,7 +57,7 @@ function renderProjects(){
   const description=document.createElement('p');description.textContent=p.description||'Sem descrição';
   const tags=document.createElement('div');tags.className='project-card-tags';
   const percent=p.total?Math.round(p.done/p.total*100):0;
-  for(const label of [p.total+' tarefas',percent+'% concluído',p.paused_at?'Em pausa':'Ativo']){
+  for(const label of [p.total+' tarefas',percent+'% concluído',p.paused_at?'Em pausa':'Ativo',p.access_mode==='restricted'?'Acesso restrito':'Equipe da organização']){
    const span=document.createElement('span');span.textContent=label;tags.append(span);
   }
   const progress=document.createElement('div');progress.className='project-card-progress';
@@ -461,6 +461,7 @@ function modal(type,task=null){
  $('task-fields').hidden=type==='project'||type==='project-edit';
  $('project-fields').hidden=!(type==='project'||type==='project-edit');
  $('project-access-fields').hidden=type!=='project-edit';
+ projectAccessReady=type!=='project-edit';
  if(type==='project-edit')loadProjectAccess(task).catch(e=>message(e.message,true));
  $('project-color').value=task?.card_color||'blue';
  $('project-owner').value=task?.owner_subject||'';
@@ -489,9 +490,11 @@ function modal(type,task=null){
  $('dialog').showModal();$('field-name').focus();
 }
 
+let projectAccessReady=false;
 async function loadProjectAccess(project){
  const panel=$('project-member-choices');panel.replaceChildren();
  const data=await api('/api/projects/'+project.id+'/access'+qs());
+ if(mode!=='project-edit'||editing?.id!==project.id)return;
  $('project-access-mode').value=data.access_mode;
  const active=state.members.filter(m=>m.active);
  for(const member of active){
@@ -500,6 +503,7 @@ async function loadProjectAccess(project){
   const caption=document.createElement('span');caption.textContent=memberName(member.auth_subject);
   label.append(input,caption);panel.append(label);
  }
+ projectAccessReady=true;
 }
 async function loadSubtasks(taskId){
  const host=$('subtasks-list');host.textContent='Carregando subtarefas…';
@@ -663,6 +667,7 @@ $('editor').addEventListener('submit',async e=>{
    const payload={name,description,card_color:$('project-color').value,owner_subject:$('project-owner').value||null};
    if(mode==='project')await api('/api/projects'+qs(),{method:'POST',body:JSON.stringify(payload)});
    else{
+    if(!projectAccessReady)throw Error('Aguarde o carregamento dos participantes antes de salvar.');
     await api('/api/projects/'+editing.id+qs(),{method:'PATCH',body:JSON.stringify(payload)});
     const members=[...$('project-member-choices').querySelectorAll('input:checked')].map(x=>x.value);
     await api('/api/projects/'+editing.id+'/access'+qs(),{method:'PATCH',body:JSON.stringify({access_mode:$('project-access-mode').value,members})});

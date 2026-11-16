@@ -1,12 +1,12 @@
 const $=id=>document.getElementById(id);
 const AUTH='https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth';
-const state={jwt:null,org:null,role:null,projects:[],tasks:[],project:null,view:'overview',subject:null,auth:null};
+const state={jwt:null,org:null,role:null,projects:[],tasks:[],project:null,view:'overview',subject:null,auth:null,members:[]};
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const message=(s,error=false)=>{const el=$('status');el.textContent=s;el.style.background=error?'#fff0ef':'';el.style.color=error?'#a31931':''};
-const show=(view)=>{state.view=view;for(const id of ['overview','projects','board','mytasks'])$(id).hidden=id!==view;$('welcome-banner').hidden=view!=='overview';
+const show=(view)=>{state.view=view;for(const id of ['overview','projects','board','mytasks','team'])$(id).hidden=id!==view;$('welcome-banner').hidden=view!=='overview';
 document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);b.setAttribute('aria-current',b.dataset.view===view?'page':'false')});
- $('title').textContent=view==='overview'?'Visão geral':view==='projects'?'Projetos':view==='board'?state.project?.name||'Quadro':'Minhas tarefas';
- $('subtitle').textContent=view==='overview'?'Acompanhe os projetos e as atividades da sua equipe.':view==='projects'?'Organize seus projetos e entregas.':view==='board'?'Acompanhe o trabalho por etapas.':'Atividades sob sua responsabilidade.';
+ $('title').textContent=view==='overview'?'Visão geral':view==='projects'?'Projetos':view==='board'?state.project?.name||'Quadro':view==='team'?'Equipe':'Minhas tarefas';
+ $('subtitle').textContent=view==='overview'?'Acompanhe os projetos e as atividades da sua equipe.':view==='projects'?'Organize seus projetos e entregas.':view==='board'?'Acompanhe o trabalho por etapas.':view==='team'?'Pessoas autorizadas da organização.':'Atividades sob sua responsabilidade.';
 };
 async function api(route,options={}){
  const res=await fetch(route,{...options,headers:{'Content-Type':'application/json','Authorization':'Bearer '+state.jwt,...(options.headers||{})},cache:'no-store'});
@@ -26,6 +26,54 @@ function renderProjects(){
  $('overview-projects').replaceChildren(...state.projects.slice(0,6).map(projectButton));
  if(!state.projects.length){$('projects-list').textContent='Nenhum projeto cadastrado. Crie o primeiro projeto para começar.';$('overview-projects').textContent='Nenhum projeto disponível.';}
  $('stat-projects').textContent=state.projects.length;
+}
+function memberName(subject){
+ if(!subject)return 'Sem responsável';
+ if(subject===state.subject)return 'Você';
+ const index=state.members.findIndex(m=>m.auth_subject===subject);
+ return index<0?'Integrante inativo':'Integrante '+(index+1);
+}
+async function loadMembers(){
+ const data=await api('/api/members'+qs());
+ state.members=data.members;
+ const select=$('field-assignee');
+ select.replaceChildren();
+ const empty=document.createElement('option');empty.value='';empty.textContent='Sem responsável';select.append(empty);
+ for(const member of state.members){
+  const opt=document.createElement('option');opt.value=member.auth_subject;
+  opt.textContent=memberName(member.auth_subject)+' · '+({admin:'Administrador',manager:'Gestor',member:'Membro',guest:'Convidado'}[member.role]||member.role);
+  select.append(opt);
+ }
+ const list=$('members-list');list.replaceChildren();
+ if(!state.members.length){list.textContent='Nenhum membro ativo.';return;}
+ for(const member of state.members){
+  const item=document.createElement('div');item.className='member-row';
+  const avatar=document.createElement('span');avatar.className='member-avatar';avatar.textContent=member.auth_subject===state.subject?'EU':'•';
+  const info=document.createElement('div');
+  const label=document.createElement('strong');label.textContent=memberName(member.auth_subject);
+  const role=document.createElement('small');role.textContent=({admin:'Administrador',manager:'Gestor',member:'Membro',guest:'Convidado'})[member.role]||member.role;
+  info.append(label,role);item.append(avatar,info);list.append(item);
+ }
+}
+async function loadMyTasks(){
+ const data=await api('/api/my-tasks'+qs());
+ const list=$('mine');list.replaceChildren();
+ if(!data.tasks.length){list.textContent='Nenhuma tarefa atribuída a você nesta organização.';return;}
+ for(const task of data.tasks){
+  const card=document.createElement('article');card.className='mytask-card';
+  const title=document.createElement('strong');title.textContent=task.title;
+  const details=document.createElement('small');
+  details.textContent=task.project_name+' · '+({todo:'A fazer',doing:'Em andamento',done:'Concluído'})[task.status]+(task.due_at?' · Prazo '+new Date(task.due_at).toLocaleDateString('pt-BR',{timeZone:'UTC'}):'');
+  const button=document.createElement('button');button.type='button';button.className='secondary';button.textContent='Abrir projeto';
+  button.onclick=async()=>{try{
+   const project=state.projects.find(p=>p.id===task.project_id);
+   if(!project){await refreshProjects();}
+   const selected=state.projects.find(p=>p.id===task.project_id);
+   if(!selected)throw Error('Projeto indisponível.');
+   await openProject(selected);
+  }catch(e){message(e.message,true)}};
+  card.append(title,details,button);list.append(card);
+ }
 }
 async function refreshProjects(){
  const data=await api('/api/projects'+qs());state.projects=data.projects;state.role=data.role;renderProjects();
@@ -52,6 +100,7 @@ function renderTasks(){
    const label=document.createElement('span');label.className='priority';label.textContent=({high:'Alta',medium:'Média',low:'Baixa'})[t.priority]||'Média';
    const meta=document.createElement('div');meta.className='task-meta';
    if(t.due_at){const due=document.createElement('span');due.textContent='Prazo: '+new Date(t.due_at).toLocaleDateString('pt-BR',{timeZone:'UTC'});meta.append(due);}
+   if(t.assignee_subject){const assigned=document.createElement('span');assigned.textContent='Responsável: '+memberName(t.assignee_subject);meta.append(assigned);}
    const edit=document.createElement('button');edit.type='button';edit.className='task-edit';edit.textContent='Editar tarefa';edit.disabled=!['admin','manager','member'].includes(state.role);edit.onclick=()=>modal('edit',t);
    footer.append(label,select);card.append(title,meta,footer,edit);list.append(card);
   }
@@ -77,6 +126,7 @@ function modal(type,task=null){
  $('field-priority').value=task?.priority||'medium';
  $('field-due').value=task?.due_at?String(task.due_at).slice(0,10):'';
  $('field-due').min=todayInFortaleza();
+ $('field-assignee').value=task?.assignee_subject||'';
  $('field-description').maxLength=type==='project'?1000:2000;
  $('dialog').showModal();$('field-name').focus();
 }
@@ -100,8 +150,8 @@ async function boot(){
   const me=await api('/api/me');if(!me.organizations.length){message('Login reconhecido, mas sua conta ainda não possui acesso ao Nexus.',true);return;}
   const select=$('org');select.replaceChildren(...me.organizations.map(o=>{const opt=document.createElement('option');opt.value=o.id;opt.textContent=o.name;return opt}));
   state.org=me.organizations[0].id;
-  select.addEventListener('change',async()=>{state.org=select.value;state.tasks=[];state.project=null;await refreshProjects();show('overview')});
-  $('app').hidden=false;await refreshProjects();show('overview');message('');
+  select.addEventListener('change',async()=>{state.org=select.value;state.tasks=[];state.project=null;await loadMembers();await refreshProjects();show('overview')});
+  await loadMembers();await refreshProjects();$('app').hidden=false;show('overview');message('');
  }catch(e){message(e.message||'Não foi possível iniciar o Nexus.',true);$('signin').hidden=false;$('app').hidden=true;}
 }
  $('signin-form').addEventListener('submit',async e=>{
@@ -112,7 +162,7 @@ async function boot(){
   $('signin-password').value='';await boot();
  }catch(error){message('Não foi possível entrar. Confira seus dados no Portal AnnA One e tente novamente.',true)}finally{button.disabled=false}
 });
-document.querySelectorAll('[data-view]').forEach(x=>x.addEventListener('click',async()=>{if(!state.org)return;try{if(x.dataset.view==='projects'||x.dataset.view==='overview')await refreshProjects();if(x.dataset.view==='mytasks'&&!state.project){$('mine').textContent='Abra um projeto para consultar as tarefas.'}show(x.dataset.view)}catch(e){message(e.message,true)}}));
+document.querySelectorAll('[data-view]').forEach(x=>x.addEventListener('click',async()=>{if(!state.org)return;try{if(x.dataset.view==='projects'||x.dataset.view==='overview')await refreshProjects();if(x.dataset.view==='mytasks')await loadMyTasks();if(x.dataset.view==='team')await loadMembers();show(x.dataset.view)}catch(e){message(e.message,true)}}));
 $('back-projects').onclick=async()=>{await refreshProjects();show('projects')};
 $('new-project').onclick=()=>modal('project');
 $('new-task').onclick=()=>modal('task');
@@ -126,9 +176,10 @@ $('editor').addEventListener('submit',async e=>{
   }else{
    const priority=$('field-priority').value;
    const due_at=$('field-due').value||null;
+   const assignee_subject=$('field-assignee').value||null;
    if(due_at&&due_at<todayInFortaleza())throw Error('Escolha um prazo igual ou posterior à data de hoje.');
    if(mode==='edit'){
-    await api('/api/tasks/'+editing.id+qs(),{method:'PATCH',body:JSON.stringify({title:name,description,priority,due_at})});
+    await api('/api/tasks/'+editing.id+qs(),{method:'PATCH',body:JSON.stringify({title:name,description,priority,due_at,assignee_subject})});
    }else{
     await api('/api/projects/'+state.project.id+'/tasks'+qs(),{method:'POST',body:JSON.stringify({title:name,description,priority,due_at})});
    }

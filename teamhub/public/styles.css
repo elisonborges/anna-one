@@ -717,3 +717,16 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
 .notification-pref-actions button{min-height:42px;white-space:nowrap}
 .notification-pref-actions .muted{font-size:11px;line-height:1.45;flex:1}
 @media(max-width:680px){.notification-pref-options{grid-template-columns:1fr}.notification-pref-options label{min-height:48px}.notification-pref-actions{align-items:stretch}.notification-pref-actions button{width:100%}}
+
+/* v0.1.28 — relatório de rotinas e opt-in de e-mail */
+.notification-email-choice{display:flex;align-items:center;gap:10px;margin:13px 0;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--tint);font-weight:750;font-size:12px;line-height:1.5}
+.notification-email-choice input{width:19px;height:19px;flex-shrink:0;accent-color:var(--accent)}
+.notification-email-choice:has(input:disabled){opacity:.7;cursor:not-allowed}
+#automation-admin[hidden]{display:none!important}
+#automation-admin{display:grid;gap:12px}
+#automation-admin .section-head{margin:0;align-items:center;gap:9px}
+#automation-admin .section-head button{min-height:42px}
+#automation-admin h3{font-size:15px;margin:9px 0 0}
+#automation-admin .muted{font-size:12px;margin:0;line-height:1.55}
+#automation-runs,#email-deliveries{max-width:100%;overflow-x:auto}
+@media(max-width:650px){#automation-admin .section-head{flex-wrap:wrap}#automation-admin .section-head button{width:100%}}

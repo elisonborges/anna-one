@@ -120,3 +120,11 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - No Kanban aparece o número de subtarefas concluídas em cada tarefa.
 - Migrações aditivas executadas apenas no Neon de desenvolvimento: `migrations/0021-project-cards.sql` e `migrations/0022-subtasks.sql`.
 - Permissões por projeto, anexos e relatórios de subtarefas são melhorias posteriores; não afirmar que já foram implementados.
+
+## AnnA Nexus v0.1.16 — Trabalho compartilhado e avisos internos
+- Subtarefas com **múltiplos responsáveis**, independentes da tarefa principal; seleção por caixas de marcação e edição posterior de atribuições.
+- Compatibilidade com subtarefas antigas: migração aditiva `0023-subtask-members-notifications.sql` copia a atribuição individual existente para o conjunto de responsáveis.
+- **Notificações internas**, individuais e privadas, por atribuição de projeto, tarefa ou subtarefa. Caixa de entrada com contagem de não lidas, marcação individual e em lote; link para projeto.
+- **Relatórios de subtarefas** por projeto/tarefa, incluindo situação, responsáveis, prazo e tempo de calendário; subtarefas incluídas no CSV.
+- Não há e-mail automático, notificações push, permissões específicas por projeto nem anexos nesta entrega.
+- A migração e os testes SQL são restritos ao Neon `anna-nexus-dev`, sem exclusão de dados.

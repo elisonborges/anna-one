@@ -153,3 +153,15 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
 .history-item small{color:var(--muted);font-size:11px}
 @media(max-width:1050px){.stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:650px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.board-toolbar{align-items:stretch;flex-direction:column;gap:7px}.board-toolbar select{width:100%}}
+
+/* v0.1.5 — painel de pendências prioritárias */
+.attention-panel{margin-bottom:18px}
+.attention-panel .section-head{margin-bottom:12px}
+.attention-list{display:grid;gap:10px}
+.attention-item{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px;border:1px solid var(--line);border-radius:11px;background:var(--bg)}
+.attention-item strong,.attention-item small{display:block}
+.attention-item strong{font-size:14px}
+.attention-item small{font-size:12px;color:var(--muted);margin-top:4px}
+.attention-item p{font-size:13px;line-height:1.4;overflow-wrap:anywhere;margin:7px 0 0}
+.attention-item .secondary{flex:0 0 auto}
+@media(max-width:650px){.attention-item{align-items:stretch;flex-direction:column}.attention-item .secondary{width:100%}.attention-panel .section-head{align-items:start;flex-direction:column}}

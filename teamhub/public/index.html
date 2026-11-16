@@ -79,8 +79,14 @@
   <div class="panel"><h2>Projetos recentes</h2><div id="overview-projects" class="data-container"></div></div>
  </section>
  <section id="projects" hidden>
- <div class="section-head"><div><h2>Projetos</h2><p class="muted">Cada card representa um projeto. Arraste pela alça no topo para mudar a ordem (ou use as setas do teclado).</p></div><div class="project-list-actions"><button class="secondary" id="projects-invite" type="button">Convidar membro</button><button class="primary" id="new-project" type="button">+ Novo card</button></div></div>
- <div id="projects-list" class="project-cards"></div>
+ <div class="section-head"><div><h2 id="projects-heading">Projetos</h2><p id="projects-help" class="muted">Cada card representa um projeto. Arraste pela alça no topo para mudar a ordem (ou use as setas do teclado).</p></div><div class="project-list-actions"><button class="secondary" id="projects-invite" type="button">Convidar membro</button><button class="primary" id="new-project" type="button">+ Novo card</button></div></div>
+ <div id="guest-projects-empty" class="guest-projects-empty" hidden role="status" aria-live="polite">
+ <span aria-hidden="true" class="guest-empty-icon">▤</span>
+ <h3>Você ainda não possui projetos compartilhados.</h3>
+ <p>Seu acesso ao AnnA Nexus está ativo, mas nenhum projeto foi compartilhado com a sua conta. Solicite ao administrador que autorize seu e-mail nos projetos desejados.</p>
+ <button id="guest-projects-refresh" class="secondary" type="button">Atualizar projetos</button>
+</div>
+<div id="projects-list" class="project-cards"></div>
  <div id="approval-queue-panel" class="panel approval-queue" hidden><div class="section-head"><h2>Fila de validação</h2><span class="muted" id="approval-queue-count"></span></div><div id="approval-queue-list" class="data-container"></div></div></section>
  <section id="board" hidden>
  <div class="section-head"><button id="back-projects" class="secondary">← Projetos</button><div class="project-toolbar"><span id="project-pause-status"></span><button id="project-validation" class="secondary" type="button">Conferir conclusão</button><button id="project-pause" class="secondary" type="button">Pausar projeto</button><button id="board-archived-toggle" class="secondary" type="button" hidden>Tarefas arquivadas</button><button id="new-task" class="primary">+ Nova tarefa</button></div></div><p id="board-description" class="muted"></p>

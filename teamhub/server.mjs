@@ -85,13 +85,25 @@ async function syncSubtaskAssignees(org,subtask,subjects){
  SELECT ${org}::uuid,${subtask}::uuid,x.auth_subject FROM jsonb_array_elements_text(${JSON.stringify(subjects)}::jsonb) AS x(auth_subject)
  ON CONFLICT DO NOTHING`;
 }
+function preferenceCategory(event){
+ if(event.startsWith('task.mention'))return 'mentions';
+ if(event.startsWith('task.due')||event.startsWith('task.overdue')||event.startsWith('subtask.due')||event.startsWith('subtask.overdue'))return 'deadlines';
+ if(event.startsWith('project.review')||event.startsWith('project.completion'))return 'approvals';
+ return 'assignments';
+}
 async function notifyMembers(org,actor,subjects,event,title,details,projectId,taskId=null){
  const targets=[...new Set(subjects)].filter(x=>x!==actor);
  if(!targets.length)return;
  await sql`INSERT INTO teamhub.notifications(organization_id,recipient_subject,actor_subject,event_type,title,details,project_id,task_id)
  SELECT ${org}::uuid,x.auth_subject,${actor},${event},${title},${details},${projectId}::uuid,${taskId}::uuid
  FROM jsonb_array_elements_text(${JSON.stringify(targets)}::jsonb) AS x(auth_subject)
- JOIN teamhub.memberships m ON m.organization_id=${org} AND m.auth_subject=x.auth_subject AND m.active=true`;
+ JOIN teamhub.memberships m ON m.organization_id=${org} AND m.auth_subject=x.auth_subject AND m.active=true
+ LEFT JOIN teamhub.notification_preferences pref ON pref.organization_id=${org} AND pref.auth_subject=x.auth_subject
+ WHERE CASE ${preferenceCategory(event)}
+  WHEN 'mentions' THEN COALESCE(pref.mentions,true)
+  WHEN 'deadlines' THEN COALESCE(pref.deadlines,true)
+  WHEN 'approvals' THEN COALESCE(pref.approvals,true)
+  ELSE COALESCE(pref.assignments,true) END`;
 }
 async function verifyProjectRecipients(org,projectId,subjects){
  if(!subjects.length)return;
@@ -256,6 +268,29 @@ const route=async(req,res)=>{
   await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action) VALUES(${org},${subject},'invitation.cancelled')`;
   return reply(res,200,{cancelled:true});
  }
+ if(p==='/api/notification-preferences'&&req.method==='GET'){
+  const rows=await sql`SELECT assignments,mentions,deadlines,approvals,email_enabled
+   FROM teamhub.notification_preferences WHERE organization_id=${org} AND auth_subject=${subject}`;
+  return reply(res,200,{preferences:rows[0]||{assignments:true,mentions:true,deadlines:true,approvals:true,email_enabled:false},
+   email_available:false,delivery:'internal'});
+ }
+ if(p==='/api/notification-preferences'&&req.method==='PATCH'){
+  const b=await json(req);
+  if(Object.keys(b).some(k=>!['assignments','mentions','deadlines','approvals'].includes(k)))bad('Preferência inválida.');
+  if(!Object.keys(b).length||Object.values(b).some(x=>typeof x!=='boolean'))bad('Informe opções válidas.');
+  const prev=await sql`SELECT assignments,mentions,deadlines,approvals FROM teamhub.notification_preferences
+   WHERE organization_id=${org} AND auth_subject=${subject}`;
+  const old=prev[0]||{assignments:true,mentions:true,deadlines:true,approvals:true};
+  const values={...old,...b};
+  const rows=await sql`INSERT INTO teamhub.notification_preferences
+    (organization_id,auth_subject,assignments,mentions,deadlines,approvals,email_enabled)
+    VALUES(${org},${subject},${values.assignments},${values.mentions},${values.deadlines},${values.approvals},false)
+    ON CONFLICT(organization_id,auth_subject) DO UPDATE SET
+    assignments=excluded.assignments,mentions=excluded.mentions,deadlines=excluded.deadlines,
+    approvals=excluded.approvals,updated_at=now()
+    RETURNING assignments,mentions,deadlines,approvals,email_enabled`;
+  return reply(res,200,{preferences:rows[0],email_available:false});
+ }
  if(p==='/api/notifications'&&req.method==='GET'){
   const rows=await sql`SELECT id,event_type,title,details,project_id,task_id,read_at,created_at
    FROM teamhub.notifications WHERE organization_id=${org} AND recipient_subject=${subject}
@@ -344,7 +379,9 @@ const route=async(req,res)=>{
       CASE WHEN c.overdue THEN 'task.overdue' ELSE 'task.due_soon' END,
       CASE WHEN c.overdue THEN 'Tarefa atrasada' ELSE 'Prazo próximo' END,
       c.title,c.project_id,c.task_id
-    FROM candidates c WHERE NOT EXISTS(
+    FROM candidates c
+    LEFT JOIN teamhub.notification_preferences pref ON pref.organization_id=${org} AND pref.auth_subject=c.auth_subject
+    WHERE COALESCE(pref.deadlines,true) AND NOT EXISTS(
       SELECT 1 FROM teamhub.notifications n WHERE n.organization_id=${org}
         AND n.recipient_subject=c.auth_subject AND n.task_id=c.task_id
         AND n.event_type=CASE WHEN c.overdue THEN 'task.overdue' ELSE 'task.due_soon' END

@@ -509,8 +509,9 @@ const route=async(req,res)=>{
   const rows=await sql`SELECT id,event_type,title,details,project_id,task_id,read_at,created_at
    FROM teamhub.notifications WHERE organization_id=${org} AND recipient_subject=${subject}
    ORDER BY created_at DESC LIMIT 100`;
-  const unread=await sql`SELECT count(*)::int AS total FROM teamhub.notifications WHERE organization_id=${org} AND recipient_subject=${subject} AND read_at IS NULL`;
-  return reply(res,200,{notifications:rows.filter(n=>!n.project_id||canSee(n.project_id)),unread:rows.filter(n=>!n.read_at&&(!n.project_id||canSee(n.project_id))).length});
+  const visible=rows.filter(n=>(!n.project_id||canSee(n.project_id))&&
+   (role!=='guest'||/^(project.assigned|task.due|task.overdue|subtask.due|subtask.overdue)/.test(n.event_type)));
+  return reply(res,200,{notifications:visible,unread:visible.filter(n=>!n.read_at).length});
  }
  const mark=/^\/api\/notifications\/([0-9a-f-]+)\/read$/.exec(p);
  if(mark&&validId(mark[1])&&req.method==='POST'){
@@ -587,7 +588,7 @@ const route=async(req,res)=>{
   return reply(res,200,{summary:rows[0]});
  }
  if(p==='/api/automation/check-deadlines'&&req.method==='POST'){
-  requireManager(role);
+  if(role!=='admin')bad('Verificação organizacional reservada ao administrador.',403);
   const result=await createDeadlineNotifications(org,subject);
   await logManualDeadlineRun(org,result);
   return reply(res,200,{...result,delivery:'internal',checked_at:new Date().toISOString()});
@@ -764,6 +765,7 @@ const route=async(req,res)=>{
  }
  const completion=/^\/api\/projects\/([0-9a-f-]+)\/completion(?:\/(request|approve|reject|reopen))?$/.exec(p);
  if(completion&&validId(completion[1])){
+  if(role==='guest')bad('Histórico de aprovações indisponível ao convidado.',403);
   const projectId=completion[1],proj=await project(org,projectId);
   const taskCounts=await sql`SELECT count(*)::int AS total,
     count(*) FILTER (WHERE status!='done')::int AS open,
@@ -1098,6 +1100,14 @@ const route=async(req,res)=>{
   }
   return reply(res,200,{saved:true,count:ids.length});
  }
+ const archivedList=/^\/api\/projects\/([0-9a-f-]+)\/tasks\/archived$/.exec(p);
+ if(archivedList&&validId(archivedList[1])&&req.method==='GET'){
+  await requireProjectManagement(archivedList[1]);
+  const rows=await sql`SELECT id,title,status,archived_at FROM teamhub.tasks
+   WHERE organization_id=${org} AND project_id=${archivedList[1]}
+    AND archived_at IS NOT NULL AND deleted_at IS NULL ORDER BY archived_at DESC LIMIT 200`;
+  return reply(res,200,{tasks:rows});
+ }
  const pm=/^\/api\/projects\/([0-9a-f-]+)\/tasks$/.exec(p);
  if(pm&&validId(pm[1])){
   const proj=await project(org,pm[1]);
@@ -1178,7 +1188,8 @@ const route=async(req,res)=>{
     return reply(res,200,{file:rows[0]});
    }
    if(req.method==='DELETE'){
-    await requireTaskExecution(taskId);
+    const info=await requireTaskExecution(taskId);
+    if(info.status==='done')bad('Tarefa concluída: anexos bloqueados.',409);
     const rows=await sql`DELETE FROM teamhub.task_attachments WHERE id=${attachFile[2]} AND task_id=${taskId}
       AND organization_id=${org} AND (${['admin','manager'].includes(role)} OR uploaded_by_subject=${subject}) RETURNING id,file_name`;
     if(!rows.length)bad('Anexo não encontrado ou sem permissão para excluir.',403);

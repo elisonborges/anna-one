@@ -422,7 +422,8 @@ const route=async(req,res)=>{
   const projectId=completion[1],proj=await project(org,projectId);
   const taskCounts=await sql`SELECT count(*)::int AS total,
     count(*) FILTER (WHERE status!='done')::int AS open,
-    count(*) FILTER (WHERE status!='done' AND treatment_status IN ('blocked','waiting'))::int AS blocked
+    count(*) FILTER (WHERE treatment_status IN ('blocked','waiting'))::int AS blocked,
+    count(*) FILTER (WHERE paused_at IS NOT NULL)::int AS paused
     FROM teamhub.tasks WHERE organization_id=${org} AND project_id=${projectId}
      AND archived_at IS NULL AND deleted_at IS NULL`;
   const subCounts=await sql`SELECT count(s.id)::int AS total,count(s.id) FILTER (WHERE s.status!='done')::int AS open
@@ -441,10 +442,10 @@ const route=async(req,res)=>{
    if(['reject','reopen'].includes(action)&&note.length<5)bad('Informe uma justificativa com pelo menos 5 caracteres.');
    const checklist={deliverables:!!b.deliverables,tests:!!b.tests,documentation:!!b.documentation,stakeholders:!!b.stakeholders,pendencies:!!b.pendencies};
    if(['request','approve'].includes(action)&&!Object.values(checklist).every(Boolean))bad('Confirme todos os checks de conferência antes de prosseguir.',409);
-   if(action==='request'&&(taskCounts[0].open>0||subCounts[0].open>0||proj.paused_at)){
+   if(action==='request'&&(taskCounts[0].open>0||subCounts[0].open>0||taskCounts[0].blocked>0||taskCounts[0].paused>0||proj.paused_at)){
     bad('Conclua as tarefas e subtarefas, retome o projeto e marque todos os checks antes de solicitar validação.',409);
    }
-   if(action==='approve'&&(taskCounts[0].open>0||subCounts[0].open>0||proj.paused_at))bad('Há tarefas, subtarefas ou pausas em aberto. Rejeite e solicite os ajustes.',409);
+   if(action==='approve'&&(taskCounts[0].open>0||subCounts[0].open>0||taskCounts[0].blocked>0||taskCounts[0].paused>0||proj.paused_at))bad('Há tarefas, subtarefas ou pausas em aberto. Rejeite e solicite os ajustes.',409);
    const transitions={
     request:{from:['active'],to:'review'},approve:{from:['review'],to:'completed'},
     reject:{from:['review'],to:'active'},reopen:{from:['completed'],to:'active'}

@@ -414,39 +414,77 @@ async function openProject(p){
  $('project-pause-status').textContent=p.paused_at?'Pausado por pendência':'Projeto ativo';
  renderTasks();show('board');
 }
+const taskFilterMatches=t=>{
+ const treatment=$('filter-treatment').value,priority=$('filter-priority').value,label=$('filter-label').value,search=$('filter-search').value.trim().toLocaleLowerCase('pt-BR');
+ return (treatment==='all'||(t.treatment_status||'pending')===treatment)
+ &&(priority==='all'||t.priority===priority)
+ &&(label==='all'||(Array.isArray(t.labels)&&t.labels.includes(label)))
+ &&(!search||[t.title,t.description,t.pending_reason,t.next_action].some(x=>String(x||'').toLocaleLowerCase('pt-BR').includes(search)));
+};
+let draggedTaskId=null;
+async function moveTaskTo(taskId,status){
+ const task=state.tasks.find(t=>t.id===taskId);
+ if(!task||task.status===status||!['admin','manager','member'].includes(state.role))return;
+ if(task.paused_at)throw Error('Retome a tarefa antes de mudar sua etapa.');
+ await api('/api/tasks/'+task.id+qs(),{method:'PATCH',body:JSON.stringify({status})});
+ task.status=status;renderTasks();await refreshProjects();message('Etapa atualizada.');
+}
 function renderTasks(){
- let done=0,doing=0;const board=$('board-columns');
+ const board=$('board-columns');
  for(const col of board.querySelectorAll('.column')){
   const status=col.dataset.status,list=col.querySelector('.tasklist');list.replaceChildren();
-  const filter=$('filter-treatment').value;
-  const tasks=state.tasks.filter(t=>t.status===status&&(filter==='all'||(t.treatment_status||'pending')===filter));col.querySelector('.count').textContent=tasks.length;
+  const tasks=state.tasks.filter(t=>t.status===status&&taskFilterMatches(t));
+  col.querySelector('.count').textContent=tasks.length;
   for(const t of tasks){
-   const card=document.createElement('article');card.className='task';const title=document.createElement('strong');title.textContent=t.title;
+   const card=document.createElement('article');card.className='task';card.dataset.taskId=t.id;
+   const editable=['admin','manager','member'].includes(state.role);
+   card.draggable=editable&&!t.paused_at;
+   if(card.draggable){
+    card.title='Arraste para outra coluna ou use o seletor de etapa';
+    card.addEventListener('dragstart',e=>{draggedTaskId=t.id;card.classList.add('is-dragged');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',t.id);});
+    card.addEventListener('dragend',()=>{draggedTaskId=null;card.classList.remove('is-dragged');board.querySelectorAll('.column').forEach(c=>c.classList.remove('is-drop-target'));});
+   }
+   const title=document.createElement('strong');title.textContent=t.title;
+   const labels=document.createElement('div');labels.className='task-labels';
+   for(const name of (Array.isArray(t.labels)?t.labels:[])){
+    const tag=document.createElement('span');tag.className='task-label-tag label-'+({Urgente:'urgent',Cliente:'client','Revisão':'review',Bug:'bug',Melhoria:'improvement','Aprovação':'approval'}[name]||'default');tag.textContent=name;labels.append(tag);
+   }
    const footer=document.createElement('footer');
    const select=document.createElement('select');select.setAttribute('aria-label','Etapa da tarefa '+t.title);
    [['todo','A fazer'],['doing','Em andamento'],['done','Concluído']].forEach(([v,n])=>{const opt=document.createElement('option');opt.value=v;opt.textContent=n;select.append(opt)});
-   select.value=t.status;select.disabled=!['admin','manager','member'].includes(state.role);
-   select.addEventListener('change',async()=>{const next=select.value;select.disabled=true;try{await api('/api/tasks/'+t.id+qs(),{method:'PATCH',body:JSON.stringify({status:next})});t.status=next;renderTasks();await refreshProjects();message('Tarefa atualizada.')}catch(e){select.value=t.status;message(e.message,true)}finally{select.disabled=false}});
-   const label=document.createElement('span');label.className='priority';label.textContent=({high:'Alta',medium:'Média',low:'Baixa'})[t.priority]||'Média';
+   select.value=t.status;select.disabled=!editable||!!t.paused_at;
+   select.addEventListener('change',async()=>{const next=select.value;select.disabled=true;try{await moveTaskTo(t.id,next)}catch(e){select.value=t.status;message(e.message,true)}finally{select.disabled=!editable||!!t.paused_at}});
+   const priority=document.createElement('span');priority.className='priority';priority.textContent=({high:'Alta',medium:'Média',low:'Baixa'})[t.priority]||'Média';
    const badge=document.createElement('span');badge.className='treatment-badge '+(t.treatment_status||'pending');badge.textContent=treatmentLabels[t.treatment_status]||'Pendente';
    const meta=document.createElement('div');meta.className='task-meta';
    if(t.due_at){const due=document.createElement('span');due.textContent='Prazo: '+new Date(t.due_at).toLocaleDateString('pt-BR',{timeZone:'UTC'});meta.append(due);}
    const assignedIds=Array.isArray(t.assignees)?t.assignees:(t.assignee_subject?[t.assignee_subject]:[]);
    if(assignedIds.length){const assigned=document.createElement('span');assigned.textContent='Responsáveis: '+assignedIds.map(memberName).join(', ');meta.append(assigned);}
-   const edit=document.createElement('button');edit.type='button';edit.className='task-edit';edit.textContent='Editar tarefa';edit.disabled=!['admin','manager','member'].includes(state.role);edit.onclick=()=>modal('edit',t);
+   const edit=document.createElement('button');edit.type='button';edit.className='task-edit';edit.textContent='Editar tarefa';edit.disabled=!editable;edit.onclick=()=>modal('edit',t);
    if(t.pending_reason){const p=document.createElement('span');p.className='pending-summary';p.textContent='Pendência: '+t.pending_reason;meta.append(p);}
    if(t.next_action){const p=document.createElement('span');p.textContent='Próxima ação: '+t.next_action;meta.append(p);}
    if(t.subtask_total){const p=document.createElement('span');p.textContent='Subtarefas: '+t.subtask_done+'/'+t.subtask_total+' concluídas';meta.append(p);}
-   footer.append(label,select);card.append(title,badge,meta,footer,edit);list.append(card);
+   footer.append(priority,select);card.append(title,labels,badge,meta,footer,edit);list.append(card);
   }
  }
- $('filter-count').textContent=state.tasks.filter(t=>$('filter-treatment').value==='all'||(t.treatment_status||'pending')===$('filter-treatment').value).length+' tarefa(s)';
+ $('filter-count').textContent=state.tasks.filter(taskFilterMatches).length+' de '+state.tasks.length+' tarefa(s)';
  $('new-task').disabled=!['admin','manager','member'].includes(state.role);
- const all=state.tasks;done=all.filter(t=>t.status==='done').length;doing=all.filter(t=>t.status==='doing').length;
- /* Indicadores gerais calculados pela API da organização, não pelo quadro atual. */
- const mine=all.filter(t=>t.assignee_subject&&t.assignee_subject===state.subject);
- $('mine').textContent=mine.length?mine.map(t=>t.title).join(' · '):'Sem tarefas atribuídas neste projeto.';
 }
+for(const column of $('board-columns').querySelectorAll('.column')){
+ column.addEventListener('dragover',event=>{if(!draggedTaskId||!['admin','manager','member'].includes(state.role))return;event.preventDefault();event.dataTransfer.dropEffect='move';column.classList.add('is-drop-target');});
+ column.addEventListener('dragleave',event=>{if(!column.contains(event.relatedTarget))column.classList.remove('is-drop-target');});
+ column.addEventListener('drop',async event=>{
+  event.preventDefault();column.classList.remove('is-drop-target');
+  const id=draggedTaskId||event.dataTransfer.getData('text/plain');draggedTaskId=null;
+  if(!id||!state.tasks.some(t=>t.id===id))return;
+  try{await moveTaskTo(id,column.dataset.status);}catch(e){message(e.message,true);renderTasks();}
+ });
+}
+for(const id of ['filter-treatment','filter-priority','filter-label'])$(id).addEventListener('change',renderTasks);
+$('filter-search').addEventListener('input',renderTasks);
+$('clear-filters').addEventListener('click',()=>{
+ $('filter-treatment').value='all';$('filter-priority').value='all';$('filter-label').value='all';$('filter-search').value='';renderTasks();
+});
 function todayInFortaleza(){
  const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/Fortaleza',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
  const part=k=>parts.find(p=>p.type===k).value;
@@ -466,6 +504,7 @@ function modal(type,task=null){
  $('project-color').value=task?.card_color||'blue';
  $('project-owner').value=task?.owner_subject||'';
  $('field-priority').value=task?.priority||'medium';
+ for(const x of $('field-labels').querySelectorAll('input'))x.checked=Array.isArray(task?.labels)&&task.labels.includes(x.value);
  $('field-due').value=task?.due_at?String(task.due_at).slice(0,10):'';
  $('field-due').min=todayInFortaleza();
  const ids=Array.isArray(task?.assignees)?task.assignees:(task?.assignee_subject?[task.assignee_subject]:[]);
@@ -675,6 +714,7 @@ $('editor').addEventListener('submit',async e=>{
    await refreshProjects();show('projects');
   }else{
    const priority=$('field-priority').value;
+   const labels=[...$('field-labels').querySelectorAll('input:checked')].map(x=>x.value);
    const due_at=$('field-due').value||null;
    const assignees=[...$('field-assignees').querySelectorAll('input:checked')].map(x=>x.value);
    const assignee_subject=assignees[0]||null;
@@ -683,9 +723,9 @@ $('editor').addEventListener('submit',async e=>{
 
    if(due_at&&due_at<todayInFortaleza())throw Error('Escolha um prazo igual ou posterior à data de hoje.');
    if(mode==='edit'){
-    await api('/api/tasks/'+editing.id+qs(),{method:'PATCH',body:JSON.stringify({title:name,description,priority,due_at,assignee_subject,assignees,...tracking,update_note})});
+    await api('/api/tasks/'+editing.id+qs(),{method:'PATCH',body:JSON.stringify({title:name,description,priority,due_at,assignee_subject,assignees,labels,...tracking,update_note})});
    }else{
-    await api('/api/projects/'+state.project.id+'/tasks'+qs(),{method:'POST',body:JSON.stringify({title:name,description,priority,due_at,assignee_subject,assignees,...tracking})});
+    await api('/api/projects/'+state.project.id+'/tasks'+qs(),{method:'POST',body:JSON.stringify({title:name,description,priority,due_at,assignee_subject,assignees,labels,...tracking})});
    }
    await openProject(state.project);await refreshProjects();
   }

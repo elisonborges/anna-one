@@ -1010,3 +1010,21 @@ body[data-nexus-role="manager"] .bottom{grid-template-columns:repeat(5,minmax(0,
 #board-archived-panel{margin-top:16px}
 #board-archived-panel h2{margin:0;font-size:17px}
 .task .table-action{font-size:11px}
+
+/* AnnA Nexus v0.1.41 — convite, primeiro acesso e projetos compartilhados */
+.invitation-intro{margin:15px 0;padding:13px 15px;background:var(--tint,#eaf2fc);border:1px solid var(--line,#c8d9e9);border-radius:12px;text-align:left}
+.invitation-intro strong{display:block;font-size:14px}
+.invitation-intro p{font-size:13px;line-height:1.5;margin:6px 0 0}
+.invite-auth-actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px;margin:12px 0}
+.invite-auth-actions button{min-height:41px}
+.invite-auth-actions a{font-size:13px;text-align:center}
+#signup-form{display:grid;gap:7px;text-align:left}
+#signup-form label{font-weight:650;font-size:13px}
+#signup-form input{min-height:42px;width:100%}
+#signup-button{margin-top:8px}
+#signin-feedback{min-height:18px;line-height:1.5}
+.guest-projects-empty{margin:18px 0 24px;padding:25px 20px;border:1px dashed var(--line,#c9d7e6);border-radius:16px;text-align:center;max-width:690px}
+.guest-empty-icon{display:block;font-size:30px;opacity:.7}
+.guest-projects-empty h3{margin:10px auto;font-size:19px}
+.guest-projects-empty p{max-width:510px;margin:10px auto 18px;line-height:1.6;color:var(--muted,#6e7783)}
+@media(max-width:600px){.signin-card{max-width:100%}.invite-auth-actions{flex-direction:column}.invite-auth-actions button{width:100%}.guest-projects-empty{padding:18px 14px}}

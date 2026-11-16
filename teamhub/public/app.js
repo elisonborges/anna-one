@@ -138,6 +138,59 @@ async function refreshApprovalQueue(){
   renderTable('approval-queue-list',['Projeto','Observação','Solicitado em','Ação'],rows);
  }catch(e){message(e.message,true)}
 }
+async function persistProjectCardOrder(){
+ const container=$('projects-list');
+ const ids=[...container.querySelectorAll(':scope > .project-card')].map(card=>card.dataset.projectId);
+ const before=[...state.projects];
+ const byId=new Map(before.map(p=>[p.id,p]));
+ if(ids.length!==before.length||ids.some(id=>!byId.has(id)))return;
+ state.projects=ids.map(id=>byId.get(id));
+ try{
+  await api('/api/projects/order'+qs(),{method:'PATCH',body:JSON.stringify({project_ids:ids})});
+  renderProjects();
+  message('Ordem dos projetos salva.');
+ }catch(e){
+  state.projects=before;renderProjects();message('Não foi possível salvar a ordem: '+e.message,true);
+ }
+}
+function enableProjectCardReorder(card,handle){
+ let pointer=null;
+ const container=$('projects-list');
+ handle.addEventListener('pointerdown',event=>{
+  if(event.button!==0||pointer)return;
+  pointer={id:event.pointerId,x:event.clientX,y:event.clientY,moved:false};
+  handle.setPointerCapture?.(event.pointerId);
+  card.classList.add('is-reordering');
+ });
+ handle.addEventListener('pointermove',event=>{
+  if(!pointer||pointer.id!==event.pointerId)return;
+  if(!pointer.moved&&Math.hypot(event.clientX-pointer.x,event.clientY-pointer.y)<6)return;
+  pointer.moved=true;
+  const target=document.elementFromPoint(event.clientX,event.clientY)?.closest('.project-card');
+  if(!target||target===card||target.parentElement!==container)return;
+  const bounds=target.getBoundingClientRect();
+  const after=event.clientY>bounds.top+bounds.height*.70
+    || (event.clientY>=bounds.top+bounds.height*.30&&event.clientX>bounds.left+bounds.width/2);
+  if(after)target.after(card);else target.before(card);
+ });
+ const stop=event=>{
+  if(!pointer||pointer.id!==event.pointerId)return;
+  const changed=pointer.moved;
+  pointer=null;card.classList.remove('is-reordering');
+  if(changed)persistProjectCardOrder();
+ };
+ handle.addEventListener('pointerup',stop);
+ handle.addEventListener('pointercancel',event=>{if(pointer?.id===event.pointerId){pointer=null;card.classList.remove('is-reordering');renderProjects();}});
+ handle.addEventListener('keydown',event=>{
+  if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;
+  event.preventDefault();
+  const cards=[...container.querySelectorAll(':scope > .project-card')],i=cards.indexOf(card);
+  const next=i+(['ArrowLeft','ArrowUp'].includes(event.key)?-1:1);
+  if(next<0||next>=cards.length)return;
+  if(next<i)cards[next].before(card);else cards[next].after(card);
+  persistProjectCardOrder();
+ });
+}
 function renderProjects(){
  const overviewRows=state.projects.slice(0,6).map(p=>{
   const progress=p.total?Math.round(p.done/p.total*100):0;
@@ -149,7 +202,12 @@ function renderProjects(){
  const allowed=['blue','violet','green','orange','pink','teal','slate','indigo','coral','gold','mint','charcoal'];
  for(const p of state.projects){
   const card=document.createElement('article');card.className='project-card color-'+(allowed.includes(p.card_color)?p.card_color:'blue');
+  card.dataset.projectId=p.id;
   const cover=document.createElement('div');cover.className='project-card-cover';
+  const handle=document.createElement('button');handle.type='button';handle.className='project-drag-handle';
+  handle.textContent='⠿';handle.title='Arrastar para reordenar este projeto';
+  handle.setAttribute('aria-label','Mover projeto '+p.name+'. Arraste ou use setas para mudar a ordem.');
+  cover.append(handle);
   const title=document.createElement('h3');title.textContent=p.name;
   const description=document.createElement('p');description.textContent=p.description||'Sem descrição';
   const tags=document.createElement('div');tags.className='project-card-tags';
@@ -175,6 +233,7 @@ function renderProjects(){
   validation.hidden=!['review','completed'].includes(p.completion_status);
   validation.classList.add('project-validation-link');
   card.append(cover,title,description,owner,tags,progress,validation,actions);container.append(card);
+  enableProjectCardReorder(card,handle);
  }
  const add=document.createElement('button');add.type='button';add.className='project-card-add';add.disabled=!['admin','manager'].includes(state.role);
  add.textContent='+ Criar novo card';add.onclick=()=>modal('project');container.append(add);

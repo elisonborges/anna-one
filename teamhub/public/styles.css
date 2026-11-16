@@ -1028,3 +1028,9 @@ body[data-nexus-role="manager"] .bottom{grid-template-columns:repeat(5,minmax(0,
 .guest-projects-empty h3{margin:10px auto;font-size:19px}
 .guest-projects-empty p{max-width:510px;margin:10px auto 18px;line-height:1.6;color:var(--muted,#6e7783)}
 @media(max-width:600px){.signin-card{max-width:100%}.invite-auth-actions{flex-direction:column}.invite-auth-actions button{width:100%}.guest-projects-empty{padding:18px 14px}}
+
+/* Nexus v0.1.42: envio de convites por e-mail */
+.invite-delivery-status{padding:11px 14px;border:1px solid var(--line,#ccd7e5);border-radius:10px;background:var(--surface,#f3f7fc);font-size:13px;line-height:1.5;margin:8px 0 15px}
+.invite-delivery-status[data-delivery="sent"]{border-left:4px solid #18865d}
+.invite-delivery-status[data-delivery="failed"]{border-left:4px solid #b04435}
+.invite-delivery-status[data-delivery="not_configured"]{border-left:4px solid #b17d30}

@@ -644,3 +644,9 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
  #overview:fullscreen .dash-donut,#overview.dashboard-presentation .dash-donut{width:135px;height:135px;flex-basis:135px}
  #overview:fullscreen .dash-donut-core,#overview.dashboard-presentation .dash-donut-core{width:94px;height:94px}
 }
+
+/* Marca da organização também no modo telão do dashboard */
+.dash-brand-title{display:flex;gap:10px;align-items:center;min-width:0}
+#dash-company-logo{width:46px;height:46px;object-fit:contain;border-radius:8px;flex-shrink:0}
+#dash-company-logo[hidden]{display:none!important}
+#overview:fullscreen #dash-company-logo{width:68px;height:68px}

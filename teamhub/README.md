@@ -144,3 +144,11 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Rotas diretas das tarefas/subtarefas também verificam o projeto vinculado.
 - Migração aditiva `migrations/0024-project-permissions.sql` exclusivamente no Neon de desenvolvimento; todos os projetos anteriores seguem visíveis à organização.
 - Anexos e e-mails automáticos ainda pendentes; dependem de armazenamento seguro, credenciais e preferências por usuário.
+
+## Entregas v0.1.19–v0.1.21 — Kanban, calendário e modelos
+- **v0.1.19:** arrastar e soltar tarefas entre as três etapas, com alternativa de selecionar status em dispositivos móveis; filtros rápidos combinados por tratamento, prioridade, etiquetas e pesquisa; seis etiquetas pré-definidas por tarefa, editáveis na ficha.
+- Migração aditiva `migrations/0025-kanban-labels.sql` no Neon de desenvolvimento. Etiquetas validadas na API.
+- **v0.1.20:** calendário mensal com tarefas e subtarefas que possuem prazo, filtro de projetos autorizados, navegação por meses e tabela de entregas.
+- **v0.1.21:** modelos opcionais ao criar projeto: Vazio, Planejamento, Desenvolvimento, Atendimento e suporte, Projeto educacional. Criação do projeto e das tarefas iniciais em única instrução SQL transacional, sem duplicar tarefas existentes.
+- Não houve alteração no portal principal nem habilitação de e-mails automáticos. Anexos e automações externas seguem pendentes.
+- Todos os fluxos precisam de homologação com contas reais antes do uso em produção.

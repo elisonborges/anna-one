@@ -962,3 +962,9 @@ html,body{background:var(--bg);color:var(--ink)}
 .team-invites-grid .data-container{overflow-x:auto}
 @media(max-width:1050px){.team-invites-grid{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:480px){.team-invites-grid .invite-form{grid-template-columns:minmax(0,1fr)}.team-invites-grid .invite-form label[for="invite-role"]{grid-column:1;grid-row:3}.team-invites-grid .invite-form #invite-role{grid-column:1;grid-row:4}.team-invites-grid .invite-form #invite-create{grid-column:1;grid-row:5}.brand-form .brand-buttons button{flex:1 1 100%}}
+
+/* v0.1.38 — apontamento estável para reordenação de projetos e Kanban */
+.task-order-handle{touch-action:none!important;user-select:none;-webkit-user-select:none}
+.task.is-reordering{z-index:2;position:relative;cursor:grabbing}
+.project-card.is-reordering{position:relative}
+.column.is-drop-target{outline:2px dashed var(--accent);outline-offset:-3px}

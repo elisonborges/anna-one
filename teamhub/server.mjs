@@ -512,7 +512,8 @@ const route=async(req,res)=>{
   const pauses=await sql`SELECT x.project_id,x.task_id,x.reason,x.started_at,x.ended_at,x.started_by_subject,
     ROUND(EXTRACT(EPOCH FROM(COALESCE(x.ended_at,now())-x.started_at)))::bigint AS elapsed_seconds
    FROM teamhub.pause_periods x WHERE x.organization_id=${org} ORDER BY x.started_at DESC LIMIT 1000`;
-  const taskRows=await sql`SELECT t.id,t.project_id,t.title,t.status,t.treatment_status,t.paused_at,t.archived_at,t.deleted_at,t.created_at,
+  const taskRows=await sql`SELECT t.id,t.project_id,t.title,t.status,t.treatment_status,t.paused_at,t.archived_at,t.deleted_at,t.created_at,t.assignee_subject,
+    COALESCE((SELECT jsonb_agg(a.auth_subject ORDER BY a.auth_subject) FROM teamhub.task_assignees a WHERE a.organization_id=t.organization_id AND a.task_id=t.id),'[]'::jsonb) AS assignees,
     (SELECT COALESCE(SUM(EXTRACT(EPOCH FROM(COALESCE(x.ended_at,now())-x.started_at))),0)::bigint
      FROM teamhub.pause_periods x WHERE x.organization_id=${org} AND x.task_id=t.id) AS pending_seconds,
     (SELECT count(*)::int FROM teamhub.pause_periods x WHERE x.organization_id=${org} AND x.task_id=t.id) AS pauses

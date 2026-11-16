@@ -47,10 +47,15 @@ async function showApproval(project){
  const data=await api('/api/projects/'+project.id+'/completion'+qs());
  $('approval-title').textContent='Conferência · '+project.name;
  $('approval-description').textContent=({active:'Em andamento',review:'Aguardando aprovação',completed:'Projeto concluído'})[data.status]||data.status;
+ const request=data.history.find(h=>h.action==='requested');
+ if(data.status==='review'&&request){
+  const marks=Object.values(request.checklist||{}).filter(Boolean).length;
+  $('approval-description').textContent+=' · Solicitante conferiu '+marks+'/5 itens. O administrador deve realizar conferência independente.';
+ }
  $('approval-progress').textContent=data.tasks.total+' tarefas ('+data.tasks.open+' abertas) · '+data.subtasks.total+' subtarefas ('+data.subtasks.open+' abertas)';
  for(const input of $('approval-checks').querySelectorAll('input'))input.checked=false;
  $('approval-note').value='';
- $('approval-checks').hidden=data.status!=='active';
+ $('approval-checks').hidden=!['active','review'].includes(data.status);
  $('approval-request').hidden=data.status!=='active'||!['admin','manager','member'].includes(state.role);
  $('approval-approve').hidden=data.status!=='review'||state.role!=='admin';
  $('approval-reject').hidden=data.status!=='review'||state.role!=='admin';
@@ -71,7 +76,7 @@ for(const action of ['request','approve','reject','reopen']){
   const note=$('approval-note').value.trim();
   const checks={};
   for(const input of $('approval-checks').querySelectorAll('input'))checks[input.value]=input.checked;
-  if(action==='request'&&!Object.values(checks).every(Boolean)){message('Marque todos os itens de conferência antes de enviar.',true);return;}
+  if(['request','approve'].includes(action)&&!Object.values(checks).every(Boolean)){message('Confirme todos os itens do checklist antes de prosseguir.',true);return;}
   if(['reject','reopen'].includes(action)&&note.length<5){message('Informe uma justificativa com pelo menos 5 caracteres.',true);return;}
   if(action==='approve'&&!confirm('Confirmar que o projeto foi conferido e pode ser encerrado?'))return;
   const btn=$('approval-'+action);btn.disabled=true;

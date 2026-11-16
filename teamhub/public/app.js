@@ -124,7 +124,6 @@ function renderProjects(){
   const actions=document.createElement('div');actions.className='project-card-actions';
   const open=makeAction('Abrir projeto',()=>openProject(p));open.classList.add('project-card-open');
   actions.append(open);
-  actions.append(makeAction('Validar',()=>showApproval(p)));
   if(['admin','manager'].includes(state.role)){
    const edit=makeAction('Personalizar',()=>modal('project-edit',p));
    actions.append(edit);
@@ -133,7 +132,9 @@ function renderProjects(){
     actions.append(invite);
    }
   }
-  card.append(cover,title,description,owner,tags,progress,actions);container.append(card);
+  const validation=makeAction(p.completion_status==='review'?'Aguardando validação':p.completion_status==='completed'?'Conferir encerramento':'Checklist de conclusão',()=>showApproval(p));
+  validation.classList.add('project-validation-link');
+  card.append(cover,title,description,owner,tags,progress,validation,actions);container.append(card);
  }
  const add=document.createElement('button');add.type='button';add.className='project-card-add';add.disabled=!['admin','manager'].includes(state.role);
  add.textContent='+ Criar novo card';add.onclick=()=>modal('project');container.append(add);

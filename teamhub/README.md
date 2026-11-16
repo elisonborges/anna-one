@@ -69,3 +69,13 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Ficha de tarefa usa campos em duas ou três colunas onde houver espaço; no celular reorganiza os campos responsivamente.
 - Kanban continua visualmente em três colunas. Sem alterações no banco ou API.
 - Versão no cabeçalho e nos recursos JS/CSS atualizada para 0.1.8.
+
+## Entrega v0.1.9 — Ajustes de navegação, identidade do cliente e equipe
+- Projetos e projetos recentes: botão explícito **Abrir projeto** em cada linha da tabela.
+- Minhas tarefas: botão **Abrir** com largura e aparência consistente com as demais ações.
+- O banner permanece **AnnA Nexus**, mas exibe o nome personalizado e o logotipo HTTPS da organização, configurados somente por administradores na aba Equipe.
+- Equipe: inclusão por convite, alteração do perfil dos membros e remoção de acesso por desativação reversível (preserva histórico); evita desativação do próprio administrador.
+- Tarefas: seleção de diversos responsáveis em caixas de marcação, inclusive repetidos em várias tarefas do mesmo projeto. A lista **Minhas tarefas** passa a considerar atribuições compartilhadas.
+- Migração aditiva: `migrations/0019-brand-and-assignees.sql` no banco separado anna-nexus-dev, com preservação dos responsáveis anteriores.
+- Não alterar o login central, não modificar o portal principal ou os dados de produção.
+- Revisão funcional por navegador com contas reais ainda é necessária, além da checagem de sintaxe.

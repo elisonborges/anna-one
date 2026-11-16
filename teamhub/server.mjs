@@ -166,6 +166,19 @@ const route=async(req,res)=>{
   if(subtaskRoute){const rows=await sql`SELECT project_id FROM teamhub.subtasks WHERE id=${subtaskRoute[1]} AND organization_id=${org}`;targetProject=rows[0]?.project_id||null;}
   if((projectRoute||taskRoute||subtaskRoute)&&(!targetProject||!canSee(targetProject)))bad('Acesso ao projeto não autorizado.',403);
  }
+ if(req.method!=='GET'&&(
+   /^\/api\/tasks\/[0-9a-f-]+(?:\/.*)?$/.test(p)||
+   /^\/api\/subtasks\/[0-9a-f-]+$/.test(p)||
+   /^\/api\/projects\/[0-9a-f-]+\/(?:tasks|pause|resume)$/.test(p)
+  )){
+   let targetId=projectRoute?.[1]||null;
+   if(taskRoute){const x=await sql`SELECT project_id FROM teamhub.tasks WHERE organization_id=${org} AND id=${taskRoute[1]}`;targetId=x[0]?.project_id||null;}
+   if(subtaskRoute){const x=await sql`SELECT project_id FROM teamhub.subtasks WHERE organization_id=${org} AND id=${subtaskRoute[1]}`;targetId=x[0]?.project_id||null;}
+   if(targetId){
+    const statusRows=await sql`SELECT completion_status FROM teamhub.projects WHERE organization_id=${org} AND id=${targetId}`;
+    if(statusRows[0]?.completion_status!=='active')bad('Projeto aguardando validação ou concluído. Solicite devolução ou reabertura para editar.',409);
+   }
+ }
  if(p==='/api/organization'&&req.method==='PATCH'){
   if(role!=='admin')bad('Apenas administradores podem personalizar a organização.',403);
   const b=await json(req,120000);

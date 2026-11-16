@@ -890,6 +890,69 @@ function setBoardFiltersExpanded(open){
 }
 $('toggle-board-filters').addEventListener('click',()=>setBoardFiltersExpanded(!boardFiltersExpanded));
 setBoardFiltersExpanded(false);
+function taskOrderFilterActive(){
+ return ['filter-treatment','filter-priority','filter-label','filter-due'].some(id=>$(id).value!=='all')
+  ||Boolean($('filter-search').value.trim());
+}
+function canReorderTasks(){
+ return state.project?.completion_status==='active'&&!state.project.paused_at
+  &&['admin','manager','member'].includes(state.role)&&!taskOrderFilterActive();
+}
+async function persistTaskOrder(status,orderedIds){
+ if(!canReorderTasks())throw Error('Retire os filtros ou reabra o projeto para ordenar as tarefas.');
+ const source=state.tasks.filter(t=>t.status===status).map(t=>t.id);
+ if(source.length!==orderedIds.length||new Set(orderedIds).size!==source.length
+  ||orderedIds.some(id=>!source.includes(id)))throw Error('A lista foi alterada. Atualize o quadro.');
+ const previous=state.tasks.slice(),queue=orderedIds.slice();
+ const reordered=previous.map(t=>t.status===status?previous.find(x=>x.id===queue.shift()):t);
+ state.tasks=reordered;
+ try{
+  await api('/api/projects/'+state.project.id+'/tasks/order'+qs(),{
+   method:'PATCH',body:JSON.stringify({task_ids:reordered.map(t=>t.id)})
+  });
+  renderTasks();message('Ordem das tarefas salva.');
+ }catch(error){state.tasks=previous;renderTasks();message(error.message,true);}
+}
+function enableTaskOrderHandle(card,handle,status){
+ let dragging=null;
+ const list=card.parentElement;
+ handle.addEventListener('pointerdown',e=>{
+  if(e.button!==0||!canReorderTasks())return;
+  dragging={id:e.pointerId,x:e.clientX,y:e.clientY,moved:false};
+  card.draggable=false;
+  handle.setPointerCapture?.(e.pointerId);
+  card.classList.add('is-reordering');
+ });
+ handle.addEventListener('pointermove',e=>{
+  if(!dragging||dragging.id!==e.pointerId)return;
+  if(!dragging.moved&&Math.hypot(e.clientX-dragging.x,e.clientY-dragging.y)<6)return;
+  dragging.moved=true;
+  const target=document.elementFromPoint(e.clientX,e.clientY)?.closest('.task');
+  if(target&&target!==card&&target.parentElement===list){
+   const box=target.getBoundingClientRect();
+   if(e.clientY<box.top+box.height/2)target.before(card);else target.after(card);
+  }
+ });
+ const stop=e=>{
+  if(!dragging||dragging.id!==e.pointerId)return;
+  const moved=dragging.moved;dragging=null;
+  card.classList.remove('is-reordering');card.draggable=canReorderTasks()&&!card.dataset.paused;
+  if(moved)persistTaskOrder(status,[...list.querySelectorAll(':scope > .task')].map(x=>x.dataset.taskId)).catch(err=>message(err.message,true));
+ };
+ handle.addEventListener('pointerup',stop);
+ handle.addEventListener('pointercancel',e=>{
+  if(dragging?.id!==e.pointerId)return;
+  dragging=null;card.classList.remove('is-reordering');renderTasks();
+ });
+ handle.addEventListener('keydown',e=>{
+  if(!['ArrowUp','ArrowDown'].includes(e.key)||!canReorderTasks())return;
+  e.preventDefault();
+  const cards=[...list.querySelectorAll(':scope > .task')],i=cards.indexOf(card);
+  const next=i+(e.key==='ArrowUp'?-1:1);if(next<0||next>=cards.length)return;
+  if(next<i)cards[next].before(card);else cards[next].after(card);
+  persistTaskOrder(status,[...list.querySelectorAll(':scope > .task')].map(x=>x.dataset.taskId)).catch(err=>message(err.message,true));
+ });
+}
 let draggedTaskId=null;
 async function moveTaskTo(taskId,status){
  const task=state.tasks.find(t=>t.id===taskId);
@@ -907,6 +970,26 @@ function renderTasks(){
   col.querySelector('.count').textContent=tasks.length;
   for(const t of tasks){
    const card=document.createElement('article');card.className='task';card.dataset.taskId=t.id;
+   card.dataset.paused=t.paused_at?'1':'';
+   const controls=document.createElement('div');controls.className='task-order-controls';
+   const handle=document.createElement('button');handle.type='button';handle.className='task-order-handle';
+   handle.textContent='⠿';handle.title='Arrastar para reordenar dentro desta coluna';
+   handle.setAttribute('aria-label','Reordenar tarefa '+t.title+'. Arraste ou use as setas do teclado.');
+   const up=document.createElement('button');up.type='button';up.className='task-order-step';
+   up.textContent='↑';up.setAttribute('aria-label','Subir tarefa '+t.title);
+   const down=document.createElement('button');down.type='button';down.className='task-order-step';
+   down.textContent='↓';down.setAttribute('aria-label','Descer tarefa '+t.title);
+   for(const [button,delta] of [[up,-1],[down,1]]){
+    button.disabled=!canReorderTasks();
+    button.onclick=()=>{
+     const cards=[...list.querySelectorAll(':scope > .task')],i=cards.indexOf(card),next=i+delta;
+     if(next<0||next>=cards.length)return;
+     if(delta<0)cards[next].before(card);else cards[next].after(card);
+     persistTaskOrder(status,[...list.querySelectorAll(':scope > .task')].map(x=>x.dataset.taskId)).catch(e=>message(e.message,true));
+    };
+   }
+   handle.disabled=!canReorderTasks();
+   controls.append(handle,up,down);
    const editable=['admin','manager','member'].includes(state.role)&&state.project?.completion_status==='active';
    card.draggable=editable&&!t.paused_at;
    if(card.draggable){
@@ -934,7 +1017,8 @@ function renderTasks(){
    if(t.pending_reason){const p=document.createElement('span');p.className='pending-summary';p.textContent='Pendência: '+t.pending_reason;meta.append(p);}
    if(t.next_action){const p=document.createElement('span');p.textContent='Próxima ação: '+t.next_action;meta.append(p);}
    if(t.subtask_total){const p=document.createElement('span');p.textContent='Subtarefas: '+t.subtask_done+'/'+t.subtask_total+' concluídas';meta.append(p);}
-   footer.append(priority,select);card.append(title,labels,badge,meta,footer,edit);list.append(card);
+   footer.append(priority,select);card.append(controls,title,labels,badge,meta,footer,edit);list.append(card);
+   enableTaskOrderHandle(card,handle,status);
   }
  }
  const all=state.tasks,completed=all.filter(t=>t.status==='done').length;
@@ -957,6 +1041,11 @@ function renderTasks(){
  $('board-progress-fill').style.width=progress+'%';
  $('board-progress').setAttribute('aria-label',progress+'% de atividades concluídas');
  $('filter-count').textContent=state.tasks.filter(taskFilterMatches).length+' de '+state.tasks.length+' tarefa(s)';
+ $('task-order-hint').textContent=taskOrderFilterActive()
+  ?'Para mudar a ordem das tarefas, limpe os filtros.'
+  :state.project?.completion_status!=='active'
+   ?'A ordenação fica bloqueada durante a validação ou após a conclusão do projeto.'
+   :'Arraste pela alça ⠿ ou use ↑ ↓ para reorganizar tarefas na mesma coluna.';
  const anyFilter=['filter-treatment','filter-priority','filter-label','filter-due'].some(id=>$(id).value!=='all')||!!$('filter-search').value.trim();
  $('toggle-board-filters').classList.toggle('has-active-filters',anyFilter);
  $('toggle-board-filters').title=anyFilter?'Há filtros ativos no quadro.':'Filtros opcionais.';

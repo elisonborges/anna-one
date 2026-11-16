@@ -178,7 +178,7 @@ function inviteEmailContent({organizationName,logoUrl,role,inviteUrl}){
  </td></tr></table></body></html>`;
  return {subject,html,text:textBody};
 }
-async function dispatchInvitationEmail({invitationId,email,role,inviteUrl,organizationName,logoUrl}){
+async function dispatchInvitationEmail({invitationId,email,role,inviteUrl,organizationName,logoUrl,attempt=0}){
  if(!emailTransportConfigured()){
   await sql`UPDATE teamhub.invitations SET email_status='not_configured',
    email_error='Envio automático não configurado no ambiente.',email_attempted_at=NULL
@@ -192,7 +192,7 @@ async function dispatchInvitationEmail({invitationId,email,role,inviteUrl,organi
    method:'POST',
    headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,
     'Content-Type':'application/json',
-    'Idempotency-Key':'nexus-invitation-'+invitationId},
+    'Idempotency-Key':'nexus-invitation-'+invitationId+'-'+attempt},
    body:JSON.stringify({from:'AnnA One | Nexus <'+process.env.NEXUS_EMAIL_FROM+'>',
     to:[email],subject:content.subject,html:content.html,text:content.text}),
    signal:AbortSignal.timeout(10000)
@@ -528,6 +528,11 @@ const route=async(req,res)=>{
   await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action) VALUES(${org},${subject},'membership.updated')`;
   return reply(res,200,{member:rows[0]});
  }
+ if(p==='/api/invitations/config'&&req.method==='GET'){
+  if(role!=='admin')bad('Consulta restrita ao administrador.',403);
+  return reply(res,200,{email_enabled:emailTransportConfigured(),delivery_provider:'Resend',
+   fallback:'manual',validity_days:7});
+ }
  if(p==='/api/invitations'&&req.method==='GET'){
   if(role!=='admin')bad('Apenas administradores podem consultar convites.',403);
   const rows=await sql`SELECT id,email,role,status,created_at,expires_at,accepted_at,email_status,email_attempted_at,email_attempts,email_error FROM teamhub.invitations WHERE organization_id=${org} ORDER BY created_at DESC LIMIT 100`;
@@ -560,6 +565,34 @@ const route=async(req,res)=>{
    if(e?.code==='23505'||String(e?.message||'').includes('invitations_one_pending'))bad('Este e-mail já possui um convite pendente. Cancele-o antes de enviar outro.',409);
    throw e;
   }
+ }
+ const resend=/^\/api\/invitations\/([0-9a-f-]+)\/resend$/.exec(p);
+ if(resend&&validId(resend[1])&&req.method==='POST'){
+  if(role!=='admin')bad('Apenas administradores podem reenviar convites.',403);
+  const token=randomBytes(32).toString('hex');
+  const hash=createHash('sha256').update(token).digest('hex');
+  // Resend generates a fresh URL; the old invitation link becomes invalid.
+  // Cooldown prevents accidental duplicate clicks and spam.
+  const rows=await sql`UPDATE teamhub.invitations
+   SET token_hash=${hash},expires_at=now()+interval '7 days',
+     email_status='manual',email_error=NULL,email_provider_id=NULL
+   WHERE id=${resend[1]} AND organization_id=${org}
+    AND status='pending'
+    AND (email_attempted_at IS NULL OR email_attempted_at<now()-interval '60 seconds')
+    AND email_attempts<5
+   RETURNING id,email,role,email_attempts`;
+  if(!rows.length)bad('Convite indisponível, limite de tentativas atingido ou aguarde 60 segundos antes de reenviar.',409);
+  const invite=rows[0];
+  const inviteUrl=NEXUS_INVITE_URL+'#invite='+token;
+  const [organization]=await sql`SELECT name,display_name,logo_url FROM teamhub.organizations WHERE id=${org}`;
+  const sending=await dispatchInvitationEmail({invitationId:invite.id,email:invite.email,
+   role:invite.role,inviteUrl,attempt:Number(invite.email_attempts||0),
+   organizationName:organization?.display_name||organization?.name||'Sua organização',
+   logoUrl:organization?.logo_url||''});
+  await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action)
+   VALUES(${org},${subject},'invitation.resent')`;
+  return reply(res,200,{invite_url:inviteUrl,invitation:{id:invite.id,email:invite.email,role:invite.role},
+   delivery:sending.delivery,email_status:sending.email_status,old_link_invalidated:true});
  }
  const cancel=/^\/api\/invitations\/([0-9a-f-]+)\/cancel$/.exec(p);
  if(cancel&&validId(cancel[1])&&req.method==='POST'){

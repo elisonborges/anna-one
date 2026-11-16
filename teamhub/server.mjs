@@ -95,6 +95,10 @@ const route=async(req,res)=>{
   const rows=await sql`SELECT COUNT(DISTINCT p.id)::int AS projects, COUNT(t.id) FILTER(WHERE t.status!='done')::int AS open, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status!='done' AND t.treatment_status IN ('blocked','waiting'))::int AS attention FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id WHERE p.organization_id=${org} AND p.archived_at IS NULL`;
   return reply(res,200,{summary:rows[0]});
  }
+ if(p==='/api/attention'&&req.method==='GET'){
+  const items=await sql`SELECT t.id,t.project_id,p.name AS project_name,t.title,t.treatment_status,t.pending_reason,t.next_action,t.due_at FROM teamhub.tasks t JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id WHERE t.organization_id=${org} AND p.archived_at IS NULL AND t.status!='done' AND t.treatment_status IN ('blocked','waiting') ORDER BY CASE WHEN t.treatment_status='blocked' THEN 0 ELSE 1 END,t.due_at NULLS LAST,t.updated_at DESC LIMIT 50`;
+  return reply(res,200,{items});
+ }
  if(p==='/api/projects'&&req.method==='POST'){
   requireManager(role);const body=await json(req);const name=String(body.name||'').trim();if(name.length<2||name.length>160)bad('Nome entre 2 e 160 caracteres.');
   const rows=await sql`INSERT INTO teamhub.projects(organization_id,name,description) VALUES(${org},${name},${String(body.description||'').slice(0,1000)}) RETURNING id,name,description`;

@@ -121,6 +121,121 @@ async function project(org,id){
  const rows=await sql`SELECT id,name,description,created_at,paused_at,card_color,owner_subject,access_mode,completion_status,completed_at FROM teamhub.projects WHERE organization_id=${org} AND id=${id} AND archived_at IS NULL`;
  if(!rows.length)bad('Projeto indisponível.',404);return rows[0];
 }
+async function createDeadlineNotifications(org,subject){
+  const rows=await sql`WITH candidates AS(
+    SELECT t.id AS task_id,t.project_id,t.title,t.due_at,assignee.auth_subject,
+      ((t.due_at AT TIME ZONE 'UTC')::date < (now() AT TIME ZONE 'America/Fortaleza')::date) AS overdue
+    FROM teamhub.tasks t
+    JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id
+    JOIN LATERAL (
+      SELECT DISTINCT x.auth_subject FROM (
+       SELECT a.auth_subject FROM teamhub.task_assignees a WHERE a.organization_id=t.organization_id AND a.task_id=t.id
+       UNION SELECT t.assignee_subject WHERE t.assignee_subject IS NOT NULL
+      ) x
+    ) assignee ON true
+    JOIN teamhub.memberships m ON m.organization_id=t.organization_id AND m.auth_subject=assignee.auth_subject AND m.active=true
+    WHERE t.organization_id=${org} AND t.status!='done'
+      AND t.archived_at IS NULL AND t.deleted_at IS NULL AND t.due_at IS NOT NULL AND p.archived_at IS NULL
+      AND (t.due_at AT TIME ZONE 'UTC')::date <= (now() AT TIME ZONE 'America/Fortaleza')::date+2
+      AND (p.access_mode='organization' OR m.role IN ('admin','manager') OR p.owner_subject=m.auth_subject
+       OR EXISTS(SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=m.auth_subject))
+  ), inserted AS(
+    INSERT INTO teamhub.notifications(organization_id,recipient_subject,actor_subject,event_type,title,details,project_id,task_id)
+    SELECT ${org}::uuid,c.auth_subject,${subject},
+      CASE WHEN c.overdue THEN 'task.overdue' ELSE 'task.due_soon' END,
+      CASE WHEN c.overdue THEN 'Tarefa atrasada' ELSE 'Prazo próximo' END,
+      c.title,c.project_id,c.task_id
+    FROM candidates c
+    LEFT JOIN teamhub.notification_preferences pref ON pref.organization_id=${org} AND pref.auth_subject=c.auth_subject
+    WHERE COALESCE(pref.deadlines,true) AND NOT EXISTS(
+      SELECT 1 FROM teamhub.notifications n WHERE n.organization_id=${org}
+        AND n.recipient_subject=c.auth_subject AND n.task_id=c.task_id
+        AND n.event_type=CASE WHEN c.overdue THEN 'task.overdue' ELSE 'task.due_soon' END
+        AND n.created_at>=now()-interval '24 hours'
+    )
+    RETURNING id
+  ) SELECT count(*)::int AS sent FROM inserted`;
+  const subtasks=await sql`WITH candidates AS(
+    SELECT s.id AS subtask_id,s.task_id,s.project_id,s.title,s.due_at,m.auth_subject,
+     (s.due_at AT TIME ZONE 'UTC')::date < (now() AT TIME ZONE 'America/Fortaleza')::date AS overdue
+    FROM teamhub.subtasks s
+    JOIN teamhub.tasks t ON t.id=s.task_id AND t.organization_id=s.organization_id AND t.deleted_at IS NULL AND t.archived_at IS NULL
+    JOIN teamhub.projects p ON p.id=s.project_id AND p.organization_id=s.organization_id AND p.archived_at IS NULL
+    JOIN LATERAL(
+      SELECT DISTINCT a.auth_subject FROM (
+       SELECT sa.auth_subject FROM teamhub.subtask_assignees sa WHERE sa.organization_id=s.organization_id AND sa.subtask_id=s.id
+       UNION SELECT s.owner_subject WHERE s.owner_subject IS NOT NULL
+      ) a
+    ) assigned ON true
+    JOIN teamhub.memberships m ON m.organization_id=s.organization_id AND m.auth_subject=assigned.auth_subject AND m.active=true
+    LEFT JOIN teamhub.notification_preferences pref ON pref.organization_id=s.organization_id AND pref.auth_subject=m.auth_subject
+    WHERE s.organization_id=${org} AND s.status!='done' AND s.due_at IS NOT NULL
+      AND (s.due_at AT TIME ZONE 'UTC')::date <=(now() AT TIME ZONE 'America/Fortaleza')::date+2
+      AND COALESCE(pref.deadlines,true)
+      AND (p.access_mode='organization' OR m.role IN ('admin','manager') OR p.owner_subject=m.auth_subject
+       OR EXISTS(SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=m.auth_subject))
+   ), inserted AS(
+    INSERT INTO teamhub.notifications(organization_id,recipient_subject,actor_subject,event_type,title,details,project_id,task_id)
+    SELECT ${org}::uuid,c.auth_subject,${subject},
+      CASE WHEN c.overdue THEN 'subtask.overdue' ELSE 'subtask.due_soon' END,
+      CASE WHEN c.overdue THEN 'Subtarefa atrasada' ELSE 'Prazo da subtarefa próximo' END,
+      c.title,c.project_id,c.task_id
+    FROM candidates c WHERE NOT EXISTS(
+      SELECT 1 FROM teamhub.notifications n WHERE n.organization_id=${org}
+       AND n.recipient_subject=c.auth_subject AND n.task_id=c.task_id
+       AND n.details=c.title
+       AND n.event_type=CASE WHEN c.overdue THEN 'subtask.overdue' ELSE 'subtask.due_soon' END
+       AND n.created_at>=now()-interval '24 hours'
+    )
+    RETURNING id
+   ) SELECT count(*)::int AS sent FROM inserted`;
+
+ return {created:(rows[0]?.sent||0)+(subtasks[0]?.sent||0),tasks_created:rows[0]?.sent||0,subtasks_created:subtasks[0]?.sent||0};
+}
+async function logManualDeadlineRun(org,result){
+ await sql`INSERT INTO teamhub.automation_runs(organization_id,local_day,status,trigger_type,finished_at,tasks_created,subtasks_created)
+ VALUES(${org},${todayInFortaleza()},'completed','manual',now(),${result.tasks_created},${result.subtasks_created})
+ ON CONFLICT(organization_id,job_name,local_day,trigger_type) DO UPDATE SET
+ started_at=now(),finished_at=now(),status='completed',
+ tasks_created=teamhub.automation_runs.tasks_created+excluded.tasks_created,
+ subtasks_created=teamhub.automation_runs.subtasks_created+excluded.subtasks_created,error_message=''`;
+}
+let scheduledRunInProgress=false;
+async function runScheduledDeadlines(){
+ if(scheduledRunInProgress||process.env.NEXUS_AUTO_DEADLINES==='false')return;
+ const h=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Fortaleza',hour:'2-digit',hourCycle:'h23'}).format(new Date());
+ if(Number(h)<9)return;
+ scheduledRunInProgress=true;
+ try{
+  const orgs=await sql`SELECT DISTINCT o.id FROM teamhub.organizations o
+   JOIN teamhub.memberships m ON m.organization_id=o.id AND m.active=true
+   JOIN teamhub.projects p ON p.organization_id=o.id AND p.archived_at IS NULL
+   WHERE EXISTS(SELECT 1 FROM teamhub.tasks t WHERE t.organization_id=o.id AND t.project_id=p.id AND t.deleted_at IS NULL AND t.archived_at IS NULL)
+   ORDER BY o.id LIMIT 200`;
+  for(const row of orgs){
+   const claimed=await sql`INSERT INTO teamhub.automation_runs(organization_id,local_day,status,trigger_type)
+     VALUES(${row.id},${todayInFortaleza()},'running','scheduled')
+     ON CONFLICT(organization_id,job_name,local_day,trigger_type) DO UPDATE SET
+       status='running',started_at=now(),error_message=''
+     WHERE teamhub.automation_runs.status='failed'
+        OR (teamhub.automation_runs.status='running' AND teamhub.automation_runs.started_at<now()-interval '20 minutes')
+     RETURNING id`;
+   if(!claimed.length)continue;
+   try{
+    const result=await createDeadlineNotifications(row.id,'system:deadline-check');
+    await sql`UPDATE teamhub.automation_runs SET status='completed',finished_at=now(),
+     tasks_created=${result.tasks_created},subtasks_created=${result.subtasks_created}
+     WHERE id=${claimed[0].id}`;
+    console.info('Nexus daily reminders processed for organization:',row.id,'total:',result.created);
+   }catch(error){
+    await sql`UPDATE teamhub.automation_runs SET status='failed',finished_at=now(),error_message=${String(error?.message||'Unknown error').slice(0,200)} WHERE id=${claimed[0].id}`;
+    console.warn('Nexus reminder job failed for organization:',row.id);
+   }
+  }
+ }catch(error){console.warn('Nexus reminder scheduler unavailable:',String(error?.message||'Unknown').slice(0,150))}
+ finally{scheduledRunInProgress=false;}
+}
+
 const route=async(req,res)=>{
  if(req.method==='OPTIONS'){res.writeHead(405);return res.end();}
  const url=new URL(req.url,'http://localhost'); const p=url.pathname;
@@ -356,76 +471,16 @@ const route=async(req,res)=>{
  }
  if(p==='/api/automation/check-deadlines'&&req.method==='POST'){
   requireManager(role);
-  const rows=await sql`WITH candidates AS(
-    SELECT t.id AS task_id,t.project_id,t.title,t.due_at,assignee.auth_subject,
-      ((t.due_at AT TIME ZONE 'UTC')::date < (now() AT TIME ZONE 'America/Fortaleza')::date) AS overdue
-    FROM teamhub.tasks t
-    JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id
-    JOIN LATERAL (
-      SELECT DISTINCT x.auth_subject FROM (
-       SELECT a.auth_subject FROM teamhub.task_assignees a WHERE a.organization_id=t.organization_id AND a.task_id=t.id
-       UNION SELECT t.assignee_subject WHERE t.assignee_subject IS NOT NULL
-      ) x
-    ) assignee ON true
-    JOIN teamhub.memberships m ON m.organization_id=t.organization_id AND m.auth_subject=assignee.auth_subject AND m.active=true
-    WHERE t.organization_id=${org} AND t.status!='done'
-      AND t.archived_at IS NULL AND t.deleted_at IS NULL AND t.due_at IS NOT NULL AND p.archived_at IS NULL
-      AND (t.due_at AT TIME ZONE 'UTC')::date <= (now() AT TIME ZONE 'America/Fortaleza')::date+2
-      AND (p.access_mode='organization' OR m.role IN ('admin','manager') OR p.owner_subject=m.auth_subject
-       OR EXISTS(SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=m.auth_subject))
-  ), inserted AS(
-    INSERT INTO teamhub.notifications(organization_id,recipient_subject,actor_subject,event_type,title,details,project_id,task_id)
-    SELECT ${org}::uuid,c.auth_subject,${subject},
-      CASE WHEN c.overdue THEN 'task.overdue' ELSE 'task.due_soon' END,
-      CASE WHEN c.overdue THEN 'Tarefa atrasada' ELSE 'Prazo próximo' END,
-      c.title,c.project_id,c.task_id
-    FROM candidates c
-    LEFT JOIN teamhub.notification_preferences pref ON pref.organization_id=${org} AND pref.auth_subject=c.auth_subject
-    WHERE COALESCE(pref.deadlines,true) AND NOT EXISTS(
-      SELECT 1 FROM teamhub.notifications n WHERE n.organization_id=${org}
-        AND n.recipient_subject=c.auth_subject AND n.task_id=c.task_id
-        AND n.event_type=CASE WHEN c.overdue THEN 'task.overdue' ELSE 'task.due_soon' END
-        AND n.created_at>=now()-interval '24 hours'
-    )
-    RETURNING id
-  ) SELECT count(*)::int AS sent FROM inserted`;
-  const subtasks=await sql`WITH candidates AS(
-    SELECT s.id AS subtask_id,s.task_id,s.project_id,s.title,s.due_at,m.auth_subject,
-     (s.due_at AT TIME ZONE 'UTC')::date < (now() AT TIME ZONE 'America/Fortaleza')::date AS overdue
-    FROM teamhub.subtasks s
-    JOIN teamhub.tasks t ON t.id=s.task_id AND t.organization_id=s.organization_id AND t.deleted_at IS NULL AND t.archived_at IS NULL
-    JOIN teamhub.projects p ON p.id=s.project_id AND p.organization_id=s.organization_id AND p.archived_at IS NULL
-    JOIN LATERAL(
-      SELECT DISTINCT a.auth_subject FROM (
-       SELECT sa.auth_subject FROM teamhub.subtask_assignees sa WHERE sa.organization_id=s.organization_id AND sa.subtask_id=s.id
-       UNION SELECT s.owner_subject WHERE s.owner_subject IS NOT NULL
-      ) a
-    ) assigned ON true
-    JOIN teamhub.memberships m ON m.organization_id=s.organization_id AND m.auth_subject=assigned.auth_subject AND m.active=true
-    LEFT JOIN teamhub.notification_preferences pref ON pref.organization_id=s.organization_id AND pref.auth_subject=m.auth_subject
-    WHERE s.organization_id=${org} AND s.status!='done' AND s.due_at IS NOT NULL
-      AND (s.due_at AT TIME ZONE 'UTC')::date <=(now() AT TIME ZONE 'America/Fortaleza')::date+2
-      AND COALESCE(pref.deadlines,true)
-      AND (p.access_mode='organization' OR m.role IN ('admin','manager') OR p.owner_subject=m.auth_subject
-       OR EXISTS(SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=m.auth_subject))
-   ), inserted AS(
-    INSERT INTO teamhub.notifications(organization_id,recipient_subject,actor_subject,event_type,title,details,project_id,task_id)
-    SELECT ${org}::uuid,c.auth_subject,${subject},
-      CASE WHEN c.overdue THEN 'subtask.overdue' ELSE 'subtask.due_soon' END,
-      CASE WHEN c.overdue THEN 'Subtarefa atrasada' ELSE 'Prazo da subtarefa próximo' END,
-      c.title,c.project_id,c.task_id
-    FROM candidates c WHERE NOT EXISTS(
-      SELECT 1 FROM teamhub.notifications n WHERE n.organization_id=${org}
-       AND n.recipient_subject=c.auth_subject AND n.task_id=c.task_id
-       AND n.details=c.title
-       AND n.event_type=CASE WHEN c.overdue THEN 'subtask.overdue' ELSE 'subtask.due_soon' END
-       AND n.created_at>=now()-interval '24 hours'
-    )
-    RETURNING id
-   ) SELECT count(*)::int AS sent FROM inserted`;
-  return reply(res,200,{created:(rows[0]?.sent||0)+(subtasks[0]?.sent||0),
-   tasks_created:rows[0]?.sent||0,subtasks_created:subtasks[0]?.sent||0,
-   delivery:'internal',checked_at:new Date().toISOString()});
+  const result=await createDeadlineNotifications(org,subject);
+  await logManualDeadlineRun(org,result);
+  return reply(res,200,{...result,delivery:'internal',checked_at:new Date().toISOString()});
+ }
+ if(p==='/api/automation/runs'&&req.method==='GET'){
+  requireManager(role);
+  const rows=await sql`SELECT id,local_day,trigger_type,status,started_at,finished_at,
+   tasks_created,subtasks_created,error_message FROM teamhub.automation_runs
+   WHERE organization_id=${org} ORDER BY started_at DESC LIMIT 100`;
+  return reply(res,200,{runs:rows,scheduled_mode:'best-effort'});
  }
  if(p==='/api/dashboard/insights'&&req.method==='GET'){
   const period=Number(url.searchParams.get('days')||30);
@@ -934,4 +989,9 @@ const route=async(req,res)=>{
  }
  return reply(res,404,{error:'Rota não encontrada'});
 };
-http.createServer((req,res)=>Promise.resolve(route(req,res)).catch(e=>reply(res,e.status||500,{error:e.status?e.message:'Erro interno'}))).listen(port,'0.0.0.0',()=>console.log('AnnA Nexus na porta',port));
+http.createServer((req,res)=>Promise.resolve(route(req,res)).catch(e=>reply(res,e.status||500,{error:e.status?e.message:'Erro interno'}))).listen(port,'0.0.0.0',()=>{
+ console.log('AnnA Nexus na porta',port);
+ // No plano Free, o Render pode suspender o processo: esta rotina é best-effort.
+ setTimeout(()=>runScheduledDeadlines().catch(()=>{}),25000).unref();
+ setInterval(()=>runScheduledDeadlines().catch(()=>{}),15*60*1000).unref();
+});

@@ -461,10 +461,13 @@ async function openProject(p){
  renderTasks();show('board');
 }
 const taskFilterMatches=t=>{
- const treatment=$('filter-treatment').value,priority=$('filter-priority').value,label=$('filter-label').value,search=$('filter-search').value.trim().toLocaleLowerCase('pt-BR');
+ const treatment=$('filter-treatment').value,priority=$('filter-priority').value,label=$('filter-label').value,due=$('filter-due').value,search=$('filter-search').value.trim().toLocaleLowerCase('pt-BR');
+ const today=todayInFortaleza(),date=t.due_at?String(t.due_at).slice(0,10):null;
+ const week=new Date(today+'T12:00:00Z');week.setUTCDate(week.getUTCDate()+7);
+ const deadline=due==='all'||(due==='none'&&!date)||(due==='overdue'&&date&&date<today&&t.status!=='done')||(due==='week'&&date&&date>=today&&date<=week.toISOString().slice(0,10));
  return (treatment==='all'||(t.treatment_status||'pending')===treatment)
  &&(priority==='all'||t.priority===priority)
- &&(label==='all'||(Array.isArray(t.labels)&&t.labels.includes(label)))
+ &&(label==='all'||(Array.isArray(t.labels)&&t.labels.includes(label)))&&deadline
  &&(!search||[t.title,t.description,t.pending_reason,t.next_action].some(x=>String(x||'').toLocaleLowerCase('pt-BR').includes(search)));
 };
 let draggedTaskId=null;
@@ -503,7 +506,7 @@ function renderTasks(){
    const priority=document.createElement('span');priority.className='priority';priority.textContent=({high:'Alta',medium:'Média',low:'Baixa'})[t.priority]||'Média';
    const badge=document.createElement('span');badge.className='treatment-badge '+(t.treatment_status||'pending');badge.textContent=treatmentLabels[t.treatment_status]||'Pendente';
    const meta=document.createElement('div');meta.className='task-meta';
-   if(t.due_at){const due=document.createElement('span');due.textContent='Prazo: '+new Date(t.due_at).toLocaleDateString('pt-BR',{timeZone:'UTC'});meta.append(due);}
+   if(t.due_at){const due=document.createElement('span');const late=String(t.due_at).slice(0,10)<todayInFortaleza()&&t.status!=='done';due.textContent=(late?'Atrasada · ':'Prazo: ')+new Date(t.due_at).toLocaleDateString('pt-BR',{timeZone:'UTC'});if(late)due.className='task-overdue';meta.append(due);}
    const assignedIds=Array.isArray(t.assignees)?t.assignees:(t.assignee_subject?[t.assignee_subject]:[]);
    if(assignedIds.length){const assigned=document.createElement('span');assigned.textContent='Responsáveis: '+assignedIds.map(memberName).join(', ');meta.append(assigned);}
    const edit=document.createElement('button');edit.type='button';edit.className='task-edit';edit.textContent='Editar tarefa';edit.disabled=!editable;edit.onclick=()=>modal('edit',t);
@@ -526,10 +529,10 @@ for(const column of $('board-columns').querySelectorAll('.column')){
   try{await moveTaskTo(id,column.dataset.status);}catch(e){message(e.message,true);renderTasks();}
  });
 }
-for(const id of ['filter-treatment','filter-priority','filter-label'])$(id).addEventListener('change',renderTasks);
+for(const id of ['filter-treatment','filter-priority','filter-label','filter-due'])$(id).addEventListener('change',renderTasks);
 $('filter-search').addEventListener('input',renderTasks);
 $('clear-filters').addEventListener('click',()=>{
- $('filter-treatment').value='all';$('filter-priority').value='all';$('filter-label').value='all';$('filter-search').value='';renderTasks();
+ $('filter-treatment').value='all';$('filter-priority').value='all';$('filter-label').value='all';$('filter-due').value='all';$('filter-search').value='';renderTasks();
 });
 function todayInFortaleza(){
  const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/Fortaleza',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());

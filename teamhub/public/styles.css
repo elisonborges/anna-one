@@ -450,6 +450,7 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
 #notify-header-count{position:absolute;right:-4px;top:-5px;display:grid;place-items:center;min-width:19px;height:19px;padding:1px 4px;border-radius:999px;background:#db4539;color:white;font-weight:900;font-size:10px;line-height:1}
 #notify-header-count[hidden]{display:none}
 #mytasks{display:grid;gap:14px}
+#mytasks[hidden]{display:none!important}
 .subtask-personal-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 #my-subtasks .nexus-table td:last-child{min-width:180px}
 #my-subtasks .nexus-table td .table-action{min-height:38px;padding:7px 9px}

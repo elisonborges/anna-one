@@ -941,3 +941,10 @@ html,body{background:var(--bg);color:var(--ink)}
 .brand-default-choice input{width:17px;height:17px;flex:none}
 @media(max-width:1050px){.calendar-workspace{grid-template-columns:minmax(0,1fr)}.calendar-timeline .timeline-row{grid-template-columns:minmax(110px,200px) minmax(0,1fr)}}
 @media(max-width:650px){.calendar-primary .calendar-controls{justify-content:center}.calendar-timeline .timeline-row{grid-template-columns:minmax(0,1fr)}}
+
+/* v0.1.36 — arraste de cards via área do card ou alça; listeners globais */
+.project-card{cursor:grab}
+.project-card :is(button,a,input,select,textarea){cursor:pointer}
+.project-card.is-reordering,.project-reorder-active .project-card.is-reordering{cursor:grabbing;z-index:2}
+.project-reorder-active{user-select:none}
+.project-card-cover,.project-drag-handle{touch-action:none}

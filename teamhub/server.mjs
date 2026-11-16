@@ -58,6 +58,23 @@ async function membership(subject,org){
 }
 function requireEditor(role){if(!['admin','manager','member'].includes(role))bad('Operação não autorizada.',403);}
 function requireManager(role){if(!['admin','manager'].includes(role))bad('Operação reservada ao gestor.',403);}
+
+async function checkAssignees(org,values){
+ if(!Array.isArray(values)||values.length>20||values.some(v=>typeof v!=='string'||v.length>200))bad('Selecione até 20 integrantes válidos.');
+ const arr=[...new Set(values)];
+ if(arr.length!==values.length)bad('Há responsáveis duplicados.');
+ if(arr.length){
+  const rows=await sql`SELECT auth_subject FROM teamhub.memberships WHERE organization_id=${org} AND active=true AND auth_subject=ANY(${arr})`;
+  if(rows.length!==arr.length)bad('Um ou mais responsáveis não estão ativos na organização.',403);
+ }
+ return arr;
+}
+async function syncAssignees(org,task,subjects){
+ await sql`DELETE FROM teamhub.task_assignees WHERE organization_id=${org} AND task_id=${task}`;
+ if(subjects.length)await sql`INSERT INTO teamhub.task_assignees(organization_id,task_id,auth_subject)
+ SELECT ${org}::uuid,${task}::uuid,x FROM jsonb_array_elements_text(${JSON.stringify(subjects)}::jsonb) x
+ ON CONFLICT DO NOTHING`;
+}
 async function project(org,id){
  const rows=await sql`SELECT id,name,description,created_at FROM teamhub.projects WHERE organization_id=${org} AND id=${id} AND archived_at IS NULL`;
  if(!rows.length)bad('Projeto indisponível.',404);return rows[0];
@@ -98,12 +115,44 @@ const route=async(req,res)=>{
   return reply(res,200,{accepted:true,organization_id:invitation.organization_id});
  }
  if(p==='/api/me'&&req.method==='GET'){
-  const orgs=await sql`SELECT o.id,o.name,m.role FROM teamhub.memberships m JOIN teamhub.organizations o ON o.id=m.organization_id WHERE m.auth_subject=${subject} AND m.active=true ORDER BY o.name`;
+  const orgs=await sql`SELECT o.id,o.name,o.display_name,o.logo_url,m.role FROM teamhub.memberships m JOIN teamhub.organizations o ON o.id=m.organization_id WHERE m.auth_subject=${subject} AND m.active=true ORDER BY o.name`;
   return reply(res,200,{organizations:orgs});
  }
  const org=url.searchParams.get('org')||req.headers['x-organization-id'];
  if(!validId(org))bad('Selecione uma organização válida.');
  const role=await membership(subject,org);
+ if(p==='/api/organization'&&req.method==='PATCH'){
+  if(role!=='admin')bad('Apenas administradores podem personalizar a organização.',403);
+  const b=await json(req);
+  const displayName=typeof b.display_name==='string'?b.display_name.trim():'';
+  const logoUrl=typeof b.logo_url==='string'?b.logo_url.trim():'';
+  if(displayName.length>100)bad('Nome da empresa muito longo.');
+  if(logoUrl.length>500||logoUrl&&!/^https:\/\/[^\s/?#]+[^\s]*$/i.test(logoUrl))bad('Informe um endereço HTTPS válido para a imagem.');
+  const rows=await sql`UPDATE teamhub.organizations SET display_name=${displayName},logo_url=${logoUrl} WHERE id=${org} RETURNING id,name,display_name,logo_url`;
+  return reply(res,200,{organization:rows[0]});
+ }
+ const mm=/^\/api\/members\/([^/]+)$/.exec(p);
+ if(mm&&req.method==='PATCH'){
+  if(role!=='admin')bad('Apenas administradores podem editar membros.',403);
+  const target=decodeURIComponent(mm[1]);
+  if(!target||target.length>200)bad('Membro inválido.');
+  const b=await json(req);
+  if(b.role!==undefined&&!['admin','manager','member','guest'].includes(b.role))bad('Perfil inválido.');
+  if(b.active!==undefined&&typeof b.active!=='boolean')bad('Estado inválido.');
+  if(b.role===undefined&&b.active===undefined)bad('Nenhuma alteração recebida.');
+  const current=await sql`SELECT role,active FROM teamhub.memberships WHERE organization_id=${org} AND auth_subject=${target}`;
+  if(!current.length)bad('Membro não encontrado.',404);
+  if(target===subject&&(b.active===false||(b.role!==undefined&&b.role!=='admin')))bad('Não é permitido retirar seu próprio acesso administrativo.',403);
+  if(current[0].role==='admin'&&(b.role!==undefined&&b.role!=='admin'||b.active===false)){
+   const count=await sql`SELECT count(*)::int AS total FROM teamhub.memberships WHERE organization_id=${org} AND role='admin' AND active=true`;
+   if(count[0].total<=1)bad('A organização precisa manter pelo menos um administrador.',409);
+  }
+  const nextRole=b.role===undefined?current[0].role:b.role;
+  const nextActive=b.active===undefined?current[0].active:b.active;
+  const rows=await sql`UPDATE teamhub.memberships SET role=${nextRole},active=${nextActive} WHERE organization_id=${org} AND auth_subject=${target} RETURNING auth_subject,role,active`;
+  await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action) VALUES(${org},${subject},'membership.updated')`;
+  return reply(res,200,{member:rows[0]});
+ }
  if(p==='/api/invitations'&&req.method==='GET'){
   if(role!=='admin')bad('Apenas administradores podem consultar convites.',403);
   const rows=await sql`SELECT id,email,role,status,created_at,expires_at,accepted_at FROM teamhub.invitations WHERE organization_id=${org} ORDER BY created_at DESC LIMIT 100`;
@@ -138,11 +187,11 @@ const route=async(req,res)=>{
   return reply(res,200,{cancelled:true});
  }
  if(p==='/api/members'&&req.method==='GET'){
-  const members=await sql`SELECT auth_subject,role FROM teamhub.memberships WHERE organization_id=${org} AND active=true ORDER BY CASE role WHEN 'admin' THEN 0 WHEN 'manager' THEN 1 ELSE 2 END,auth_subject`;
-  return reply(res,200,{members,viewer:subject});
+  const members=await sql`SELECT auth_subject,role,active FROM teamhub.memberships WHERE organization_id=${org} ORDER BY CASE role WHEN 'admin' THEN 0 WHEN 'manager' THEN 1 ELSE 2 END,auth_subject`;
+  return reply(res,200,{members,viewer:subject,role});
  }
  if(p==='/api/my-tasks'&&req.method==='GET'){
-  const tasks=await sql`SELECT t.id,t.title,t.status,t.priority,t.due_at,t.project_id,p.name AS project_name FROM teamhub.tasks t JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id WHERE t.organization_id=${org} AND t.assignee_subject=${subject} AND p.archived_at IS NULL ORDER BY (t.status='done'),t.due_at NULLS LAST,t.created_at DESC LIMIT 200`;
+  const tasks=await sql`SELECT t.id,t.title,t.status,t.priority,t.due_at,t.project_id,p.name AS project_name FROM teamhub.tasks t JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id WHERE t.organization_id=${org} AND (t.assignee_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.task_assignees a WHERE a.task_id=t.id AND a.organization_id=t.organization_id AND a.auth_subject=${subject})) AND p.archived_at IS NULL ORDER BY (t.status='done'),t.due_at NULLS LAST,t.created_at DESC LIMIT 200`;
   return reply(res,200,{tasks});
  }
  if(p==='/api/projects'&&req.method==='GET'){
@@ -167,7 +216,7 @@ const route=async(req,res)=>{
  if(pm&&validId(pm[1])){
   const proj=await project(org,pm[1]);
   if(req.method==='GET'){
-   const tasks=await sql`SELECT id,title,description,status,priority,assignee_subject,due_at,position,created_at,treatment_status,treatment_notes,pending_reason,next_action FROM teamhub.tasks WHERE organization_id=${org} AND project_id=${proj.id} ORDER BY position,created_at`;
+   const tasks=await sql`SELECT t.id,t.title,t.description,t.status,t.priority,t.assignee_subject,t.due_at,t.position,t.created_at,t.treatment_status,t.treatment_notes,t.pending_reason,t.next_action,COALESCE((SELECT jsonb_agg(a.auth_subject ORDER BY a.auth_subject) FROM teamhub.task_assignees a WHERE a.task_id=t.id AND a.organization_id=t.organization_id),'[]'::jsonb) AS assignees FROM teamhub.tasks t WHERE t.organization_id=${org} AND t.project_id=${proj.id} ORDER BY t.position,t.created_at`;
    return reply(res,200,{project:proj,tasks,role});
   }
   if(req.method==='POST'){
@@ -188,7 +237,9 @@ const route=async(req,res)=>{
     const member=await sql`SELECT 1 FROM teamhub.memberships WHERE organization_id=${org} AND auth_subject=${assignee} AND active=true`;
     if(!member.length)bad('Responsável não pertence à organização.',403);
    }
+   const assignees=await checkAssignees(org,b.assignees===undefined?(assignee?[assignee]:[]):b.assignees);
    const rows=await sql`INSERT INTO teamhub.tasks(organization_id,project_id,title,description,priority,due_at,assignee_subject,treatment_status,treatment_notes,pending_reason,next_action,created_by_subject,position) VALUES(${org},${proj.id},${title},${String(b.description||'').slice(0,2000)},${priority},${due_at},${assignee},${treatment},${treatmentNotes},${pendingReason},${nextAction},${subject},(SELECT COALESCE(MAX(position),0)+1 FROM teamhub.tasks WHERE project_id=${proj.id})) RETURNING *`;
+   await syncAssignees(org,rows[0].id,assignees);
    await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id,task_id) VALUES(${org},${subject},'task.created',${proj.id},${rows[0].id})`;
    await sql`INSERT INTO teamhub.task_updates(organization_id,task_id,actor_subject,event_type,summary) VALUES(${org},${rows[0].id},${subject},'created','Tarefa criada')`;
    return reply(res,201,{task:rows[0]});
@@ -214,7 +265,7 @@ const route=async(req,res)=>{
  if(tm&&validId(tm[1])&&req.method==='PATCH'){
   requireEditor(role);const b=await json(req);
   const keys=Object.keys(b);
-  if(!keys.length||keys.some(k=>!['status','priority','title','description','due_at','assignee_subject','treatment_status','treatment_notes','pending_reason','next_action','update_note'].includes(k)))bad('Campos não permitidos.');
+  if(!keys.length||keys.some(k=>!['status','priority','title','description','due_at','assignee_subject','assignees','treatment_status','treatment_notes','pending_reason','next_action','update_note'].includes(k)))bad('Campos não permitidos.');
   const existing=await sql`SELECT id,project_id,title,description,status,priority,due_at,assignee_subject,treatment_status,treatment_notes,pending_reason,next_action FROM teamhub.tasks WHERE id=${tm[1]} AND organization_id=${org}`;
   if(!existing.length)bad('Tarefa não encontrada.',404);
   const t=existing[0];
@@ -233,6 +284,7 @@ const route=async(req,res)=>{
    const member=await sql`SELECT 1 FROM teamhub.memberships WHERE organization_id=${org} AND auth_subject=${assignee} AND active=true`;
    if(!member.length)bad('Responsável não pertence à organização.',403);
   }
+  const assignees=b.assignees===undefined?null:await checkAssignees(org,b.assignees);
   const treatment=b.treatment_status===undefined?t.treatment_status:b.treatment_status;validateTreatment(treatment);
   const treatmentNotes=b.treatment_notes===undefined?t.treatment_notes:safeNote(b.treatment_notes);
   const pendingReason=b.pending_reason===undefined?t.pending_reason:safeNote(b.pending_reason);
@@ -240,6 +292,7 @@ const route=async(req,res)=>{
   const updateNote=b.update_note===undefined?'':safeNote(b.update_note);
   if(!['todo','doing','done'].includes(status)||!['low','medium','high'].includes(priority)||title.length<2||title.length>240||description.length>2000)bad('Valores inválidos.');
   const result=await sql`UPDATE teamhub.tasks SET status=${status},priority=${priority},title=${title},description=${description},due_at=${dueAt},assignee_subject=${assignee},treatment_status=${treatment},treatment_notes=${treatmentNotes},pending_reason=${pendingReason},next_action=${nextAction},updated_at=now() WHERE id=${t.id} AND organization_id=${org} RETURNING id,title,description,status,priority,due_at,assignee_subject,treatment_status,treatment_notes,pending_reason,next_action`;
+  if(assignees!==null)await syncAssignees(org,t.id,assignees);
   await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id,task_id) VALUES(${org},${subject},'task.updated',${t.project_id},${t.id})`;
   const changed=treatment!==t.treatment_status||status!==t.status||treatmentNotes!==t.treatment_notes||pendingReason!==t.pending_reason||nextAction!==t.next_action;
   if(updateNote||changed){

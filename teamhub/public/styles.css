@@ -305,3 +305,18 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
 .assignee-choice:has(input:checked){background:var(--tint);border-color:var(--accent)}
 .assignee-choice input{width:17px!important;height:17px;flex-shrink:0;accent-color:var(--accent)}
 @media(max-width:750px){.brand-form{grid-template-columns:1fr}.member-actions{flex-wrap:wrap}.nexus-table td:last-child{min-width:100px}.nexus-table td .table-action{min-height:42px}}
+
+/* v0.1.10 — abrir projetos sempre na primeira coluna; upload local de logotipo */
+#projects-list .nexus-table th:first-child,#overview-projects .nexus-table th:first-child{min-width:190px}
+.project-entry{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.project-entry .table-action.project-name-link{background:transparent;border:0;padding:5px 3px;color:var(--accent);font-weight:850;text-align:left;white-space:normal;min-height:38px;max-width:260px;text-decoration:underline;text-underline-offset:3px}
+.project-entry .table-action.project-open-button{background:var(--accent);color:var(--surface);border-color:var(--accent);min-height:38px;padding:7px 14px;flex-shrink:0}
+.project-entry .table-action.project-open-button:hover{filter:brightness(.88)}
+#projects-list .nexus-table td:first-child,#overview-projects .nexus-table td:first-child{min-width:190px}
+#brand-form{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+#brand-form .brand-upload{grid-column:1/-1}
+#brand-form .brand-upload input{display:block;width:100%;min-height:44px;padding:9px;cursor:pointer}
+#brand-form .brand-upload small{display:block;margin-top:5px}
+#brand-form #brand-save{grid-column:1/-1;justify-self:start}
+#brand-file-info:not(:empty){padding:6px 0;font-weight:700;font-size:12px}
+@media(max-width:750px){#brand-form{grid-template-columns:1fr}#brand-form #brand-save{width:100%}.project-entry{gap:4px}.project-entry .table-action.project-name-link{flex-basis:100%}}

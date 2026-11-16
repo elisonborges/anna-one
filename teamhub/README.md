@@ -101,3 +101,12 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Filtros de tarefas arquivadas sem mostrar tarefas logicamente excluídas.
 - Migração aditiva de desenvolvimento `migrations/0020-pauses-and-lifecycle.sql`.
 - A integração de e-mail e central de notificações será uma entrega posterior. Não há envios automáticos nesta versão.
+
+### Critérios operacionais
+- Pausar **não interrompe o tempo total** (desde a criação), somente abre um intervalo de pendência.
+- Retomar fecha o intervalo; pausar novamente inicia outro, preservando os anteriores.
+- Arquivar ou excluir logicamente encerra a pausa ativa da tarefa para manter a soma correta.
+- "Excluir" não apaga dados fisicamente e está reservado a administradores.
+- "Mostrar arquivadas" habilita restauração em Minhas tarefas.
+- Relatórios permitem ver projetos, tarefas, pausas e exportar CSV; relatórios calculados na leitura, sem cronômetro local.
+- Notificações automáticas por e-mail não estão habilitadas. Priorizar preferências de envio, templates e domínio autenticado antes de integrar Resend.

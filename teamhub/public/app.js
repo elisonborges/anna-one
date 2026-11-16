@@ -68,8 +68,11 @@ function renderProjects(){
   actions.append(open);
   if(['admin','manager'].includes(state.role)){
    const edit=makeAction('Personalizar',()=>modal('project-edit',p));
-   const invite=makeAction('Convidar',async()=>{try{await loadMembers();await loadInvitations();show('team');$('invite-email').focus();}catch(e){message(e.message,true)}});
-   actions.append(edit,invite);
+   actions.append(edit);
+   if(state.role==='admin'){
+    const invite=makeAction('Convidar',async()=>{try{await loadMembers();await loadInvitations();show('team');$('invite-email').focus();}catch(e){message(e.message,true)}});
+    actions.append(invite);
+   }
   }
   card.append(cover,title,description,owner,tags,progress,actions);container.append(card);
  }
@@ -473,6 +476,7 @@ function modal(type,task=null){
  $('history-add').disabled=!['admin','manager','member'].includes(state.role);
  $('task-history-wrap').hidden=type!=='edit';
  $('subtasks-panel').hidden=type!=='edit';
+ $('subtask-add').disabled=!['admin','manager','member'].includes(state.role);
  $('subtask-name').value='';$('subtask-owner').value='';$('subtask-due').value='';
  $('subtask-due').min=todayInFortaleza();
  if(type==='edit')loadSubtasks(task.id);

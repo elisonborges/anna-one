@@ -1,6 +1,7 @@
 const $=id=>document.getElementById(id);
 const AUTH='https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth';
-const state={jwt:null,org:null,role:null,projects:[],tasks:[],project:null,view:'overview',subject:null,auth:null,members:[],organizations:[]};
+const state={jwt:null,org:null,role:null,projects:[],tasks:[],project:null,view:'overview',subject:null,auth:null,members:[],organizations:[],inviteOrg:null};
+const invitationToken=()=>/^#invite=([a-f0-9]{64})$/i.exec(location.hash)?.[1]?.toLowerCase()||null;
 const canManageUI=p=>state.role==='admin'||(state.role==='manager'&&!!p&&p.manager_subject===state.subject);
 const assignedUI=t=>!!t&&(t.assignee_subject===state.subject||(Array.isArray(t.assignees)&&t.assignees.includes(state.subject)));
 const canExecuteUI=t=>canManageUI(state.project)||(['member','manager'].includes(state.role)&&assignedUI(t));
@@ -353,6 +354,12 @@ function renderProjects(){
  });
  renderTable('overview-projects',['Projeto','Descrição','Tarefas','Progresso'],overviewRows);
  const container=$('projects-list');container.replaceChildren();
+ const empty=$('guest-projects-empty');
+ if(empty)empty.hidden=state.role!=='guest'||state.projects.length>0;
+ const heading=$('projects-heading');if(heading)heading.textContent=state.role==='guest'?'Projetos compartilhados':state.role==='manager'?'Meus projetos e participações':'Projetos';
+ const help=$('projects-help');if(help)help.hidden=state.role==='guest';
+ $('projects-invite').hidden=state.role!=='admin';
+ $('new-project').hidden=!['admin','manager'].includes(state.role);
  const allowed=['blue','violet','green','orange','pink','teal','slate','indigo','coral','gold','mint','charcoal'];
  for(const p of state.projects){
   const card=document.createElement('article');card.className='project-card color-'+(allowed.includes(p.card_color)?p.card_color:'blue');
@@ -488,14 +495,55 @@ async function loadInvitations(){
  }catch(e){$('invite-list').textContent='Erro ao consultar convites: '+e.message;}
 }
 async function redeemInvitation(){
- const match=/^#invite=([a-f0-9]{64})$/i.exec(window.location.hash);
- if(!match)return false;
- const token=match[1].toLowerCase();
- await api('/api/invitations/accept',{method:'POST',body:JSON.stringify({token})});
- history.replaceState(null,'',location.pathname);
- message('Convite aceito! Bem-vindo à organização.');
- return true;
+ const token=invitationToken();
+ if(!token)return null;
+ // Preserve the invitation link on validation errors so the recipient can
+ // authenticate with the correct verified account without asking for a new link.
+ const result=await api('/api/invitations/accept',{method:'POST',body:JSON.stringify({token})});
+ history.replaceState(null,'',location.pathname+location.search);
+ state.inviteOrg=result.organization_id||null;
+ return result;
 }
+function setInviteAuthMode(registration=false){
+ $('signin-form').hidden=registration;
+ $('signup-form').hidden=!registration;
+ $('signin-switch-mode').textContent=registration?'Já tenho conta — entrar':'Ainda não tenho conta';
+ $('signin-title').textContent=registration?'Criar conta AnnA One':'Acessar AnnA Nexus';
+ $('signin-feedback').textContent='';
+ if(registration&&$('signin-email').value.trim())$('signup-email').value=$('signin-email').value.trim();
+ if(!registration&&$('signup-email').value.trim())$('signin-email').value=$('signup-email').value.trim();
+}
+function showInviteSignin(messageText=''){
+ const invite=!!invitationToken();
+ $('invitation-intro').hidden=!invite;
+ $('signin-description').textContent=invite
+  ?'Entre ou crie uma conta AnnA One para aceitar seu convite.'
+  :'Use sua conta do Portal AnnA One para acessar seus projetos.';
+ $('signin').hidden=false;
+ if(messageText)$('signin-feedback').textContent=messageText;
+}
+$('signin-switch-mode').addEventListener('click',()=>setInviteAuthMode($('signup-form').hidden));
+$('signup-form').addEventListener('submit',async event=>{
+ event.preventDefault();
+ const button=$('signup-button'),name=$('signup-name').value.trim(),
+  email=$('signup-email').value.trim().toLowerCase(),
+  password=$('signup-password').value;
+ if(password!==$('signup-confirm').value){$('signin-feedback').textContent='As senhas não coincidem.';return;}
+ button.disabled=true;
+ $('signin-feedback').textContent='Criando conta…';
+ try{
+  if(!state.auth)throw Error('Autenticação indisponível.');
+  const result=await state.auth.signUp.email({name,email,password});
+  if(result?.error)throw result.error;
+  $('signup-password').value='';$('signup-confirm').value='';
+  setInviteAuthMode(false);
+  $('signin-feedback').textContent='Conta cadastrada. Verifique o e-mail recebido e confirme seu endereço; depois entre aqui com a mesma conta. O convite permanece disponível nesta página.';
+  $('signin-email').value=email;
+ }catch(error){
+  $('signin-feedback').textContent='Não foi possível criar a conta. O cadastro pode estar indisponível ou o e-mail já pode existir. Se já possui conta, entre ou utilize a recuperação de senha.';
+ }finally{button.disabled=false;}
+});
+
 let logoUploadData=null;
 async function optimizeLogo(file){
  if(!['image/png','image/jpeg','image/webp'].includes(file.type))throw Error('Escolha uma imagem PNG, JPG ou WebP.');
@@ -1618,10 +1666,18 @@ $('filter-treatment').addEventListener('change',renderTasks);
 async function boot(){
  message('Verificando login do Portal AnnA One…');
  try{
-  const {createAuthClient}=await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');
-  state.auth=createAuthClient(AUTH);
-  const session=await state.auth.getSession();const account=session?.data?.user||session?.data?.session?.user;
-  if(!account){$('account').textContent='Não conectado';$('signin').hidden=false;message('Entre com sua conta existente do Portal AnnA One.');return;}
+  if(!state.auth){
+   const {createAuthClient}=await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');
+   state.auth=createAuthClient(AUTH);
+  }
+  const session=await state.auth.getSession();
+  const account=session?.data?.user||session?.data?.session?.user;
+  if(!account){
+   $('account').textContent='Não conectado';
+   showInviteSignin();
+   message(invitationToken()?'Convite encontrado. Entre ou crie sua conta para continuar.':'Entre com sua conta existente do Portal AnnA One.');
+   return;
+  }
   $('signin').hidden=true;
   state.subject=String(account.id||'');$('account').textContent=account.email||'Conta AnnA One';
   let token=session?.data?.session?.access_token;
@@ -1629,31 +1685,61 @@ async function boot(){
    const r=await fetch(AUTH+'/token',{credentials:'include',cache:'no-store'});
    if(r.ok){const j=await r.json();token=typeof j==='string'?j:j?.token||j?.data?.token||j?.access_token;}
   }
-  if(typeof token!=='string'||token.split('.').length!==3)throw Error('Não foi possível obter token de acesso validável. Confira a configuração central de identidade.');
+  if(typeof token!=='string'||token.split('.').length!==3)
+   throw Error('Não foi possível obter token de acesso validável. Confira a configuração central de identidade.');
   state.jwt=token;
-  if(window.location.hash.startsWith('#invite=')){
-   try{await redeemInvitation()}
-   catch(e){
-    message(e.message,true);
-    $('signin').hidden=false;
+  let inviteAccepted=false;
+  if(invitationToken()){
+   try{await redeemInvitation();inviteAccepted=true}
+   catch(error){
     $('app').hidden=true;
+    showInviteSignin(error.message||'Não foi possível aceitar o convite.');
+    message(error.message||'Convite indisponível. Confira sua conta e tente novamente.',true);
     return;
    }
   }
-  const me=await api('/api/me');state.organizations=me.organizations;if(!me.organizations.length){message('Login reconhecido, mas sua conta ainda não possui acesso ao Nexus.',true);return;}
-  const select=$('org');select.replaceChildren(...me.organizations.map(o=>{const opt=document.createElement('option');opt.value=o.id;opt.textContent=o.name;return opt}));
-  state.org=me.organizations[0].id;
-  select.addEventListener('change',async()=>{state.org=select.value;state.tasks=[];state.project=null;await refreshProjects();if(state.role!=='guest'){await loadMembers();renderProjects();}else state.members=[];renderBrand();await loadNotifications();show(state.role==='guest'?'projects':'overview')});
-  await refreshProjects();if(state.role!=='guest'){await loadMembers();renderProjects();}else state.members=[];renderBrand();await loadNotifications();$('app').hidden=false;show(state.role==='guest'?'projects':'overview');message('');
- }catch(e){message(e.message||'Não foi possível iniciar o Nexus.',true);$('signin').hidden=false;$('app').hidden=true;}
+  const me=await api('/api/me');
+  state.organizations=me.organizations;
+  if(!me.organizations.length){
+   $('app').hidden=true;
+   showInviteSignin('Sua conta não possui uma organização ativa. Se recebeu um convite, abra o link individual fornecido pelo administrador.');
+   message('Conta autenticada, mas sem acesso a uma organização do Nexus.',true);
+   return;
+  }
+  const select=$('org');select.replaceChildren(...me.organizations.map(o=>{
+   const opt=document.createElement('option');opt.value=o.id;opt.textContent=o.name;return opt;
+  }));
+  const initialOrg=state.inviteOrg&&me.organizations.some(o=>o.id===state.inviteOrg)?state.inviteOrg:me.organizations[0].id;
+  state.org=initialOrg;select.value=initialOrg;
+  select.onchange=async()=>{
+   try{
+    state.org=select.value;state.tasks=[];state.project=null;
+    await refreshProjects();
+    if(state.role!=='guest'){await loadMembers();renderProjects();}else state.members=[];
+    renderBrand();await loadNotifications();
+    show(state.role==='guest'?'projects':'overview');
+   }catch(e){message(e.message,true)}
+  };
+  await refreshProjects();
+  if(state.role!=='guest'){await loadMembers();renderProjects();}else state.members=[];
+  renderBrand();await loadNotifications();
+  $('app').hidden=false;
+  show(state.role==='guest'?'projects':'overview');
+  message(inviteAccepted?'Convite aceito! Você já pode acessar os projetos autorizados.':'');
+ }catch(e){
+  message(e.message||'Não foi possível iniciar o Nexus.',true);
+  $('app').hidden=true;
+  showInviteSignin(e.message||'Falha ao carregar a conta.');
+ }
 }
+
  $('signin-form').addEventListener('submit',async e=>{
  e.preventDefault();const button=$('signin-button');button.disabled=true;message('Autenticando com sua conta AnnA One…');
  try{
   const result=await state.auth.signIn.email({email:$('signin-email').value.trim(),password:$('signin-password').value});
   if(result?.error)throw Error('Credenciais inválidas ou acesso indisponível.');
   $('signin-password').value='';await boot();
- }catch(error){message('Não foi possível entrar. Confira seus dados no Portal AnnA One e tente novamente.',true)}finally{button.disabled=false}
+ }catch(error){const feedback='Não foi possível entrar. Confira seu e-mail e senha ou utilize a recuperação de acesso.';message(feedback,true);$('signin-feedback').textContent=feedback;}finally{button.disabled=false}
 });
 document.querySelectorAll('[data-view]').forEach(x=>x.addEventListener('click',async()=>{if(!state.org)return;try{if(x.dataset.view==='projects'||x.dataset.view==='overview')await refreshProjects();if(x.dataset.view==='mytasks')await loadMyTasks();if(x.dataset.view==='team'){await loadMembers();await loadInvitations()}if(x.dataset.view==='reports'){await loadReports();await loadAutomationMonitor();}if(x.dataset.view==='notifications'){await loadNotifications();await loadNotificationPreferences();}if(x.dataset.view==='calendar')await loadCalendar();if(x.dataset.view==='approvals')await loadCentral();show(x.dataset.view)}catch(e){message(e.message,true)}}));
 $('invite-form').addEventListener('submit',async e=>{

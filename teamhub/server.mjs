@@ -76,7 +76,7 @@ async function syncAssignees(org,task,subjects){
  ON CONFLICT DO NOTHING`;
 }
 async function project(org,id){
- const rows=await sql`SELECT id,name,description,created_at,paused_at FROM teamhub.projects WHERE organization_id=${org} AND id=${id} AND archived_at IS NULL`;
+ const rows=await sql`SELECT id,name,description,created_at,paused_at,card_color,owner_subject FROM teamhub.projects WHERE organization_id=${org} AND id=${id} AND archived_at IS NULL`;
  if(!rows.length)bad('Projeto indisponível.',404);return rows[0];
 }
 const route=async(req,res)=>{
@@ -208,7 +208,7 @@ const route=async(req,res)=>{
   return reply(res,200,{tasks});
  }
  if(p==='/api/projects'&&req.method==='GET'){
-  const projects=await sql`SELECT p.id,p.name,p.description,p.created_at,p.paused_at, COUNT(t.id)::int AS total, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id AND t.deleted_at IS NULL AND t.archived_at IS NULL WHERE p.organization_id=${org} AND p.archived_at IS NULL GROUP BY p.id ORDER BY p.created_at DESC`;
+  const projects=await sql`SELECT p.id,p.name,p.description,p.created_at,p.paused_at,p.card_color,p.owner_subject, COUNT(t.id)::int AS total, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id AND t.deleted_at IS NULL AND t.archived_at IS NULL WHERE p.organization_id=${org} AND p.archived_at IS NULL GROUP BY p.id ORDER BY p.created_at DESC`;
   return reply(res,200,{projects,role});
  }
  if(p==='/api/dashboard'&&req.method==='GET'){
@@ -219,9 +219,37 @@ const route=async(req,res)=>{
   const items=await sql`SELECT t.id,t.project_id,p.name AS project_name,t.title,t.treatment_status,t.pending_reason,t.next_action,t.due_at FROM teamhub.tasks t JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id WHERE t.organization_id=${org} AND t.archived_at IS NULL AND t.deleted_at IS NULL AND p.archived_at IS NULL AND t.status!='done' AND t.treatment_status IN ('blocked','waiting') ORDER BY CASE WHEN t.treatment_status='blocked' THEN 0 ELSE 1 END,t.due_at NULLS LAST,t.updated_at DESC LIMIT 50`;
   return reply(res,200,{items});
  }
+ const colorAllowed=['blue','violet','green','orange','pink','teal','slate'];
+ const projectEdit=/^\/api\/projects\/([0-9a-f-]+)$/.exec(p);
+ if(projectEdit&&validId(projectEdit[1])&&req.method==='PATCH'){
+  requireManager(role);
+  const proj=await project(org,projectEdit[1]);
+  const b=await json(req);
+  if(Object.keys(b).some(k=>!['card_color','owner_subject','name','description'].includes(k)))bad('Campo inválido.');
+  const cardColor=b.card_color===undefined?proj.card_color:b.card_color;
+  if(!colorAllowed.includes(cardColor))bad('Cor do card inválida.');
+  const owner=b.owner_subject===undefined?proj.owner_subject:(b.owner_subject||null);
+  if(owner!==null){
+   const valid=await sql`SELECT 1 FROM teamhub.memberships WHERE organization_id=${org} AND auth_subject=${owner} AND active=true`;
+   if(!valid.length)bad('Responsável não pertence à organização.',403);
+  }
+  const name=b.name===undefined?proj.name:String(b.name||'').trim();
+  const description=b.description===undefined?proj.description:String(b.description||'').trim();
+  if(name.length<2||name.length>160||description.length>1000)bad('Informe um nome e descrição válidos.');
+  const rows=await sql`UPDATE teamhub.projects SET name=${name},description=${description},card_color=${cardColor},owner_subject=${owner} WHERE id=${proj.id} AND organization_id=${org} RETURNING id,name,card_color,owner_subject`;
+  await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id) VALUES(${org},${subject},'project.updated',${proj.id})`;
+  return reply(res,200,{project:rows[0]});
+ }
  if(p==='/api/projects'&&req.method==='POST'){
   requireManager(role);const body=await json(req);const name=String(body.name||'').trim();if(name.length<2||name.length>160)bad('Nome entre 2 e 160 caracteres.');
-  const rows=await sql`INSERT INTO teamhub.projects(organization_id,name,description) VALUES(${org},${name},${String(body.description||'').slice(0,1000)}) RETURNING id,name,description`;
+  const cardColor=body.card_color||'blue';
+  if(!colorAllowed.includes(cardColor))bad('Cor do card inválida.');
+  const owner=body.owner_subject||null;
+  if(owner!==null){
+   const check=await sql`SELECT 1 FROM teamhub.memberships WHERE organization_id=${org} AND auth_subject=${owner} AND active=true`;
+   if(!check.length)bad('Responsável não pertence à organização.',403);
+  }
+  const rows=await sql`INSERT INTO teamhub.projects(organization_id,name,description,card_color,owner_subject) VALUES(${org},${name},${String(body.description||'').slice(0,1000)},${cardColor},${owner}) RETURNING id,name,description,card_color,owner_subject`;
   await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id) VALUES(${org},${subject},'project.created',${rows[0].id})`;
   return reply(res,201,{project:rows[0]});
  }

@@ -440,7 +440,8 @@ const route=async(req,res)=>{
    const b=await json(req),note=safeNote(b.note||'',1000);
    if(['reject','reopen'].includes(action)&&note.length<5)bad('Informe uma justificativa com pelo menos 5 caracteres.');
    const checklist={deliverables:!!b.deliverables,tests:!!b.tests,documentation:!!b.documentation,stakeholders:!!b.stakeholders,pendencies:!!b.pendencies};
-   if(action==='request'&&(!Object.values(checklist).every(Boolean)||taskCounts[0].open>0||subCounts[0].open>0||proj.paused_at)){
+   if(['request','approve'].includes(action)&&!Object.values(checklist).every(Boolean))bad('Confirme todos os checks de conferência antes de prosseguir.',409);
+   if(action==='request'&&(taskCounts[0].open>0||subCounts[0].open>0||proj.paused_at)){
     bad('Conclua as tarefas e subtarefas, retome o projeto e marque todos os checks antes de solicitar validação.',409);
    }
    if(action==='approve'&&(taskCounts[0].open>0||subCounts[0].open>0||proj.paused_at))bad('Há tarefas, subtarefas ou pausas em aberto. Rejeite e solicite os ajustes.',409);

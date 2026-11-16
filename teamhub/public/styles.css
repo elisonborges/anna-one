@@ -85,3 +85,21 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
  .brand strong{font-size:19px}
  .top-actions #portal{font-size:11px}
 }
+
+/* Nexus: cartoes de tarefas e editor adaptados a smartphone */
+.task-meta{font-size:12px;color:var(--muted);margin:6px 0 10px;line-height:1.4}
+.task-meta:empty{display:none}
+.task-edit{margin-top:12px;background:var(--surface);color:var(--accent);font-size:13px;font-weight:750;border:1px solid var(--line);border-radius:9px;padding:10px 12px;min-height:44px;width:100%}
+.task-edit:hover{background:var(--tint)}
+#task-fields:not([hidden]){display:grid;gap:8px}
+#task-fields select,#task-fields input{width:100%;min-width:0}
+#editor input,#editor textarea,#editor select{width:100%;min-width:0}
+#dialog{max-height:min(94dvh,700px);overflow-y:auto}
+@media(max-width:850px){
+ .task footer{flex-wrap:wrap}
+ .task footer select{min-height:44px}
+ #dialog{width:calc(100vw - 22px);max-height:calc(100dvh - 24px);padding:18px}
+ #editor{gap:10px}
+ .modal-actions{display:grid;grid-template-columns:1fr 1fr}
+ .modal-actions button{min-height:44px}
+}

@@ -165,3 +165,7 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
 .attention-item p{font-size:13px;line-height:1.4;overflow-wrap:anywhere;margin:7px 0 0}
 .attention-item .secondary{flex:0 0 auto}
 @media(max-width:650px){.attention-item{align-items:stretch;flex-direction:column}.attention-item .secondary{width:100%}.attention-panel .section-head{align-items:start;flex-direction:column}}
+
+/* v0.1.6 — registro rápido de andamento */
+.history-add{width:100%;min-height:44px;margin-bottom:14px}
+#history-new-note{width:100%;min-height:64px;resize:vertical}

@@ -146,6 +146,7 @@ for(const action of ['request','approve','reject','reopen']){
    const previous=currentApprovalProject.id;
    $('approval-dialog').close();
    await refreshProjects();
+   if(state.view==='approvals')await loadCentral();
    const project=state.projects.find(x=>x.id===previous);
    if(project&&state.view==='board')await openProject(project);
    message(({request:'Projeto enviado à fila de validação.',approve:'Projeto aprovado e concluído.',reject:'Projeto devolvido para ajustes.',reopen:'Projeto reaberto com histórico preservado.'})[action]);

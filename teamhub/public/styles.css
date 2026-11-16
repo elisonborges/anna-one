@@ -541,3 +541,10 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
  .calendar-controls button{min-width:34px}
  .calendar-weekday{font-size:10px}
 }
+
+/* v0.1.21 — modelos de projeto opcionais */
+#project-template-field[hidden]{display:none!important}
+#project-template-field:not([hidden]){display:grid;grid-column:1/-1;gap:7px;border-top:1px solid var(--line);padding-top:12px;margin-top:5px}
+#project-template-field label{font-size:12px;font-weight:800;margin:0}
+#project-template-field select{width:100%;min-height:44px}
+#project-template-field small{font-size:11px;line-height:1.5}

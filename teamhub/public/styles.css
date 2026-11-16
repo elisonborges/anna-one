@@ -324,3 +324,7 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
 /* v0.1.11: nomes compactos e botão exclusivo na página Projetos */
 .project-entry .project-name{font-size:13px;font-weight:800;overflow-wrap:anywhere}
 #overview-projects .nexus-table td:first-child{font-weight:800}
+
+/* v0.1.12: link compacto no nome do projeto recente */
+#overview-projects .nexus-table .recent-project-link{background:transparent;border:0;color:var(--accent);font-weight:800;padding:4px 1px;text-align:left;text-decoration:underline;text-underline-offset:3px;white-space:normal;min-height:34px;max-width:none}
+#overview-projects .nexus-table .recent-project-link:hover{background:transparent;text-decoration:underline;color:var(--accent)}

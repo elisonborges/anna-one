@@ -365,7 +365,27 @@ const route=async(req,res)=>{
    const check=await sql`SELECT 1 FROM teamhub.memberships WHERE organization_id=${org} AND auth_subject=${owner} AND active=true`;
    if(!check.length)bad('Responsável não pertence à organização.',403);
   }
-  const rows=await sql`INSERT INTO teamhub.projects(organization_id,name,description,card_color,owner_subject) VALUES(${org},${name},${String(body.description||'').slice(0,1000)},${cardColor},${owner}) RETURNING id,name,description,card_color,owner_subject`;
+  const templates={
+   blank:[],
+   planning:['Definir objetivos e escopo','Listar entregas e responsáveis','Definir cronograma','Validar planejamento'],
+   development:['Levantar requisitos','Desenhar solução','Implementar funcionalidades','Realizar testes','Revisar e entregar'],
+   support:['Registrar solicitação','Investigar causa','Aplicar correção','Validar com solicitante','Documentar solução'],
+   education:['Planejar atividade','Preparar materiais','Executar atividade','Avaliar resultados','Registrar evidências']
+  };
+  const template=body.template||'blank';
+  if(!Object.hasOwn(templates,template))bad('Modelo de projeto inválido.');
+  const titles=templates[template];
+  const rows=await sql`WITH created_project AS(
+   INSERT INTO teamhub.projects(organization_id,name,description,card_color,owner_subject)
+   VALUES(${org},${name},${String(body.description||'').slice(0,1000)},${cardColor},${owner})
+   RETURNING id,name,description,card_color,owner_subject
+  ), created_tasks AS(
+   INSERT INTO teamhub.tasks(organization_id,project_id,title,created_by_subject,position)
+   SELECT ${org}::uuid,p.id,x.title,${subject},x.ord::integer
+   FROM created_project p CROSS JOIN jsonb_array_elements_text(${JSON.stringify(titles)}::jsonb) WITH ORDINALITY AS x(title,ord)
+   RETURNING id
+  )
+  SELECT p.*, (SELECT count(*)::int FROM created_tasks) AS starter_tasks FROM created_project p`;
   if(owner)await notifyMembers(org,subject,[owner],'project.assigned','Você recebeu um projeto',name,rows[0].id);
   await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id) VALUES(${org},${subject},'project.created',${rows[0].id})`;
   return reply(res,201,{project:rows[0]});

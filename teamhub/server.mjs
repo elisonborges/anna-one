@@ -106,7 +106,7 @@ async function verifyProjectRecipients(org,projectId,subjects){
  if(allowed.length!==subjects.length)bad('Para atribuir uma tarefa em projeto restrito, primeiro autorize os responsáveis no projeto.',403);
 }
 async function project(org,id){
- const rows=await sql`SELECT id,name,description,created_at,paused_at,card_color,owner_subject,access_mode FROM teamhub.projects WHERE organization_id=${org} AND id=${id} AND archived_at IS NULL`;
+ const rows=await sql`SELECT id,name,description,created_at,paused_at,card_color,owner_subject,access_mode,completion_status,completed_at FROM teamhub.projects WHERE organization_id=${org} AND id=${id} AND archived_at IS NULL`;
  if(!rows.length)bad('Projeto indisponível.',404);return rows[0];
 }
 const route=async(req,res)=>{
@@ -299,7 +299,7 @@ const route=async(req,res)=>{
   return reply(res,200,{items:[...tasks,...subtasks]});
  }
  if(p==='/api/projects'&&req.method==='GET'){
-  const projects=await sql`SELECT p.id,p.name,p.description,p.created_at,p.paused_at,p.card_color,p.owner_subject,p.access_mode, COUNT(t.id)::int AS total, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id AND t.deleted_at IS NULL AND t.archived_at IS NULL WHERE p.organization_id=${org} AND p.archived_at IS NULL AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject})) GROUP BY p.id ORDER BY p.created_at DESC`;
+  const projects=await sql`SELECT p.id,p.name,p.description,p.created_at,p.paused_at,p.card_color,p.owner_subject,p.access_mode,p.completion_status,p.completed_at, COUNT(t.id)::int AS total, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id AND t.deleted_at IS NULL AND t.archived_at IS NULL WHERE p.organization_id=${org} AND p.archived_at IS NULL AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject})) GROUP BY p.id ORDER BY p.created_at DESC`;
   return reply(res,200,{projects,role});
  }
  if(p==='/api/dashboard'&&req.method==='GET'){
@@ -395,6 +395,66 @@ const route=async(req,res)=>{
  if(p==='/api/attention'&&req.method==='GET'){
   const items=await sql`SELECT t.id,t.project_id,p.name AS project_name,t.title,t.treatment_status,t.pending_reason,t.next_action,t.due_at FROM teamhub.tasks t JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id WHERE t.organization_id=${org} AND t.archived_at IS NULL AND t.deleted_at IS NULL AND p.archived_at IS NULL AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject})) AND t.status!='done' AND t.treatment_status IN ('blocked','waiting') ORDER BY CASE WHEN t.treatment_status='blocked' THEN 0 ELSE 1 END,t.due_at NULLS LAST,t.updated_at DESC LIMIT 50`;
   return reply(res,200,{items});
+ }
+ const approvalQueue='/api/approvals/queue';
+ if(p===approvalQueue&&req.method==='GET'){
+  requireManager(role);
+  const pending=await sql`SELECT id,name,completion_requested_at,completion_note,owner_subject
+    FROM teamhub.projects WHERE organization_id=${org} AND archived_at IS NULL AND completion_status='review'
+    ORDER BY completion_requested_at,id`;
+  return reply(res,200,{projects:pending});
+ }
+ const completion=/^\/api\/projects\/([0-9a-f-]+)\/completion(?:\/(request|approve|reject|reopen))?$/.exec(p);
+ if(completion&&validId(completion[1])){
+  const projectId=completion[1],proj=await project(org,projectId);
+  const taskCounts=await sql`SELECT count(*)::int AS total,
+    count(*) FILTER (WHERE status!='done')::int AS open,
+    count(*) FILTER (WHERE status!='done' AND treatment_status IN ('blocked','waiting'))::int AS blocked
+    FROM teamhub.tasks WHERE organization_id=${org} AND project_id=${projectId}
+     AND archived_at IS NULL AND deleted_at IS NULL`;
+  const subCounts=await sql`SELECT count(s.id)::int AS total,count(s.id) FILTER (WHERE s.status!='done')::int AS open
+    FROM teamhub.subtasks s JOIN teamhub.tasks t ON t.id=s.task_id AND t.organization_id=s.organization_id
+    WHERE s.organization_id=${org} AND s.project_id=${projectId}
+     AND t.archived_at IS NULL AND t.deleted_at IS NULL`;
+  const checks=await sql`SELECT action,note,checklist,actor_subject,created_at FROM teamhub.project_approvals
+    WHERE organization_id=${org} AND project_id=${projectId} ORDER BY created_at DESC,id DESC LIMIT 30`;
+  if(req.method==='GET'&&!completion[2])return reply(res,200,{
+   status:proj.completion_status,completed_at:proj.completed_at,
+   tasks:taskCounts[0],subtasks:subCounts[0],history:checks});
+  if(req.method==='POST'&&completion[2]){
+   const action=completion[2];
+   if(action==='request')requireEditor(role);else if(role!=='admin')bad('Apenas administradores podem aprovar, recusar ou reabrir projetos.',403);
+   const b=await json(req),note=safeNote(b.note||'',1000);
+   if(['reject','reopen'].includes(action)&&note.length<5)bad('Informe uma justificativa com pelo menos 5 caracteres.');
+   const checklist={deliverables:!!b.deliverables,tests:!!b.tests,documentation:!!b.documentation,stakeholders:!!b.stakeholders,pendencies:!!b.pendencies};
+   if(action==='request'&&(!Object.values(checklist).every(Boolean)||taskCounts[0].open>0||subCounts[0].open>0||proj.paused_at)){
+    bad('Conclua as tarefas e subtarefas, retome o projeto e marque todos os checks antes de solicitar validação.',409);
+   }
+   if(action==='approve'&&(taskCounts[0].open>0||subCounts[0].open>0||proj.paused_at))bad('Há tarefas, subtarefas ou pausas em aberto. Rejeite e solicite os ajustes.',409);
+   const transitions={
+    request:{from:['active'],to:'review'},approve:{from:['review'],to:'completed'},
+    reject:{from:['review'],to:'active'},reopen:{from:['completed'],to:'active'}
+   };
+   const step=transitions[action];
+   const updated=await sql`UPDATE teamhub.projects SET
+     completion_status=${step.to},
+     completion_requested_at=CASE WHEN ${action}='request' THEN now() WHEN ${action} IN ('reject','reopen') THEN NULL ELSE completion_requested_at END,
+     completed_at=CASE WHEN ${action}='approve' THEN now() WHEN ${action} IN ('reject','reopen') THEN NULL ELSE completed_at END,
+     completion_note=${note}
+     WHERE id=${projectId} AND organization_id=${org}
+      AND completion_status IN (SELECT jsonb_array_elements_text(${JSON.stringify(step.from)}::jsonb))
+     RETURNING id,completion_status,completed_at`;
+   if(!updated.length)bad('Situação do projeto mudou. Atualize a página e tente novamente.',409);
+   await sql`INSERT INTO teamhub.project_approvals(organization_id,project_id,action,actor_subject,note,checklist)
+    VALUES(${org},${projectId},${action==='request'?'requested':action==='approve'?'approved':action==='reject'?'rejected':'reopened'},${subject},${note},${JSON.stringify(checklist)}::jsonb)`;
+   await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id)
+    VALUES(${org},${subject},${'project.completion.'+action},${projectId})`;
+   if(action==='request'){
+    const admins=await sql`SELECT auth_subject FROM teamhub.memberships WHERE organization_id=${org} AND role='admin' AND active=true`;
+    await notifyMembers(org,subject,admins.map(x=>x.auth_subject),'project.review','Projeto aguardando aprovação',proj.name,projectId);
+   }
+   return reply(res,200,{project:updated[0],status:step.to});
+  }
  }
  const accessRoute=/^\/api\/projects\/([0-9a-f-]+)\/access$/.exec(p);
  if(accessRoute&&validId(accessRoute[1])&&req.method==='GET'){

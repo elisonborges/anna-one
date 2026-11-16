@@ -548,12 +548,14 @@ async function loadDashboard(){
  });
  renderTable('dash-project-rows',['Projeto','Progresso','Tarefas','Atrasadas','Pendências','Situação','Ação'],projects);
  const counts=new Map(data.activity.map(x=>[x.day,Number(x.total)]));
- const day=new Date();
- const dayKey=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Fortaleza',year:'numeric',month:'2-digit',day:'2-digit'}).format(day);
+ const formatDay=date=>{
+  const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/Fortaleza',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);
+  const part=name=>parts.find(p=>p.type===name)?.value||'';
+  return part('year')+'-'+part('month')+'-'+part('day');
+ };
  const daily=[];
  for(let i=period-1;i>=0;i--){
-  const current=new Date(Date.now()-i*86400000);
-  const key=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Fortaleza',year:'numeric',month:'2-digit',day:'2-digit'}).format(current);
+  const current=new Date(Date.now()-i*86400000),key=formatDay(current);
   daily.push({date:key,count:counts.get(key)||0});
  }
  const buckets=period===7?7:period===30?10:15,bucketSize=Math.ceil(daily.length/buckets);

@@ -418,3 +418,29 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
  .subtask-create{grid-template-columns:1fr}
  .subtask-create label,.subtask-create input,.subtask-create select,.subtask-create button{grid-column:1!important;grid-row:auto!important}
 }
+
+/* v0.1.16 — notificações internas e responsáveis compartilhados de subtarefas */
+.notification-count{display:inline-grid;place-items:center;background:#dc493d;color:#fff;font-weight:850;border-radius:999px;padding:2px 6px;min-width:20px;font-size:10px;margin-left:auto}
+.notification-count[hidden]{display:none}
+#notifications .panel{padding:16px}
+#notifications .section-head{align-items:center;gap:10px}
+#notifications-list .nexus-table td:first-child{font-weight:700}
+#notifications-list .nexus-table td:nth-child(2){max-width:300px}
+.notification-actions{display:flex;flex-wrap:wrap;gap:6px}
+.notification-actions .table-action{white-space:nowrap}
+.subtask-members-field{grid-column:1/-1;display:grid;gap:8px}
+.subtask-members-field .field-label{font-weight:800;font-size:12px}
+.subtask-assign-editor{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:7px;border-top:1px solid var(--line);padding-top:10px}
+.subtask-assign-editor .table-action{grid-column:1/-1;justify-self:start}
+.subtask-row{grid-template-columns:minmax(0,1fr) minmax(105px,145px) auto auto}
+.subtask-row .table-action{min-height:39px}
+.subtask-row .subtask-assign-editor .table-action{grid-row:auto;grid-column:1/-1}
+#reports-subtasks .nexus-table td:nth-child(5){max-width:250px}
+@media(max-width:700px){
+ #notifications .section-head{flex-wrap:wrap;align-items:start}
+ #notifications .section-head button{max-width:100%}
+ .subtask-row{grid-template-columns:minmax(0,1fr) auto auto;gap:7px}
+ .subtask-row select{grid-column:1;grid-row:2}
+ .subtask-row>.table-action{grid-row:2;grid-column:auto}
+ .subtask-row .subtask-assign-editor{grid-column:1/-1}
+}

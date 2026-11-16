@@ -3,10 +3,10 @@ const AUTH='https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech
 const state={jwt:null,org:null,role:null,projects:[],tasks:[],project:null,view:'overview',subject:null,auth:null,members:[],organizations:[]};
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const message=(s,error=false)=>{const el=$('status');el.textContent=s;el.style.background=error?'#fff0ef':'';el.style.color=error?'#a31931':''};
-const show=(view)=>{state.view=view;for(const id of ['overview','projects','board','mytasks','team','reports','notifications'])$(id).hidden=id!==view;$('welcome-banner').hidden=view!=='overview';
+const show=(view)=>{state.view=view;for(const id of ['overview','projects','board','mytasks','team','reports','notifications','calendar'])$(id).hidden=id!==view;$('welcome-banner').hidden=view!=='overview';
 document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);b.setAttribute('aria-current',b.dataset.view===view?'page':'false')});
- $('title').textContent=view==='overview'?'Visão geral':view==='projects'?'Projetos':view==='board'?state.project?.name||'Quadro':view==='team'?'Equipe':view==='reports'?'Relatórios':view==='notifications'?'Notificações':'Minhas tarefas';
- $('subtitle').textContent=view==='overview'?'Acompanhe os projetos e as atividades da sua equipe.':view==='projects'?'Organize seus projetos e entregas.':view==='board'?'Acompanhe o trabalho por etapas.':view==='team'?'Pessoas autorizadas da organização.':view==='reports'?'Histórico e tempo dedicado a pendências.':view==='notifications'?'Atribuições e avisos importantes.':'Atividades sob sua responsabilidade.';
+ $('title').textContent=view==='overview'?'Visão geral':view==='projects'?'Projetos':view==='board'?state.project?.name||'Quadro':view==='team'?'Equipe':view==='reports'?'Relatórios':view==='notifications'?'Notificações':view==='calendar'?'Calendário':'Minhas tarefas';
+ $('subtitle').textContent=view==='overview'?'Acompanhe os projetos e as atividades da sua equipe.':view==='projects'?'Organize seus projetos e entregas.':view==='board'?'Acompanhe o trabalho por etapas.':view==='team'?'Pessoas autorizadas da organização.':view==='reports'?'Histórico e tempo dedicado a pendências.':view==='notifications'?'Atribuições e avisos importantes.':view==='calendar'?'Prazos e entregas por mês.':'Atividades sob sua responsabilidade.';
 };
 async function api(route,options={}){
  const res=await fetch(route,{...options,headers:{'Content-Type':'application/json','Authorization':'Bearer '+state.jwt,...(options.headers||{})},cache:'no-store'});
@@ -272,6 +272,52 @@ $('notify-read-all').addEventListener('click',async()=>{
  try{await api('/api/notifications/read-all'+qs(),{method:'POST'});await loadNotifications();message('Notificações marcadas como lidas.')}
  catch(e){message(e.message,true)}
 });
+let calendarItems=[],calendarCursor=new Date(new Date().getFullYear(),new Date().getMonth(),1);
+const calendarDay=item=>String(item.due_at||'').slice(0,10);
+function drawCalendar(){
+ const year=calendarCursor.getFullYear(),month=calendarCursor.getMonth();
+ $('calendar-month').textContent=new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric'}).format(calendarCursor);
+ const grid=$('calendar-grid');grid.replaceChildren();
+ for(const day of ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom']){
+  const header=document.createElement('div');header.className='calendar-weekday';header.textContent=day;grid.append(header);
+ }
+ const first=new Date(year,month,1),days=new Date(year,month+1,0).getDate();
+ const offset=(first.getDay()+6)%7;
+ for(let i=0;i<offset;i++){const empty=document.createElement('div');empty.className='calendar-day is-empty';grid.append(empty);}
+ const monthPrefix=String(year)+'-'+String(month+1).padStart(2,'0')+'-';
+ const monthly=calendarItems.filter(x=>calendarDay(x).startsWith(monthPrefix));
+ const grouped=new Map();
+ for(const item of monthly){const day=calendarDay(item);if(!grouped.has(day))grouped.set(day,[]);grouped.get(day).push(item);}
+ const today=new Date(),todayKey=[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
+ for(let day=1;day<=days;day++){
+  const key=monthPrefix+String(day).padStart(2,'0');
+  const card=document.createElement('div');card.className='calendar-day';if(key===todayKey)card.classList.add('is-today');
+  const number=document.createElement('strong');number.textContent=String(day);card.append(number);
+  const items=grouped.get(key)||[];
+  if(items.length){
+   const count=document.createElement('span');count.className='calendar-day-count';count.textContent=items.length+' entrega'+(items.length===1?'':'s');card.append(count);
+   const hints=document.createElement('div');hints.className='calendar-hints';
+   for(const item of items.slice(0,2)){const hint=document.createElement('span');hint.className='calendar-hint';hint.title=item.title;hint.textContent=item.title;hints.append(hint);}
+   card.append(hints);
+  }
+  grid.append(card);
+ }
+ const rows=monthly.sort((a,b)=>calendarDay(a).localeCompare(calendarDay(b))).map(item=>{
+  const open=makeAction('Abrir',async()=>{
+   const project=state.projects.find(p=>p.id===item.project_id);
+   if(!project){message('Projeto não disponível.',true);return;}
+   try{await openProject(project);}catch(e){message(e.message,true)}
+  });
+  return [new Date(calendarDay(item)+'T12:00:00Z').toLocaleDateString('pt-BR',{timeZone:'UTC'}),item.title,item.project_name,item.kind==='subtask'?'Subtarefa':'Tarefa',item.status==='done'?'Concluída':item.status==='doing'?'Em andamento':'A fazer',open];
+ });
+ renderTable('calendar-list',['Prazo','Atividade','Projeto','Tipo','Etapa','Ação'],rows);
+}
+async function loadCalendar(){
+ const data=await api('/api/calendar'+qs());calendarItems=data.items;drawCalendar();
+}
+$('calendar-prev').addEventListener('click',()=>{calendarCursor=new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()-1,1);drawCalendar();});
+$('calendar-next').addEventListener('click',()=>{calendarCursor=new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()+1,1);drawCalendar();});
+$('calendar-today').addEventListener('click',()=>{const now=new Date();calendarCursor=new Date(now.getFullYear(),now.getMonth(),1);drawCalendar();});
 async function loadMySubtasks(){
  const data=await api('/api/my-subtasks'+qs());
  const rows=data.subtasks.map(sub=>{
@@ -665,7 +711,7 @@ async function boot(){
   $('signin-password').value='';await boot();
  }catch(error){message('Não foi possível entrar. Confira seus dados no Portal AnnA One e tente novamente.',true)}finally{button.disabled=false}
 });
-document.querySelectorAll('[data-view]').forEach(x=>x.addEventListener('click',async()=>{if(!state.org)return;try{if(x.dataset.view==='projects'||x.dataset.view==='overview')await refreshProjects();if(x.dataset.view==='mytasks')await loadMyTasks();if(x.dataset.view==='team'){await loadMembers();await loadInvitations()}if(x.dataset.view==='reports')await loadReports();if(x.dataset.view==='notifications')await loadNotifications();show(x.dataset.view)}catch(e){message(e.message,true)}}));
+document.querySelectorAll('[data-view]').forEach(x=>x.addEventListener('click',async()=>{if(!state.org)return;try{if(x.dataset.view==='projects'||x.dataset.view==='overview')await refreshProjects();if(x.dataset.view==='mytasks')await loadMyTasks();if(x.dataset.view==='team'){await loadMembers();await loadInvitations()}if(x.dataset.view==='reports')await loadReports();if(x.dataset.view==='notifications')await loadNotifications();if(x.dataset.view==='calendar')await loadCalendar();show(x.dataset.view)}catch(e){message(e.message,true)}}));
 $('invite-form').addEventListener('submit',async e=>{
  e.preventDefault();const button=$('invite-create');button.disabled=true;
  const email=$('invite-email').value.trim().toLowerCase(),role=$('invite-role').value;

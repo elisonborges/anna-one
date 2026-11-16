@@ -11,7 +11,7 @@ document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active'
 async function api(route,options={}){
  const res=await fetch(route,{...options,headers:{'Content-Type':'application/json','Authorization':'Bearer '+state.jwt,...(options.headers||{})},cache:'no-store'});
  let data;try{data=await res.json()}catch{throw Error('Resposta inválida do servidor');}
- if(!res.ok){if(res.status===401)message('Sessão expirada. Entre novamente pelo Portal AnnA One.',true);throw Error(data.error||'Falha na operação');}
+ if(!res.ok){if(res.status===401){state.jwt=null;$('app').hidden=true;$('signin').hidden=false;message('Sessão expirada. Entre novamente com sua conta AnnA One para continuar.',true);}throw Error(data.error||'Falha na operação');}
  return data;
 }
 const qs=()=>'?org='+encodeURIComponent(state.org);
@@ -138,6 +138,7 @@ function renderProjects(){
    }
   }
   const validation=makeAction(p.completion_status==='review'?'Aguardando validação':p.completion_status==='completed'?'Conferir encerramento':'Checklist de conclusão',()=>showApproval(p));
+  validation.hidden=!(p.completion_status==='review'||p.completion_status==='completed'||(Number(p.total)>0&&Number(p.done)===Number(p.total)));
   validation.classList.add('project-validation-link');
   card.append(cover,title,description,owner,tags,progress,validation,actions);container.append(card);
  }
@@ -757,14 +758,24 @@ async function refreshProjects(){
  selector.value=state.projects.some(p=>p.id===selected)?selected:'';
  await loadDashboard();await loadAttention();
 }
+function readyForFinalReview(project,tasks){
+ if(project.completion_status!=='active'||project.paused_at||!tasks.length)return false;
+ return tasks.every(t=>t.status==='done'&&!t.paused_at
+  &&!['blocked','waiting'].includes(t.treatment_status)
+  &&Number(t.subtask_done||0)===Number(t.subtask_total||0));
+}
 async function openProject(p){
  state.project=p;const data=await api('/api/projects/'+encodeURIComponent(p.id)+'/tasks'+qs());
  state.tasks=data.tasks;$('board-description').textContent=p.description||'Quadro de tarefas do projeto.';
  $('project-pause').disabled=!['admin','manager'].includes(state.role);
  $('project-pause').textContent=p.paused_at?'Retomar projeto':'Pausar projeto';
  $('project-pause-status').textContent=p.completion_status==='completed'?'Projeto concluído':p.completion_status==='review'?'Aguardando validação':p.paused_at?'Pausado por pendência':'Projeto ativo';
+ const finalReview=readyForFinalReview(p,state.tasks);
+ $('project-validation').hidden=!(finalReview||['review','completed'].includes(p.completion_status));
+ $('project-validation').textContent=p.completion_status==='review'?'Ver validação':p.completion_status==='completed'?'Reabrir / histórico':'Conferir conclusão';
  $('project-validation').onclick=()=>showApproval(p);
  $('project-pause').disabled=p.completion_status!=='active'||!['admin','manager'].includes(state.role);
+ $('new-task').disabled=p.completion_status!=='active'||!['admin','manager','member'].includes(state.role);
  renderTasks();show('board');
 }
 const taskFilterMatches=t=>{
@@ -824,7 +835,8 @@ function renderTasks(){
   }
  }
  $('filter-count').textContent=state.tasks.filter(taskFilterMatches).length+' de '+state.tasks.length+' tarefa(s)';
- $('new-task').disabled=!['admin','manager','member'].includes(state.role);
+ $('new-task').disabled=state.project?.completion_status!=='active'||!['admin','manager','member'].includes(state.role);
+ if(state.project) $('project-validation').hidden=!(readyForFinalReview(state.project,state.tasks)||['review','completed'].includes(state.project.completion_status));
 }
 for(const column of $('board-columns').querySelectorAll('.column')){
  column.addEventListener('dragover',event=>{if(!draggedTaskId||!['admin','manager','member'].includes(state.role))return;event.preventDefault();event.dataTransfer.dropEffect='move';column.classList.add('is-drop-target');});

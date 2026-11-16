@@ -664,7 +664,7 @@ const route=async(req,res)=>{
   return reply(res,200,{ok:true});
  }
  if(p==='/api/reports'&&req.method==='GET'){
-  const rows=await sql`SELECT pr.id AS project_id,pr.name AS project_name,pr.created_at AS project_created_at,pr.paused_at AS project_paused_at,
+  const rows=await sql`SELECT pr.id AS project_id,pr.name AS project_name,pr.created_at AS project_created_at,pr.paused_at AS project_paused_at,pr.completion_status,pr.completed_at,
     (SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(x.ended_at,now())-x.started_at))),0)::bigint FROM teamhub.pause_periods x WHERE x.organization_id=${org} AND x.project_id=pr.id AND x.task_id IS NULL) AS project_pending_seconds,
     (SELECT count(*)::int FROM teamhub.pause_periods x WHERE x.organization_id=${org} AND x.project_id=pr.id AND x.task_id IS NULL) AS project_pauses,
     (SELECT count(*)::int FROM teamhub.tasks t WHERE t.organization_id=${org} AND t.project_id=pr.id AND t.deleted_at IS NULL) AS total_tasks,
@@ -685,10 +685,16 @@ const route=async(req,res)=>{
    FROM teamhub.subtasks s JOIN teamhub.tasks t ON t.id=s.task_id AND t.organization_id=s.organization_id
    JOIN teamhub.projects p ON p.id=s.project_id AND p.organization_id=s.organization_id
    WHERE s.organization_id=${org} ORDER BY s.created_at DESC LIMIT 1000`;
+  const approvals=await sql`SELECT a.project_id,p.name AS project_name,a.action,a.actor_subject,a.note,a.checklist,a.created_at
+    FROM teamhub.project_approvals a
+    JOIN teamhub.projects p ON p.id=a.project_id AND p.organization_id=a.organization_id
+    WHERE a.organization_id=${org} ORDER BY a.created_at DESC LIMIT 1000`;
   return reply(res,200,{projects:rows.filter(x=>canSee(x.project_id)),
    tasks:taskRows.filter(x=>canSee(x.project_id)),
    subtasks:subtaskRows.filter(x=>canSee(x.project_id)),
-   pauses:pauses.filter(x=>canSee(x.project_id)),generated_at:new Date().toISOString()});
+   pauses:pauses.filter(x=>canSee(x.project_id)),
+   approvals:approvals.filter(x=>canSee(x.project_id)),
+   generated_at:new Date().toISOString()});
  }
  const pm=/^\/api\/projects\/([0-9a-f-]+)\/tasks$/.exec(p);
  if(pm&&validId(pm[1])){

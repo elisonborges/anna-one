@@ -291,3 +291,13 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - **Arquivo**: gestor responsável e administrador podem arquivar e restaurar tarefas, inclusive as não atribuídas ao próprio usuário, pelo quadro; exclusão lógica continua exclusiva do administrador.
 - Migração aditiva `0032-role-views-and-reopen.sql` aplicada **somente ao Neon anna-nexus-dev**. Não são criados usuários, convites ou tarefas artificiais. Nenhuma alteração no Portal AnnA One principal ou banco de produção.
 - Permanecem necessários testes multiusuário autenticados por perfil (incluindo convidado, gestor não responsável e membro com atribuições compartilhadas), e conferência do fluxo de notificações no navegador.
+
+
+## AnnA Nexus v0.1.41 — Primeiro acesso de convidados
+- Link de convite individual continua no fragmento da página do Nexus enquanto o usuário não estiver autenticado. Após login com a conta AnnA One e e-mail verificado, o mesmo link é aceito automaticamente. O endereço de convite só é retirado da barra após confirmação do servidor.
+- A tela de entrada oferece login, criação de conta usando o Neon Auth central e recuperação de senha no Portal em nova aba. O cadastro e a confirmação de e-mail dependem da configuração atual do Neon Auth; não há cadastro paralelo.
+- Uma tentativa de aceitar convite com conta divergente preserva o link e permite trocar de conta, sem reemitir o convite. Convites expirados/cancelados/consumidos continuam sendo rejeitados pelo servidor.
+- Depois do aceite, a organização correta é selecionada automaticamente, quando há várias. O Convidado inicia em Projetos compartilhados.
+- Convidados sem projetos explicitamente compartilhados veem aviso orientativo, pedido de contato com Administrador e botão de atualização. Nenhum acesso a projetos é concedido automaticamente pelo aceite do convite.
+- Mudanças limitadas à interface do Nexus e documentação, sem alterações de tabela, regras de acesso ou Portal de produção.
+- Homologação real de cadastro/e-mail verificado, convite e troca de conta ainda depende de contas de teste autorizadas.

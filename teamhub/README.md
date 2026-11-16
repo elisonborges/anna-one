@@ -93,3 +93,11 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Em Visão geral / Projetos recentes, mostrar apenas os dados compactos, sem botão Abrir.
 - Em Projetos, exibir o nome com botão Abrir ao lado, na primeira coluna.
 - Alteração exclusivamente de interface; banco e API preservados.
+
+## AnnA Nexus v0.1.13 — Ciclo de vida, pendências e relatórios
+- Em Minhas tarefas: Abrir, Editar, Pausar/Retomar, Arquivar/Restaurar e Excluir (remoção lógica, somente administradores).
+- Pausa de tarefa ou projeto requer justificativa de pendência. Cada intervalo é registrado em `teamhub.pause_periods` com início, fim, responsável e motivo; o tempo total corre normalmente.
+- Relatórios por organização: tempo total de cada projeto, tempo acumulado de pendência do projeto, histórico de pausas dos projetos e tarefas, CSV.
+- Filtros de tarefas arquivadas sem mostrar tarefas logicamente excluídas.
+- Migração aditiva de desenvolvimento `migrations/0020-pauses-and-lifecycle.sql`.
+- A integração de e-mail e central de notificações será uma entrega posterior. Não há envios automáticos nesta versão.

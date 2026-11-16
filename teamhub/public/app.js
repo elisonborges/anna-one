@@ -516,6 +516,7 @@ function setInviteAuthMode(registration=false){
 function showInviteSignin(messageText=''){
  const invite=!!invitationToken();
  $('invitation-intro').hidden=!invite;
+ $('invitation-change-account').hidden=!invite||!state.subject;
  $('signin-description').textContent=invite
   ?'Entre ou crie uma conta AnnA One para aceitar seu convite.'
   :'Use sua conta do Portal AnnA One para acessar seus projetos.';
@@ -523,6 +524,18 @@ function showInviteSignin(messageText=''){
  if(messageText)$('signin-feedback').textContent=messageText;
 }
 $('signin-switch-mode').addEventListener('click',()=>setInviteAuthMode($('signup-form').hidden));
+$('invitation-change-account').addEventListener('click',async()=>{
+ try{
+  if(!state.auth)return;
+  await state.auth.signOut();
+  state.jwt=null;state.subject=null;state.org=null;
+  $('signin-password').value='';
+  $('invitation-change-account').hidden=true;
+  setInviteAuthMode(false);
+  showInviteSignin('Entre com a conta que utiliza o mesmo e-mail do convite.');
+  message('Sessão anterior encerrada. Entre com a conta convidada.');
+ }catch(error){message('Não foi possível trocar a conta. Atualize a página e tente novamente.',true)}
+});
 $('signup-form').addEventListener('submit',async event=>{
  event.preventDefault();
  const button=$('signup-button'),name=$('signup-name').value.trim(),
@@ -1673,6 +1686,7 @@ async function boot(){
   const session=await state.auth.getSession();
   const account=session?.data?.user||session?.data?.session?.user;
   if(!account){
+   state.subject=null;state.jwt=null;
    $('account').textContent='Não conectado';
    showInviteSignin();
    message(invitationToken()?'Convite encontrado. Entre ou crie sua conta para continuar.':'Entre com sua conta existente do Portal AnnA One.');

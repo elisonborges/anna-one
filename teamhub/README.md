@@ -246,3 +246,10 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Botão indica a ação seguinte, com texto acessível, e preserva a escolha em `localStorage` quando disponível.
 - Corrigidos o fundo da raiz e as cores de contraste de etiquetas, pendências, botões e avisos no modo escuro.
 - Mudança somente no frontend, sem migração de banco ou serviços pagos. Homologação visual autenticada segue necessária.
+
+## v0.1.33 — Correção da causa do tema e organização por arraste
+- Corrigida a causa real da falha de tema: `/theme.js` não constava na lista de arquivos estáticos permitidos pelo servidor (HTTP 404). O controle carrega agora no `head`, como arquivo externo autorizado pela CSP, sem script inline bloqueado.
+- Tema claro/escuro funciona mesmo se o módulo de autenticação falhar; conserva a escolha pessoal e responde ao tema do dispositivo quando não existe preferência.
+- Cards de projeto têm alça de arraste no topo para reorganizar com mouse ou toque; também podem ser movidos com setas do teclado quando a alça está em foco.
+- A ordem fica registrada em `teamhub.project_card_layouts` para cada pessoa e organização (migração aditiva `0031-project-card-order.sql`), sem alterar tarefas, permissões ou ordenação de outros usuários.
+- Arquivos estáticos têm cache desabilitado para evitar reuso de versões antigas. Sem alteração no portal ou banco de produção e sem serviços pagos.

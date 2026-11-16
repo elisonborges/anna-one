@@ -244,6 +244,7 @@ async function taskAction(task,action){
 async function loadNotifications(){
  const data=await api('/api/notifications'+qs());
  const counter=$('notification-count');counter.hidden=!data.unread;counter.textContent=data.unread>99?'99+':String(data.unread);
+ const headerCount=$('notify-header-count');headerCount.hidden=!data.unread;headerCount.textContent=data.unread>99?'99+':String(data.unread);
  const rows=data.notifications.map(n=>{
   const status=n.read_at?'Lida':'Nova';
   const actions=document.createElement('div');actions.className='notification-actions';
@@ -263,10 +264,38 @@ async function loadNotifications(){
  });
  renderTable('notifications-list',['Notificação','Detalhes','Quando','Situação','Ações'],rows);
 }
+$('notify-header').addEventListener('click',async()=>{try{await loadNotifications();show('notifications')}catch(e){message(e.message,true)}});
 $('notify-read-all').addEventListener('click',async()=>{
  try{await api('/api/notifications/read-all'+qs(),{method:'POST'});await loadNotifications();message('Notificações marcadas como lidas.')}
  catch(e){message(e.message,true)}
 });
+async function loadMySubtasks(){
+ const data=await api('/api/my-subtasks'+qs());
+ const rows=data.subtasks.map(sub=>{
+  const actions=document.createElement('div');actions.className='subtask-personal-actions';
+  const open=makeAction('Abrir tarefa',async()=>{
+   try{
+    const item=await openTaskFromList(sub);
+    if(!item)throw Error('Tarefa não disponível.');
+    modal('edit',item);
+   }catch(e){message(e.message,true)}
+  });
+  actions.append(open);
+  if(['admin','manager','member'].includes(state.role)&&sub.status!=='done'){
+   const complete=makeAction('Concluir',async()=>{
+    complete.disabled=true;
+    try{
+     await api('/api/subtasks/'+sub.id+qs(),{method:'PATCH',body:JSON.stringify({status:'done'})});
+     await loadMySubtasks();message('Subtarefa concluída.');
+    }catch(e){message(e.message,true);complete.disabled=false}
+   });
+   actions.append(complete);
+  }
+  const status=({todo:'A fazer',doing:'Em andamento',done:'Concluída'})[sub.status]||sub.status;
+  return [sub.title,sub.project_name,sub.task_title,status,sub.due_at?new Date(sub.due_at).toLocaleDateString('pt-BR',{timeZone:'UTC'}):'—',actions];
+ });
+ renderTable('my-subtasks',['Subtarefa','Projeto','Tarefa principal','Situação','Prazo','Ações'],rows);
+}
 async function loadMyTasks(){
  const includeArchived=$('show-archived').checked?'&archived=1':'';
  const data=await api('/api/my-tasks'+qs()+includeArchived);
@@ -288,6 +317,7 @@ async function loadMyTasks(){
    task.due_at?new Date(task.due_at).toLocaleDateString('pt-BR',{timeZone:'UTC'}):'—',controls];
  });
  renderTable('mine',['Tarefa','Projeto','Situação','Prazo','Ações'],rows);
+ await loadMySubtasks();
 }
 let reportSnapshot=null;
 async function loadReports(){

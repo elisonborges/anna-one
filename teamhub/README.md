@@ -253,3 +253,11 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Cards de projeto têm alça de arraste no topo para reorganizar com mouse ou toque; também podem ser movidos com setas do teclado quando a alça está em foco.
 - A ordem fica registrada em `teamhub.project_card_layouts` para cada pessoa e organização (migração aditiva `0031-project-card-order.sql`), sem alterar tarefas, permissões ou ordenação de outros usuários.
 - Arquivos estáticos têm cache desabilitado para evitar reuso de versões antigas. Sem alteração no portal ou banco de produção e sem serviços pagos.
+
+## v0.1.34 — Ordem das tarefas por etapa no Kanban
+- Além do arraste existente entre colunas (que altera a etapa), cada tarefa pode ser **reordenada dentro da própria coluna** por alça ⠿, mouse ou toque, setas do teclado focadas na alça, ou botões ↑ ↓.
+- Nova API autenticada `PATCH /api/projects/:id/tasks/order`: valida papel editor, autorização por projeto e a lista completa de IDs ativos; recusa reordenação quando o projeto estiver pausado, em revisão ou concluído.
+- A posição é salva na coluna já existente `teamhub.tasks.position`, sem nova migração ou custo. A lista reaparece na mesma ordem depois de atualizar.
+- Quando qualquer filtro/pesquisa estiver ativo, a reordenação fica desabilitada para evitar perder tarefas ocultas; o quadro exibe uma orientação.
+- Movimentação entre etapas, subtarefas, histórico, anexos e aprovação de projetos permanecem separados.
+- Ambiente de desenvolvimento apenas, sem alterações em produção.

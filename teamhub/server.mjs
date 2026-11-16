@@ -280,6 +280,24 @@ const route=async(req,res)=>{
    ORDER BY (s.status='done'),s.due_at NULLS LAST,s.created_at DESC LIMIT 200`;
   return reply(res,200,{subtasks:rows});
  }
+ if(p==='/api/calendar'&&req.method==='GET'){
+  const tasks=await sql`SELECT t.id,t.project_id,t.title,t.due_at,t.status,p.name AS project_name,'task' AS kind
+   FROM teamhub.tasks t JOIN teamhub.projects p ON p.id=t.project_id AND p.organization_id=t.organization_id
+   WHERE t.organization_id=${org} AND t.deleted_at IS NULL AND t.archived_at IS NULL
+   AND p.archived_at IS NULL AND t.due_at IS NOT NULL
+   AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject}
+     OR EXISTS(SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject}))
+   ORDER BY t.due_at,t.created_at LIMIT 2000`;
+  const subtasks=await sql`SELECT s.id,s.project_id,s.title,s.due_at,s.status,p.name AS project_name,'subtask' AS kind
+   FROM teamhub.subtasks s JOIN teamhub.tasks t ON t.id=s.task_id AND t.organization_id=s.organization_id
+   JOIN teamhub.projects p ON p.id=s.project_id AND p.organization_id=s.organization_id
+   WHERE s.organization_id=${org} AND t.deleted_at IS NULL AND t.archived_at IS NULL AND p.archived_at IS NULL
+   AND s.due_at IS NOT NULL
+   AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject}
+     OR EXISTS(SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject}))
+   ORDER BY s.due_at,s.created_at LIMIT 2000`;
+  return reply(res,200,{items:[...tasks,...subtasks]});
+ }
  if(p==='/api/projects'&&req.method==='GET'){
   const projects=await sql`SELECT p.id,p.name,p.description,p.created_at,p.paused_at,p.card_color,p.owner_subject,p.access_mode, COUNT(t.id)::int AS total, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id AND t.deleted_at IS NULL AND t.archived_at IS NULL WHERE p.organization_id=${org} AND p.archived_at IS NULL AND (${unrestricted} OR p.access_mode='organization' OR p.owner_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject})) GROUP BY p.id ORDER BY p.created_at DESC`;
   return reply(res,200,{projects,role});

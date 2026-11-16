@@ -15,6 +15,8 @@ async function api(route,options={}){
  return data;
 }
 const qs=()=>'?org='+encodeURIComponent(state.org);
+const treatmentLabels={pending:'Pendente',analysis:'Em análise',executing:'Em execução',waiting:'Aguardando retorno',blocked:'Bloqueada',resolved:'Resolvida'};
+
 function projectButton(p){
  const btn=document.createElement('button');btn.className='project';btn.type='button';
  const progress=p.total?Math.round(p.done/p.total*100):0;
@@ -78,7 +80,7 @@ async function loadMyTasks(){
 async function refreshProjects(){
  const data=await api('/api/projects'+qs());state.projects=data.projects;state.role=data.role;renderProjects();
  $('new-project').disabled=!['admin','manager'].includes(state.role);
- const summary=await api('/api/dashboard'+qs());$('stat-projects').textContent=summary.summary.projects;$('stat-open').textContent=summary.summary.open;$('stat-doing').textContent=summary.summary.doing;$('stat-done').textContent=summary.summary.done;
+ const summary=await api('/api/dashboard'+qs());$('stat-projects').textContent=summary.summary.projects;$('stat-open').textContent=summary.summary.open;$('stat-doing').textContent=summary.summary.doing;$('stat-done').textContent=summary.summary.done;$('stat-attention').textContent=summary.summary.attention||0;
 }
 async function openProject(p){
  state.project=p;const data=await api('/api/projects/'+encodeURIComponent(p.id)+'/tasks'+qs());
@@ -89,7 +91,8 @@ function renderTasks(){
  let done=0,doing=0;const board=$('board-columns');
  for(const col of board.querySelectorAll('.column')){
   const status=col.dataset.status,list=col.querySelector('.tasklist');list.replaceChildren();
-  const tasks=state.tasks.filter(t=>t.status===status);col.querySelector('.count').textContent=tasks.length;
+  const filter=$('filter-treatment').value;
+  const tasks=state.tasks.filter(t=>t.status===status&&(filter==='all'||(t.treatment_status||'pending')===filter));col.querySelector('.count').textContent=tasks.length;
   for(const t of tasks){
    const card=document.createElement('article');card.className='task';const title=document.createElement('strong');title.textContent=t.title;
    const footer=document.createElement('footer');
@@ -98,13 +101,17 @@ function renderTasks(){
    select.value=t.status;select.disabled=!['admin','manager','member'].includes(state.role);
    select.addEventListener('change',async()=>{const next=select.value;select.disabled=true;try{await api('/api/tasks/'+t.id+qs(),{method:'PATCH',body:JSON.stringify({status:next})});t.status=next;renderTasks();await refreshProjects();message('Tarefa atualizada.')}catch(e){select.value=t.status;message(e.message,true)}finally{select.disabled=false}});
    const label=document.createElement('span');label.className='priority';label.textContent=({high:'Alta',medium:'Média',low:'Baixa'})[t.priority]||'Média';
+   const badge=document.createElement('span');badge.className='treatment-badge '+(t.treatment_status||'pending');badge.textContent=treatmentLabels[t.treatment_status]||'Pendente';
    const meta=document.createElement('div');meta.className='task-meta';
    if(t.due_at){const due=document.createElement('span');due.textContent='Prazo: '+new Date(t.due_at).toLocaleDateString('pt-BR',{timeZone:'UTC'});meta.append(due);}
    if(t.assignee_subject){const assigned=document.createElement('span');assigned.textContent='Responsável: '+memberName(t.assignee_subject);meta.append(assigned);}
    const edit=document.createElement('button');edit.type='button';edit.className='task-edit';edit.textContent='Editar tarefa';edit.disabled=!['admin','manager','member'].includes(state.role);edit.onclick=()=>modal('edit',t);
-   footer.append(label,select);card.append(title,meta,footer,edit);list.append(card);
+   if(t.pending_reason){const p=document.createElement('span');p.className='pending-summary';p.textContent='Pendência: '+t.pending_reason;meta.append(p);}
+   if(t.next_action){const p=document.createElement('span');p.textContent='Próxima ação: '+t.next_action;meta.append(p);}
+   footer.append(label,select);card.append(title,badge,meta,footer,edit);list.append(card);
   }
  }
+ $('filter-count').textContent=state.tasks.filter(t=>$('filter-treatment').value==='all'||(t.treatment_status||'pending')===$('filter-treatment').value).length+' tarefa(s)';
  $('new-task').disabled=!['admin','manager','member'].includes(state.role);
  const all=state.tasks;done=all.filter(t=>t.status==='done').length;doing=all.filter(t=>t.status==='doing').length;
  /* Indicadores gerais calculados pela API da organização, não pelo quadro atual. */
@@ -127,10 +134,32 @@ function modal(type,task=null){
  $('field-due').value=task?.due_at?String(task.due_at).slice(0,10):'';
  $('field-due').min=todayInFortaleza();
  $('field-assignee').value=task?.assignee_subject||'';
+ $('field-treatment').value=task?.treatment_status||'pending';
+ $('field-treatment-notes').value=task?.treatment_notes||'';
+ $('field-pending').value=task?.pending_reason||'';
+ $('field-next').value=task?.next_action||'';
+ $('field-update-note').value='';
+ $('task-history-wrap').hidden=type!=='edit';
+ if(type==='edit')loadHistory(task.id);
+
  $('field-description').maxLength=type==='project'?1000:2000;
  $('dialog').showModal();$('field-name').focus();
 }
 
+async function loadHistory(taskId){
+ const list=$('task-history');list.textContent='Carregando histórico…';
+ try{
+  const result=await api('/api/tasks/'+taskId+'/history'+qs());list.replaceChildren();
+  if(!result.history.length){list.textContent='Ainda não há registros.';return;}
+  for(const entry of result.history){
+   const item=document.createElement('div');item.className='history-item';
+   const content=document.createElement('p');content.textContent=entry.summary;
+   const small=document.createElement('small');small.textContent=new Date(entry.created_at).toLocaleString('pt-BR',{timeZone:'America/Fortaleza'})+' · '+(entry.actor_subject===state.subject?'Você':'Integrante da equipe');
+   item.append(content,small);list.append(item);
+  }
+ }catch(e){list.textContent='Não foi possível carregar o histórico.';}
+}
+$('filter-treatment').addEventListener('change',renderTasks);
 async function boot(){
  message('Verificando login do Portal AnnA One…');
  try{
@@ -177,11 +206,14 @@ $('editor').addEventListener('submit',async e=>{
    const priority=$('field-priority').value;
    const due_at=$('field-due').value||null;
    const assignee_subject=$('field-assignee').value||null;
+   const tracking={treatment_status:$('field-treatment').value,treatment_notes:$('field-treatment-notes').value.trim(),pending_reason:$('field-pending').value.trim(),next_action:$('field-next').value.trim()};
+   const update_note=$('field-update-note').value.trim();
+
    if(due_at&&due_at<todayInFortaleza())throw Error('Escolha um prazo igual ou posterior à data de hoje.');
    if(mode==='edit'){
-    await api('/api/tasks/'+editing.id+qs(),{method:'PATCH',body:JSON.stringify({title:name,description,priority,due_at,assignee_subject})});
+    await api('/api/tasks/'+editing.id+qs(),{method:'PATCH',body:JSON.stringify({title:name,description,priority,due_at,assignee_subject,...tracking,update_note})});
    }else{
-    await api('/api/projects/'+state.project.id+'/tasks'+qs(),{method:'POST',body:JSON.stringify({title:name,description,priority,due_at})});
+    await api('/api/projects/'+state.project.id+'/tasks'+qs(),{method:'POST',body:JSON.stringify({title:name,description,priority,due_at,assignee_subject,...tracking})});
    }
    await openProject(state.project);await refreshProjects();
   }

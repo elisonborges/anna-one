@@ -19,6 +19,22 @@ async function json(req){
  try{return raw?JSON.parse(raw):{};}catch{throw Object.assign(Error('JSON inválido'),{status:400});}
 }
 function bad(message,status=400){throw Object.assign(Error(message),{status});}
+function todayInFortaleza(){
+ const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/Fortaleza',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+ const part=k=>parts.find(p=>p.type===k).value;
+ return part('year')+'-'+part('month')+'-'+part('day');
+}
+function validDueDate(value){
+ if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
+ const date=new Date(value+'T12:00:00Z');
+ return !Number.isNaN(date.getTime())&&date.toISOString().slice(0,10)===value;
+}
+function checkDueDate(value){
+ if(value===null||value===undefined)return;
+ if(!validDueDate(value))bad('Data de prazo inválida.');
+ if(value<todayInFortaleza())bad('O prazo não pode ser anterior à data de hoje.');
+}
+
 async function user(req){
  const token=/^Bearer\s+(.+)$/i.exec(req.headers.authorization||'')?.[1]; if(!token)bad('Faça login no Portal AnnA One.',401);
  try{
@@ -83,7 +99,7 @@ const route=async(req,res)=>{
    const priority=b.priority||'medium';
    if(!['low','medium','high'].includes(priority))bad('Prioridade inválida.');
    const due=b.due_at===null||b.due_at===undefined?null:b.due_at;
-   if(due!==null&&(!/^\d{4}-\d{2}-\d{2}$/.test(due)||Number.isNaN(Date.parse(due+'T12:00:00Z'))||new Date(due+'T12:00:00Z').toISOString().slice(0,10)!==due))bad('Data inválida.');
+   checkDueDate(due);
    const due_at=due===null?null:due+'T12:00:00Z';
    const rows=await sql`INSERT INTO teamhub.tasks(organization_id,project_id,title,description,priority,due_at,created_by_subject,position) VALUES(${org},${proj.id},${title},${String(b.description||'').slice(0,2000)},${priority},${due_at},${subject},(SELECT COALESCE(MAX(position),0)+1 FROM teamhub.tasks WHERE project_id=${proj.id})) RETURNING *`;
    await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id,task_id) VALUES(${org},${subject},'task.created',${proj.id},${rows[0].id})`;
@@ -104,7 +120,7 @@ const route=async(req,res)=>{
   const description=b.description===undefined?t.description:String(b.description);
   let dueAt=t.due_at;
   if(b.due_at!==undefined){
-    if(b.due_at!==null&&(!/^\d{4}-\d{2}-\d{2}$/.test(b.due_at)||Number.isNaN(Date.parse(b.due_at+'T12:00:00Z'))||new Date(b.due_at+'T12:00:00Z').toISOString().slice(0,10)!==b.due_at))bad('Data inválida.');
+    checkDueDate(b.due_at);
     dueAt=b.due_at===null?null:b.due_at+'T12:00:00Z';
   }
   if(!['todo','doing','done'].includes(status)||!['low','medium','high'].includes(priority)||title.length<2||title.length>240||description.length>2000)bad('Valores inválidos.');

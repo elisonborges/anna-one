@@ -460,6 +460,8 @@ function modal(type,task=null){
  $('field-description').value=task?.description||'';
  $('task-fields').hidden=type==='project'||type==='project-edit';
  $('project-fields').hidden=!(type==='project'||type==='project-edit');
+ $('project-access-fields').hidden=type!=='project-edit';
+ if(type==='project-edit')loadProjectAccess(task).catch(e=>message(e.message,true));
  $('project-color').value=task?.card_color||'blue';
  $('project-owner').value=task?.owner_subject||'';
  $('field-priority').value=task?.priority||'medium';
@@ -477,7 +479,8 @@ function modal(type,task=null){
  $('task-history-wrap').hidden=type!=='edit';
  $('subtasks-panel').hidden=type!=='edit';
  $('subtask-add').disabled=!['admin','manager','member'].includes(state.role);
- $('subtask-name').value='';$('subtask-owner').value='';$('subtask-due').value='';
+ $('subtask-name').value='';$('subtask-due').value='';
+ $('subtask-assignees').querySelectorAll('input:checked').forEach(x=>x.checked=false);
  $('subtask-due').min=todayInFortaleza();
  if(type==='edit')loadSubtasks(task.id);
  if(type==='edit')loadHistory(task.id);
@@ -486,6 +489,18 @@ function modal(type,task=null){
  $('dialog').showModal();$('field-name').focus();
 }
 
+async function loadProjectAccess(project){
+ const panel=$('project-member-choices');panel.replaceChildren();
+ const data=await api('/api/projects/'+project.id+'/access'+qs());
+ $('project-access-mode').value=data.access_mode;
+ const active=state.members.filter(m=>m.active);
+ for(const member of active){
+  const label=document.createElement('label');label.className='assignee-choice';
+  const input=document.createElement('input');input.type='checkbox';input.value=member.auth_subject;input.checked=data.members.includes(member.auth_subject);
+  const caption=document.createElement('span');caption.textContent=memberName(member.auth_subject);
+  label.append(input,caption);panel.append(label);
+ }
+}
 async function loadSubtasks(taskId){
  const host=$('subtasks-list');host.textContent='Carregando subtarefas…';
  try{
@@ -647,7 +662,11 @@ $('editor').addEventListener('submit',async e=>{
   if(mode==='project'||mode==='project-edit'){
    const payload={name,description,card_color:$('project-color').value,owner_subject:$('project-owner').value||null};
    if(mode==='project')await api('/api/projects'+qs(),{method:'POST',body:JSON.stringify(payload)});
-   else await api('/api/projects/'+editing.id+qs(),{method:'PATCH',body:JSON.stringify(payload)});
+   else{
+    await api('/api/projects/'+editing.id+qs(),{method:'PATCH',body:JSON.stringify(payload)});
+    const members=[...$('project-member-choices').querySelectorAll('input:checked')].map(x=>x.value);
+    await api('/api/projects/'+editing.id+'/access'+qs(),{method:'PATCH',body:JSON.stringify({access_mode:$('project-access-mode').value,members})});
+   }
    await refreshProjects();show('projects');
   }else{
    const priority=$('field-priority').value;

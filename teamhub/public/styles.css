@@ -320,3 +320,7 @@ body:has(#signin:not([hidden])) .signin-card .signin-hint{font-size:11px!importa
 #brand-form #brand-save{grid-column:1/-1;justify-self:start}
 #brand-file-info:not(:empty){padding:6px 0;font-weight:700;font-size:12px}
 @media(max-width:750px){#brand-form{grid-template-columns:1fr}#brand-form #brand-save{width:100%}.project-entry{gap:4px}.project-entry .table-action.project-name-link{flex-basis:100%}}
+
+/* v0.1.11: nomes compactos e botão exclusivo na página Projetos */
+.project-entry .project-name{font-size:13px;font-weight:800;overflow-wrap:anywhere}
+#overview-projects .nexus-table td:first-child{font-weight:800}

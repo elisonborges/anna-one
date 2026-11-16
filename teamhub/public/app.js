@@ -146,7 +146,7 @@ function renderProjects(){
  });
  renderTable('overview-projects',['Projeto','Descrição','Tarefas','Progresso'],overviewRows);
  const container=$('projects-list');container.replaceChildren();
- const allowed=['blue','violet','green','orange','pink','teal','slate'];
+ const allowed=['blue','violet','green','orange','pink','teal','slate','indigo','coral','gold','mint','charcoal'];
  for(const p of state.projects){
   const card=document.createElement('article');card.className='project-card color-'+(allowed.includes(p.card_color)?p.card_color:'blue');
   const cover=document.createElement('div');cover.className='project-card-cover';
@@ -925,8 +925,60 @@ function todayInFortaleza(){
  return part('year')+'-'+part('month')+'-'+part('day');
 }
 let mode=null,editing=null;
+// Keep existing editor fields and API contracts; show one section at a time.
+const taskTabIds={details:'task-fields',subtasks:'subtasks-panel',history:'task-history-wrap',files:'attachments-panel'};
+let activeTaskTab='details';
+// The history block originally lives inside the treatment section. Move it once so
+// that comment actions remain intact and can become an independent detail tab.
+$('editor').insertBefore($('task-history-wrap'),$('subtasks-panel'));
+function showTaskDetailTab(tab){
+ const value=Object.hasOwn(taskTabIds,tab)?tab:'details';
+ activeTaskTab=value;
+ $('editor').dataset.taskTab=value;
+ for(const [key,id] of Object.entries(taskTabIds)){
+  $(id).hidden=key!==value;
+  const btn=$('tab-task-'+key);if(btn){
+   const selected=key===value;
+   btn.setAttribute('aria-selected',String(selected));
+   btn.tabIndex=selected?0:-1;
+  }
+ }
+ const details=value==='details';
+ for(const id of ['field-name','field-description'])$(id).hidden=!details;
+ for(const selector of ['label[for="field-name"]','label[for="field-description"]']){
+  const field=$('editor').querySelector(selector);if(field)field.hidden=!details;
+ }
+ $('task-detail-summary').hidden=details;
+ $('save').hidden=!details;
+ $('cancel').textContent=details?'Cancelar':'Fechar';
+}
+for(const button of $('task-detail-tabs').querySelectorAll('[data-task-tab]')){
+ button.addEventListener('click',()=>showTaskDetailTab(button.dataset.taskTab));
+ button.addEventListener('keydown',event=>{
+  if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+  event.preventDefault();
+  const buttons=[...$('task-detail-tabs').querySelectorAll('[data-task-tab]')];
+  const index=buttons.indexOf(button),next=event.key==='Home'?0:event.key==='End'?buttons.length-1:(index+(event.key==='ArrowLeft'?-1:1)+buttons.length)%buttons.length;
+  buttons[next].focus();showTaskDetailTab(buttons[next].dataset.taskTab);
+ });
+}
 function modal(type,task=null){
  mode=type;editing=task;
+ $('task-detail-tabs').hidden=type!=='edit';
+ $('editor').dataset.taskTab='';
+ // Tabs do not change the existing project and new-task forms.
+ if(type==='edit'){
+  $('task-detail-summary').textContent=(task?.priority==='high'?'Prioridade alta':task?.priority==='low'?'Prioridade baixa':'Prioridade média')+
+   (task?.due_at?' · Prazo: '+new Date(task.due_at).toLocaleDateString('pt-BR',{timeZone:'UTC'}):' · Sem prazo');
+  showTaskDetailTab('details');
+ }else{
+  $('task-detail-summary').hidden=true;
+  $('save').hidden=false;$('cancel').textContent='Cancelar';
+  for(const id of ['field-name','field-description'])$(id).hidden=false;
+  for(const selector of ['label[for="field-name"]','label[for="field-description"]']){
+   const field=$('editor').querySelector(selector);if(field)field.hidden=false;
+  }
+ }
  $('modal-title').textContent=type==='project'?'Novo projeto':type==='project-edit'?'Personalizar projeto':type==='edit'?'Editar tarefa':'Nova tarefa';
  $('field-name').value=type==='project-edit'?task?.name||'':task?.title||'';
  $('field-description').value=task?.description||'';
@@ -953,9 +1005,9 @@ function modal(type,task=null){
  $('history-new-note').value='';
  $('history-mentions').querySelectorAll('input').forEach(x=>x.checked=false);
  $('history-add').disabled=!['admin','manager','member'].includes(state.role);
- $('task-history-wrap').hidden=type!=='edit';
- $('subtasks-panel').hidden=type!=='edit';
- $('attachments-panel').hidden=type!=='edit';
+ $('task-history-wrap').hidden=true;
+ $('subtasks-panel').hidden=true;
+ $('attachments-panel').hidden=true;
  $('attachment-file').value='';
  $('attachment-upload').disabled=!['admin','manager','member'].includes(state.role);
  if(type==='edit')loadAttachments(task.id);
@@ -967,7 +1019,9 @@ function modal(type,task=null){
  if(type==='edit')loadHistory(task.id);
 
  $('field-description').maxLength=type==='project'||type==='project-edit'?1000:2000;
- $('dialog').showModal();$('field-name').focus();
+ if(type==='edit')showTaskDetailTab('details');
+ $('dialog').showModal();
+ if(type==='edit')$('tab-task-details').focus();else $('field-name').focus();
 }
 
 let projectAccessReady=false;
@@ -990,6 +1044,7 @@ async function loadSubtasks(taskId){
  try{
   const data=await api('/api/tasks/'+taskId+'/subtasks'+qs());
   $('subtasks-summary').textContent=data.subtasks.filter(x=>x.status==='done').length+'/'+data.subtasks.length+' concluídas';
+ $('tab-task-subtasks').textContent='Subtarefas ('+data.subtasks.length+')';
   host.replaceChildren();
   if(!data.subtasks.length){host.textContent='Nenhuma subtarefa. Adicione a primeira abaixo.';return;}
   for(const item of data.subtasks){
@@ -1057,6 +1112,7 @@ async function loadAttachments(taskId){
  try{
   const data=await api('/api/tasks/'+taskId+'/attachments'+qs());
   $('attachments-count').textContent=data.attachments.length+'/12 arquivos';
+ $('tab-task-files').textContent='Anexos ('+data.attachments.length+')';
   box.replaceChildren();
   if(!data.attachments.length){box.textContent='Nenhum anexo nesta tarefa.';return;}
   for(const item of data.attachments){
@@ -1109,6 +1165,7 @@ async function loadHistory(taskId){
  const list=$('task-history');list.textContent='Carregando histórico…';
  try{
   const result=await api('/api/tasks/'+taskId+'/history'+qs());list.replaceChildren();
+  $('tab-task-history').textContent='Comentários ('+result.history.length+')';
   if(!result.history.length){list.textContent='Ainda não há registros.';return;}
   for(const entry of result.history){
    const item=document.createElement('div');item.className='history-item';

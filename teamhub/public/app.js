@@ -542,9 +542,10 @@ async function redeemInvitation(){
 function setInviteAuthMode(registration=false){
  $('signin-form').hidden=registration;
  $('signup-form').hidden=!registration;
- $('signin-switch-mode').textContent=registration?'Já tenho conta — entrar':'Ainda não tenho conta';
- $('signin-title').textContent=registration?'Criar conta AnnA One':'Acessar AnnA Nexus';
+ $('signin-switch-mode').textContent=registration?'Já tenho conta: entrar':'Primeiro acesso: criar senha';
+ $('signin-title').textContent=registration?'Primeiro acesso — criar senha':'Entrar no AnnA Nexus';
  $('signin-feedback').textContent='';
+ $('signin-recovery').hidden=registration;
  if(registration&&$('signin-email').value.trim())$('signup-email').value=$('signin-email').value.trim();
  if(!registration&&$('signup-email').value.trim())$('signin-email').value=$('signup-email').value.trim();
 }
@@ -553,8 +554,11 @@ function showInviteSignin(messageText=''){
  $('invitation-intro').hidden=!invite;
  $('invitation-change-account').hidden=!invite||!state.subject;
  $('signin-description').textContent=invite
-  ?'Entre ou crie uma conta AnnA One para aceitar seu convite.'
+  ?'Seu link individual foi reconhecido. Crie uma senha para começar ou entre se já possui conta AnnA One.'
   :'Use sua conta do Portal AnnA One para acessar seus projetos.';
+ // Invite links default to registration. Existing account holders may switch
+ // to the normal sign-in form without ever losing the invitation fragment.
+ if(invite&&!state.subject&&!messageText)setInviteAuthMode(true);
  $('signin').hidden=false;
  if(messageText)$('signin-feedback').textContent=messageText;
 }
@@ -576,19 +580,40 @@ $('signup-form').addEventListener('submit',async event=>{
  const button=$('signup-button'),name=$('signup-name').value.trim(),
   email=$('signup-email').value.trim().toLowerCase(),
   password=$('signup-password').value;
+ if(!name){$('signin-feedback').textContent='Informe seu nome.';return;}
  if(password!==$('signup-confirm').value){$('signin-feedback').textContent='As senhas não coincidem.';return;}
  button.disabled=true;
- $('signin-feedback').textContent='Criando conta…';
+ $('signin-feedback').textContent='Criando seu acesso AnnA One…';
  try{
   if(!state.auth)throw Error('Autenticação indisponível.');
+  if(!invitationToken())throw Error('Este link de convite não está disponível. Abra o convite recebido por e-mail.');
   const result=await state.auth.signUp.email({name,email,password});
   if(result?.error)throw result.error;
+  // A normal Neon Auth sign-up can immediately create a session. If it does
+  // not, sign in with the newly chosen password without storing it anywhere.
+  let session=await state.auth.getSession();
+  let account=session?.data?.user||session?.data?.session?.user;
+  if(!account){
+   const signed=await state.auth.signIn.email({email,password});
+   if(signed?.error)throw signed.error;
+   session=await state.auth.getSession();
+   account=session?.data?.user||session?.data?.session?.user;
+  }
   $('signup-password').value='';$('signup-confirm').value='';
-  setInviteAuthMode(false);
-  $('signin-feedback').textContent='Conta cadastrada. Verifique o e-mail recebido e confirme seu endereço; depois entre aqui com a mesma conta. O convite permanece disponível nesta página.';
-  $('signin-email').value=email;
+  if(!account){
+   setInviteAuthMode(false);
+   $('signin-email').value=email;
+   $('signin-feedback').textContent='Sua conta foi criada. Entre com a senha que acabou de definir para concluir o convite.';
+   return;
+  }
+  $('signin-feedback').textContent='Conta criada! Concluindo o aceite do convite…';
+  await boot();
  }catch(error){
-  $('signin-feedback').textContent='Não foi possível criar a conta. O cadastro pode estar indisponível ou o e-mail já pode existir. Se já possui conta, entre ou utilize a recuperação de senha.';
+  const code=String(error?.code||'').toUpperCase(),reason=String(error?.message||'').toLowerCase();
+  const existing=code.includes('EXIST')||reason.includes('already')||reason.includes('exist')||reason.includes('registered');
+  $('signin-feedback').textContent=existing
+   ?'Este e-mail já possui uma conta AnnA One. Escolha “Já tenho conta: entrar”. Se não possui senha, utilize “Recuperar senha”.'
+   :'Não foi possível concluir o cadastro. Confira os dados e tente novamente. Se já possui conta AnnA One, selecione “Já tenho conta: entrar”.';
  }finally{button.disabled=false;}
 });
 

@@ -65,8 +65,8 @@
 <table><thead><tr><th>Instituição</th><th>Situação</th><th>Ação</th></tr></thead><tbody id="institutions-rows"></tbody></table></section>
 <section id="modulos-master"><h2>🧩 Catálogo central de módulos</h2><p>Defina quais módulos estão disponíveis para concessão às escolas. Alterar o estado não concede acesso automaticamente. O Service Desk é gerenciado separadamente.</p><div class="institution-form-card"><h3>Disponibilização por cliente</h3><p class="master-note">Matriz e filiais são clientes independentes. Escolha uma unidade para configurar seus módulos, sem liberar automaticamente as demais.</p><label for="catalog-client-search">Buscar cliente / unidade</label><input id="catalog-client-search" type="search" autocomplete="off" placeholder="Digite o nome da escola, matriz ou filial" style="display:block;width:100%;max-width:560px;padding:10px;margin:8px 0 12px"><label for="catalog-client">Resultados da busca</label><select id="catalog-client" size="6" style="display:block;width:100%;max-width:560px;padding:10px;margin:8px 0 8px"><option value="">Nenhum cliente cadastrado</option></select><p id="catalog-client-count" class="master-note" role="status"></p><p id="catalog-client-status" class="master-note" role="status">Selecione um cliente para gerenciar os módulos.</p><div id="catalog-client-modules" style="display:grid;gap:10px"></div>
 <div id="nexus-master-box" class="institution-form-card" style="margin-top:15px">
- <h3>AnnA Nexus — organização e administrador</h3>
- <p class="master-note">O Master controla a habilitação do Nexus para cada cliente. Crie ou associe uma organização Nexus apenas após habilitar o módulo acima; matriz e filial permanecem separadas.</p>
+ <h3>AnnA Nexus — organização e administrador <small style="color:#a66a08;font-size:11px">AMBIENTE DEV</small></h3>
+ <p class="master-note">O Master controla a habilitação do Nexus para cada cliente. Nesta fase, as organizações são criadas no banco de desenvolvimento do Nexus, sem migração automática para produção. Matriz e filial permanecem separadas.</p>
  <p id="nexus-master-status" class="master-note" role="status" aria-live="polite">Selecione um cliente acima para configurar o Nexus.</p>
  <label for="nexus-existing-org">Organização Nexus para vincular (somente ao ativar pela primeira vez)</label>
  <select id="nexus-existing-org" style="display:block;width:100%;max-width:590px;padding:10px;margin:8px 0 12px"><option value="">Criar uma nova organização isolada</option></select>
@@ -329,7 +329,7 @@ async function refreshNexusClient(){
   nexusOrgs=orgs.organizations||[];
   nexusSelected=nexusOrgs.find(o=>o.master_institution_id===id)||null;
   const mod=(modules.modules||[]).find(m=>m.code==='nexus');
-  nexusEnabled=!!(mod?.enabled&&mod?.status==='available'&&mod?.parent_allowed&&modules.institution?.status==='active');
+  nexusEnabled=!!(mod?.enabled&&mod?.status==='available'&&mod?.parent_allowed!==false&&modules.institution?.status==='active');
   const available=nexusOrgs.filter(o=>!o.master_institution_id);
   for(const org of available){
    const option=document.createElement('option');option.value=org.id;

@@ -131,6 +131,35 @@ function emailTransportConfigured(){
   typeof process.env.NEXUS_EMAIL_FROM==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(process.env.NEXUS_EMAIL_FROM);
 }
 
+const MASTER_WORKER_URL='https://anna-one-auditoria.elisonborg.workers.dev';
+async function masterWorker(req,endpoint){
+ const bearer=req.headers.authorization||'';
+ if(!/^Bearer\\s+\\S+$/i.test(bearer))bad('Sessão Master ausente.',401);
+ let response;
+ try{
+  response=await fetch(MASTER_WORKER_URL+endpoint,{
+   headers:{Authorization:bearer,Accept:'application/json'},
+   signal:AbortSignal.timeout(8000),cache:'no-store'
+  });
+ }catch{bad('Não foi possível validar o Master do Portal AnnA One.',503);}
+ if(!response.ok)bad('Acesso Master não autorizado no Portal AnnA One.',403);
+ return response.json().catch(()=>bad('Resposta inválida do Portal AnnA One.',502));
+}
+async function requireMaster(req){
+ const permission=await masterWorker(req,'/v1/admin/authorize');
+ if(permission?.authenticated!==true||permission?.admin_authorized!==true)
+  bad('Esta operação exige permissão Master do Portal AnnA One.',403);
+}
+async function masterInstitution(req,id){
+ if(!validId(id))bad('Cliente inválido.');
+ const data=await masterWorker(req,'/v1/admin/institutions/'+encodeURIComponent(id)+'/modules');
+ if(!data?.institution||!Array.isArray(data.modules)||data.institution.id!==id)
+  bad('Cadastro do cliente não confirmado pelo Master.',502);
+ const entry=data.modules.find(x=>x.code==='nexus');
+ if(!entry)bad('O módulo Nexus ainda não foi cadastrado no catálogo do Master.',409);
+ return {institution:data.institution,entry,
+  enabled:data.institution.status==='active'&&entry.status==='available'&&entry.parent_allowed===true&&entry.enabled===true};
+}
 const NEXUS_INVITE_URL='https://anna-nexus-dev.onrender.com/';
 const escapeEmailHtml=value=>String(value??'').replace(/[&<>"']/g,char=>({
  '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -377,8 +406,23 @@ async function runScheduledDeadlines(){
 }
 
 const route=async(req,res)=>{
- if(req.method==='OPTIONS'){res.writeHead(405);return res.end();}
  const url=new URL(req.url,'http://localhost'); const p=url.pathname;
+ const masterRoute=p.startsWith('/api/master/');
+ const origin=req.headers.origin||'';
+ if(masterRoute&&origin==='https://annaone.com.br'){
+  res.setHeader('Access-Control-Allow-Origin','https://annaone.com.br');
+  res.setHeader('Vary','Origin');
+  res.setHeader('Access-Control-Allow-Headers','Authorization, Content-Type');
+  res.setHeader('Access-Control-Allow-Methods','GET, POST, OPTIONS');
+ }
+ if(req.method==='OPTIONS'){
+  if(masterRoute&&origin==='https://annaone.com.br'){
+   res.writeHead(204);return res.end();
+  }
+  res.writeHead(405);return res.end();
+ }
+ if(masterRoute&&origin&&origin!=='https://annaone.com.br'&&origin!=='https://anna-nexus-dev.onrender.com')
+  bad('Origem administrativa não autorizada.',403);
  if(p==='/health')return reply(res,200,{ok:true,service:'anna-nexus'});
  if(!p.startsWith('/api/')){
   if(req.method!=='GET')return reply(res,405,{error:'Método não permitido'});
@@ -404,6 +448,89 @@ const route=async(req,res)=>{
    organization:rows[0].display_name||rows[0].name});
  }
  const subject=await user(req);
+ if(p==='/api/master/organizations'&&req.method==='GET'){
+  await requireMaster(req);
+  const rows=await sql`SELECT o.id,o.name,o.slug,o.master_institution_id,
+    o.module_enabled,COUNT(m.auth_subject)::int AS members
+    FROM teamhub.organizations o LEFT JOIN teamhub.memberships m
+    ON m.organization_id=o.id AND m.active=true
+    GROUP BY o.id ORDER BY o.name LIMIT 200`;
+  return reply(res,200,{organizations:rows});
+ }
+ const masterSync=/^\\/api\\/master\\/institutions\\/([0-9a-f-]+)\\/sync$/.exec(p);
+ if(masterSync&&req.method==='POST'){
+  await requireMaster(req);
+  const {institution,enabled}=await masterInstitution(req,masterSync[1]);
+  const b=await json(req);
+  const linkOrg=b.link_org_id||null;
+  if(linkOrg!==null&&!validId(linkOrg))bad('Organização selecionada inválida.');
+  const matching=await sql`SELECT id,master_institution_id FROM teamhub.organizations
+   WHERE master_institution_id=${masterSync[1]}::uuid`;
+  let org;
+  if(matching.length){
+   if(linkOrg&&linkOrg!==matching[0].id)bad('Este cliente já possui organização vinculada.',409);
+   const rows=await sql`UPDATE teamhub.organizations SET module_enabled=${enabled}
+    WHERE id=${matching[0].id} RETURNING id,name,module_enabled,master_institution_id`;
+   org=rows[0];
+  }else if(linkOrg){
+   const rows=await sql`UPDATE teamhub.organizations SET
+    master_institution_id=${masterSync[1]}::uuid,module_enabled=${enabled}
+    WHERE id=${linkOrg} AND master_institution_id IS NULL
+    RETURNING id,name,module_enabled,master_institution_id`;
+   if(!rows.length)bad('Organização já vinculada ou inexistente. Nenhuma alteração realizada.',409);
+   org=rows[0];
+  }else if(enabled){
+   const name=String(institution.name||'').trim();
+   if(name.length<2||name.length>160)bad('Nome de cliente inválido no Master.',409);
+   const slug='master-'+masterSync[1];
+   const rows=await sql`INSERT INTO teamhub.organizations(name,slug,master_institution_id,module_enabled)
+    VALUES(${name},${slug},${masterSync[1]}::uuid,true)
+    RETURNING id,name,module_enabled,master_institution_id`;
+   org=rows[0];
+  }else bad('Habilite o módulo AnnA Nexus no catálogo do Master antes de criar uma organização.',409);
+  await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action)
+   VALUES(${org.id},${subject},'master.organization.synced')`;
+  return reply(res,200,{organization:org,module_enabled:enabled,created:!matching.length&&!linkOrg});
+ }
+ const masterInvite=/^\\/api\\/master\\/institutions\\/([0-9a-f-]+)\\/invite-admin$/.exec(p);
+ if(masterInvite&&req.method==='POST'){
+  await requireMaster(req);
+  const {enabled}=await masterInstitution(req,masterInvite[1]);
+  if(!enabled)bad('Habilite o Nexus para esta instituição no catálogo do Master.',409);
+  const rows=await sql`SELECT id,name,display_name,logo_url FROM teamhub.organizations
+   WHERE master_institution_id=${masterInvite[1]}::uuid AND module_enabled=true`;
+  if(!rows.length)bad('Sincronize a organização do cliente antes de convidar o administrador.',409);
+  const org=rows[0],b=await json(req),email=typeof b.email==='string'?b.email.trim().toLowerCase():'';
+  if(email.length>254||!/^\\S+@[^\\s@]+\\.[^\\s@]+$/.test(email))bad('E-mail inválido.');
+  const duplicate=await sql`SELECT 1 FROM teamhub.member_profiles p
+   JOIN teamhub.memberships m ON m.auth_subject=p.auth_subject
+   WHERE m.organization_id=${org.id} AND m.active=true
+    AND lower(p.email)=${email}`;
+  if(duplicate.length)bad('Esta pessoa já pertence à organização. Gerencie seu perfil no Nexus.',409);
+  const token=randomBytes(32).toString('hex');
+  const hash=createHash('sha256').update(token).digest('hex');
+  let invitation;
+  try{
+   const inserted=await sql`INSERT INTO teamhub.invitations
+    (organization_id,email,role,token_hash,invited_by_subject,expires_at)
+    VALUES(${org.id},${email},'admin',${hash},${subject},now()+interval '7 days')
+    RETURNING id,email,role,expires_at`;
+   invitation=inserted[0];
+  }catch(e){
+   if(e?.code==='23505'||String(e.message||'').includes('invitations_one_pending'))
+    bad('Este destinatário já possui um convite pendente. Não foi enviado outro.',409);
+   throw e;
+  }
+  const inviteUrl=NEXUS_INVITE_URL+'#invite='+token;
+  const sending=await dispatchInvitationEmail({
+   invitationId:invitation.id,email,role:'admin',inviteUrl,
+   organizationName:org.display_name||org.name,logoUrl:org.logo_url||''
+  });
+  await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action)
+    VALUES(${org.id},${subject},'master.admin.invited')`;
+  return reply(res,201,{invitation:{id:invitation.id,email,expires_at:invitation.expires_at},
+   email_status:sending.email_status,invite_url:inviteUrl});
+ }
  if(p==='/api/profile/self'&&req.method==='PUT'){
   const b=await json(req);
   const name=typeof b.display_name==='string'?b.display_name.trim().replace(/\\s+/g,' '):'';

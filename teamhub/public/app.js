@@ -2,6 +2,26 @@ const $=id=>document.getElementById(id);
 const AUTH='https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech/neondb/auth';
 const state={jwt:null,org:null,role:null,projects:[],tasks:[],project:null,view:'overview',subject:null,auth:null,members:[],organizations:[],inviteOrg:null};
 const invitationToken=()=>/^#invite=([a-f0-9]{64})$/i.exec(location.hash)?.[1]?.toLowerCase()||null;
+async function loadInvitationPreview(){
+ const token=invitationToken();if(!token)return;
+ const response=await fetch('/api/invitations/preview',{
+  method:'POST',headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({token}),cache:'no-store'
+ });
+ const info=await response.json().catch(()=>({}));
+ if(!response.ok)throw Error(info.error||'Não foi possível validar o convite.');
+ // Only a server-validated, pending invitation can prefill the email field.
+ const email=String(info.email||'').trim().toLowerCase();
+ if(!email)throw Error('Convite sem e-mail de destinatário.');
+ $('signup-email').value=email;$('signup-email').readOnly=true;
+ $('signin-email').value=email;
+ const roles={admin:'Administrador',manager:'Gestor',member:'Membro',guest:'Convidado'};
+ const intro=$('invitation-intro').querySelector('p');
+ intro.textContent='Organização: '+String(info.organization||'AnnA One')+
+  ' · Perfil: '+(roles[info.role]||'Colaborador')+
+  '. Se este é seu primeiro acesso, crie uma senha para entrar. Seu e-mail já está preenchido.';
+}
+
 const canManageUI=p=>state.role==='admin'||(state.role==='manager'&&!!p&&p.manager_subject===state.subject);
 const assignedUI=t=>!!t&&(t.assignee_subject===state.subject||(Array.isArray(t.assignees)&&t.assignees.includes(state.subject)));
 const canExecuteUI=t=>canManageUI(state.project)||(['member','manager'].includes(state.role)&&assignedUI(t));
@@ -581,6 +601,7 @@ $('signup-form').addEventListener('submit',async event=>{
   email=$('signup-email').value.trim().toLowerCase(),
   password=$('signup-password').value;
  if(!name){$('signin-feedback').textContent='Informe seu nome.';return;}
+ if($('signup-email').readOnly&&!email){$('signin-feedback').textContent='Não foi possível identificar o destinatário do convite.';return;}
  if(password!==$('signup-confirm').value){$('signin-feedback').textContent='As senhas não coincidem.';return;}
  button.disabled=true;
  $('signin-feedback').textContent='Criando seu acesso AnnA One…';
@@ -1749,7 +1770,16 @@ async function boot(){
    state.subject=null;state.jwt=null;
    $('account').textContent='Não conectado';
    showInviteSignin();
-   message(invitationToken()?'Convite encontrado. Entre ou crie sua conta para continuar.':'Entre com sua conta existente do Portal AnnA One.');
+   if(invitationToken()){
+    try{await loadInvitationPreview();message('Convite válido. Crie sua senha para entrar e aceitar o convite.');}
+    catch(error){
+     $('signup-form').hidden=true;
+     $('signin-form').hidden=true;
+     $('signin-switch-mode').hidden=true;
+     $('signin-feedback').textContent=error.message||'Convite indisponível.';
+     message('Não foi possível validar o convite.',true);
+    }
+   }else message('Entre com sua conta existente do Portal AnnA One.');
    return;
   }
   $('signin').hidden=true;

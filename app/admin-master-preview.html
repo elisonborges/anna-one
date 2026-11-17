@@ -402,6 +402,14 @@ catalogClient.addEventListener('change',async()=>{
      const jwt=await obtainJwt(),r=await fetch(worker+'/v1/admin/institutions/'+encodeURIComponent(id)+'/modules',{method:'PUT',headers:{Authorization:'Bearer '+jwt,'Content-Type':'application/json'},body:JSON.stringify({module_id:module.id,enabled:desired})});
      const result=await r.json();if(!r.ok)throw Error(result?.error||'HTTP '+r.status);
      catalogClientStatus.textContent='Permissão salva para '+data.institution.name+'.';
+     if(module.code==='nexus'){
+      try{
+       if(nexusSelected)await nexusRequest('/api/master/institutions/'+encodeURIComponent(id)+'/sync','POST',{});
+       await refreshNexusClient();
+      }catch(syncError){
+       catalogClientStatus.textContent='Permissão salva no Master, mas Nexus ainda precisa sincronizar: '+syncError.message;
+      }
+     }
     }catch(error){check.checked=!desired;catalogClientStatus.textContent='Falha ao salvar: '+(error?.message||'Erro de conexão');}
     finally{check.disabled=module.status!=='available'||data.institution.status!=='active'||!module.parent_allowed||module.code==='service-desk';}
    });

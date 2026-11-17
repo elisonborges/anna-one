@@ -1034,3 +1034,9 @@ body[data-nexus-role="manager"] .bottom{grid-template-columns:repeat(5,minmax(0,
 .invite-delivery-status[data-delivery="sent"]{border-left:4px solid #18865d}
 .invite-delivery-status[data-delivery="failed"]{border-left:4px solid #b04435}
 .invite-delivery-status[data-delivery="not_configured"]{border-left:4px solid #b17d30}
+
+/* v0.1.43 — convite com definição direta de senha */
+#signup-form[hidden],#signin-form[hidden],#signin-switch-mode[hidden],
+#invitation-intro[hidden],#invitation-change-account[hidden],#signin-recovery[hidden]{display:none!important}
+#signup-email[readonly]{background:var(--surface-secondary,#f0f5fb);cursor:default;opacity:.9}
+.invitation-intro p{line-height:1.65}

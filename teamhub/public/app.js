@@ -423,9 +423,13 @@ function renderProjects(){
 }
 function memberName(subject){
  if(!subject)return 'Sem responsável';
- if(subject===state.subject)return 'Você';
- const index=state.members.findIndex(m=>m.auth_subject===subject);
- return index<0?'Integrante inativo':'Integrante '+(index+1);
+ const member=state.members.find(m=>m.auth_subject===subject);
+ const name=String(member?.display_name||'').trim();
+ const email=String(member?.email||'').trim();
+ if(name)return name;
+ if(email)return email;
+ if(subject===state.subject)return String(state.accountName||'').trim()||'Minha conta';
+ return 'Identificação pendente';
 }
 async function loadMembers(){
  const data=await api('/api/members'+qs());state.members=data.members;
@@ -485,7 +489,11 @@ async function loadMembers(){
    if(m.auth_subject===state.subject)toggle.disabled=true;
    controls.append(select,toggle);action=controls;
   }
-  return [memberName(m.auth_subject),roleNames[m.role]||m.role,m.active?'Ativo':'Desativado',action];
+  const identity=document.createElement('div');
+  const name=document.createElement('strong');name.textContent=memberName(m.auth_subject);
+  identity.append(name);
+  if(m.email){const address=document.createElement('small');address.textContent=m.email;address.style.display='block';identity.append(address);}
+  return [identity,roleNames[m.role]||m.role,m.active?'Ativo':'Desativado',action];
  });
  renderTable('members-list',['Integrante','Perfil','Situação','Gerenciar'],rows);
 }
@@ -1783,7 +1791,7 @@ async function boot(){
    return;
   }
   $('signin').hidden=true;
-  state.subject=String(account.id||'');$('account').textContent=account.email||'Conta AnnA One';
+  state.subject=String(account.id||'');state.accountName=String(account.name||'').trim();$('account').textContent=account.name||account.email||'Conta AnnA One';
   let token=session?.data?.session?.access_token;
   if(typeof token!=='string'||token.split('.').length!==3){
    const r=await fetch(AUTH+'/token',{credentials:'include',cache:'no-store'});
@@ -1792,6 +1800,9 @@ async function boot(){
   if(typeof token!=='string'||token.split('.').length!==3)
    throw Error('Não foi possível obter token de acesso validável. Confira a configuração central de identidade.');
   state.jwt=token;
+  try{
+   await api('/api/profile/self',{method:'PUT',body:JSON.stringify({display_name:state.accountName})});
+  }catch(e){console.warn('Não foi possível sincronizar o perfil da conta:',e.message);}
   let inviteAccepted=false;
   if(invitationToken()){
    try{await redeemInvitation();inviteAccepted=true}

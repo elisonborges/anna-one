@@ -311,3 +311,13 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Reenvio de convite pendente (apenas Administrador) emite **novo link**, invalida o anterior e renova o prazo para sete dias; exige ao menos 60 segundos desde a tentativa anterior, com no máximo cinco tentativas, e usa chave de idempotência exclusiva por tentativa. Em caso de falha, mantém o link novo à disposição do Administrador.
 - O painel Equipe mostra disponibilidade do Resend, resultado da última tentativa e opção de reenvio; o Histórico de convites diferencia aceito pelo provedor, falha, envio não configurado e link manual.
 - Os envios reais requerem credenciais de remetente verificadas e um teste autorizado com endereço de destinatário. Nenhum convite é criado durante testes estáticos, e o Portal AnnA One e a base de produção não são alterados.
+
+## AnnA Nexus v0.1.43 — Primeiro acesso do convite com criação de senha
+- Convite recebido por e-mail: o Nexus abre por padrão **Primeiro acesso — criar senha**, com Nome, E-mail do convite preenchido pelo servidor e bloqueado para edição, Senha e Confirmar senha. Quem já possui uma conta AnnA One pode escolher Entrar.
+- Um novo endpoint público `POST /api/invitations/preview` valida status e prazo do convite mediante seu token aleatório de 256 bits enviado somente no corpo da requisição. Ele revela apenas o e-mail, perfil e nome da organização ao portador do link. Não consome o convite nem altera a organização.
+- O cadastro utiliza a **mesma identidade central Neon Auth** (`signUp.email`). O Nexus inicia a sessão nova ou autentica com a senha recém-criada e só então consome o convite no backend e apresenta os projetos autorizados.
+- O Neon Auth da conta central está configurado com `allow_sign_up=true`, `verify_email_on_sign_up=false` e `require_email_verification=false` (constatação em 17/11/2026). O backend passa a aceitar o token individual de convite como comprovação específica de posse do endereço de e-mail, **somente** na operação de aceite, ainda exigindo JWT válido e igualdade do e-mail autenticado com o destinatário. Permissões de acesso não são ampliadas.
+- Convite cancelado, vencido ou já utilizado não permite o primeiro cadastro por esse fluxo. O link é preservado até o aceite ser confirmado.
+- A opção de recuperação de senha do Portal permanece apenas para quem **já tem conta**; não é necessária para o primeiro cadastro.
+- Alterações somente em `teamhub`, branch DEV, sem mudanças na configuração compartilhada do Neon Auth, no Portal de produção ou no banco de produção.
+- Teste end-to-end com conta convidada e navegador continua necessário para validar o cadastro e a sessão real.

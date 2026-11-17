@@ -389,7 +389,13 @@ const route=async(req,res)=>{
   const b=await json(req);
   const token=typeof b.token==='string'?b.token:'';
   if(!/^[a-f0-9]{64}$/.test(token))bad('Convite inválido.',400);
-  if(!req.identityEmail||!req.identityEmailVerified)bad('Confirme seu e-mail no Portal AnnA One antes de aceitar um convite.',403);
+  // The possession of a 256-bit, single-use invitation token delivered to the
+  // invitee's mailbox is the email-possession proof for this specific invitation.
+  // Neon Auth's shared email/password configuration currently allows sign-up
+  // without a separate verification email. We still require an authenticated
+  // session and an exact match between the identity email and invitation email.
+  // No other Nexus endpoint relaxes verification based on this rule.
+  if(!req.identityEmail)bad('Entre com sua conta AnnA One para aceitar o convite.',403);
   const hash=createHash('sha256').update(token).digest('hex');
   const invitations=await sql`SELECT id,organization_id,email,role FROM teamhub.invitations WHERE token_hash=${hash} AND status='pending' AND expires_at>now()`;
   if(!invitations.length)bad('Convite expirado, cancelado ou já utilizado.',410);

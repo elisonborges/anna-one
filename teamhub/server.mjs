@@ -153,12 +153,12 @@ async function requireMaster(req){
 async function masterInstitution(req,id){
  if(!validId(id))bad('Cliente inválido.');
  const data=await masterWorker(req,'/v1/admin/institutions/'+encodeURIComponent(id)+'/modules');
- if(!data?.institution||!Array.isArray(data.modules)||data.institution.id!==id)
+ if(!data?.institution||!Array.isArray(data.modules)||(data.institution.id&&data.institution.id!==id))
   bad('Cadastro do cliente não confirmado pelo Master.',502);
  const entry=data.modules.find(x=>x.code==='nexus');
  if(!entry)bad('O módulo Nexus ainda não foi cadastrado no catálogo do Master.',409);
  return {institution:data.institution,entry,
-  enabled:data.institution.status==='active'&&entry.status==='available'&&entry.parent_allowed===true&&entry.enabled===true};
+  enabled:data.institution.status==='active'&&entry.status==='available'&&entry.parent_allowed!==false&&entry.enabled===true};
 }
 const NEXUS_INVITE_URL='https://anna-nexus-dev.onrender.com/';
 const escapeEmailHtml=value=>String(value??'').replace(/[&<>"']/g,char=>({

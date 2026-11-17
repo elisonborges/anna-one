@@ -54,7 +54,10 @@ async function user(req){
  }catch(e){if(e.status)throw e;console.warn('Nexus auth verification failed:',String(e?.code||e?.name||'unknown'));bad('Sessão inválida ou expirada.',401);}
 }
 async function membership(subject,org){
- const r=await sql`SELECT role FROM teamhub.memberships WHERE auth_subject=${subject} AND organization_id=${org} AND active=true`;
+ const r=await sql`SELECT m.role FROM teamhub.memberships m
+ JOIN teamhub.organizations o ON o.id=m.organization_id
+ WHERE m.auth_subject=${subject} AND m.organization_id=${org}
+ AND m.active=true AND o.module_enabled=true`;
  if(!r.length)bad('Acesso à organização negado.',403);return r[0].role;
 }
 function requireEditor(role){if(!['admin','manager','member'].includes(role))bad('Operação não autorizada.',403);}
@@ -401,6 +404,19 @@ const route=async(req,res)=>{
    organization:rows[0].display_name||rows[0].name});
  }
  const subject=await user(req);
+ if(p==='/api/profile/self'&&req.method==='PUT'){
+  const b=await json(req);
+  const name=typeof b.display_name==='string'?b.display_name.trim().replace(/\\s+/g,' '):'';
+  if(name.length>160)bad('Nome muito longo.');
+  const email=req.identityEmail||'';
+  await sql`INSERT INTO teamhub.member_profiles(auth_subject,display_name,email,updated_at)
+   VALUES(${subject},${name},${email},now())
+   ON CONFLICT(auth_subject) DO UPDATE SET
+     display_name=CASE WHEN EXCLUDED.display_name<>'' THEN EXCLUDED.display_name
+       ELSE teamhub.member_profiles.display_name END,
+     email=EXCLUDED.email,updated_at=now()`;
+  return reply(res,200,{ok:true});
+ }
  if(p==='/api/invitations/accept'&&req.method==='POST'){
   const b=await json(req);
   const token=typeof b.token==='string'?b.token:'';
@@ -417,6 +433,8 @@ const route=async(req,res)=>{
   if(!invitations.length)bad('Convite expirado, cancelado ou já utilizado.',410);
   const invitation=invitations[0];
   if(invitation.email!==req.identityEmail)bad('Este convite foi emitido para outro e-mail. Entre com a conta convidada do Portal AnnA One.',403);
+  const [orgEnabled]=await sql`SELECT module_enabled FROM teamhub.organizations WHERE id=${invitation.organization_id}`;
+  if(!orgEnabled?.module_enabled)bad('Módulo Nexus desabilitado para esta organização.',403);
   const alreadyMember=await sql`SELECT 1 FROM teamhub.memberships WHERE organization_id=${invitation.organization_id} AND auth_subject=${subject}`;
   if(alreadyMember.length)bad('Esta conta já pertence à organização. Peça ao administrador para ajustar o perfil ou reativar o acesso.',409);
   const linked=await sql`WITH claimed AS (
@@ -435,7 +453,7 @@ const route=async(req,res)=>{
   return reply(res,200,{accepted:true,organization_id:invitation.organization_id});
  }
  if(p==='/api/me'&&req.method==='GET'){
-  const orgs=await sql`SELECT o.id,o.name,o.display_name,o.logo_url,m.role FROM teamhub.memberships m JOIN teamhub.organizations o ON o.id=m.organization_id WHERE m.auth_subject=${subject} AND m.active=true ORDER BY o.name`;
+  const orgs=await sql`SELECT o.id,o.name,o.display_name,o.logo_url,m.role FROM teamhub.memberships m JOIN teamhub.organizations o ON o.id=m.organization_id WHERE m.auth_subject=${subject} AND m.active=true AND o.module_enabled=true ORDER BY o.name`;
   return reply(res,200,{organizations:orgs});
  }
  const org=url.searchParams.get('org')||req.headers['x-organization-id'];
@@ -677,7 +695,13 @@ const route=async(req,res)=>{
   return reply(res,200,{ok:true});
  }
  if(p==='/api/members'&&req.method==='GET'){
-  const members=await sql`SELECT auth_subject,role,active FROM teamhub.memberships WHERE organization_id=${org} ORDER BY CASE role WHEN 'admin' THEN 0 WHEN 'manager' THEN 1 ELSE 2 END,auth_subject`;
+  const members=await sql`SELECT m.auth_subject,m.role,m.active,
+  COALESCE(NULLIF(p.display_name,''),'') AS display_name,
+  COALESCE(p.email,'') AS email
+  FROM teamhub.memberships m LEFT JOIN teamhub.member_profiles p
+  ON p.auth_subject=m.auth_subject
+  WHERE m.organization_id=${org}
+  ORDER BY CASE m.role WHEN 'admin' THEN 0 WHEN 'manager' THEN 1 ELSE 2 END,m.auth_subject`;
   return reply(res,200,{members,viewer:subject,role});
  }
  if(p==='/api/my-tasks'&&req.method==='GET'){

@@ -384,6 +384,22 @@ const route=async(req,res)=>{
   const data=await readFile(path.join(dir,'public',file));
   res.writeHead(200,{'Content-Type':file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':file.endsWith('.webmanifest')?'application/manifest+json':file.endsWith('.svg')?'image/svg+xml':'text/html; charset=utf-8','X-Content-Type-Options':'nosniff','Cache-Control':'no-store','Content-Security-Policy':"default-src 'self'; script-src 'self' https://esm.sh; connect-src 'self' https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon.tech; style-src 'self'; img-src 'self' data: https:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"});return res.end(data);
  }
+ // Public invitation preview: the random 256-bit token is itself the secret.
+ // It is received in a POST body (never query params or server request logs).
+ // No identity or membership information is returned beyond this invitation.
+ if(p==='/api/invitations/preview'&&req.method==='POST'){
+  const b=await json(req);
+  const token=typeof b.token==='string'?b.token.toLowerCase():'';
+  if(!/^[a-f0-9]{64}$/.test(token))bad('Link de convite inválido.',400);
+  const hash=createHash('sha256').update(token).digest('hex');
+  const rows=await sql`SELECT i.email,i.role,o.display_name,o.name
+   FROM teamhub.invitations i JOIN teamhub.organizations o ON o.id=i.organization_id
+   WHERE i.token_hash=${hash} AND i.status='pending' AND i.expires_at>now()
+   LIMIT 1`;
+  if(!rows.length)bad('Este convite expirou, foi cancelado ou já foi utilizado. Solicite um novo convite.',410);
+  return reply(res,200,{email:rows[0].email,role:rows[0].role,
+   organization:rows[0].display_name||rows[0].name});
+ }
  const subject=await user(req);
  if(p==='/api/invitations/accept'&&req.method==='POST'){
   const b=await json(req);

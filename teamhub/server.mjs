@@ -134,7 +134,7 @@ function emailTransportConfigured(){
 const MASTER_WORKER_URL='https://anna-one-auditoria.elisonborg.workers.dev';
 async function masterWorker(req,endpoint){
  const bearer=req.headers.authorization||'';
- if(!/^Bearer\\s+\\S+$/i.test(bearer))bad('Sessão Master ausente.',401);
+ if(!/^Bearer\s+\S+$/i.test(bearer))bad('Sessão Master ausente.',401);
  let response;
  try{
   response=await fetch(MASTER_WORKER_URL+endpoint,{
@@ -457,7 +457,7 @@ const route=async(req,res)=>{
     GROUP BY o.id ORDER BY o.name LIMIT 200`;
   return reply(res,200,{organizations:rows});
  }
- const masterSync=/^\\/api\\/master\\/institutions\\/([0-9a-f-]+)\\/sync$/.exec(p);
+ const masterSync=/^\/api\/master\/institutions\/([0-9a-f-]+)\/sync$/.exec(p);
  if(masterSync&&req.method==='POST'){
   await requireMaster(req);
   const {institution,enabled}=await masterInstitution(req,masterSync[1]);
@@ -492,7 +492,7 @@ const route=async(req,res)=>{
    VALUES(${org.id},${subject},'master.organization.synced')`;
   return reply(res,200,{organization:org,module_enabled:enabled,created:!matching.length&&!linkOrg});
  }
- const masterInvite=/^\\/api\\/master\\/institutions\\/([0-9a-f-]+)\\/invite-admin$/.exec(p);
+ const masterInvite=/^\/api\/master\/institutions\/([0-9a-f-]+)\/invite-admin$/.exec(p);
  if(masterInvite&&req.method==='POST'){
   await requireMaster(req);
   const {enabled}=await masterInstitution(req,masterInvite[1]);
@@ -501,7 +501,7 @@ const route=async(req,res)=>{
    WHERE master_institution_id=${masterInvite[1]}::uuid AND module_enabled=true`;
   if(!rows.length)bad('Sincronize a organização do cliente antes de convidar o administrador.',409);
   const org=rows[0],b=await json(req),email=typeof b.email==='string'?b.email.trim().toLowerCase():'';
-  if(email.length>254||!/^\\S+@[^\\s@]+\\.[^\\s@]+$/.test(email))bad('E-mail inválido.');
+  if(email.length>254||!/^\S+@[^\s@]+\.[^\s@]+$/.test(email))bad('E-mail inválido.');
   const duplicate=await sql`SELECT 1 FROM teamhub.member_profiles p
    JOIN teamhub.memberships m ON m.auth_subject=p.auth_subject
    WHERE m.organization_id=${org.id} AND m.active=true
@@ -533,7 +533,7 @@ const route=async(req,res)=>{
  }
  if(p==='/api/profile/self'&&req.method==='PUT'){
   const b=await json(req);
-  const name=typeof b.display_name==='string'?b.display_name.trim().replace(/\\s+/g,' '):'';
+  const name=typeof b.display_name==='string'?b.display_name.trim().replace(/\s+/g,' '):'';
   if(name.length>160)bad('Nome muito longo.');
   const email=req.identityEmail||'';
   await sql`INSERT INTO teamhub.member_profiles(auth_subject,display_name,email,updated_at)

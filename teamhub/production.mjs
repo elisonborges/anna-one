@@ -159,5 +159,17 @@ export async function handleProduction(c){
    organizationName:(orgData[0]?.name||'AnnA One')+' · '+card.name,logoUrl:orgData[0]?.logo_url||''});
   reply(res,201,{assignment:'invited',email_status:result.email_status,invite_url:link});return true;
  }
+ if(req.method==='POST'&&action==='remove'){
+  if(!manager)fail('Somente gestor remove atribuições.',403);
+  const b=await json(req),worker=String(b.subject||'');
+  if(worker===subject)fail('Não é permitido remover o próprio acesso por esta tela.',409);
+  const removed=await sql`DELETE FROM teamhub.production_assignments
+   WHERE organization_id=${org} AND project_id=${id} AND auth_subject=${worker} RETURNING auth_subject`;
+  if(!removed.length)fail('Atribuição não encontrada.',404);
+  await sql`DELETE FROM teamhub.project_members WHERE organization_id=${org} AND project_id=${id} AND auth_subject=${worker}`;
+  await sql`INSERT INTO teamhub.production_audit(organization_id,project_id,actor_subject,action,details)
+    VALUES(${org},${id},${subject},'member.removed',${JSON.stringify({worker})}::jsonb)`;
+  reply(res,200,{removed:true});return true;
+ }
  fail('Operação inválida.',404);
 }

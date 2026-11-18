@@ -4,7 +4,7 @@ const amount=(x,z=false)=>{if(typeof x!=='number'||!Number.isFinite(x)||x<0||(!z
 const day=x=>{if(typeof x!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(x)||!Number.isFinite(Date.parse(x)))fail('Data inválida.');return x};
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export async function handleProduction(c){
- const {req,res,p,org,subject,role,sql,reply,json,canManageProject,notifyMembers,dispatchInvitationEmail,sendEmail,NEXUS_INVITE_URL}=c;
+ const {req,res,p,org,subject,role,sql,reply,json,canManageProject,notifyDirectCardAssignment,dispatchInvitationEmail,sendEmail,NEXUS_INVITE_URL}=c;
  const m=/^\/api\/production\/([0-9a-f-]+)(?:\/(.*))?$/.exec(p);
  if(p!=='/api/production'&&!m)return false;
  if(p==='/api/production'){
@@ -155,7 +155,7 @@ export async function handleProduction(c){
    if(!inserted.length)fail('Funcionário já atribuído.',409);
    await sql`INSERT INTO teamhub.project_members(organization_id,project_id,auth_subject,added_by_subject)
     VALUES(${org},${id},${worker},${subject}) ON CONFLICT DO NOTHING`;
-   await notifyMembers(org,subject,[worker],'project.assigned','Novo card atribuído',card.name,id);
+   await notifyDirectCardAssignment(org,subject,worker,id,card.name);
    const notice=await sql`INSERT INTO teamhub.card_email_notices(organization_id,project_id,recipient_subject,recipient_email)
     VALUES(${org},${id},${worker},${email}) ON CONFLICT DO NOTHING RETURNING id`;
    let emailStatus='previously_notified';

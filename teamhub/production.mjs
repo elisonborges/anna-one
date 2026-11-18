@@ -115,6 +115,16 @@ export async function handleProduction(c){
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254||!['operator','inspector','viewer'].includes(productionRole))fail('Destinatário ou função inválida.');
   const individual=b.individual_target==null?null:amount(b.individual_target,true);
   if(individual!==null&&card.goal_mode!=='individual')fail('Card com meta coletiva.');
+  if(card.goal_mode==='individual'){
+   if(individual===null)fail('Informe a meta individual para este funcionário.');
+   const assigned=await sql`SELECT COALESCE(SUM(individual_target),0) AS allocated
+    FROM teamhub.production_assignments WHERE organization_id=${org} AND project_id=${id}`;
+   const reserved=await sql`SELECT COALESCE(SUM(individual_target),0) AS allocated
+    FROM teamhub.invitations WHERE organization_id=${org} AND project_id=${id}
+      AND status='pending' AND expires_at>now()`;
+   if(Number(assigned[0].allocated)+Number(reserved[0].allocated)+individual>Number(card.target)+0.0001)
+    fail('A soma das metas individuais ultrapassaria a meta geral.',409);
+  }
   const persons=await sql`SELECT m.auth_subject,m.active FROM teamhub.memberships m JOIN teamhub.member_profiles pr
    ON pr.auth_subject=m.auth_subject WHERE m.organization_id=${org} AND lower(pr.email)=${email} LIMIT 1`;
   if(persons.length){
@@ -141,8 +151,8 @@ export async function handleProduction(c){
   const pending=await sql`SELECT id FROM teamhub.invitations WHERE organization_id=${org} AND email=${email} AND status='pending' AND expires_at>now()`;
   if(pending.length)fail('Já existe convite pendente para este e-mail.',409);
   const token=randomBytes(32).toString('hex'),hash=createHash('sha256').update(token).digest('hex');
-  const invited=await sql`INSERT INTO teamhub.invitations(organization_id,email,role,token_hash,invited_by_subject,expires_at,project_id)
-   VALUES(${org},${email},'member',${hash},${subject},now()+interval '7 days',${id}) RETURNING id`;
+  const invited=await sql`INSERT INTO teamhub.invitations(organization_id,email,role,token_hash,invited_by_subject,expires_at,project_id,production_role,individual_target)
+   VALUES(${org},${email},'member',${hash},${subject},now()+interval '7 days',${id},${productionRole},${individual}) RETURNING id`;
   const orgData=await sql`SELECT name,logo_url FROM teamhub.organizations WHERE id=${org}`;
   const link=NEXUS_INVITE_URL+'#invite='+token;
   const result=await dispatchInvitationEmail({invitationId:invited[0].id,email,role:'member',inviteUrl:link,

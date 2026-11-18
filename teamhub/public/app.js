@@ -2060,6 +2060,16 @@ async function loadProduction(){
   const line=document.createElement('div');line.className='production-history-row';
   line.textContent=(a.display_name||a.email||'Integrante')+' · '+a.production_role+
    (a.individual_target!==null?' · Meta '+prodFmt(a.individual_target):'');
+  if(a.auth_subject!==state.subject){
+   const remove=document.createElement('button');remove.type='button';remove.className='secondary';remove.textContent='Remover do card';
+   remove.addEventListener('click',async()=>{
+    if(!confirm('Remover este funcionário do card? O histórico da produção será preservado.'))return;
+    remove.disabled=true;
+    try{await productionCommand('remove',{subject:a.auth_subject});message('Acesso ao card removido.')}
+    catch(err){message(err.message,true);remove.disabled=false}
+   });
+   line.append(remove);
+  }
   team.append(line);
  }
 }

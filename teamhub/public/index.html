@@ -108,6 +108,12 @@ Noite,22:00,06:00</textarea>
  <button id="guest-projects-refresh" class="secondary" type="button">Atualizar projetos</button>
 </div>
 <div id="projects-list" class="project-cards"></div>
+<div id="production-dashboard-panel" class="panel" hidden>
+ <div class="section-head"><h2>Visão gerencial da produção</h2><button id="production-dashboard-refresh" type="button" class="secondary">Atualizar</button></div>
+ <p class="muted">Indicadores calculados a partir dos lançamentos do Nexus. Valores de unidades diferentes não são somados.</p>
+ <div id="production-dashboard-list"></div>
+</div>
+
  <div id="approval-queue-panel" class="panel approval-queue" hidden><div class="section-head"><h2>Fila de validação</h2><span class="muted" id="approval-queue-count"></span></div><div id="approval-queue-list" class="data-container"></div></div></section>
  <section id="board" hidden>
  <div class="section-head"><button id="back-projects" class="secondary">← Projetos</button><div class="project-toolbar"><span id="project-pause-status"></span><button id="project-validation" class="secondary" type="button">Conferir conclusão</button><button id="project-pause" class="secondary" type="button">Pausar projeto</button><button id="board-archived-toggle" class="secondary" type="button" hidden>Tarefas arquivadas</button><button id="new-task" class="primary">+ Nova tarefa</button></div></div><p id="board-description" class="muted"></p>
@@ -143,7 +149,12 @@ Noite,22:00,06:00</textarea>
  <div id="production-inspector-panel" hidden><h3>Aguardando conferência</h3><div id="production-inspector-list"></div></div>
  <div id="production-approvals-panel" hidden><h3>Aguardando aprovação do gestor</h3><div id="production-approvals-list"></div></div>
  <div><h3>Histórico de produção</h3><div id="production-history"></div></div>
- <div id="production-manager-panel" hidden>
+ <div id="production-report-panel" hidden>
+ <div class="production-section-head"><h3>Relatórios de produção</h3><button id="production-report-refresh" class="secondary" type="button">Atualizar relatórios</button></div>
+ <p class="muted">Produção bruta, aprovada, rejeitada e pendente por data operacional, turno e funcionário.</p>
+ <div id="production-report-list"></div>
+</div>
+<div id="production-manager-panel" hidden>
   <h3>Equipe do Card · Atribuição ou convite</h3>
   <form id="production-assign-form" class="production-form">
    <div class="production-fields">

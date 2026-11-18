@@ -1963,6 +1963,145 @@ $('editor').addEventListener('submit',async e=>{
   $('dialog').close();message('Dados salvos com sucesso.');
  }catch(e){message(e.message,true)}finally{$('save').disabled=false}
 });
+
+// AnnA Nexus Produção v0.1.49 — operação mobile-first sem navegação adicional.
+let productionData=null;
+const prodFmt=n=>Number(n||0).toLocaleString('pt-BR',{maximumFractionDigits:3});
+function productionLine(entry,actions=[]){
+ const line=document.createElement('div');line.className='production-history-row';
+ const desc=document.createElement('div');
+ const title=document.createElement('strong');title.textContent=prodFmt(entry.quantity)+' '+productionData.card.unit+' · '+entry.operational_date;
+ const status=document.createElement('small');status.textContent=({
+  approved:'Contabilizado',pending:'Aguardando gestor',rejected:'Rejeitado',awaiting_quality:'Aguardando conferência'
+ })[entry.status]||entry.status;
+ if(entry.shift_name)status.textContent+=' · '+entry.shift_name;
+ if(entry.decision_note)status.textContent+=' · '+entry.decision_note;
+ desc.append(title,status);line.append(desc);
+ for(const [text,fn] of actions){
+  const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent=text;b.onclick=fn;line.append(b);
+ }
+ return line;
+}
+async function productionCommand(path,payload){
+ await api('/api/production/'+productionData.card.id+'/'+path+qs(),{method:'POST',body:JSON.stringify(payload)});
+ await loadProduction();
+}
+async function loadProduction(){
+ if(!state.project||state.project.card_type!=='production')return;
+ const data=await api('/api/production/'+state.project.id+qs());
+ productionData=data;const cfg=data.card;
+ $('production-title').textContent=cfg.name;
+ const done=Number(data.summary?.approved||0),pending=Number(data.summary?.pending||0),target=Number(cfg.target);
+ const values=[['Meta',prodFmt(target)+' '+cfg.unit],['Contabilizado',prodFmt(done)+' '+cfg.unit],
+  ['Restante',prodFmt(Math.max(0,target-done))+' '+cfg.unit],['Em avaliação',prodFmt(pending)+' '+cfg.unit]];
+ const stats=$('production-stats');stats.replaceChildren();
+ for(const [label,num] of values){
+  const cell=document.createElement('div');cell.className='production-stat';
+  const k=document.createElement('small');k.textContent=label;
+  const v=document.createElement('strong');v.textContent=num;
+  cell.append(k,v);stats.append(cell);
+ }
+ $('production-progress-fill').style.width=Math.min(100,done/target*100)+'%';
+ $('production-status').textContent=done>=target?'Meta atingida':'Em andamento';
+ $('production-meta').textContent='Prazo: '+String(cfg.due_date).slice(0,10)+
+  ' · '+(cfg.goal_mode==='collective'?'Meta coletiva':'Metas individuais')+
+  ' · '+(cfg.approval_required?'Aprovação do gestor':'Registro automático')+
+  ' · '+(cfg.quality_enabled?('Qualidade: '+(cfg.quality_actor==='inspector'?'conferente':'operador')):'Sem qualidade');
+ $('production-entry-form').hidden=!(data.manager||data.permission==='operator');
+ $('production-quality-fields').hidden=!(cfg.quality_enabled&&cfg.quality_actor==='operator');
+ $('production-shift-wrap').hidden=!cfg.shifts?.length;
+ const shift=$('production-entry-shift');shift.replaceChildren();
+ for(const s of cfg.shifts||[]){
+  const op=document.createElement('option');op.value=s.name;op.textContent=s.name+' ('+s.start+'–'+s.end+')';shift.append(op);
+ }
+ if(!$('production-entry-date').value)$('production-entry-date').value=todayInFortaleza();
+ const history=$('production-history');history.replaceChildren();
+ for(const e of data.entries.slice(0,100)){
+  const actions=[];
+  const left=Number(e.quality_rework||0)-Number(e.rework_approved||0)-Number(e.rework_rejected||0);
+  if(data.manager&&cfg.quality_enabled&&e.status==='approved'&&left>0){
+   actions.push(['Retrabalho',async()=>{
+    const a=Number(prompt('Quantidade aprovada após retrabalho (máximo '+prodFmt(left)+')','0'));
+    if(!Number.isFinite(a))return;
+    const r=Number(prompt('Quantidade rejeitada após retrabalho','0'));
+    if(!Number.isFinite(r)||a+r<=0)return;
+    try{await productionCommand('entries/'+e.id+'/rework',{approved:a,rejected:r});message('Retrabalho registrado.')}
+    catch(err){message(err.message,true)}
+   }]);
+  }
+  history.append(productionLine(e,actions));
+ }
+ if(!data.entries.length)history.textContent='Nenhuma produção registrada.';
+ $('production-inspector-panel').hidden=!((data.manager||data.permission==='inspector')&&cfg.quality_enabled&&cfg.quality_actor==='inspector');
+ const inspection=$('production-inspector-list');inspection.replaceChildren();
+ for(const e of data.entries.filter(e=>e.status==='awaiting_quality')){
+  inspection.append(productionLine(e,[['Conferir',async()=>{
+   const a=Number(prompt('Quantidade aprovada','0'));if(!Number.isFinite(a))return;
+   const r=Number(prompt('Quantidade rejeitada','0'));if(!Number.isFinite(r))return;
+   const w=Number(prompt('Quantidade para retrabalho','0'));if(!Number.isFinite(w))return;
+   try{await productionCommand('entries/'+e.id+'/quality',{approved:a,rejected:r,rework:w});message('Conferência registrada.')}
+   catch(err){message(err.message,true)}
+  }]]));
+ }
+ $('production-approvals-panel').hidden=!(data.manager&&cfg.approval_required);
+ const approvals=$('production-approvals-list');approvals.replaceChildren();
+ if(data.manager)for(const e of data.entries.filter(e=>e.status==='pending')){
+  approvals.append(productionLine(e,[
+   ['Aprovar',async()=>{try{await productionCommand('entries/'+e.id+'/decide',{decision:'approved'});message('Produção aprovada.')}catch(err){message(err.message,true)}}],
+   ['Rejeitar',async()=>{const note=prompt('Motivo da rejeição');if(!note)return;
+    try{await productionCommand('entries/'+e.id+'/decide',{decision:'rejected',note});message('Registro rejeitado.')}catch(err){message(err.message,true)}}]
+  ]));
+ }
+ $('production-manager-panel').hidden=!data.manager;
+ $('production-individual-wrap').hidden=cfg.goal_mode!=='individual';
+ const team=$('production-team');team.replaceChildren();
+ if(data.manager)for(const a of data.assignments){
+  const line=document.createElement('div');line.className='production-history-row';
+  line.textContent=(a.display_name||a.email||'Integrante')+' · '+a.production_role+
+   (a.individual_target!==null?' · Meta '+prodFmt(a.individual_target):'');
+  team.append(line);
+ }
+}
+$('production-entry-form').addEventListener('submit',async e=>{
+ e.preventDefault();const b=$('production-entry-submit');b.disabled=true;
+ try{
+  const cfg=productionData.card;
+  const payload={quantity:Number($('production-entry-qty').value),operational_date:$('production-entry-date').value,
+   shift_name:cfg.shifts?.length?$('production-entry-shift').value:null,request_id:crypto.randomUUID()};
+  if(cfg.quality_enabled&&cfg.quality_actor==='operator'){
+   payload.approved=Number($('production-entry-approved').value);
+   payload.rejected=Number($('production-entry-rejected').value);
+   payload.rework=Number($('production-entry-rework').value);
+  }
+  await productionCommand('entries',payload);
+  e.currentTarget.reset();$('production-entry-date').value=todayInFortaleza();
+  message('Produção registrada com sucesso.');
+ }catch(err){message(err.message,true)}finally{b.disabled=false}
+});
+$('production-assign-form').addEventListener('submit',async e=>{
+ e.preventDefault();const b=e.currentTarget.querySelector('button[type=submit]');b.disabled=true;
+ try{
+  const cfg=productionData.card;
+  const payload={email:$('production-assign-email').value.trim().toLowerCase(),
+   production_role:$('production-assign-role').value};
+  if(cfg.goal_mode==='individual'&&$('production-individual-target').value!=='')
+   payload.individual_target=Number($('production-individual-target').value);
+  const result=await api('/api/production/'+cfg.id+'/assign'+qs(),{method:'POST',body:JSON.stringify(payload)});
+  $('production-assign-feedback').textContent=result.assignment==='existing'?
+   'Funcionário atribuído sem convite. Notificação: '+result.email_status+'.':
+   'Novo funcionário convidado. Envio: '+result.email_status+'.';
+  $('production-invite-link-wrap').hidden=result.assignment!=='invited';
+  if(result.invite_url)$('production-invite-link').value=result.invite_url;
+  $('production-assign-email').value='';
+  await loadProduction();
+ }catch(err){$('production-assign-feedback').textContent=err.message;message(err.message,true)}
+ finally{b.disabled=false}
+});
+$('production-invite-copy').onclick=async()=>{
+ try{await navigator.clipboard.writeText($('production-invite-link').value);message('Link copiado.')}
+ catch{$('production-invite-link').focus();$('production-invite-link').select();}
+};
+
 // O controle de tema fica isolado em theme.js: continua disponível mesmo
 // se a autenticação ou qualquer outro módulo falhar durante a inicialização.
 boot();

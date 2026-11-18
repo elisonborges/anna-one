@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#0c2646"><script src="./theme.js?v=0.1.51"></script><meta name="description" content="AnnA Nexus — gestão de projetos e equipes">
+<meta name="theme-color" content="#0c2646"><script src="./theme.js?v=0.1.52"></script><meta name="description" content="AnnA Nexus — gestão de projetos e equipes">
 <title>AnnA Nexus | AnnA One</title><link rel="stylesheet" href="./styles.css?v=0.1.51"><link rel="manifest" href="./manifest.webmanifest"></head>
 <body>
 <header class="top"><button id="mobile-menu-toggle" class="icon mobile-menu-toggle" type="button" aria-label="Abrir menu de navegação" aria-controls="nexus-sidebar" aria-expanded="false">☰</button><div class="brand"><img class="logo" src="./anna-symbol.svg" alt="Símbolo AnnA One"><div><strong>AnnA <em>One</em></strong><small>NEXUS · GESTÃO DE EQUIPES</small></div></div><div class="top-actions"><span class="version-tag" title="Versão instalada do AnnA Nexus">v0.1.51</span><button id="notify-header" class="icon notify-header" type="button" aria-label="Abrir notificações">♧<span id="notify-header-count" hidden>0</span></button><button id="theme" class="icon" aria-label="Alternar tema">◐</button><span id="account">Verificando sessão…</span><a id="portal" href="https://annaone.com.br/app/login-neon.html">Portal</a></div></header>
@@ -78,11 +78,22 @@
   <div class="panel dash-chart-panel"><div class="section-head"><h2>Projetos em acompanhamento</h2><span class="muted">Progresso e pendências por projeto</span></div><div id="dash-project-rows" class="data-container"></div></div>
   <div class="panel attention-panel"><div class="section-head"><h2>Pendências que exigem atenção</h2><span class="muted">Bloqueadas e aguardando retorno</span></div><div id="attention-list" class="data-container"></div></div>
   <div class="panel"><h2>Projetos recentes</h2><div id="overview-projects" class="data-container"></div></div>
+ <div id="production-dashboard-panel" class="panel" hidden>
+ <div class="section-head"><h2>Visão gerencial da produção</h2><button id="production-dashboard-refresh" type="button" class="secondary">Atualizar</button></div>
+ <p class="muted">Indicadores calculados a partir dos lançamentos do Nexus. Valores de unidades diferentes não são somados.</p>
+ <div id="production-dashboard-list"></div>
+</div>
+
  </section>
  <section id="projects" hidden>
- <div class="section-head"><div><h2 id="projects-heading">Projetos</h2><p id="projects-help" class="muted">Cada card representa um projeto. Arraste pela alça no topo para mudar a ordem (ou use as setas do teclado).</p></div><div class="project-list-actions"><button class="secondary" id="projects-invite" type="button">Convidar membro</button><button class="secondary" id="new-production" type="button">+ Card de Produção</button><button class="primary" id="new-project" type="button">+ Novo card</button></div></div>
+ <div class="section-head"><div><h2 id="projects-heading">Projetos e Produções</h2><p id="projects-help" class="muted">Organize os projetos, as equipes e as metas de produção. Arraste pela alça para reordenar os cards.</p></div><button class="secondary" id="projects-invite" type="button">Convidar membro</button></div>
+ <div class="section-head nexus-card-section-head"><div><h2>Projetos</h2><p class="muted">Tarefas, entregas e acompanhamento.</p></div><button class="primary" id="new-project" type="button">+ Novo projeto</button></div>
+ <div id="projects-list" class="project-cards"></div>
+ <div class="section-head nexus-card-section-head"><div><h2>Produções</h2><p class="muted">Metas, funcionários, prazos e controle de produtividade.</p></div><button class="primary" id="new-production" type="button">+ Nova produção</button></div>
  <form id="production-create-form" class="panel" hidden>
- <h3>Novo Card de Produção</h3>
+ <h3>Nova produção</h3>
+ <label>O que precisa ser feito?<textarea id="production-create-description" rows="3" maxlength="1000" placeholder="Descreva o produto, a atividade e as orientações para a equipe."></textarea></label>
+ <label>Responsável pela produção<select id="production-create-manager"></select></label>
  <div class="production-fields">
   <label>Nome da produção<input id="production-create-name" maxlength="160" required placeholder="Ex.: Lote 001"></label>
   <label>Meta total<input id="production-create-target" type="number" min=".001" step=".001" required placeholder="5000"></label>
@@ -107,12 +118,7 @@ Noite,22:00,06:00</textarea>
  <p>Seu acesso ao AnnA Nexus está ativo, mas nenhum projeto foi compartilhado com a sua conta. Solicite ao administrador que autorize seu e-mail nos projetos desejados.</p>
  <button id="guest-projects-refresh" class="secondary" type="button">Atualizar projetos</button>
 </div>
-<div id="projects-list" class="project-cards"></div>
-<div id="production-dashboard-panel" class="panel" hidden>
- <div class="section-head"><h2>Visão gerencial da produção</h2><button id="production-dashboard-refresh" type="button" class="secondary">Atualizar</button></div>
- <p class="muted">Indicadores calculados a partir dos lançamentos do Nexus. Valores de unidades diferentes não são somados.</p>
- <div id="production-dashboard-list"></div>
-</div>
+<div id="productions-list" class="project-cards"></div>
 
  <div id="approval-queue-panel" class="panel approval-queue" hidden><div class="section-head"><h2>Fila de validação</h2><span class="muted" id="approval-queue-count"></span></div><div id="approval-queue-list" class="data-container"></div></div></section>
  <section id="board" hidden>
@@ -129,6 +135,12 @@ Noite,22:00,06:00</textarea>
 </div>
 <div id="production-panel" class="panel production-panel" hidden>
  <div class="production-section-head"><h2 id="production-title">Produção</h2><span id="production-status" role="status"></span></div>
+ <div class="production-instructions"><strong>O que precisa ser feito</strong><p id="production-description" class="muted"></p><small id="production-responsible" class="muted"></small></div>
+ <div class="nexus-production-tabs" role="tablist" aria-label="Áreas do card de produção">
+  <button type="button" id="production-tab-operation" class="secondary" role="tab" aria-selected="true">Produção</button>
+  <button type="button" id="production-tab-team" class="secondary" role="tab" aria-selected="false">Equipe</button>
+  <button type="button" id="production-tab-indicators" class="secondary" role="tab" aria-selected="false">Indicadores</button>
+ </div>
  <div id="production-stats" class="production-stats"></div>
  <div id="production-progress" class="production-progress"><span id="production-progress-fill"></span></div>
  <p class="muted" id="production-meta"></p>
@@ -274,7 +286,7 @@ Noite,22:00,06:00</textarea>
 </div>
 <div id="task-detail-summary" class="task-detail-summary" hidden></div>
 <label for="field-name">Nome</label><input id="field-name" required minlength="2" maxlength="240" autocomplete="off"><label for="field-description">Descrição (opcional)</label><textarea id="field-description" rows="3" maxlength="2000"></textarea>
-<div id="project-fields" hidden><label for="project-color">Cor do card</label><select id="project-color"><option value="blue">Azul</option><option value="violet">Roxo</option><option value="green">Verde</option><option value="orange">Laranja</option><option value="pink">Rosa</option><option value="teal">Turquesa</option><option value="slate">Cinza</option><option value="indigo">Índigo</option><option value="coral">Coral</option><option value="gold">Dourado</option><option value="mint">Menta</option><option value="charcoal">Grafite</option></select><label for="project-owner">Responsável pelo projeto</label><select id="project-owner"><option value="">Não atribuído</option></select>
+<div id="project-fields" hidden><label for="project-color">Cor do card (personalização visual; tipo Projeto ou Produção é identificado separadamente)</label><select id="project-color"><option value="blue">Azul</option><option value="violet">Roxo</option><option value="green">Verde</option><option value="orange">Laranja</option><option value="pink">Rosa</option><option value="teal">Turquesa</option><option value="slate">Cinza</option><option value="indigo">Índigo</option><option value="coral">Coral</option><option value="gold">Dourado</option><option value="mint">Menta</option><option value="charcoal">Grafite</option></select><label for="project-owner">Responsável pelo projeto</label><select id="project-owner"><option value="">Não atribuído</option></select>
  <div id="project-manager-field"><label for="project-manager">Gestor responsável</label><select id="project-manager"><option value="">Sem gestor designado</option></select><small class="muted">Apenas o Administrador pode designar ou trocar o gestor. O Gestor que cria um projeto assume sua gestão automaticamente.</small></div><div id="project-template-field" class="project-template-field"><label for="project-template">Modelo inicial do projeto</label><select id="project-template"><option value="blank">Projeto vazio</option><option value="planning">Planejamento (4 tarefas)</option><option value="development">Desenvolvimento (5 tarefas)</option><option value="support">Atendimento e suporte (5 tarefas)</option><option value="education">Projeto educacional (5 tarefas)</option></select><small class="muted">O modelo adiciona tarefas iniciais que poderão ser editadas livremente.</small></div>
 <div id="project-access-fields" class="project-access-fields" hidden><h3>Quem pode acessar este projeto?</h3>
 <label for="project-access-mode">Visibilidade</label><select id="project-access-mode"><option value="organization">Todos os membros da organização</option><option value="restricted">Somente participantes autorizados e gestores</option></select>

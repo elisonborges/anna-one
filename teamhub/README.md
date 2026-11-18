@@ -340,3 +340,11 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - Migração aditiva `migrations/2026-11-18-card-email-retry.sql` adiciona rastreio de tentativas aos avisos da tabela `card_email_notices`, sem alterar projetos existentes.
 - Se o Resend não estiver disponível ou falhar, a atribuição permanece válida e o aviso fica registrado. Um reprocessamento periódico (best-effort no Render Free) faz até cinco tentativas com a **mesma chave idempotente para a mesma atribuição**, sem reenvio de comunicações concluídas. Não reenvia aviso após remoção do acesso, desativação de membro ou organização, ou arquivamento de card.
 - Validação de SQL de fila por `EXPLAIN` no Neon DEV, mais verificação de sintaxe JS e de elementos de interface. **Ainda depende de homologação funcional com contas e e-mails reais de um cliente**; o sucesso de aceitação pelo Resend não garante entrega na caixa de entrada.
+
+## v0.1.51 — Excluir cards (18/11/2026)
+
+- Cards de **projetos e produção** exibem o botão **Excluir** exclusivamente para administradores ou gestores responsáveis pelo card.
+- Uma confirmação nominal alerta que o card ficará indisponível; cancelar não altera nada.
+- `DELETE /api/projects/:id?org=...` exige sessão válida, organização ativa e permissão gerencial; usa `archived_at` como exclusão lógica, sem apagar tarefas, produção, qualidade, convites ou histórico, e registra `project.deleted` em `teamhub.activities`.
+- Cards arquivados não aparecem na listagem, relatórios gerais e acesso direto às rotas do projeto. Não há interface pública para recuperar cards excluídos; eventual recuperação deve ocorrer por procedimento administrativo autorizado.
+- Sem alteração de esquema ou dados atuais. Mudança limitada à branch DEV, sem liberação PROD.

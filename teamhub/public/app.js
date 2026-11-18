@@ -2133,6 +2133,20 @@ async function loadProduction(){
  const history=$('production-history');history.replaceChildren();
  for(const e of data.entries.slice(0,100)){
   const actions=[];
+  if(data.manager&&e.status!=='awaiting_quality')actions.push(['Corrigir',async()=>{
+   const raw=prompt('Quantidade corrigida',String(e.quantity));if(raw===null)return;
+   const qty=Number(raw),payload={quantity:qty};
+   if(cfg.quality_enabled){
+    const a=prompt('Quantidade aprovada na qualidade',String(e.quality_approved||0));if(a===null)return;
+    const r=prompt('Quantidade rejeitada',String(e.quality_rejected||0));if(r===null)return;
+    const w=prompt('Quantidade para retrabalho',String(e.quality_rework||0));if(w===null)return;
+    payload.approved=Number(a);payload.rejected=Number(r);payload.rework=Number(w);
+   }
+   const reason=prompt('Justificativa da correção (obrigatória)');if(!reason)return;
+   payload.reason=reason;
+   try{await productionCommand('entries/'+e.id+'/correct',payload);message('Correção registrada com histórico.')}
+   catch(err){message(err.message,true)}
+  }]);
   const left=Number(e.quality_rework||0)-Number(e.rework_approved||0)-Number(e.rework_rejected||0);
   if(data.manager&&cfg.quality_enabled&&e.status==='approved'&&left>0){
    actions.push(['Retrabalho',async()=>{
@@ -2168,6 +2182,19 @@ async function loadProduction(){
   ]));
  }
  $('production-manager-panel').hidden=!data.manager;
+ $('production-audit-panel').hidden=!data.manager;
+ const auditHost=$('production-audit-list');auditHost.replaceChildren();
+ if(data.manager)for(const log of data.audit||[]){
+  const line=document.createElement('div');line.className='production-history-row';
+  const info=document.createElement('div');
+  const title=document.createElement('strong');title.textContent=(log.action||'Alteração')+' · '+new Date(log.created_at).toLocaleString('pt-BR');
+  const details=document.createElement('small');
+  const d=log.details||{};
+  details.textContent=log.action==='corrected'
+   ?'Motivo: '+(d.reason||'—')+' · Antes: '+prodFmt(d.before?.quantity)+' · Depois: '+prodFmt(d.after?.quantity)
+   :'Realizada por: '+(log.actor_subject===state.subject?'Você':memberName(log.actor_subject));
+  info.append(title,details);line.append(info);auditHost.append(line);
+ }
  try{await loadProductionReport()}catch(e){$('production-report-list').textContent='Relatório indisponível.';}
  $('production-individual-wrap').hidden=cfg.goal_mode!=='individual';
  const team=$('production-team');team.replaceChildren();

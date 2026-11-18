@@ -1075,3 +1075,14 @@ body[data-nexus-role="manager"] .bottom{grid-template-columns:repeat(5,minmax(0,
  .production-form button.primary{width:100%;font-size:16px;min-height:54px}
  .production-stat{padding:9px}
 }
+
+/* Indicadores de produção por card */
+.production-dashboard-card{display:grid;gap:8px;border-bottom:1px solid var(--line,#d7e2ee);padding:14px 0}
+.production-dashboard-card>button{justify-self:start;text-align:left}
+.production-dashboard-card>small{font-weight:650;opacity:.8}
+.production-dashboard-summary{font-size:13px;line-height:1.55;overflow-wrap:anywhere}
+.production-dashboard-card .production-progress{height:9px}
+.production-dashboard-card .production-progress span{display:block;height:100%;border-radius:100px;background:#1385cb}
+#production-report-list .production-history-row{align-items:flex-start}
+#production-create-shift-wrap{display:flex;flex-direction:column;gap:8px}
+#production-create-shift-lines{width:100%;box-sizing:border-box;min-height:86px;font:14px/1.6 monospace}

@@ -1083,6 +1083,9 @@ const route=async(req,res)=>{
   const projects=await sql`SELECT p.id,p.name,p.card_type,p.description,
   (SELECT s.target FROM teamhub.production_settings s
    WHERE s.organization_id=p.organization_id AND s.project_id=p.id) AS production_target,
+  (SELECT s.unit FROM teamhub.production_settings s WHERE s.organization_id=p.organization_id AND s.project_id=p.id) AS production_unit,
+  (SELECT s.due_date FROM teamhub.production_settings s WHERE s.organization_id=p.organization_id AND s.project_id=p.id) AS production_due_date,
+  (SELECT COUNT(*)::int FROM teamhub.production_assignments a WHERE a.organization_id=p.organization_id AND a.project_id=p.id) AS production_team_count,
   (SELECT COALESCE(SUM(CASE WHEN e.status='approved' THEN COALESCE(e.quality_approved,e.quantity) ELSE 0 END),0)
    FROM teamhub.production_entries e WHERE e.organization_id=p.organization_id AND e.project_id=p.id)
   +(SELECT COALESCE(SUM(r.approved),0) FROM teamhub.production_rework r

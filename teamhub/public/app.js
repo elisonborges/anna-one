@@ -369,11 +369,11 @@ function enableProjectCardReorder(card,handle){
 }
 function renderProjects(){
  const overviewRows=state.projects.slice(0,6).map(p=>{
-  const progress=p.total?Math.round(p.done/p.total*100):0;
+  const progress=p.card_type==='production'&&Number(p.production_target)>0?Math.round(Number(p.production_done)/Number(p.production_target)*100):p.total?Math.round(p.done/p.total*100):0;
   const name=makeAction(p.name,()=>openProject(p));name.classList.add('recent-project-link');
-  return [name,p.description||'—',String(p.total),progress+'%'];
+  return [name,p.description||'—',p.card_type==='production'?'Meta '+prodFmt(p.production_target):String(p.total),progress+'%'];
  });
- renderTable('overview-projects',['Projeto','Descrição','Tarefas','Progresso'],overviewRows);
+ renderTable('overview-projects',['Projeto','Descrição','Tarefas / Meta','Progresso'],overviewRows);
  const container=$('projects-list');container.replaceChildren();
  const empty=$('guest-projects-empty');
  if(empty)empty.hidden=state.role!=='guest'||state.projects.length>0;
@@ -394,15 +394,15 @@ function renderProjects(){
   const title=document.createElement('h3');title.textContent=p.name;
   const description=document.createElement('p');description.textContent=p.description||'Sem descrição';
   const tags=document.createElement('div');tags.className='project-card-tags';
-  const percent=p.total?Math.round(p.done/p.total*100):0;
-  for(const label of [p.total+' tarefas',percent+'% concluído',(p.completion_status==='completed'?'Concluído':p.completion_status==='review'?'Aguardando validação':p.paused_at?'Em pausa':'Ativo'),p.access_mode==='restricted'?'Acesso restrito':'Equipe da organização']){
+  const percent=p.card_type==='production'&&Number(p.production_target)>0?Math.round(Number(p.production_done)/Number(p.production_target)*100):p.total?Math.round(p.done/p.total*100):0;
+  for(const label of [p.card_type==='production'?'Produção · Meta '+prodFmt(p.production_target):p.total+' tarefas',percent+'% concluído',(p.completion_status==='completed'?'Concluído':p.completion_status==='review'?'Aguardando validação':p.paused_at?'Em pausa':'Ativo'),p.access_mode==='restricted'?'Acesso restrito':'Equipe da organização']){
    const span=document.createElement('span');span.textContent=label;tags.append(span);
   }
   const progress=document.createElement('div');progress.className='project-card-progress';
   const bar=document.createElement('span');bar.style.width=percent+'%';progress.append(bar);
-  const owner=document.createElement('small');owner.textContent='Responsável: '+memberName(p.owner_subject);
+  const owner=document.createElement('small');owner.textContent='Responsável: '+memberName(p.manager_subject||p.owner_subject);
   const actions=document.createElement('div');actions.className='project-card-actions';
-  const open=makeAction('Abrir projeto',()=>openProject(p));open.classList.add('project-card-open');
+  const open=makeAction(p.card_type==='production'?'Abrir produção':'Abrir projeto',()=>openProject(p));open.classList.add('project-card-open');
   actions.append(open);
   if(canManageUI(p)){
    const edit=makeAction('Personalizar',()=>modal('project-edit',p));

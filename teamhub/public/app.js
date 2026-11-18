@@ -1189,6 +1189,7 @@ async function refreshProjects(){
  await refreshApprovalQueue();
  $('new-project').disabled=!['admin','manager'].includes(state.role);
  $('projects-invite').disabled=state.role!=='admin';
+ try{await loadProductionDashboard()}catch(e){$('production-dashboard-panel').hidden=true;console.warn('Painel de produção indisponível:',e.message)}
  const selector=$('dash-project'),selected=selector.value;selector.replaceChildren();
  const any=document.createElement('option');any.value='';any.textContent='Todos os projetos';selector.append(any);
  for(const p of state.projects.filter(p=>state.role!=='manager'||canManageUI(p))){const option=document.createElement('option');option.value=p.id;option.textContent=p.name;selector.append(option);}
@@ -2042,6 +2043,53 @@ async function productionCommand(path,payload){
  await api('/api/production/'+productionData.card.id+'/'+path+qs(),{method:'POST',body:JSON.stringify(payload)});
  await loadProduction();
 }
+async function loadProductionDashboard(){
+ const host=$('production-dashboard-panel');
+ host.hidden=!['admin','manager'].includes(state.role);
+ if(host.hidden)return;
+ const data=await api('/api/production/dashboard'+qs());
+ const list=$('production-dashboard-list');list.replaceChildren();
+ for(const card of data.cards){
+  const target=Number(card.target),done=Number(card.completed),left=Math.max(0,target-done);
+  const due=String(card.due_date).slice(0,10),today=todayInFortaleza();
+  const remainingDays=Math.max(1,Math.ceil((Date.parse(due+'T12:00:00Z')-Date.parse(today+'T12:00:00Z'))/86400000)+1);
+  const row=document.createElement('div');row.className='production-dashboard-card';
+  const button=document.createElement('button');button.className='secondary';button.type='button';button.textContent=card.name;
+  button.onclick=async()=>{try{const current=state.projects.find(p=>p.id===card.id);if(current)await openProject(current)}catch(e){message(e.message,true)}};
+  const status=document.createElement('small');
+  status.textContent=done>=target?'Meta atingida':due<today?'Atrasado':'Prazo '+due;
+  const summary=document.createElement('div');summary.className='production-dashboard-summary';
+  summary.textContent='Meta '+prodFmt(target)+' '+card.unit+' · Realizado '+prodFmt(done)+
+   ' · Falta '+prodFmt(left)+' · Aguardando '+prodFmt(card.pending)+
+   ' · Necessário/dia '+prodFmt(left/remainingDays)+' '+card.unit;
+  const track=document.createElement('div');track.className='production-progress';
+  const fill=document.createElement('span');fill.style.width=Math.min(100,done/target*100)+'%';track.append(fill);
+  row.append(button,status,summary,track);list.append(row);
+ }
+ if(!data.cards.length)list.textContent='Ainda não existem cards de produção sob sua gestão.';
+}
+$('production-dashboard-refresh').onclick=async()=>{try{await loadProductionDashboard()}catch(e){message(e.message,true)}};
+async function loadProductionReport(){
+ const panel=$('production-report-panel');
+ panel.hidden=!productionData?.manager;
+ if(panel.hidden)return;
+ const data=await api('/api/production/'+productionData.card.id+'/report'+qs());
+ const host=$('production-report-list');host.replaceChildren();
+ for(const r of data.rows){
+  const row=document.createElement('div');row.className='production-history-row';
+  const desc=document.createElement('div');
+  const title=document.createElement('strong');title.textContent=String(r.operational_date).slice(0,10)+
+   ' · '+(r.shift_name||'Sem turno')+' · '+(r.display_name||r.email||'Integrante');
+  const sum=document.createElement('small');sum.textContent='Bruta '+prodFmt(r.gross)+
+   ' · Aprovada '+prodFmt(r.approved)+' · Rejeitada '+prodFmt(r.rejected)+
+   ' · Retrabalho '+prodFmt(r.rework)+' · Pendente '+prodFmt(r.pending);
+  desc.append(title,sum);row.append(desc);host.append(row);
+ }
+ if(!data.rows.length)host.textContent='Nenhum registro para o relatório.';
+}
+$('production-report-refresh').onclick=async()=>{try{await loadProductionReport()}catch(e){message(e.message,true)};
+};
+
 async function loadProduction(){
  if(!state.project||state.project.card_type!=='production')return;
  const data=await api('/api/production/'+state.project.id+qs());
@@ -2109,6 +2157,7 @@ async function loadProduction(){
   ]));
  }
  $('production-manager-panel').hidden=!data.manager;
+ try{await loadProductionReport()}catch(e){$('production-report-list').textContent='Relatório indisponível.';}
  $('production-individual-wrap').hidden=cfg.goal_mode!=='individual';
  const team=$('production-team');team.replaceChildren();
  if(data.manager)for(const a of data.assignments){

@@ -1837,7 +1837,9 @@ async function boot(){
   const select=$('org');select.replaceChildren(...me.organizations.map(o=>{
    const opt=document.createElement('option');opt.value=o.id;opt.textContent=o.name;return opt;
   }));
-  const initialOrg=state.inviteOrg&&me.organizations.some(o=>o.id===state.inviteOrg)?state.inviteOrg:me.organizations[0].id;
+  const requestedOrg=new URLSearchParams(location.search).get('org');
+  const preferredOrg=state.inviteOrg||requestedOrg;
+  const initialOrg=preferredOrg&&me.organizations.some(o=>o.id===preferredOrg)?preferredOrg:me.organizations[0].id;
   state.org=initialOrg;select.value=initialOrg;
   select.onchange=async()=>{
    try{

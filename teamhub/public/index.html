@@ -92,7 +92,13 @@
   <label>Controle de qualidade<select id="production-create-quality"><option value="none">Desativado</option><option value="operator">Pelo operador</option><option value="inspector">Por conferente</option></select></label>
  </div>
  <label class="production-check"><input id="production-create-approval" type="checkbox"> Exigir aprovação do gestor</label>
- <label class="production-check"><input id="production-create-shifts" type="checkbox"> Usar turnos (06:00–14:00, 14:00–22:00 e 22:00–06:00; horários editáveis numa evolução)</label>
+ <label class="production-check"><input id="production-create-shifts" type="checkbox"> Ativar turnos personalizados</label>
+ <label id="production-create-shift-wrap" hidden>Turnos — uma linha por turno (Nome,início,fim)
+ <textarea id="production-create-shift-lines" rows="3" spellcheck="false">Manhã,06:00,14:00
+Tarde,14:00,22:00
+Noite,22:00,06:00</textarea>
+ </label>
+ <small class="muted">Até oito turnos. Turnos que atravessam a meia-noite pertencem à data operacional informada.</small>
  <div class="production-actions"><button type="submit" class="primary">Criar Card de Produção</button><button id="production-create-cancel" type="button" class="secondary">Cancelar</button></div>
 </form>
 <div id="guest-projects-empty" class="guest-projects-empty" hidden role="status" aria-live="polite">

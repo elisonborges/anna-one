@@ -9,8 +9,16 @@ export async function handleProduction(c){
  if(p!=='/api/production'&&!m)return false;
  if(p==='/api/production'){
   if(req.method!=='POST'||!['admin','manager'].includes(role))fail('Operação reservada ao gestor.',403);
-  const b=await json(req),name=String(b.name||'').trim(),unit=String(b.unit||'').trim();
-  if(name.length<2||name.length>160||!unit||unit.length>32)fail('Nome ou unidade inválidos.');
+  const b=await json(req),name=String(b.name||'').trim(),unit=String(b.unit||'').trim(),description=String(b.description||'').trim();
+  if(name.length<2||name.length>160||!unit||unit.length>32||description.length>1000)fail('Nome, descrição ou unidade inválidos.');
+  const requestedManager=String(b.manager_subject||'');
+  let assignedManager=subject;
+  if(role==='admin'&&requestedManager){
+   const manager=await sql`SELECT 1 FROM teamhub.memberships WHERE organization_id=${org}
+    AND auth_subject=${requestedManager} AND active=true AND role IN ('admin','manager')`;
+   if(!manager.length)fail('Responsável inválido ou não pertence à organização.',403);
+   assignedManager=requestedManager;
+  }
   const target=amount(b.target),due=day(b.due_date);
   const mode=b.goal_mode||'collective',actor=b.quality_actor||'operator';
   if(!['collective','individual'].includes(mode)||!['operator','inspector'].includes(actor))fail('Configurações inválidas.');
@@ -18,7 +26,7 @@ export async function handleProduction(c){
   if(shifts.length>8||new Set(shifts.map(s=>String(s.name).trim().toLowerCase())).size!==shifts.length||shifts.some(s=>!s.name||s.name.length>40||!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(s.start)||!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(s.end)||s.start===s.end))fail('Turnos inválidos ou duplicados.');
   const created=await sql`WITH p AS(
    INSERT INTO teamhub.projects(organization_id,name,description,card_color,card_theme,manager_subject,access_mode,card_type)
-   VALUES(${org},${name},${String(b.description||'').slice(0,1000)},'teal','teal',${role==='manager'?subject:null},'restricted','production') RETURNING id,name
+   VALUES(${org},${name},${description},'teal','teal',${assignedManager},'restricted','production') RETURNING id,name
   ), s AS(
    INSERT INTO teamhub.production_settings(organization_id,project_id,target,unit,due_date,goal_mode,approval_required,quality_enabled,quality_actor,shifts)
    SELECT ${org}::uuid,p.id,${target},${unit},${due},${mode},${b.approval_required===true},${b.quality_enabled===true},${actor},${JSON.stringify(shifts)}::jsonb FROM p RETURNING project_id
@@ -28,7 +36,7 @@ export async function handleProduction(c){
  const id=m[1],action=m[2]||'';
  if(role==='guest'&&req.method!=='GET')fail('Convidados não podem registrar nem alterar produção.',403);
  if(!UUID.test(id))fail('Card inválido.');
- const rows=await sql`SELECT p.id,p.name,p.completion_status,s.* FROM teamhub.projects p
+ const rows=await sql`SELECT p.id,p.name,p.description,p.manager_subject,p.completion_status,s.* FROM teamhub.projects p
   JOIN teamhub.production_settings s ON s.project_id=p.id AND s.organization_id=p.organization_id
   WHERE p.id=${id} AND p.organization_id=${org} AND p.archived_at IS NULL`;
  if(!rows.length)fail('Card de produção inexistente.',404);

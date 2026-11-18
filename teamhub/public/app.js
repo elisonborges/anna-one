@@ -380,6 +380,7 @@ function renderProjects(){
  const help=$('projects-help');if(help)help.hidden=state.role==='guest';
  $('projects-invite').hidden=state.role!=='admin';
  $('new-project').hidden=!['admin','manager'].includes(state.role);
+ $('new-production').hidden=!['admin','manager'].includes(state.role);
  const allowed=['blue','violet','green','orange','pink','teal','slate','indigo','coral','gold','mint','charcoal'];
  for(const p of state.projects){
   const card=document.createElement('article');card.className='project-card color-'+(allowed.includes(p.card_color)?p.card_color:'blue');
@@ -565,6 +566,7 @@ async function redeemInvitation(){
  const result=await api('/api/invitations/accept',{method:'POST',body:JSON.stringify({token})});
  history.replaceState(null,'',location.pathname+location.search);
  state.inviteOrg=result.organization_id||null;
+ if(result.project_id)state.pendingCard=result.project_id;
  return result;
 }
 function setInviteAuthMode(registration=false){
@@ -1232,6 +1234,14 @@ async function openProject(p){
  state.project=p;
  $('board-archived-toggle').hidden=!canManageUI(p);
  $('board-archived-panel').hidden=true;
+ $('board').classList.toggle('production-active',p.card_type==='production');
+ $('production-panel').hidden=p.card_type!=='production';
+ if(p.card_type==='production'){
+  $('board-archived-toggle').hidden=true;$('new-task').hidden=true;
+  $('project-validation').hidden=true;$('project-pause').hidden=true;
+  $('board-description').textContent='Acompanhe a produção, metas e sua equipe.';
+  show('board');await loadProduction();return;
+ }
  const data=await api('/api/projects/'+encodeURIComponent(p.id)+'/tasks'+qs());
  state.tasks=data.tasks;$('board-description').textContent=p.description||'Quadro de tarefas do projeto.';
  $('project-pause').disabled=!canManageUI(p);
@@ -1840,6 +1850,11 @@ async function boot(){
   renderBrand();await loadNotifications();
   $('app').hidden=false;
   show(state.role==='guest'?'projects':'overview');
+  const linkedCard=state.pendingCard||/^#card=([0-9a-f-]{36})$/i.exec(location.hash)?.[1];
+  if(linkedCard){
+   const card=state.projects.find(p=>p.id===linkedCard);
+   if(card){state.pendingCard=null;history.replaceState(null,'',location.pathname+location.search);await openProject(card);}
+  }
   message(inviteAccepted?'Convite aceito! Você já pode acessar os projetos autorizados.':'');
  }catch(e){
   message(e.message||'Não foi possível iniciar o Nexus.',true);
@@ -1875,6 +1890,27 @@ $('invite-copy').addEventListener('click',async()=>{
 $('guest-projects-refresh').addEventListener('click',async()=>{try{await refreshProjects();message(state.projects.length?'Projetos autorizados atualizados.':'Ainda não há projetos compartilhados.')}catch(e){message(e.message,true)}});
 $('back-projects').onclick=async()=>{await refreshProjects();show('projects')};
 $('new-project').onclick=()=>modal('project');
+$('new-production').onclick=()=>{const form=$('production-create-form');form.hidden=!form.hidden;if(!form.hidden){$('production-create-due').min=todayInFortaleza();$('production-create-name').focus()}};
+$('production-create-cancel').onclick=()=>{$('production-create-form').hidden=true};
+$('production-create-form').addEventListener('submit',async e=>{
+ e.preventDefault();const btn=e.currentTarget.querySelector('button[type=submit]');btn.disabled=true;
+ try{
+  const q=$('production-create-quality').value;
+  const shifts=$('production-create-shifts').checked?[
+   {name:'Manhã',start:'06:00',end:'14:00'},
+   {name:'Tarde',start:'14:00',end:'22:00'},
+   {name:'Noite',start:'22:00',end:'06:00'}]:[];
+  const result=await api('/api/production'+qs(),{method:'POST',body:JSON.stringify({
+   name:$('production-create-name').value.trim(),target:Number($('production-create-target').value),
+   due_date:$('production-create-due').value,unit:$('production-create-unit').value,
+   goal_mode:$('production-create-goal').value,approval_required:$('production-create-approval').checked,
+   quality_enabled:q!=='none',quality_actor:q==='inspector'?'inspector':'operator',shifts
+  })});
+  e.currentTarget.reset();e.currentTarget.hidden=true;await refreshProjects();
+  const card=state.projects.find(x=>x.id===result.card.id);if(card)await openProject(card);
+  message('Card de Produção criado. Agora atribua os funcionários.');
+ }catch(err){message(err.message,true)}finally{btn.disabled=false}
+});
 $('new-task').onclick=()=>modal('task');
 $('close-modal').onclick=$('cancel').onclick=()=>$('dialog').close();
 $('history-add').addEventListener('click',async()=>{

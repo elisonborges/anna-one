@@ -51,8 +51,11 @@ export async function handleProduction(c){
   const reworks=await sql`SELECT COALESCE(SUM(approved),0) AS approved FROM teamhub.production_rework
    WHERE organization_id=${org} AND project_id=${id}`;
   const summary={approved:Number(totals[0].original)+Number(reworks[0].approved),pending:Number(totals[0].pending)};
+  const audit=manager?await sql`SELECT action,actor_subject,details,created_at
+   FROM teamhub.production_audit WHERE organization_id=${org} AND project_id=${id}
+   ORDER BY created_at DESC LIMIT 100`:[];
   reply(res,200,{summary,card,manager,permission,entries:manager||permission==='inspector'?entries:entries.filter(e=>e.author_subject===subject),
-   assignments:manager?assignments:assignments.filter(a=>a.auth_subject===subject)});return true;
+   assignments:manager?assignments:assignments.filter(a=>a.auth_subject===subject),audit});return true;
  }
  if(req.method==='GET'&&action==='report'){
   if(!manager)fail('Relatório reservado ao gestor deste card.',403);

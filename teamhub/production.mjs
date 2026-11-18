@@ -53,6 +53,25 @@ export async function handleProduction(c){
   reply(res,200,{summary,card,manager,permission,entries:manager||permission==='inspector'?entries:entries.filter(e=>e.author_subject===subject),
    assignments:manager?assignments:assignments.filter(a=>a.auth_subject===subject)});return true;
  }
+ if(req.method==='GET'&&action==='report'){
+  if(!manager)fail('Relatório reservado ao gestor deste card.',403);
+  const grouped=await sql`SELECT e.operational_date,e.shift_name,e.author_subject,
+   COALESCE(pr.display_name,'') AS display_name,
+   COALESCE(pr.email,'') AS email,
+   SUM(e.quantity) AS gross,
+   SUM(CASE WHEN e.status='approved' THEN COALESCE(e.quality_approved,e.quantity) ELSE 0 END) AS approved,
+   SUM(CASE WHEN e.status='approved' THEN COALESCE(e.quality_rejected,0) ELSE 0 END) AS rejected,
+   SUM(CASE WHEN e.status='approved' THEN COALESCE(e.quality_rework,0) ELSE 0 END) AS rework,
+   SUM(CASE WHEN e.status IN ('pending','awaiting_quality') THEN e.quantity ELSE 0 END) AS pending
+   FROM teamhub.production_entries e
+   LEFT JOIN teamhub.member_profiles pr ON pr.auth_subject=e.author_subject
+   WHERE e.organization_id=${org} AND e.project_id=${id}
+   GROUP BY e.operational_date,e.shift_name,e.author_subject,pr.display_name,pr.email
+   ORDER BY e.operational_date DESC,e.shift_name LIMIT 1000`;
+  const returns=await sql`SELECT SUM(approved) AS approved,SUM(rejected) AS rejected
+   FROM teamhub.production_rework WHERE organization_id=${org} AND project_id=${id}`;
+  reply(res,200,{rows:grouped,rework:returns[0]||{approved:0,rejected:0}});return true;
+ }
  if(req.method==='POST'&&action==='entries'){
   if(!manager&&permission!=='operator')fail('Apenas operadores autorizados.',403);
   if(card.completion_status!=='active')fail('Card encerrado.',409);

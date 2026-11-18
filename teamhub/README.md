@@ -348,3 +348,12 @@ Sem convites, anexos, colaboração em tempo real, PWA offline ou alterações d
 - `DELETE /api/projects/:id?org=...` exige sessão válida, organização ativa e permissão gerencial; usa `archived_at` como exclusão lógica, sem apagar tarefas, produção, qualidade, convites ou histórico, e registra `project.deleted` em `teamhub.activities`.
 - Cards arquivados não aparecem na listagem, relatórios gerais e acesso direto às rotas do projeto. Não há interface pública para recuperar cards excluídos; eventual recuperação deve ocorrer por procedimento administrativo autorizado.
 - Sem alteração de esquema ou dados atuais. Mudança limitada à branch DEV, sem liberação PROD.
+
+## v0.1.52 — Layout Projetos e Produções (18/11/2026)
+
+- Tela renomeada **Projetos e Produções**, com seções e botões de criação independentes, listas distintas e faixa superior dos cards rotulada explicitamente **PROJETO** ou **PRODUÇÃO** (independente da cor personalizável).
+- Cards de Produção mostram descrição operacional, responsável, equipe atribuída, meta, unidade, saldo e prazo. A criação pede descrição e permite indicar um responsável ativo com perfil de gestão (o próprio criador por padrão). Os campos são validados no servidor; a leitura da produção inclui a descrição e responsável.
+- Painel **Visão gerencial da produção** movido de Projetos para **Visão geral**. Dentro de cada produção, a aba **Indicadores** apresenta meta, realizado, saldo, pendências, necessidade diária e relatórios existentes.
+- O card de produção dispõe de abas **Produção**, **Equipe** e **Indicadores** para gestores. Operadores mantêm fluxo operacional único e simplificado; permissões de servidor continuam a impedir visualizações não autorizadas.
+- Botão **Equipe** diretamente no card abre a equipe da produção, que conserva as regras atuais: funcionário já ativo é atribuído sem convite e recebe aviso; funcionário novo recebe convite individual.
+- Sem migração de schema ou exclusão de registros, e sem publicação no Nexus PROD. Conferir navegador com perfis de gestor e operador antes da promoção.

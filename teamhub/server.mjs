@@ -1580,7 +1580,7 @@ const route=async(req,res)=>{
     (SELECT count(*)::int FROM teamhub.pause_periods x WHERE x.organization_id=${org} AND x.project_id=pr.id AND x.task_id IS NULL) AS project_pauses,
     (SELECT count(*)::int FROM teamhub.tasks t WHERE t.organization_id=${org} AND t.project_id=pr.id AND t.deleted_at IS NULL) AS total_tasks,
     (SELECT count(*)::int FROM teamhub.tasks t WHERE t.organization_id=${org} AND t.project_id=pr.id AND t.status='done' AND t.deleted_at IS NULL) AS done_tasks
-   FROM teamhub.projects pr WHERE pr.organization_id=${org} ORDER BY pr.created_at DESC`;
+   FROM teamhub.projects pr WHERE pr.organization_id=${org} AND pr.archived_at IS NULL ORDER BY pr.created_at DESC`;
   const pauses=await sql`SELECT x.project_id,x.task_id,x.reason,x.started_at,x.ended_at,x.started_by_subject,
     ROUND(EXTRACT(EPOCH FROM(COALESCE(x.ended_at,now())-x.started_at)))::bigint AS elapsed_seconds
    FROM teamhub.pause_periods x WHERE x.organization_id=${org} ORDER BY x.started_at DESC LIMIT 1000`;

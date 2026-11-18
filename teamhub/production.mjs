@@ -115,12 +115,12 @@ export async function handleProduction(c){
     if(Number(used[0].used)>w+0.0001)fail('Retrabalho novo menor que a quantidade já finalizada.',409);
    }
    const revised=await sql`WITH previous AS(
-     SELECT quantity,quality_approved,quality_rejected,quality_rework FROM teamhub.production_entries
+     SELECT id,quantity,quality_approved,quality_rejected,quality_rework FROM teamhub.production_entries
      WHERE id=${eid} AND organization_id=${org} AND project_id=${id} FOR UPDATE
     ), changed AS(
      UPDATE teamhub.production_entries SET quantity=${qty},
       quality_approved=${a},quality_rejected=${r},quality_rework=${w}
-     WHERE id=${eid} AND organization_id=${org} AND project_id=${id}
+     WHERE id IN (SELECT id FROM previous) AND organization_id=${org} AND project_id=${id}
      RETURNING id,quantity,quality_approved,quality_rejected,quality_rework
     ), audit AS(
      INSERT INTO teamhub.production_audit(organization_id,project_id,entry_id,actor_subject,action,details)

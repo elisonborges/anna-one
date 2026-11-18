@@ -26,6 +26,7 @@ export async function handleProduction(c){
   reply(res,201,{card:created[0]});return true;
  }
  const id=m[1],action=m[2]||'';
+ if(role==='guest'&&req.method!=='GET')fail('Convidados não podem registrar nem alterar produção.',403);
  if(!UUID.test(id))fail('Card inválido.');
  const rows=await sql`SELECT p.id,p.name,p.completion_status,s.* FROM teamhub.projects p
   JOIN teamhub.production_settings s ON s.project_id=p.id AND s.organization_id=p.organization_id
@@ -160,7 +161,7 @@ export async function handleProduction(c){
    let emailStatus='previously_notified';
    if(notice.length){
     const orgName=await sql`SELECT name FROM teamhub.organizations WHERE id=${org}`;
-    const result=await sendEmail(email,card.name,orgName[0]?.name||'AnnA One',id,notice[0].id);
+    const result=await sendEmail(email,card.name,orgName[0]?.name||'AnnA One',id,notice[0].id,org);
     emailStatus=result.status;
     await sql`UPDATE teamhub.card_email_notices SET status=${result.status},provider_id=${result.id||null},
      error_message=${result.error||null} WHERE id=${notice[0].id}`;

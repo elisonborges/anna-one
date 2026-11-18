@@ -88,8 +88,8 @@ compactMedia.addEventListener('change',()=>setMobileNav(false));
 try{setSidebarCollapsed(localStorage.getItem(layoutPrefsKey)==='true')}catch{setSidebarCollapsed(false)}
 const show=(view)=>{if(state.role&&!(roleViews[state.role]||[]).includes(view))return;setMobileNav(false);state.view=view;for(const id of ['overview','projects','board','mytasks','team','reports','notifications','calendar','approvals'])$(id).hidden=id!==view;$('welcome-banner').hidden=view!=='overview';
 document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);b.setAttribute('aria-current',b.dataset.view===view?'page':'false')});
- $('title').textContent=view==='overview'?(state.role==='member'?'Meu painel':'Visão geral'):view==='projects'?(state.role==='manager'?'Meus projetos e participações':state.role==='guest'?'Projetos compartilhados':'Projetos'):view==='board'?state.project?.name||'Quadro':view==='team'?'Equipe':view==='approvals'?'Solicitações e Aprovações':view==='reports'?'Relatórios':view==='notifications'?'Notificações':view==='calendar'?'Calendário':'Minhas tarefas';
- $('subtitle').textContent=view==='overview'?'Acompanhe os projetos e as atividades da sua equipe.':view==='projects'?'Organize seus projetos e entregas.':view==='board'?'Acompanhe o trabalho por etapas.':view==='team'?'Pessoas autorizadas da organização.':view==='approvals'?'Acompanhe solicitações e registre decisões autorizadas.':view==='reports'?'Histórico e tempo dedicado a pendências.':view==='notifications'?'Atribuições e avisos importantes.':view==='calendar'?'Prazos e entregas por mês.':'Atividades sob sua responsabilidade.';
+ $('title').textContent=view==='overview'?(state.role==='member'?'Meu painel':'Visão geral'):view==='projects'?'Projetos e Produções':view==='board'?state.project?.name||'Quadro':view==='team'?'Equipe':view==='approvals'?'Solicitações e Aprovações':view==='reports'?'Relatórios':view==='notifications'?'Notificações':view==='calendar'?'Calendário':'Minhas tarefas';
+ $('subtitle').textContent=view==='overview'?'Acompanhe os projetos e as atividades da sua equipe.':view==='projects'?'Organize projetos, equipes, metas e produção.':view==='board'?'Acompanhe o trabalho por etapas.':view==='team'?'Pessoas autorizadas da organização.':view==='approvals'?'Acompanhe solicitações e registre decisões autorizadas.':view==='reports'?'Histórico e tempo dedicado a pendências.':view==='notifications'?'Atribuições e avisos importantes.':view==='calendar'?'Prazos e entregas por mês.':'Atividades sob sua responsabilidade.';
 };
 async function api(route,options={}){
  const res=await fetch(route,{...options,headers:{'Content-Type':'application/json','Authorization':'Bearer '+state.jwt,...(options.headers||{})},cache:'no-store'});
@@ -387,25 +387,32 @@ function renderProjects(){
   return [name,p.description||'—',p.card_type==='production'?'Meta '+prodFmt(p.production_target):String(p.total),progress+'%'];
  });
  renderTable('overview-projects',['Projeto','Descrição','Tarefas / Meta','Progresso'],overviewRows);
- const container=$('projects-list');container.replaceChildren();
+ const projectsContainer=$('projects-list'),productionsContainer=$('productions-list');
+ projectsContainer.replaceChildren();productionsContainer.replaceChildren();
  const empty=$('guest-projects-empty');
  if(empty)empty.hidden=state.role!=='guest'||state.projects.length>0;
- const heading=$('projects-heading');if(heading)heading.textContent=state.role==='guest'?'Projetos compartilhados':state.role==='manager'?'Meus projetos e participações':'Projetos';
+ const heading=$('projects-heading');if(heading)heading.textContent='Projetos e Produções';
  const help=$('projects-help');if(help)help.hidden=state.role==='guest';
  $('projects-invite').hidden=state.role!=='admin';
  $('new-project').hidden=!['admin','manager'].includes(state.role);
  $('new-production').hidden=!['admin','manager'].includes(state.role);
  const allowed=['blue','violet','green','orange','pink','teal','slate','indigo','coral','gold','mint','charcoal'];
  for(const p of state.projects){
+  const isProduction=p.card_type==='production';
+  const container=isProduction?productionsContainer:projectsContainer;
   const card=document.createElement('article');card.className='project-card color-'+(allowed.includes(p.card_color)?p.card_color:'blue');
   card.dataset.projectId=p.id;
   const cover=document.createElement('div');cover.className='project-card-cover';
   const handle=document.createElement('button');handle.type='button';handle.className='project-drag-handle';
   handle.textContent='⠿';handle.title='Arrastar para reordenar este projeto';
   handle.setAttribute('aria-label','Mover projeto '+p.name+'. Arraste ou use setas para mudar a ordem.');
-  cover.append(handle);
+  const cardKind=document.createElement('span');cardKind.className='project-card-kind';
+  cardKind.textContent=isProduction?'⚙ PRODUÇÃO':'▣ PROJETO';
+  cover.prepend(cardKind);cover.append(handle);
   const title=document.createElement('h3');title.textContent=p.name;
-  const description=document.createElement('p');description.textContent=p.description||'Sem descrição';
+  const description=document.createElement('p');
+  description.textContent=p.description||(isProduction?'Descrição da produção não informada.':'Sem descrição');
+  if(isProduction)description.classList.add('production-card-description');
   const tags=document.createElement('div');tags.className='project-card-tags';
   const percent=p.card_type==='production'&&Number(p.production_target)>0?Math.round(Number(p.production_done)/Number(p.production_target)*100):p.total?Math.round(p.done/p.total*100):0;
   for(const label of [p.card_type==='production'?'Produção · Meta '+prodFmt(p.production_target):p.total+' tarefas',percent+'% concluído',(p.completion_status==='completed'?'Concluído':p.completion_status==='review'?'Aguardando validação':p.paused_at?'Em pausa':'Ativo'),p.access_mode==='restricted'?'Acesso restrito':'Equipe da organização']){
@@ -414,17 +421,27 @@ function renderProjects(){
   const progress=document.createElement('div');progress.className='project-card-progress';
   const bar=document.createElement('span');bar.style.width=percent+'%';progress.append(bar);
   const owner=document.createElement('small');owner.textContent='Responsável: '+memberName(p.manager_subject||p.owner_subject);
+  const teamInfo=document.createElement('small');
+  if(isProduction){
+   const qty=Number(p.production_team_count||0),target=Number(p.production_target||0),done=Number(p.production_done||0);
+   teamInfo.textContent='Equipe: '+qty+' funcionário(s) · Prazo: '+(p.production_due_date?String(p.production_due_date).slice(0,10).split('-').reverse().join('/'):'não definido')+
+    ' · Meta: '+prodFmt(target)+' '+(p.production_unit||'un.')+' · Falta: '+prodFmt(Math.max(0,target-done));
+  }
   const actions=document.createElement('div');actions.className='project-card-actions';
   const open=makeAction(p.card_type==='production'?'Abrir produção':'Abrir projeto',()=>openProject(p));open.classList.add('project-card-open');
   actions.append(open);
   if(canManageUI(p)){
    const edit=makeAction('Personalizar',()=>modal('project-edit',p));
    actions.append(edit);
+   if(isProduction){
+    const teamButton=makeAction('Equipe',async()=>{try{await openProject(p);setProductionTab('team')}catch(e){message(e.message,true)}});
+    actions.append(teamButton);
+   }
    const erase=makeAction('Excluir',()=>deleteCard(p));
    erase.classList.add('project-card-delete');
    erase.setAttribute('aria-label','Excluir card '+p.name);
    actions.append(erase);
-   if(state.role==='admin'){
+   if(state.role==='admin'&&!isProduction){
     const invite=makeAction('Convidar',async()=>{try{await loadMembers();await loadInvitations();show('team');$('invite-email').focus();}catch(e){message(e.message,true)}});
     actions.append(invite);
    }
@@ -432,12 +449,23 @@ function renderProjects(){
   const validation=makeAction(p.completion_status==='review'?'Aguardando validação':p.completion_status==='completed'?'Conferir encerramento':'Checklist de conclusão',async()=>{try{await loadCentral();show('approvals')}catch(e){message(e.message,true)}});
   validation.hidden=!canManageUI(p)||!['review','completed'].includes(p.completion_status);
   validation.classList.add('project-validation-link');
-  card.append(cover,title,description,owner,tags,progress,validation,actions);container.append(card);
+  card.append(cover,title,description,owner);
+  if(isProduction)card.append(teamInfo);
+  card.append(tags,progress,validation,actions);container.append(card);
   handle.hidden=state.role==='guest';
   if(state.role!=='guest')enableProjectCardReorder(card,handle);
  }
  const add=document.createElement('button');add.type='button';add.className='project-card-add';add.hidden=!['admin','manager'].includes(state.role);add.disabled=add.hidden;
- add.textContent='+ Criar novo card';add.onclick=()=>modal('project');container.append(add);
+ add.textContent='+ Criar novo projeto';add.onclick=()=>modal('project');projectsContainer.append(add);
+ const newProduction=document.createElement('button');newProduction.type='button';
+ newProduction.className='project-card-add production-card-add';
+ newProduction.hidden=!['admin','manager'].includes(state.role);
+ newProduction.textContent='+ Criar nova produção';
+ newProduction.onclick=()=>{$('new-production').click();$('production-create-form').scrollIntoView({behavior:'smooth',block:'center'});};
+ productionsContainer.append(newProduction);
+ if(!state.projects.some(p=>p.card_type==='production')){
+  const empty=document.createElement('p');empty.className='muted';empty.textContent='Nenhuma produção cadastrada. Crie um card para definir meta, prazo e equipe.';productionsContainer.prepend(empty);
+ }
  $('stat-projects').textContent=state.projects.length;
 }
 function memberName(subject){
@@ -454,6 +482,12 @@ async function loadMembers(){
  const data=await api('/api/members'+qs());state.members=data.members;
  const projectOwner=$('project-owner');projectOwner.replaceChildren();
  const managerSelect=$('project-manager');managerSelect.replaceChildren();
+ const productionManager=$('production-create-manager');productionManager.replaceChildren();
+ const ownOption=document.createElement('option');ownOption.value=state.subject;ownOption.textContent='Eu (responsável)';
+ productionManager.append(ownOption);
+ if(state.role==='admin')for(const m of state.members.filter(m=>m.active&&['admin','manager'].includes(m.role)&&m.auth_subject!==state.subject)){
+  const opt=document.createElement('option');opt.value=m.auth_subject;opt.textContent=memberName(m.auth_subject);productionManager.append(opt);
+ }
  const noManager=document.createElement('option');noManager.value='';noManager.textContent='Sem gestor designado';managerSelect.append(noManager);
  for(const manager of state.members.filter(m=>m.active&&m.role==='manager')){const option=document.createElement('option');option.value=manager.auth_subject;option.textContent=memberName(manager.auth_subject);managerSelect.append(option);}
  const option=document.createElement('option');option.value='';option.textContent='Não atribuído';projectOwner.append(option);
@@ -1257,6 +1291,7 @@ async function openProject(p){
  $('production-panel').hidden=p.card_type!=='production';
  $('standard-card-team').hidden=p.card_type==='production'||!canManageUI(p);
  if(p.card_type==='production'){
+  productionTab='operation';
   $('board-archived-toggle').hidden=true;$('new-task').hidden=true;
   $('project-validation').hidden=true;$('project-pause').hidden=true;
   $('board-description').textContent='Acompanhe a produção, metas e sua equipe.';
@@ -1913,7 +1948,7 @@ $('invite-copy').addEventListener('click',async()=>{
 $('guest-projects-refresh').addEventListener('click',async()=>{try{await refreshProjects();message(state.projects.length?'Projetos autorizados atualizados.':'Ainda não há projetos compartilhados.')}catch(e){message(e.message,true)}});
 $('back-projects').onclick=async()=>{await refreshProjects();show('projects')};
 $('new-project').onclick=()=>modal('project');
-$('new-production').onclick=()=>{const form=$('production-create-form');form.hidden=!form.hidden;if(!form.hidden){$('production-create-due').min=todayInFortaleza();$('production-create-name').focus()}};
+$('new-production').onclick=()=>{const form=$('production-create-form');form.hidden=!form.hidden;if(!form.hidden){$('production-create-due').min=todayInFortaleza();$('production-create-name').focus();}};
 $('production-create-cancel').onclick=()=>{$('production-create-form').hidden=true};
 $('production-create-shifts').addEventListener('change',()=>{$('production-create-shift-wrap').hidden=!$('production-create-shifts').checked});
 $('production-create-form').addEventListener('submit',async e=>{
@@ -1925,7 +1960,8 @@ $('production-create-form').addEventListener('submit',async e=>{
     const [name,start,end]=line.split(',').map(v=>v.trim());return{name,start,end};
    }):[];
   const result=await api('/api/production'+qs(),{method:'POST',body:JSON.stringify({
-   name:$('production-create-name').value.trim(),target:Number($('production-create-target').value),
+   name:$('production-create-name').value.trim(),description:$('production-create-description').value.trim(),
+   manager_subject:$('production-create-manager').value||state.subject,target:Number($('production-create-target').value),
    due_date:$('production-create-due').value,unit:$('production-create-unit').value,
    goal_mode:$('production-create-goal').value,approval_required:$('production-create-approval').checked,
    quality_enabled:q!=='none',quality_actor:q==='inspector'?'inspector':'operator',shifts
@@ -2043,6 +2079,28 @@ $('standard-card-team-copy').onclick=async()=>{
 
 // AnnA Nexus Produção v0.1.49 — operação mobile-first sem navegação adicional.
 let productionData=null;
+let productionTab='operation';
+function setProductionTab(tab){
+ const manager=!!productionData?.manager;
+ if(tab!=='operation'&&!manager)tab='operation';
+ productionTab=tab;
+ for(const [id,value] of [['production-tab-operation','operation'],['production-tab-team','team'],['production-tab-indicators','indicators']]){
+  const el=$(id);el.hidden=value!=='operation'&&!manager;el.setAttribute('aria-selected',String(value===tab));
+  el.classList.toggle('active',value===tab);
+ }
+ const operationIds=['production-stats','production-progress','production-meta','production-entry-form',
+  'production-inspector-panel','production-approvals-panel'];
+ for(const id of operationIds)$(id).hidden=tab!=='operation'||($(id).dataset.productionHidden==='true');
+ const history=$('production-history').parentElement;history.hidden=tab!=='operation';
+ $('production-manager-panel').hidden=tab!=='team'||!manager;
+ $('production-card-indicators').hidden=tab!=='indicators'||!manager;
+ $('production-report-panel').hidden=tab!=='indicators'||!manager;
+ $('production-audit-panel').hidden=tab!=='indicators'||!manager;
+}
+for(const [tab,id] of [['operation','production-tab-operation'],['team','production-tab-team'],['indicators','production-tab-indicators']]){
+ $(id).addEventListener('click',()=>setProductionTab(tab));
+}
+
 const prodFmt=n=>Number(n||0).toLocaleString('pt-BR',{maximumFractionDigits:3});
 function productionLine(entry,actions=[]){
  const line=document.createElement('div');line.className='production-history-row';
@@ -2115,6 +2173,9 @@ async function loadProduction(){
  const data=await api('/api/production/'+state.project.id+qs());
  productionData=data;const cfg=data.card;
  $('production-title').textContent=cfg.name;
+ $('production-description').textContent=cfg.description||'Descrição ainda não informada. O gestor pode preencher em Personalizar.';
+ $('production-responsible').textContent='Responsável: '+memberName(cfg.manager_subject||state.project.manager_subject);
+
  const done=Number(data.summary?.approved||0),pending=Number(data.summary?.pending||0),target=Number(cfg.target);
  const values=[['Meta',prodFmt(target)+' '+cfg.unit],['Contabilizado',prodFmt(done)+' '+cfg.unit],
   ['Restante',prodFmt(Math.max(0,target-done))+' '+cfg.unit],['Em avaliação',prodFmt(pending)+' '+cfg.unit]];
@@ -2125,6 +2186,17 @@ async function loadProduction(){
     .reduce((sum,e)=>sum+Number(e.quality_approved??e.quantity)+Number(e.rework_approved||0),0);
    values.push(['Minha meta',prodFmt(mine.individual_target)+' '+cfg.unit],['Meu realizado',prodFmt(myTotal)+' '+cfg.unit]);
   }
+ }
+ const dashboardInfo=$('production-card-indicators');dashboardInfo.replaceChildren();
+ if(data.manager){
+  const today=todayInFortaleza(),due=String(cfg.due_date).slice(0,10);
+  const days=Math.max(1,Math.ceil((Date.parse(due+'T12:00:00Z')-Date.parse(today+'T12:00:00Z'))/86400000)+1);
+  const details=document.createElement('p');
+  details.textContent='Meta '+prodFmt(target)+' '+cfg.unit+' · Realizado '+prodFmt(done)+' · Falta '+prodFmt(Math.max(0,target-done))+
+   ' · Aguardando '+prodFmt(pending)+' · Necessário/dia '+prodFmt(Math.max(0,target-done)/days)+' '+cfg.unit;
+  const info=document.createElement('p');
+  info.textContent=done>=target?'Meta atingida':due<today?'Prazo ultrapassado':'Prazo: '+due;
+  dashboardInfo.append(details,info);
  }
  const stats=$('production-stats');stats.replaceChildren();
  for(const [label,num] of values){
@@ -2139,7 +2211,7 @@ async function loadProduction(){
   ' · '+(cfg.goal_mode==='collective'?'Meta coletiva':'Metas individuais')+
   ' · '+(cfg.approval_required?'Aprovação do gestor':'Registro automático')+
   ' · '+(cfg.quality_enabled?('Qualidade: '+(cfg.quality_actor==='inspector'?'conferente':'operador')):'Sem qualidade');
- $('production-entry-form').hidden=cfg.completion_status!=='active'||!(data.manager||data.permission==='operator');
+ $('production-entry-form').dataset.productionHidden=String(cfg.completion_status!=='active'||!(data.manager||data.permission==='operator'));
  $('production-quality-fields').hidden=!(cfg.quality_enabled&&cfg.quality_actor==='operator');
  $('production-shift-wrap').hidden=!cfg.shifts?.length;
  const shift=$('production-entry-shift');shift.replaceChildren();
@@ -2178,7 +2250,7 @@ async function loadProduction(){
   history.append(productionLine(e,actions));
  }
  if(!data.entries.length)history.textContent='Nenhuma produção registrada.';
- $('production-inspector-panel').hidden=!((data.manager||data.permission==='inspector')&&cfg.quality_enabled&&cfg.quality_actor==='inspector');
+ $('production-inspector-panel').dataset.productionHidden=String(!((data.manager||data.permission==='inspector')&&cfg.quality_enabled&&cfg.quality_actor==='inspector'));
  const inspection=$('production-inspector-list');inspection.replaceChildren();
  for(const e of data.entries.filter(e=>e.status==='awaiting_quality')){
   inspection.append(productionLine(e,[['Conferir',async()=>{
@@ -2189,7 +2261,7 @@ async function loadProduction(){
    catch(err){message(err.message,true)}
   }]]));
  }
- $('production-approvals-panel').hidden=!(data.manager&&cfg.approval_required);
+ $('production-approvals-panel').dataset.productionHidden=String(!(data.manager&&cfg.approval_required));
  const approvals=$('production-approvals-list');approvals.replaceChildren();
  if(data.manager)for(const e of data.entries.filter(e=>e.status==='pending')){
   approvals.append(productionLine(e,[
@@ -2231,6 +2303,7 @@ async function loadProduction(){
   }
   team.append(line);
  }
+ setProductionTab(productionTab);
 }
 $('production-entry-form').addEventListener('submit',async e=>{
  e.preventDefault();const b=$('production-entry-submit');b.disabled=true;

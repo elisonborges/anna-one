@@ -819,13 +819,19 @@ const route=async(req,res)=>{
   bad('Convidado possui acesso somente de leitura.',403);
  if(role==='guest'&&/^\/api\/(?:members|my-tasks|my-subtasks|reports|approvals|automation)/.test(p))
   bad('Área indisponível ao convidado.',403);
- const authorized=unrestricted?null:await sql`SELECT p.id FROM teamhub.projects p WHERE p.organization_id=${org} AND
+ const authorized=unrestricted?null:await sql`SELECT p.id FROM teamhub.projects p WHERE p.organization_id=${org} AND p.archived_at IS NULL AND
   (p.manager_subject=${subject} OR (${role!=='guest'} AND p.access_mode='organization')
    OR (${role!=='guest'} AND p.owner_subject=${subject}) OR EXISTS
    (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject}))`;
  const allowedSet=new Set(authorized?.map(x=>x.id)||[]);
  const canSee=id=>unrestricted||allowedSet.has(id);
  const projectRoute=/^\/api\/projects\/([0-9a-f-]+)(?:\/.*)?$/.exec(p);
+ if(projectRoute&&validId(projectRoute[1])){
+  const active=await sql`SELECT 1 FROM teamhub.projects
+   WHERE id=${projectRoute[1]} AND organization_id=${org} AND archived_at IS NULL`;
+  if(!active.length)bad('Card excluído ou indisponível.',404);
+ }
+
  const taskRoute=/^\/api\/tasks\/([0-9a-f-]+)(?:\/.*)?$/.exec(p);
  const subtaskRoute=/^\/api\/subtasks\/([0-9a-f-]+)$/.exec(p);
  if(!unrestricted){
@@ -1367,6 +1373,23 @@ const route=async(req,res)=>{
  const colorAllowed=['blue','violet','green','orange','pink','teal','slate','indigo','coral','gold','mint','charcoal'];
  const legacyColors=['blue','violet','green','orange','pink','teal','slate'];
  const projectEdit=/^\/api\/projects\/([0-9a-f-]+)$/.exec(p);
+ if(projectEdit&&validId(projectEdit[1])&&req.method==='DELETE'){
+  requireManager(role);
+  const id=projectEdit[1];
+  await requireProjectManagement(id);
+  const closed=await sql`WITH removed AS (
+   UPDATE teamhub.projects SET archived_at=now()
+   WHERE id=${id} AND organization_id=${org} AND archived_at IS NULL
+   RETURNING id
+  ), audit AS (
+   INSERT INTO teamhub.activities(organization_id,actor_subject,action,project_id)
+   SELECT ${org}::uuid,${subject},'project.deleted',id FROM removed
+   RETURNING id
+  ) SELECT removed.id FROM removed JOIN audit ON true`;
+  if(!closed.length)bad('Card não encontrado ou já excluído.',404);
+  return reply(res,200,{deleted:true,card_id:id});
+ }
+
  if(projectEdit&&validId(projectEdit[1])&&req.method==='PATCH'){
   requireManager(role);
   const proj=await project(org,projectEdit[1]);

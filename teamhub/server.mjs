@@ -599,17 +599,19 @@ const route=async(req,res)=>{
   ) SELECT organization_id FROM membership`;
   if(!linked.length)bad('O convite não está mais disponível.',409);
   if(invitation.project_id){
-   const target=await sql`SELECT p.id FROM teamhub.projects p JOIN teamhub.production_settings s
-    ON s.project_id=p.id AND s.organization_id=p.organization_id
-    WHERE p.id=${invitation.project_id} AND p.organization_id=${invitation.organization_id} AND p.archived_at IS NULL`;
+   const target=await sql`SELECT p.id,p.card_type FROM teamhub.projects p
+    WHERE p.id=${invitation.project_id} AND p.organization_id=${invitation.organization_id}
+      AND p.archived_at IS NULL AND p.access_mode='restricted'`;
    if(target.length){
     await sql`INSERT INTO teamhub.project_members(organization_id,project_id,auth_subject,added_by_subject)
      SELECT ${invitation.organization_id}::uuid,${invitation.project_id}::uuid,${subject},${invitation.invited_by_subject}
      ON CONFLICT DO NOTHING`;
-    await sql`INSERT INTO teamhub.production_assignments(organization_id,project_id,auth_subject,production_role,individual_target)
-     VALUES(${invitation.organization_id},${invitation.project_id},${subject},
-      ${invitation.production_role||'operator'},${invitation.individual_target||null})
-     ON CONFLICT DO NOTHING`;
+    if(target[0].card_type==='production'){
+     await sql`INSERT INTO teamhub.production_assignments(organization_id,project_id,auth_subject,production_role,individual_target)
+      VALUES(${invitation.organization_id},${invitation.project_id},${subject},
+       ${invitation.production_role||'operator'},${invitation.individual_target||null})
+      ON CONFLICT DO NOTHING`;
+    }
    }
   }
   await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action) VALUES(${invitation.organization_id},${subject},'invitation.accepted')`;
@@ -656,6 +658,74 @@ const route=async(req,res)=>{
    bad('Subtarefa não atribuída ou sem permissão.',403);
   return rows[0];
  };
+ const standardCard=/^\/api\/cards\/([0-9a-f-]+)\/(assign|remove|members)$/.exec(p);
+ if(standardCard){
+  const cardId=standardCard[1],operation=standardCard[2];
+  if(!validId(cardId))bad('Card inválido.');
+  const projectRows=await sql`SELECT id,name,access_mode,card_type FROM teamhub.projects
+   WHERE id=${cardId} AND organization_id=${org} AND archived_at IS NULL`;
+  if(!projectRows.length)bad('Card não encontrado.',404);
+  const card=projectRows[0],manager=await canManageProject(cardId);
+  if(!manager)bad('Esta operação é reservada ao gestor do card.',403);
+  if(card.card_type!=='project')bad('Use a equipe do card de produção.',409);
+  if(req.method==='GET'&&operation==='members'){
+   const data=await sql`SELECT m.auth_subject,pr.display_name,pr.email
+    FROM teamhub.project_members m
+    LEFT JOIN teamhub.member_profiles pr ON pr.auth_subject=m.auth_subject
+    WHERE m.organization_id=${org} AND m.project_id=${cardId}`;
+   return reply(res,200,{members:data,restricted:card.access_mode==='restricted'});
+  }
+  if(card.access_mode!=='restricted')bad('Para convidar por card, primeiro selecione acesso restrito nas configurações do projeto.',409);
+  if(req.method==='POST'&&operation==='remove'){
+   const b=await json(req),worker=String(b.subject||'');
+   if(worker===subject)bad('Não remova sua própria conta por esta opção.',409);
+   const deleted=await sql`DELETE FROM teamhub.project_members
+    WHERE organization_id=${org} AND project_id=${cardId} AND auth_subject=${worker}
+    RETURNING auth_subject`;
+   if(!deleted.length)bad('Participante não encontrado.',404);
+   return reply(res,200,{removed:true});
+  }
+  if(req.method==='POST'&&operation==='assign'){
+   const b=await json(req),email=String(b.email||'').trim().toLowerCase();
+   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254)bad('Informe um e-mail válido.');
+   const found=await sql`SELECT m.auth_subject,m.active FROM teamhub.memberships m JOIN teamhub.member_profiles pr
+    ON m.auth_subject=pr.auth_subject WHERE m.organization_id=${org} AND lower(pr.email)=${email} LIMIT 1`;
+   if(found.length){
+    if(!found[0].active)bad('Funcionário com acesso desativado. Solicite reativação.',409);
+    const worker=found[0].auth_subject;
+    const inserted=await sql`INSERT INTO teamhub.project_members(organization_id,project_id,auth_subject,added_by_subject)
+     VALUES(${org},${cardId},${worker},${subject}) ON CONFLICT DO NOTHING RETURNING auth_subject`;
+    if(!inserted.length)bad('Funcionário já atribuído ao card.',409);
+    await notifyMembers(org,subject,[worker],'project.assigned','Novo card atribuído',card.name,cardId);
+    const notice=await sql`INSERT INTO teamhub.card_email_notices(organization_id,project_id,recipient_subject,recipient_email)
+      VALUES(${org},${cardId},${worker},${email}) ON CONFLICT DO NOTHING RETURNING id`;
+    let delivery='previously_notified';
+    if(notice.length){
+     const company=await sql`SELECT name FROM teamhub.organizations WHERE id=${org}`;
+     const sent=await sendCardNotificationEmail(email,card.name,company[0]?.name||'AnnA One',cardId,notice[0].id);
+     delivery=sent.status;
+     await sql`UPDATE teamhub.card_email_notices SET status=${sent.status},provider_id=${sent.id||null},
+      error_message=${sent.error||null} WHERE id=${notice[0].id}`;
+    }
+    return reply(res,201,{assignment:'existing',email_status:delivery});
+   }
+   const pending=await sql`SELECT id FROM teamhub.invitations WHERE organization_id=${org} AND email=${email}
+     AND status='pending' AND expires_at>now()`;
+   if(pending.length)bad('Já existe um convite pendente para este e-mail.',409);
+   const token=randomBytes(32).toString('hex'),tokenHash=createHash('sha256').update(token).digest('hex');
+   const invitations=await sql`INSERT INTO teamhub.invitations
+    (organization_id,email,role,token_hash,invited_by_subject,expires_at,project_id)
+    VALUES(${org},${email},'member',${tokenHash},${subject},now()+interval '7 days',${cardId})
+    RETURNING id`;
+   const company=await sql`SELECT name,logo_url FROM teamhub.organizations WHERE id=${org}`;
+   const inviteUrl=NEXUS_INVITE_URL+'#invite='+token;
+   const result=await dispatchInvitationEmail({invitationId:invitations[0].id,email,
+    role:'member',inviteUrl,organizationName:(company[0]?.name||'AnnA One')+' · '+card.name,
+    logoUrl:company[0]?.logo_url||''});
+   return reply(res,201,{assignment:'invited',email_status:result.email_status,invite_url:inviteUrl});
+  }
+  return reply(res,405,{error:'Operação não permitida.'});
+ }
  if(await handleProduction({req,res,p,org,subject,role,sql,reply,json,canManageProject,
    notifyMembers,dispatchInvitationEmail,sendEmail:sendCardNotificationEmail,NEXUS_INVITE_URL}))return;
  if(role==='guest'&&req.method!=='GET'&&!/^\/api\/notifications\/(?:read-all|[0-9a-f-]+\/read)$/.test(p))

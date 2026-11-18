@@ -94,13 +94,43 @@ export async function handleProduction(c){
    VALUES(${org},${id},${done[0].id},${subject},'registered')`;
   reply(res,201,{entry:done[0]});return true;
  }
- const em=/^entries\/([0-9a-f-]+)\/(quality|decide|rework)$/.exec(action);
+ const em=/^entries\/([0-9a-f-]+)\/(quality|decide|rework|correct)$/.exec(action);
  if(req.method==='POST'&&em){
   const eid=em[1],op=em[2],b=await json(req);
   if(!UUID.test(eid))fail('Registro inválido.');
   const rows=await sql`SELECT * FROM teamhub.production_entries WHERE id=${eid} AND organization_id=${org} AND project_id=${id}`;
   if(!rows.length)fail('Registro não encontrado.',404);
   const e=rows[0];
+  if(op==='correct'){
+   if(!manager||e.status==='awaiting_quality')fail('Somente o gestor corrige registros já classificados.',403);
+   const reason=String(b.reason||'').trim();
+   if(reason.length<5||reason.length>500)fail('Informe uma justificativa de 5 a 500 caracteres.');
+   const qty=amount(b.quantity);
+   let a=null,r=null,w=null;
+   if(card.quality_enabled){
+    a=amount(b.approved,true);r=amount(b.rejected,true);w=amount(b.rework,true);
+    if(Math.abs(a+r+w-qty)>0.0001)fail('A classificação deve corresponder à quantidade corrigida.');
+    const used=await sql`SELECT COALESCE(SUM(approved+rejected),0) AS used
+      FROM teamhub.production_rework WHERE entry_id=${eid}`;
+    if(Number(used[0].used)>w+0.0001)fail('Retrabalho novo menor que a quantidade já finalizada.',409);
+   }
+   const revised=await sql`WITH previous AS(
+     SELECT quantity,quality_approved,quality_rejected,quality_rework FROM teamhub.production_entries
+     WHERE id=${eid} AND organization_id=${org} AND project_id=${id} FOR UPDATE
+    ), changed AS(
+     UPDATE teamhub.production_entries SET quantity=${qty},
+      quality_approved=${a},quality_rejected=${r},quality_rework=${w}
+     WHERE id=${eid} AND organization_id=${org} AND project_id=${id}
+     RETURNING id,quantity,quality_approved,quality_rejected,quality_rework
+    ), audit AS(
+     INSERT INTO teamhub.production_audit(organization_id,project_id,entry_id,actor_subject,action,details)
+     SELECT ${org}::uuid,${id}::uuid,${eid}::uuid,${subject},'corrected',
+      jsonb_build_object('before',to_jsonb(previous),'after',to_jsonb(changed),'reason',${reason})
+     FROM previous CROSS JOIN changed RETURNING id
+    ) SELECT changed.id FROM changed CROSS JOIN audit`;
+   if(!revised.length)fail('Não foi possível registrar a correção.',409);
+   reply(res,200,{corrected:true});return true;
+  }
   if(op==='quality'){
    if(!card.quality_enabled||card.quality_actor!=='inspector'||e.status!=='awaiting_quality'||(!manager&&permission!=='inspector'))fail('Conferência não permitida.',403);
    const a=amount(b.approved,true),r=amount(b.rejected,true),w=amount(b.rework,true);

@@ -43,7 +43,14 @@ export async function handleProduction(c){
   const assignments=await sql`SELECT a.*,pr.display_name,pr.email FROM teamhub.production_assignments a
    LEFT JOIN teamhub.member_profiles pr ON pr.auth_subject=a.auth_subject
    WHERE a.organization_id=${org} AND a.project_id=${id}`;
-  reply(res,200,{card,manager,permission,entries:manager?entries:entries.filter(e=>e.author_subject===subject),
+  const totals=await sql`SELECT
+   COALESCE(SUM(CASE WHEN e.status='approved' THEN COALESCE(e.quality_approved,e.quantity) ELSE 0 END),0) AS original,
+   COALESCE(SUM(CASE WHEN e.status IN ('pending','awaiting_quality') THEN e.quantity ELSE 0 END),0) AS pending
+   FROM teamhub.production_entries e WHERE e.organization_id=${org} AND e.project_id=${id}`;
+  const reworks=await sql`SELECT COALESCE(SUM(approved),0) AS approved FROM teamhub.production_rework
+   WHERE organization_id=${org} AND project_id=${id}`;
+  const summary={approved:Number(totals[0].original)+Number(reworks[0].approved),pending:Number(totals[0].pending)};
+  reply(res,200,{summary,card,manager,permission,entries:manager||permission==='inspector'?entries:entries.filter(e=>e.author_subject===subject),
    assignments:manager?assignments:assignments.filter(a=>a.auth_subject===subject)});return true;
  }
  if(req.method==='POST'&&action==='entries'){

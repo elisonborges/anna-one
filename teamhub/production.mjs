@@ -1,7 +1,7 @@
 import {randomBytes,createHash} from 'node:crypto';
 const fail=(s,n=400)=>{throw Object.assign(Error(s),{status:n})};
 const amount=(x,z=false)=>{if(typeof x!=='number'||!Number.isFinite(x)||x<0||(!z&&x===0)||x>1e9||Math.abs(x*1000-Math.round(x*1000))>0.0001)fail('Quantidade inválida.');return x};
-const day=x=>{if(typeof x!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(x)||!Number.isFinite(Date.parse(x)))fail('Data inválida.');return x};
+const day=x=>{if(typeof x!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(x)||!Number.isFinite(Date.parse(x+'T12:00:00Z'))||new Date(x+'T12:00:00Z').toISOString().slice(0,10)!==x)fail('Data inválida.');return x};
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export async function handleProduction(c){
  const {req,res,p,org,subject,role,sql,reply,json,canManageProject,notifyDirectCardAssignment,dispatchInvitationEmail,sendEmail,NEXUS_INVITE_URL}=c;
@@ -15,7 +15,7 @@ export async function handleProduction(c){
   const mode=b.goal_mode||'collective',actor=b.quality_actor||'operator';
   if(!['collective','individual'].includes(mode)||!['operator','inspector'].includes(actor))fail('Configurações inválidas.');
   const shifts=Array.isArray(b.shifts)?b.shifts:[];
-  if(shifts.length>8||shifts.some(s=>!s.name||s.name.length>40||!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(s.start)||!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(s.end)||s.start===s.end))fail('Turnos inválidos.');
+  if(shifts.length>8||new Set(shifts.map(s=>String(s.name).trim().toLowerCase())).size!==shifts.length||shifts.some(s=>!s.name||s.name.length>40||!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(s.start)||!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(s.end)||s.start===s.end))fail('Turnos inválidos ou duplicados.');
   const created=await sql`WITH p AS(
    INSERT INTO teamhub.projects(organization_id,name,description,card_color,card_theme,manager_subject,access_mode,card_type)
    VALUES(${org},${name},${String(b.description||'').slice(0,1000)},'teal','teal',${role==='manager'?subject:null},'restricted','production') RETURNING id,name

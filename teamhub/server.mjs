@@ -255,13 +255,13 @@ async function dispatchInvitationEmail({invitationId,email,role,inviteUrl,organi
   return {delivery:'manual',email_status:'failed'};
  }
 }
-async function sendCardNotificationEmail(email,card,company,cardId,noticeId,organizationId){
+async function sendCardNotificationEmail(email,card,company,cardId,noticeId,organizationId,assignmentCount=1){
  if(!emailTransportConfigured())return {status:'not_configured'};
  try{
   const link=NEXUS_INVITE_URL+'?org='+encodeURIComponent(organizationId)+'#card='+cardId;
   const response=await fetch('https://api.resend.com/emails',{
    method:'POST',headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,
-    'Content-Type':'application/json','Idempotency-Key':'nexus-card-'+noticeId},
+    'Content-Type':'application/json','Idempotency-Key':'nexus-card-'+noticeId+'-'+assignmentCount},
    body:JSON.stringify({from:'AnnA One | Nexus <'+process.env.NEXUS_EMAIL_FROM+'>',to:[email],
     subject:'Você foi adicionado ao card '+card,
     text:'Você foi adicionado ao card '+card+' de '+company+'. Acesse com sua conta AnnA One: '+link,
@@ -738,11 +738,15 @@ const route=async(req,res)=>{
     if(!inserted.length)bad('Funcionário já atribuído ao card.',409);
     await notifyDirectCardAssignment(org,subject,worker,cardId,card.name);
     const notice=await sql`INSERT INTO teamhub.card_email_notices(organization_id,project_id,recipient_subject,recipient_email)
-      VALUES(${org},${cardId},${worker},${email}) ON CONFLICT DO NOTHING RETURNING id`;
+      VALUES(${org},${cardId},${worker},${email})
+      ON CONFLICT(organization_id,project_id,recipient_subject)
+      DO UPDATE SET assignment_count=teamhub.card_email_notices.assignment_count+1,
+        status='queued',provider_id=NULL,error_message=NULL,created_at=now()
+      RETURNING id,assignment_count`;
     let delivery='previously_notified';
     if(notice.length){
      const company=await sql`SELECT name FROM teamhub.organizations WHERE id=${org}`;
-     const sent=await sendCardNotificationEmail(email,card.name,company[0]?.name||'AnnA One',cardId,notice[0].id,org);
+     const sent=await sendCardNotificationEmail(email,card.name,company[0]?.name||'AnnA One',cardId,notice[0].id,org,notice[0].assignment_count);
      delivery=sent.status;
      await sql`UPDATE teamhub.card_email_notices SET status=${sent.status},provider_id=${sent.id||null},
       error_message=${sent.error||null} WHERE id=${notice[0].id}`;

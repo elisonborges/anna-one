@@ -1086,3 +1086,7 @@ body[data-nexus-role="manager"] .bottom{grid-template-columns:repeat(5,minmax(0,
 #production-report-list .production-history-row{align-items:flex-start}
 #production-create-shift-wrap{display:flex;flex-direction:column;gap:8px}
 #production-create-shift-lines{width:100%;box-sizing:border-box;min-height:86px;font:14px/1.6 monospace}
+
+/* Excluir card: ação destrutiva identificável, com contraste e toque confortável. */
+.project-card-actions .project-card-delete{color:#b42318;border-color:#d92d20;background:var(--surface)}
+.project-card-actions .project-card-delete:hover,.project-card-actions .project-card-delete:focus-visible{background:#fee4e2;color:#912018}

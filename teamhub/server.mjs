@@ -5,6 +5,7 @@ import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {neon} from '@neondatabase/serverless';
 import {createRemoteJWKSet,jwtVerify} from 'jose';
+import {handleProduction} from './production.mjs';
 
 const vars=['DATABASE_URL','AUTH_JWKS_URL','AUTH_ISSUER'];
 for(const key of vars) if(!process.env[key]) throw Error('Configuração ausente: '+key);
@@ -246,6 +247,27 @@ async function dispatchInvitationEmail({invitationId,email,role,inviteUrl,organi
   console.warn('Nexus invitation email was not accepted by the provider.',note);
   return {delivery:'manual',email_status:'failed'};
  }
+}
+async function sendCardNotificationEmail(email,card,company,cardId,noticeId){
+ if(!emailTransportConfigured())return {status:'not_configured'};
+ try{
+  const link=NEXUS_INVITE_URL+'#card='+cardId;
+  const response=await fetch('https://api.resend.com/emails',{
+   method:'POST',headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,
+    'Content-Type':'application/json','Idempotency-Key':'nexus-card-'+noticeId},
+   body:JSON.stringify({from:'AnnA One | Nexus <'+process.env.NEXUS_EMAIL_FROM+'>',to:[email],
+    subject:'Você foi adicionado ao card '+card,
+    text:'Você foi adicionado ao card '+card+' de '+company+'. Acesse com sua conta AnnA One: '+link,
+    html:'<p>Você foi adicionado ao card <strong>'+escapeEmailHtml(card)+'</strong> de '+
+      escapeEmailHtml(company)+'.</p><p><a href="'+escapeEmailHtml(link)+
+      '">Acessar meu card</a></p><p>Utilize sua conta AnnA One; não é necessário novo cadastro.</p>'}),
+   signal:AbortSignal.timeout(10000)
+  });
+  if(!response.ok)throw Error('Resend HTTP '+response.status);
+  const result=await response.json().catch(()=>({}));
+  if(!result.id)throw Error('Envio sem confirmação.');
+  return {status:'sent',id:String(result.id)};
+ }catch(e){return {status:'failed',error:String(e.message||'Falha').slice(0,150)};}
 }
 let emailWorkerBusy=false;
 async function processEmailOutbox(){
@@ -556,7 +578,7 @@ const route=async(req,res)=>{
   // No other Nexus endpoint relaxes verification based on this rule.
   if(!req.identityEmail)bad('Entre com sua conta AnnA One para aceitar o convite.',403);
   const hash=createHash('sha256').update(token).digest('hex');
-  const invitations=await sql`SELECT id,organization_id,email,role FROM teamhub.invitations WHERE token_hash=${hash} AND status='pending' AND expires_at>now()`;
+  const invitations=await sql`SELECT id,organization_id,email,role,project_id,invited_by_subject FROM teamhub.invitations WHERE token_hash=${hash} AND status='pending' AND expires_at>now()`;
   if(!invitations.length)bad('Convite expirado, cancelado ou já utilizado.',410);
   const invitation=invitations[0];
   if(invitation.email!==req.identityEmail)bad('Este convite foi emitido para outro e-mail. Entre com a conta convidada do Portal AnnA One.',403);
@@ -576,8 +598,20 @@ const route=async(req,res)=>{
    RETURNING organization_id
   ) SELECT organization_id FROM membership`;
   if(!linked.length)bad('O convite não está mais disponível.',409);
+  if(invitation.project_id){
+   const target=await sql`SELECT p.id FROM teamhub.projects p JOIN teamhub.production_settings s
+    ON s.project_id=p.id AND s.organization_id=p.organization_id
+    WHERE p.id=${invitation.project_id} AND p.organization_id=${invitation.organization_id} AND p.archived_at IS NULL`;
+   if(target.length){
+    await sql`INSERT INTO teamhub.project_members(organization_id,project_id,auth_subject,added_by_subject)
+     SELECT ${invitation.organization_id}::uuid,${invitation.project_id}::uuid,${subject},${invitation.invited_by_subject}
+     ON CONFLICT DO NOTHING`;
+    await sql`INSERT INTO teamhub.production_assignments(organization_id,project_id,auth_subject,production_role)
+     VALUES(${invitation.organization_id},${invitation.project_id},${subject},'operator') ON CONFLICT DO NOTHING`;
+   }
+  }
   await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action) VALUES(${invitation.organization_id},${subject},'invitation.accepted')`;
-  return reply(res,200,{accepted:true,organization_id:invitation.organization_id});
+  return reply(res,200,{accepted:true,organization_id:invitation.organization_id,project_id:invitation.project_id||null});
  }
  if(p==='/api/me'&&req.method==='GET'){
   const orgs=await sql`SELECT o.id,o.name,o.display_name,o.logo_url,m.role FROM teamhub.memberships m JOIN teamhub.organizations o ON o.id=m.organization_id WHERE m.auth_subject=${subject} AND m.active=true AND o.module_enabled=true ORDER BY o.name`;
@@ -620,6 +654,8 @@ const route=async(req,res)=>{
    bad('Subtarefa não atribuída ou sem permissão.',403);
   return rows[0];
  };
+ if(await handleProduction({req,res,p,org,subject,role,sql,reply,json,canManageProject,
+   notifyMembers,dispatchInvitationEmail,sendEmail:sendCardNotificationEmail,NEXUS_INVITE_URL}))return;
  if(role==='guest'&&req.method!=='GET'&&!/^\/api\/notifications\/(?:read-all|[0-9a-f-]+\/read)$/.test(p))
   bad('Convidado possui acesso somente de leitura.',403);
  if(role==='guest'&&/^\/api\/(?:members|my-tasks|my-subtasks|reports|approvals|automation)/.test(p))
@@ -879,7 +915,7 @@ const route=async(req,res)=>{
   return reply(res,200,{saved:true,count:ids.length});
  }
  if(p==='/api/projects'&&req.method==='GET'){
-  const projects=await sql`SELECT p.id,p.name,p.description,p.created_at,p.paused_at,COALESCE(p.card_theme,p.card_color) AS card_color,p.owner_subject,p.manager_subject,p.access_mode,p.completion_status,p.completed_at, COUNT(t.id)::int AS total, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id AND t.deleted_at IS NULL AND t.archived_at IS NULL WHERE p.organization_id=${org} AND p.archived_at IS NULL AND (${unrestricted} OR (p.access_mode='organization' AND ${role!=='guest'}) OR (p.owner_subject=${subject} AND ${role!=='guest'}) OR p.manager_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject})) GROUP BY p.id ORDER BY p.created_at DESC`;
+  const projects=await sql`SELECT p.id,p.name,p.card_type,p.description,p.created_at,p.paused_at,COALESCE(p.card_theme,p.card_color) AS card_color,p.owner_subject,p.manager_subject,p.access_mode,p.completion_status,p.completed_at, COUNT(t.id)::int AS total, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id AND t.deleted_at IS NULL AND t.archived_at IS NULL WHERE p.organization_id=${org} AND p.archived_at IS NULL AND (${unrestricted} OR (p.access_mode='organization' AND ${role!=='guest'}) OR (p.owner_subject=${subject} AND ${role!=='guest'}) OR p.manager_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject})) GROUP BY p.id ORDER BY p.created_at DESC`;
   const layout=await sql`SELECT project_ids FROM teamhub.project_card_layouts WHERE organization_id=${org} AND auth_subject=${subject}`;
   const preferred=Array.isArray(layout[0]?.project_ids)?layout[0].project_ids:[];
   const position=new Map(preferred.map((id,index)=>[id,index]));

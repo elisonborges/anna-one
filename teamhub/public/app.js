@@ -1892,14 +1892,15 @@ $('back-projects').onclick=async()=>{await refreshProjects();show('projects')};
 $('new-project').onclick=()=>modal('project');
 $('new-production').onclick=()=>{const form=$('production-create-form');form.hidden=!form.hidden;if(!form.hidden){$('production-create-due').min=todayInFortaleza();$('production-create-name').focus()}};
 $('production-create-cancel').onclick=()=>{$('production-create-form').hidden=true};
+$('production-create-shifts').addEventListener('change',()=>{$('production-create-shift-wrap').hidden=!$('production-create-shifts').checked});
 $('production-create-form').addEventListener('submit',async e=>{
  e.preventDefault();const btn=e.currentTarget.querySelector('button[type=submit]');btn.disabled=true;
  try{
   const q=$('production-create-quality').value;
-  const shifts=$('production-create-shifts').checked?[
-   {name:'Manhã',start:'06:00',end:'14:00'},
-   {name:'Tarde',start:'14:00',end:'22:00'},
-   {name:'Noite',start:'22:00',end:'06:00'}]:[];
+  const shifts=$('production-create-shifts').checked?
+   $('production-create-shift-lines').value.trim().split(/\r?\n/).filter(Boolean).map(line=>{
+    const [name,start,end]=line.split(',').map(v=>v.trim());return{name,start,end};
+   }):[];
   const result=await api('/api/production'+qs(),{method:'POST',body:JSON.stringify({
    name:$('production-create-name').value.trim(),target:Number($('production-create-target').value),
    due_date:$('production-create-due').value,unit:$('production-create-unit').value,

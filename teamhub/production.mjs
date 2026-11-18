@@ -157,11 +157,15 @@ export async function handleProduction(c){
     VALUES(${org},${id},${worker},${subject}) ON CONFLICT DO NOTHING`;
    await notifyDirectCardAssignment(org,subject,worker,id,card.name);
    const notice=await sql`INSERT INTO teamhub.card_email_notices(organization_id,project_id,recipient_subject,recipient_email)
-    VALUES(${org},${id},${worker},${email}) ON CONFLICT DO NOTHING RETURNING id`;
+    VALUES(${org},${id},${worker},${email})
+    ON CONFLICT(organization_id,project_id,recipient_subject)
+    DO UPDATE SET assignment_count=teamhub.card_email_notices.assignment_count+1,
+     status='queued',provider_id=NULL,error_message=NULL,created_at=now()
+    RETURNING id,assignment_count`;
    let emailStatus='previously_notified';
    if(notice.length){
     const orgName=await sql`SELECT name FROM teamhub.organizations WHERE id=${org}`;
-    const result=await sendEmail(email,card.name,orgName[0]?.name||'AnnA One',id,notice[0].id,org);
+    const result=await sendEmail(email,card.name,orgName[0]?.name||'AnnA One',id,notice[0].id,org,notice[0].assignment_count);
     emailStatus=result.status;
     await sql`UPDATE teamhub.card_email_notices SET status=${result.status},provider_id=${result.id||null},
      error_message=${result.error||null} WHERE id=${notice[0].id}`;

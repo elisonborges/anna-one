@@ -1236,6 +1236,7 @@ async function openProject(p){
  $('board-archived-panel').hidden=true;
  $('board').classList.toggle('production-active',p.card_type==='production');
  $('production-panel').hidden=p.card_type!=='production';
+ $('standard-card-team').hidden=p.card_type==='production'||!canManageUI(p);
  if(p.card_type==='production'){
   $('board-archived-toggle').hidden=true;$('new-task').hidden=true;
   $('project-validation').hidden=true;$('project-pause').hidden=true;
@@ -1255,6 +1256,7 @@ async function openProject(p){
  $('new-task').hidden=!canManageUI(p);
  $('new-task').disabled=p.completion_status!=='active'||!canManageUI(p);
  renderTasks();show('board');
+ if(canManageUI(p))await loadStandardCardTeam();
 }
 const taskFilterMatches=t=>{
  const treatment=$('filter-treatment').value,priority=$('filter-priority').value,label=$('filter-label').value,due=$('filter-due').value,search=$('filter-search').value.trim().toLocaleLowerCase('pt-BR');
@@ -1964,6 +1966,59 @@ $('editor').addEventListener('submit',async e=>{
   $('dialog').close();message('Dados salvos com sucesso.');
  }catch(e){message(e.message,true)}finally{$('save').disabled=false}
 });
+
+
+// Convites por card tradicional: equipe ativa é atribuída sem criar nova conta.
+async function loadStandardCardTeam(){
+ const card=state.project;if(!card||card.card_type==='production'||!canManageUI(card))return;
+ const data=await api('/api/cards/'+card.id+'/members'+qs());
+ const allowed=data.restricted===true;
+ $('standard-card-team-form').hidden=!allowed;
+ $('standard-card-team-status').textContent=allowed
+  ?'Colaboradores ativos entram diretamente no card e recebem um e-mail de comunicação. Novos funcionários recebem convite.'
+  :'Este projeto ainda está visível para toda a organização. Antes de convidar por card, use Personalizar projeto → Somente participantes autorizados.';
+ const list=$('standard-card-team-list');list.replaceChildren();
+ for(const user of data.members){
+  const item=document.createElement('div');item.className='production-history-row';
+  const name=document.createElement('span');name.textContent=(user.display_name||user.email||'Colaborador')+(user.email?' · '+user.email:'');
+  item.append(name);
+  if(user.auth_subject!==state.subject){
+   const button=document.createElement('button');button.type='button';button.className='secondary';button.textContent='Remover deste card';
+   button.onclick=async()=>{
+    if(!confirm('Remover o acesso ao card? As atividades anteriores serão preservadas.'))return;
+    button.disabled=true;
+    try{await api('/api/cards/'+card.id+'/remove'+qs(),{method:'POST',body:JSON.stringify({subject:user.auth_subject})});await loadStandardCardTeam();message('Acesso ao card removido.')}
+    catch(e){message(e.message,true);button.disabled=false;}
+   };
+   item.append(button);
+  }
+  list.append(item);
+ }
+ if(!data.members.length)list.textContent='Nenhum participante específico.';
+}
+$('standard-card-team-form').addEventListener('submit',async e=>{
+ e.preventDefault();
+ if(!state.project||state.project.card_type!=='project')return;
+ const button=e.currentTarget.querySelector('button[type=submit]');button.disabled=true;
+ try{
+  const r=await api('/api/cards/'+state.project.id+'/assign'+qs(),{
+   method:'POST',body:JSON.stringify({email:$('standard-card-team-email').value.trim().toLowerCase()})
+  });
+  $('standard-card-team-status').textContent=r.assignment==='existing'
+   ?'Colaborador atribuído sem convite. Aviso por e-mail: '+r.email_status+'.'
+   :'Novo colaborador convidado. Entrega do e-mail: '+r.email_status+'.';
+  $('standard-card-team-link-wrap').hidden=r.assignment!=='invited';
+  if(r.invite_url)$('standard-card-team-link').value=r.invite_url;
+  $('standard-card-team-email').value='';
+  const status=$('standard-card-team-status').textContent;
+  await loadStandardCardTeam();$('standard-card-team-status').textContent=status;
+ }catch(err){$('standard-card-team-status').textContent=err.message;message(err.message,true)}
+ finally{button.disabled=false}
+});
+$('standard-card-team-copy').onclick=async()=>{
+ try{await navigator.clipboard.writeText($('standard-card-team-link').value);message('Link copiado.')}
+ catch{$('standard-card-team-link').focus();$('standard-card-team-link').select();}
+};
 
 // AnnA Nexus Produção v0.1.49 — operação mobile-first sem navegação adicional.
 let productionData=null;

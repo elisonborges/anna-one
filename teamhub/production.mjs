@@ -201,7 +201,8 @@ export async function handleProduction(c){
     const result=await sendEmail(email,card.name,orgName[0]?.name||'AnnA One',id,notice[0].id,org,notice[0].assignment_count);
     emailStatus=result.status;
     await sql`UPDATE teamhub.card_email_notices SET status=${result.status},provider_id=${result.id||null},
-     error_message=${result.error||null} WHERE id=${notice[0].id}`;
+     error_message=${result.error||null},retry_attempts=1,last_attempt_at=now()
+     WHERE id=${notice[0].id}`;
    }
    reply(res,201,{assignment:'existing',email_status:emailStatus});return true;
   }

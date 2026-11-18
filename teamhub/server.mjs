@@ -248,10 +248,10 @@ async function dispatchInvitationEmail({invitationId,email,role,inviteUrl,organi
   return {delivery:'manual',email_status:'failed'};
  }
 }
-async function sendCardNotificationEmail(email,card,company,cardId,noticeId){
+async function sendCardNotificationEmail(email,card,company,cardId,noticeId,organizationId){
  if(!emailTransportConfigured())return {status:'not_configured'};
  try{
-  const link=NEXUS_INVITE_URL+'#card='+cardId;
+  const link=NEXUS_INVITE_URL+'?org='+encodeURIComponent(organizationId)+'#card='+cardId;
   const response=await fetch('https://api.resend.com/emails',{
    method:'POST',headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,
     'Content-Type':'application/json','Idempotency-Key':'nexus-card-'+noticeId},
@@ -729,7 +729,7 @@ const route=async(req,res)=>{
     let delivery='previously_notified';
     if(notice.length){
      const company=await sql`SELECT name FROM teamhub.organizations WHERE id=${org}`;
-     const sent=await sendCardNotificationEmail(email,card.name,company[0]?.name||'AnnA One',cardId,notice[0].id);
+     const sent=await sendCardNotificationEmail(email,card.name,company[0]?.name||'AnnA One',cardId,notice[0].id,org);
      delivery=sent.status;
      await sql`UPDATE teamhub.card_email_notices SET status=${sent.status},provider_id=${sent.id||null},
       error_message=${sent.error||null} WHERE id=${notice[0].id}`;

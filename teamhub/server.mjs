@@ -578,7 +578,7 @@ const route=async(req,res)=>{
   // No other Nexus endpoint relaxes verification based on this rule.
   if(!req.identityEmail)bad('Entre com sua conta AnnA One para aceitar o convite.',403);
   const hash=createHash('sha256').update(token).digest('hex');
-  const invitations=await sql`SELECT id,organization_id,email,role,project_id,invited_by_subject FROM teamhub.invitations WHERE token_hash=${hash} AND status='pending' AND expires_at>now()`;
+  const invitations=await sql`SELECT id,organization_id,email,role,project_id,production_role,individual_target,invited_by_subject FROM teamhub.invitations WHERE token_hash=${hash} AND status='pending' AND expires_at>now()`;
   if(!invitations.length)bad('Convite expirado, cancelado ou já utilizado.',410);
   const invitation=invitations[0];
   if(invitation.email!==req.identityEmail)bad('Este convite foi emitido para outro e-mail. Entre com a conta convidada do Portal AnnA One.',403);
@@ -606,8 +606,10 @@ const route=async(req,res)=>{
     await sql`INSERT INTO teamhub.project_members(organization_id,project_id,auth_subject,added_by_subject)
      SELECT ${invitation.organization_id}::uuid,${invitation.project_id}::uuid,${subject},${invitation.invited_by_subject}
      ON CONFLICT DO NOTHING`;
-    await sql`INSERT INTO teamhub.production_assignments(organization_id,project_id,auth_subject,production_role)
-     VALUES(${invitation.organization_id},${invitation.project_id},${subject},'operator') ON CONFLICT DO NOTHING`;
+    await sql`INSERT INTO teamhub.production_assignments(organization_id,project_id,auth_subject,production_role,individual_target)
+     VALUES(${invitation.organization_id},${invitation.project_id},${subject},
+      ${invitation.production_role||'operator'},${invitation.individual_target||null})
+     ON CONFLICT DO NOTHING`;
    }
   }
   await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action) VALUES(${invitation.organization_id},${subject},'invitation.accepted')`;

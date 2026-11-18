@@ -110,6 +110,13 @@ async function notifyMembers(org,actor,subjects,event,title,details,projectId,ta
   WHEN 'approvals' THEN COALESCE(pref.approvals,true)
   ELSE COALESCE(pref.assignments,true) END`;
 }
+async function notifyDirectCardAssignment(org,actor,recipient,projectId,projectName){
+ if(recipient===actor)return;
+ await sql`INSERT INTO teamhub.notifications
+   (organization_id,recipient_subject,actor_subject,event_type,title,details,project_id)
+   VALUES(${org},${recipient},${actor},'card.direct_assigned','Você foi adicionado a um card',
+    ${projectName},${projectId})`;
+}
 async function verifyProjectRecipients(org,projectId,subjects){
  if(!subjects.length)return;
  const rows=await sql`SELECT access_mode,owner_subject,manager_subject FROM teamhub.projects WHERE id=${projectId} AND organization_id=${org}`;
@@ -280,7 +287,7 @@ async function processEmailOutbox(){
    JOIN teamhub.notification_email_contacts c ON c.organization_id=n.organization_id AND c.auth_subject=n.recipient_subject
    JOIN teamhub.memberships m ON m.organization_id=n.organization_id AND m.auth_subject=n.recipient_subject AND m.active=true
    LEFT JOIN teamhub.projects p ON p.id=n.project_id AND p.organization_id=n.organization_id
-   WHERE n.read_at IS NULL AND n.created_at>=pref.updated_at AND n.created_at>now()-interval '7 days'
+   WHERE n.event_type<>'card.direct_assigned' AND n.read_at IS NULL AND n.created_at>=pref.updated_at AND n.created_at>now()-interval '7 days'
     AND (n.project_id IS NULL OR p.access_mode='organization' OR m.role='admin' OR p.manager_subject=n.recipient_subject OR p.owner_subject=n.recipient_subject
       OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=n.organization_id AND pm.project_id=n.project_id AND pm.auth_subject=n.recipient_subject))
     AND NOT EXISTS(SELECT 1 FROM teamhub.email_delivery_log e WHERE e.notification_id=n.id)
@@ -729,7 +736,7 @@ const route=async(req,res)=>{
     const inserted=await sql`INSERT INTO teamhub.project_members(organization_id,project_id,auth_subject,added_by_subject)
      VALUES(${org},${cardId},${worker},${subject}) ON CONFLICT DO NOTHING RETURNING auth_subject`;
     if(!inserted.length)bad('Funcionário já atribuído ao card.',409);
-    await notifyMembers(org,subject,[worker],'project.assigned','Novo card atribuído',card.name,cardId);
+    await notifyDirectCardAssignment(org,subject,worker,cardId,card.name);
     const notice=await sql`INSERT INTO teamhub.card_email_notices(organization_id,project_id,recipient_subject,recipient_email)
       VALUES(${org},${cardId},${worker},${email}) ON CONFLICT DO NOTHING RETURNING id`;
     let delivery='previously_notified';
@@ -760,7 +767,7 @@ const route=async(req,res)=>{
   return reply(res,405,{error:'Operação não permitida.'});
  }
  if(await handleProduction({req,res,p,org,subject,role,sql,reply,json,canManageProject,
-   notifyMembers,dispatchInvitationEmail,sendEmail:sendCardNotificationEmail,NEXUS_INVITE_URL}))return;
+   notifyDirectCardAssignment,dispatchInvitationEmail,sendEmail:sendCardNotificationEmail,NEXUS_INVITE_URL}))return;
  if(role==='guest'&&req.method!=='GET'&&!/^\/api\/notifications\/(?:read-all|[0-9a-f-]+\/read)$/.test(p))
   bad('Convidado possui acesso somente de leitura.',403);
  if(role==='guest'&&/^\/api\/(?:members|my-tasks|my-subtasks|reports|approvals|automation)/.test(p))

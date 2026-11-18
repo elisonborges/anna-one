@@ -367,6 +367,19 @@ function enableProjectCardReorder(card,handle){
   persistProjectCardOrder();
  });
 }
+async function deleteCard(p){
+ if(!canManageUI(p))return message('Você não tem permissão para excluir este card.',true);
+ const kind=p.card_type==='production'?'Card de Produção':'card de projeto';
+ const accepted=confirm('Excluir '+kind+' "'+p.name+'"?\\n\\nEle desaparecerá dos projetos e ficará indisponível para os participantes. O histórico será preservado.');
+ if(!accepted)return;
+ try{
+  await api('/api/projects/'+encodeURIComponent(p.id)+qs(),{method:'DELETE'});
+  if(state.project?.id===p.id){state.project=null;state.tasks=[];}
+  await refreshProjects();
+  show('projects');
+  message('Card excluído. O histórico foi preservado.');
+ }catch(e){message(e.message,true)}
+}
 function renderProjects(){
  const overviewRows=state.projects.slice(0,6).map(p=>{
   const progress=p.card_type==='production'&&Number(p.production_target)>0?Math.round(Number(p.production_done)/Number(p.production_target)*100):p.total?Math.round(p.done/p.total*100):0;
@@ -407,6 +420,10 @@ function renderProjects(){
   if(canManageUI(p)){
    const edit=makeAction('Personalizar',()=>modal('project-edit',p));
    actions.append(edit);
+   const erase=makeAction('Excluir',()=>deleteCard(p));
+   erase.classList.add('project-card-delete');
+   erase.setAttribute('aria-label','Excluir card '+p.name);
+   actions.append(erase);
    if(state.role==='admin'){
     const invite=makeAction('Convidar',async()=>{try{await loadMembers();await loadInvitations();show('team');$('invite-email').focus();}catch(e){message(e.message,true)}});
     actions.append(invite);

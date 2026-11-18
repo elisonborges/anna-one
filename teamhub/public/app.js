@@ -18,6 +18,7 @@ async function loadInvitationPreview(){
  const roles={admin:'Administrador',manager:'Gestor',member:'Membro',guest:'Convidado'};
  const intro=$('invitation-intro').querySelector('p');
  intro.textContent='Organização: '+String(info.organization||'AnnA One')+
+  (info.project_name?' · Card: '+String(info.project_name):'')+
   ' · Perfil: '+(roles[info.role]||'Colaborador')+
   '. Se este é seu primeiro acesso, crie uma senha para entrar. Seu e-mail já está preenchido.';
 }
@@ -2100,6 +2101,14 @@ async function loadProduction(){
  const done=Number(data.summary?.approved||0),pending=Number(data.summary?.pending||0),target=Number(cfg.target);
  const values=[['Meta',prodFmt(target)+' '+cfg.unit],['Contabilizado',prodFmt(done)+' '+cfg.unit],
   ['Restante',prodFmt(Math.max(0,target-done))+' '+cfg.unit],['Em avaliação',prodFmt(pending)+' '+cfg.unit]];
+ if(cfg.goal_mode==='individual'&&!data.manager){
+  const mine=data.assignments.find(x=>x.auth_subject===state.subject);
+  if(mine?.individual_target!=null){
+   const myTotal=data.entries.filter(e=>e.author_subject===state.subject&&e.status==='approved')
+    .reduce((sum,e)=>sum+Number(e.quality_approved??e.quantity)+Number(e.rework_approved||0),0);
+   values.push(['Minha meta',prodFmt(mine.individual_target)+' '+cfg.unit],['Meu realizado',prodFmt(myTotal)+' '+cfg.unit]);
+  }
+ }
  const stats=$('production-stats');stats.replaceChildren();
  for(const [label,num] of values){
   const cell=document.createElement('div');cell.className='production-stat';
@@ -2113,7 +2122,7 @@ async function loadProduction(){
   ' · '+(cfg.goal_mode==='collective'?'Meta coletiva':'Metas individuais')+
   ' · '+(cfg.approval_required?'Aprovação do gestor':'Registro automático')+
   ' · '+(cfg.quality_enabled?('Qualidade: '+(cfg.quality_actor==='inspector'?'conferente':'operador')):'Sem qualidade');
- $('production-entry-form').hidden=!(data.manager||data.permission==='operator');
+ $('production-entry-form').hidden=cfg.completion_status!=='active'||!(data.manager||data.permission==='operator');
  $('production-quality-fields').hidden=!(cfg.quality_enabled&&cfg.quality_actor==='operator');
  $('production-shift-wrap').hidden=!cfg.shifts?.length;
  const shift=$('production-entry-shift');shift.replaceChildren();

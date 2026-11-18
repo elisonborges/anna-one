@@ -586,34 +586,39 @@ const route=async(req,res)=>{
   if(!orgEnabled?.module_enabled)bad('Módulo Nexus desabilitado para esta organização.',403);
   const alreadyMember=await sql`SELECT 1 FROM teamhub.memberships WHERE organization_id=${invitation.organization_id} AND auth_subject=${subject}`;
   if(alreadyMember.length)bad('Esta conta já pertence à organização. Peça ao administrador para ajustar o perfil ou reativar o acesso.',409);
+  // Validate card before consuming invitation; the join and membership then commit atomically.
+  if(invitation.project_id){
+   const target=await sql`SELECT id FROM teamhub.projects
+    WHERE id=${invitation.project_id} AND organization_id=${invitation.organization_id}
+      AND archived_at IS NULL AND access_mode='restricted'`;
+   if(!target.length)bad('O card deste convite está indisponível. Solicite um novo convite.',410);
+  }
   const linked=await sql`WITH claimed AS (
    UPDATE teamhub.invitations SET status='accepted',accepted_by_subject=${subject},accepted_at=now()
    WHERE id=${invitation.id} AND status='pending' AND expires_at>now()
-    AND NOT EXISTS (SELECT 1 FROM teamhub.memberships m WHERE m.organization_id=${invitation.organization_id} AND m.auth_subject=${subject})
-   RETURNING organization_id,role
+    AND NOT EXISTS (SELECT 1 FROM teamhub.memberships m
+      WHERE m.organization_id=${invitation.organization_id} AND m.auth_subject=${subject})
+   RETURNING organization_id,role,project_id,production_role,individual_target,invited_by_subject
   ), membership AS (
    INSERT INTO teamhub.memberships(organization_id,auth_subject,role,active)
    SELECT organization_id,${subject},role,true FROM claimed
    ON CONFLICT (organization_id,auth_subject) DO NOTHING
    RETURNING organization_id
-  ) SELECT organization_id FROM membership`;
+  ), project_link AS (
+   INSERT INTO teamhub.project_members(organization_id,project_id,auth_subject,added_by_subject)
+   SELECT c.organization_id,c.project_id,${subject},c.invited_by_subject
+   FROM claimed c JOIN membership m ON m.organization_id=c.organization_id
+   WHERE c.project_id IS NOT NULL
+   ON CONFLICT DO NOTHING RETURNING project_id
+  ), production_link AS (
+   INSERT INTO teamhub.production_assignments(organization_id,project_id,auth_subject,production_role,individual_target)
+   SELECT c.organization_id,c.project_id,${subject},COALESCE(c.production_role,'operator'),c.individual_target
+   FROM claimed c JOIN membership m ON m.organization_id=c.organization_id
+   JOIN teamhub.production_settings s ON s.project_id=c.project_id AND s.organization_id=c.organization_id
+   ON CONFLICT DO NOTHING RETURNING project_id
+  )
+  SELECT m.organization_id FROM membership m`;
   if(!linked.length)bad('O convite não está mais disponível.',409);
-  if(invitation.project_id){
-   const target=await sql`SELECT p.id,p.card_type FROM teamhub.projects p
-    WHERE p.id=${invitation.project_id} AND p.organization_id=${invitation.organization_id}
-      AND p.archived_at IS NULL AND p.access_mode='restricted'`;
-   if(target.length){
-    await sql`INSERT INTO teamhub.project_members(organization_id,project_id,auth_subject,added_by_subject)
-     SELECT ${invitation.organization_id}::uuid,${invitation.project_id}::uuid,${subject},${invitation.invited_by_subject}
-     ON CONFLICT DO NOTHING`;
-    if(target[0].card_type==='production'){
-     await sql`INSERT INTO teamhub.production_assignments(organization_id,project_id,auth_subject,production_role,individual_target)
-      VALUES(${invitation.organization_id},${invitation.project_id},${subject},
-       ${invitation.production_role||'operator'},${invitation.individual_target||null})
-      ON CONFLICT DO NOTHING`;
-    }
-   }
-  }
   await sql`INSERT INTO teamhub.activities(organization_id,actor_subject,action) VALUES(${invitation.organization_id},${subject},'invitation.accepted')`;
   return reply(res,200,{accepted:true,organization_id:invitation.organization_id,project_id:invitation.project_id||null});
  }

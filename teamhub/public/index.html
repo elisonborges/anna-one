@@ -111,7 +111,17 @@ Noite,22:00,06:00</textarea>
  <div id="approval-queue-panel" class="panel approval-queue" hidden><div class="section-head"><h2>Fila de validação</h2><span class="muted" id="approval-queue-count"></span></div><div id="approval-queue-list" class="data-container"></div></div></section>
  <section id="board" hidden>
  <div class="section-head"><button id="back-projects" class="secondary">← Projetos</button><div class="project-toolbar"><span id="project-pause-status"></span><button id="project-validation" class="secondary" type="button">Conferir conclusão</button><button id="project-pause" class="secondary" type="button">Pausar projeto</button><button id="board-archived-toggle" class="secondary" type="button" hidden>Tarefas arquivadas</button><button id="new-task" class="primary">+ Nova tarefa</button></div></div><p id="board-description" class="muted"></p>
- <div id="production-panel" class="panel production-panel" hidden>
+ <div id="standard-card-team" class="panel" hidden>
+ <h3>Equipe deste card</h3>
+ <p id="standard-card-team-status" class="muted"></p>
+ <form id="standard-card-team-form">
+  <div class="production-fields"><label>E-mail do colaborador<input id="standard-card-team-email" type="email" maxlength="254" required placeholder="colaborador@empresa.com.br"></label></div>
+  <button type="submit" class="primary">Atribuir ou convidar colaborador</button>
+ </form>
+ <div id="standard-card-team-list" class="data-container"></div>
+ <div id="standard-card-team-link-wrap" hidden><label>Link individual (se e-mail não for entregue)<input id="standard-card-team-link" readonly></label><button type="button" class="secondary" id="standard-card-team-copy">Copiar link</button></div>
+</div>
+<div id="production-panel" class="panel production-panel" hidden>
  <div class="production-section-head"><h2 id="production-title">Produção</h2><span id="production-status" role="status"></span></div>
  <div id="production-stats" class="production-stats"></div>
  <div id="production-progress" class="production-progress"><span id="production-progress-fill"></span></div>

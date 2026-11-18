@@ -276,6 +276,48 @@ async function sendCardNotificationEmail(email,card,company,cardId,noticeId,orga
   return {status:'sent',id:String(result.id)};
  }catch(e){return {status:'failed',error:String(e.message||'Falha').slice(0,150)};}
 }
+// A atribuição ao card é independente do envio. Tentativas posteriores preservam
+// a chave de idempotência do Resend e nunca reativam acesso removido.
+let cardEmailRetryBusy=false;
+async function retryCardAssignmentEmails(){
+ if(cardEmailRetryBusy||!emailTransportConfigured())return;
+ cardEmailRetryBusy=true;
+ try{
+  const pending=await sql`SELECT n.id,n.organization_id,n.project_id,n.recipient_subject,
+    n.recipient_email,n.assignment_count,p.name AS card_name,o.name AS org_name
+   FROM teamhub.card_email_notices n
+   JOIN teamhub.projects p ON p.id=n.project_id AND p.organization_id=n.organization_id
+   JOIN teamhub.organizations o ON o.id=n.organization_id AND o.module_enabled=true
+   JOIN teamhub.memberships m ON m.organization_id=n.organization_id AND m.auth_subject=n.recipient_subject AND m.active=true
+   WHERE n.status IN ('queued','failed','not_configured','sending')
+    AND n.retry_attempts<5 AND n.created_at>now()-interval '7 days'
+    AND (n.last_attempt_at IS NULL OR n.last_attempt_at<now()-interval '10 minutes')
+    AND p.archived_at IS NULL
+    AND (EXISTS(SELECT 1 FROM teamhub.project_members pm
+       WHERE pm.organization_id=n.organization_id AND pm.project_id=n.project_id
+        AND pm.auth_subject=n.recipient_subject)
+     OR EXISTS(SELECT 1 FROM teamhub.production_assignments pa
+       WHERE pa.organization_id=n.organization_id AND pa.project_id=n.project_id
+        AND pa.auth_subject=n.recipient_subject))
+   ORDER BY n.created_at LIMIT 10`;
+  for(const n of pending){
+   const claimed=await sql`UPDATE teamhub.card_email_notices SET
+     status='sending',retry_attempts=retry_attempts+1,last_attempt_at=now()
+     WHERE id=${n.id} AND assignment_count=${n.assignment_count}
+      AND status IN ('queued','failed','not_configured','sending')
+      AND retry_attempts<5 AND (last_attempt_at IS NULL OR last_attempt_at<now()-interval '10 minutes')
+     RETURNING id`;
+   if(!claimed.length)continue;
+   const result=await sendCardNotificationEmail(n.recipient_email,n.card_name,n.org_name,
+    n.project_id,n.id,n.organization_id,n.assignment_count);
+   await sql`UPDATE teamhub.card_email_notices SET
+     status=${result.status},provider_id=${result.id||null},
+     error_message=${result.error||null}
+     WHERE id=${n.id} AND assignment_count=${n.assignment_count}`;
+  }
+ }catch(e){console.warn('Nexus card email retries unavailable:',String(e.message||'Unknown').slice(0,130))}
+ finally{cardEmailRetryBusy=false;}
+}
 let emailWorkerBusy=false;
 async function processEmailOutbox(){
  if(emailWorkerBusy||!emailTransportConfigured())return;
@@ -749,7 +791,8 @@ const route=async(req,res)=>{
      const sent=await sendCardNotificationEmail(email,card.name,company[0]?.name||'AnnA One',cardId,notice[0].id,org,notice[0].assignment_count);
      delivery=sent.status;
      await sql`UPDATE teamhub.card_email_notices SET status=${sent.status},provider_id=${sent.id||null},
-      error_message=${sent.error||null} WHERE id=${notice[0].id}`;
+      error_message=${sent.error||null},retry_attempts=1,last_attempt_at=now()
+      WHERE id=${notice[0].id}`;
     }
     return reply(res,201,{assignment:'existing',email_status:delivery});
    }
@@ -1749,5 +1792,7 @@ http.createServer((req,res)=>Promise.resolve(route(req,res)).catch(e=>reply(res,
  setTimeout(()=>runScheduledDeadlines().catch(()=>{}),25000).unref();
  setInterval(()=>runScheduledDeadlines().catch(()=>{}),15*60*1000).unref();
  setTimeout(()=>processEmailOutbox().catch(()=>{}),40000).unref();
+ setTimeout(()=>retryCardAssignmentEmails().catch(()=>{}),55000).unref();
  setInterval(()=>processEmailOutbox().catch(()=>{}),10*60*1000).unref();
+ setInterval(()=>retryCardAssignmentEmails().catch(()=>{}),10*60*1000).unref();
 });

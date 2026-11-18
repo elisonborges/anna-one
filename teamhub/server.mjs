@@ -461,12 +461,13 @@ const route=async(req,res)=>{
   const token=typeof b.token==='string'?b.token.toLowerCase():'';
   if(!/^[a-f0-9]{64}$/.test(token))bad('Link de convite inválido.',400);
   const hash=createHash('sha256').update(token).digest('hex');
-  const rows=await sql`SELECT i.email,i.role,o.display_name,o.name
+  const rows=await sql`SELECT i.email,i.role,i.project_id,p.name AS project_name,o.display_name,o.name
    FROM teamhub.invitations i JOIN teamhub.organizations o ON o.id=i.organization_id
+   LEFT JOIN teamhub.projects p ON p.id=i.project_id AND p.organization_id=i.organization_id
    WHERE i.token_hash=${hash} AND i.status='pending' AND i.expires_at>now()
    LIMIT 1`;
   if(!rows.length)bad('Este convite expirou, foi cancelado ou já foi utilizado. Solicite um novo convite.',410);
-  return reply(res,200,{email:rows[0].email,role:rows[0].role,
+  return reply(res,200,{email:rows[0].email,role:rows[0].role,project_name:rows[0].project_name||null,
    organization:rows[0].display_name||rows[0].name});
  }
  const subject=await user(req);

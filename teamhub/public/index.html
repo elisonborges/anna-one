@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#0c2646"><script src="./theme.js?v=0.1.46"></script><meta name="description" content="AnnA Nexus — gestão de projetos e equipes">
-<title>AnnA Nexus | AnnA One</title><link rel="stylesheet" href="./styles.css?v=0.1.46"><link rel="manifest" href="./manifest.webmanifest"></head>
+<meta name="theme-color" content="#0c2646"><script src="./theme.js?v=0.1.49"></script><meta name="description" content="AnnA Nexus — gestão de projetos e equipes">
+<title>AnnA Nexus | AnnA One</title><link rel="stylesheet" href="./styles.css?v=0.1.49"><link rel="manifest" href="./manifest.webmanifest"></head>
 <body>
-<header class="top"><button id="mobile-menu-toggle" class="icon mobile-menu-toggle" type="button" aria-label="Abrir menu de navegação" aria-controls="nexus-sidebar" aria-expanded="false">☰</button><div class="brand"><img class="logo" src="./anna-symbol.svg" alt="Símbolo AnnA One"><div><strong>AnnA <em>One</em></strong><small>NEXUS · GESTÃO DE EQUIPES</small></div></div><div class="top-actions"><span class="version-tag" title="Versão instalada do AnnA Nexus">v0.1.46</span><button id="notify-header" class="icon notify-header" type="button" aria-label="Abrir notificações">♧<span id="notify-header-count" hidden>0</span></button><button id="theme" class="icon" aria-label="Alternar tema">◐</button><span id="account">Verificando sessão…</span><a id="portal" href="https://annaone.com.br/app/login-neon.html">Portal</a></div></header>
+<header class="top"><button id="mobile-menu-toggle" class="icon mobile-menu-toggle" type="button" aria-label="Abrir menu de navegação" aria-controls="nexus-sidebar" aria-expanded="false">☰</button><div class="brand"><img class="logo" src="./anna-symbol.svg" alt="Símbolo AnnA One"><div><strong>AnnA <em>One</em></strong><small>NEXUS · GESTÃO DE EQUIPES</small></div></div><div class="top-actions"><span class="version-tag" title="Versão instalada do AnnA Nexus">v0.1.49</span><button id="notify-header" class="icon notify-header" type="button" aria-label="Abrir notificações">♧<span id="notify-header-count" hidden>0</span></button><button id="theme" class="icon" aria-label="Alternar tema">◐</button><span id="account">Verificando sessão…</span><a id="portal" href="https://annaone.com.br/app/login-neon.html">Portal</a></div></header>
 <div id="status" role="status" aria-live="polite"></div>
 <section id="signin" class="signin" hidden>
  <div class="signin-card">
@@ -80,8 +80,22 @@
   <div class="panel"><h2>Projetos recentes</h2><div id="overview-projects" class="data-container"></div></div>
  </section>
  <section id="projects" hidden>
- <div class="section-head"><div><h2 id="projects-heading">Projetos</h2><p id="projects-help" class="muted">Cada card representa um projeto. Arraste pela alça no topo para mudar a ordem (ou use as setas do teclado).</p></div><div class="project-list-actions"><button class="secondary" id="projects-invite" type="button">Convidar membro</button><button class="primary" id="new-project" type="button">+ Novo card</button></div></div>
- <div id="guest-projects-empty" class="guest-projects-empty" hidden role="status" aria-live="polite">
+ <div class="section-head"><div><h2 id="projects-heading">Projetos</h2><p id="projects-help" class="muted">Cada card representa um projeto. Arraste pela alça no topo para mudar a ordem (ou use as setas do teclado).</p></div><div class="project-list-actions"><button class="secondary" id="projects-invite" type="button">Convidar membro</button><button class="secondary" id="new-production" type="button">+ Card de Produção</button><button class="primary" id="new-project" type="button">+ Novo card</button></div></div>
+ <form id="production-create-form" class="panel" hidden>
+ <h3>Novo Card de Produção</h3>
+ <div class="production-fields">
+  <label>Nome da produção<input id="production-create-name" maxlength="160" required placeholder="Ex.: Lote 001"></label>
+  <label>Meta total<input id="production-create-target" type="number" min=".001" step=".001" required placeholder="5000"></label>
+  <label>Unidade<select id="production-create-unit"><option>peças</option><option>caixas</option><option>kg</option><option>metros</option><option>litros</option></select></label>
+  <label>Prazo<input id="production-create-due" type="date" required></label>
+  <label>Distribuição<select id="production-create-goal"><option value="collective">Meta coletiva</option><option value="individual">Metas individuais</option></select></label>
+  <label>Controle de qualidade<select id="production-create-quality"><option value="none">Desativado</option><option value="operator">Pelo operador</option><option value="inspector">Por conferente</option></select></label>
+ </div>
+ <label class="production-check"><input id="production-create-approval" type="checkbox"> Exigir aprovação do gestor</label>
+ <label class="production-check"><input id="production-create-shifts" type="checkbox"> Usar turnos (06:00–14:00, 14:00–22:00 e 22:00–06:00; horários editáveis numa evolução)</label>
+ <div class="production-actions"><button type="submit" class="primary">Criar Card de Produção</button><button id="production-create-cancel" type="button" class="secondary">Cancelar</button></div>
+</form>
+<div id="guest-projects-empty" class="guest-projects-empty" hidden role="status" aria-live="polite">
  <span aria-hidden="true" class="guest-empty-icon">▤</span>
  <h3>Você ainda não possui projetos compartilhados.</h3>
  <p>Seu acesso ao AnnA Nexus está ativo, mas nenhum projeto foi compartilhado com a sua conta. Solicite ao administrador que autorize seu e-mail nos projetos desejados.</p>
@@ -91,7 +105,44 @@
  <div id="approval-queue-panel" class="panel approval-queue" hidden><div class="section-head"><h2>Fila de validação</h2><span class="muted" id="approval-queue-count"></span></div><div id="approval-queue-list" class="data-container"></div></div></section>
  <section id="board" hidden>
  <div class="section-head"><button id="back-projects" class="secondary">← Projetos</button><div class="project-toolbar"><span id="project-pause-status"></span><button id="project-validation" class="secondary" type="button">Conferir conclusão</button><button id="project-pause" class="secondary" type="button">Pausar projeto</button><button id="board-archived-toggle" class="secondary" type="button" hidden>Tarefas arquivadas</button><button id="new-task" class="primary">+ Nova tarefa</button></div></div><p id="board-description" class="muted"></p>
- <div class="board-progress" id="board-progress" aria-live="polite"><div class="board-progress-copy"><strong id="board-progress-tasks">0 de 0 tarefas concluídas</strong><span id="board-progress-subtasks">0 de 0 subtarefas concluídas</span></div><div class="board-progress-track"><span id="board-progress-fill"></span></div></div>
+ <div id="production-panel" class="panel production-panel" hidden>
+ <div class="production-section-head"><h2 id="production-title">Produção</h2><span id="production-status" role="status"></span></div>
+ <div id="production-stats" class="production-stats"></div>
+ <div id="production-progress" class="production-progress"><span id="production-progress-fill"></span></div>
+ <p class="muted" id="production-meta"></p>
+ <form id="production-entry-form" class="production-form">
+  <h3>Registrar minha produção</h3>
+  <div class="production-fields">
+   <label>Data da produção<input id="production-entry-date" type="date" required></label>
+   <label>Quantidade<input id="production-entry-qty" type="number" step=".001" min=".001" required></label>
+   <label id="production-shift-wrap" hidden>Turno<select id="production-entry-shift"></select></label>
+  </div>
+  <div id="production-quality-fields" hidden class="production-fields">
+   <label>Aprovadas<input id="production-entry-approved" type="number" min="0" step=".001"></label>
+   <label>Rejeitadas<input id="production-entry-rejected" type="number" min="0" step=".001"></label>
+   <label>Retrabalho<input id="production-entry-rework" type="number" min="0" step=".001"></label>
+  </div>
+  <button class="primary" id="production-entry-submit" type="submit">Registrar produção</button>
+ </form>
+ <div id="production-inspector-panel" hidden><h3>Aguardando conferência</h3><div id="production-inspector-list"></div></div>
+ <div id="production-approvals-panel" hidden><h3>Aguardando aprovação do gestor</h3><div id="production-approvals-list"></div></div>
+ <div><h3>Histórico de produção</h3><div id="production-history"></div></div>
+ <div id="production-manager-panel" hidden>
+  <h3>Equipe do Card · Atribuição ou convite</h3>
+  <form id="production-assign-form" class="production-form">
+   <div class="production-fields">
+    <label>E-mail do funcionário<input id="production-assign-email" type="email" required maxlength="254" placeholder="funcionario@empresa.com.br"></label>
+    <label>Função<select id="production-assign-role"><option value="operator">Operador</option><option value="inspector">Conferente</option><option value="viewer">Visualizador</option></select></label>
+    <label id="production-individual-wrap" hidden>Meta individual<input id="production-individual-target" type="number" step=".001" min="0"></label>
+   </div>
+   <button class="primary" type="submit">Adicionar ao card</button>
+  </form>
+  <p id="production-assign-feedback" class="muted" role="status"></p>
+  <div id="production-invite-link-wrap" hidden><label>Link do convite (caso o e-mail falhe)<input id="production-invite-link" readonly></label><button type="button" id="production-invite-copy" class="secondary">Copiar link</button></div>
+  <div id="production-team"></div>
+ </div>
+</div>
+<div class="board-progress" id="board-progress" aria-live="polite"><div class="board-progress-copy"><strong id="board-progress-tasks">0 de 0 tarefas concluídas</strong><span id="board-progress-subtasks">0 de 0 subtarefas concluídas</span></div><div class="board-progress-track"><span id="board-progress-fill"></span></div></div>
  <div class="board-quickbar" aria-label="Resumo e filtros rápidos do projeto">
  <div class="board-quickstats"><span id="quick-open">0 abertas</span><span id="quick-overdue">0 atrasadas</span><span id="quick-blocked">0 bloqueadas</span><span id="quick-waiting">0 aguardando</span></div>
  <button id="toggle-board-filters" class="secondary" type="button" aria-controls="board-filter-panel" aria-expanded="false">Mostrar filtros</button>
@@ -223,4 +274,4 @@
  <button id="attachment-upload" type="button" class="secondary">Enviar anexo</button></div>
 </section>
 <div class="modal-actions"><button type="button" class="secondary" id="cancel">Cancelar</button><button class="primary" type="submit" id="save">Salvar</button></div></form></dialog>
-<script type="module" src="./app.js?v=0.1.46"></script></body></html>
+<script type="module" src="./app.js?v=0.1.49"></script></body></html>

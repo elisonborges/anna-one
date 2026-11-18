@@ -658,6 +658,33 @@ const route=async(req,res)=>{
    bad('Subtarefa não atribuída ou sem permissão.',403);
   return rows[0];
  };
+ if(p==='/api/production/dashboard'&&req.method==='GET'){
+  if(!['admin','manager'].includes(role))bad('Painel reservado a gestores.',403);
+  const rows=await sql`WITH totals AS(
+   SELECT organization_id,project_id,
+    SUM(CASE WHEN status='approved' THEN COALESCE(quality_approved,quantity) ELSE 0 END) AS approved,
+    SUM(CASE WHEN status IN ('pending','awaiting_quality') THEN quantity ELSE 0 END) AS pending,
+    SUM(CASE WHEN status='approved' THEN COALESCE(quality_rejected,0) ELSE 0 END) AS rejected
+   FROM teamhub.production_entries WHERE organization_id=${org}
+   GROUP BY organization_id,project_id
+  ), rework AS(
+   SELECT organization_id,project_id,SUM(approved) AS approved,SUM(rejected) AS rejected
+   FROM teamhub.production_rework WHERE organization_id=${org}
+   GROUP BY organization_id,project_id
+  )
+  SELECT p.id,p.name,s.target,s.unit,s.due_date,s.goal_mode,
+   COALESCE(t.approved,0)+COALESCE(r.approved,0) AS completed,
+   COALESCE(t.pending,0) AS pending,
+   COALESCE(t.rejected,0)+COALESCE(r.rejected,0) AS rejected
+  FROM teamhub.projects p JOIN teamhub.production_settings s
+   ON s.organization_id=p.organization_id AND s.project_id=p.id
+  LEFT JOIN totals t ON t.organization_id=p.organization_id AND t.project_id=p.id
+  LEFT JOIN rework r ON r.organization_id=p.organization_id AND r.project_id=p.id
+  WHERE p.organization_id=${org} AND p.archived_at IS NULL
+   AND (${role==='admin'} OR p.manager_subject=${subject})
+  ORDER BY s.due_date,p.created_at DESC LIMIT 200`;
+  return reply(res,200,{cards:rows});
+ }
  const standardCard=/^\/api\/cards\/([0-9a-f-]+)\/(assign|remove|members)$/.exec(p);
  if(standardCard){
   const cardId=standardCard[1],operation=standardCard[2];

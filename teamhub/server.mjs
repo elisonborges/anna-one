@@ -1027,7 +1027,14 @@ const route=async(req,res)=>{
   return reply(res,200,{saved:true,count:ids.length});
  }
  if(p==='/api/projects'&&req.method==='GET'){
-  const projects=await sql`SELECT p.id,p.name,p.card_type,p.description,p.created_at,p.paused_at,COALESCE(p.card_theme,p.card_color) AS card_color,p.owner_subject,p.manager_subject,p.access_mode,p.completion_status,p.completed_at, COUNT(t.id)::int AS total, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id AND t.deleted_at IS NULL AND t.archived_at IS NULL WHERE p.organization_id=${org} AND p.archived_at IS NULL AND (${unrestricted} OR (p.access_mode='organization' AND ${role!=='guest'}) OR (p.owner_subject=${subject} AND ${role!=='guest'}) OR p.manager_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject})) GROUP BY p.id ORDER BY p.created_at DESC`;
+  const projects=await sql`SELECT p.id,p.name,p.card_type,p.description,
+  (SELECT s.target FROM teamhub.production_settings s
+   WHERE s.organization_id=p.organization_id AND s.project_id=p.id) AS production_target,
+  (SELECT COALESCE(SUM(CASE WHEN e.status='approved' THEN COALESCE(e.quality_approved,e.quantity) ELSE 0 END),0)
+   FROM teamhub.production_entries e WHERE e.organization_id=p.organization_id AND e.project_id=p.id)
+  +(SELECT COALESCE(SUM(r.approved),0) FROM teamhub.production_rework r
+    WHERE r.organization_id=p.organization_id AND r.project_id=p.id) AS production_done,
+  p.created_at,p.paused_at,COALESCE(p.card_theme,p.card_color) AS card_color,p.owner_subject,p.manager_subject,p.access_mode,p.completion_status,p.completed_at, COUNT(t.id)::int AS total, COUNT(t.id) FILTER(WHERE t.status='done')::int AS done, COUNT(t.id) FILTER(WHERE t.status='doing')::int AS doing FROM teamhub.projects p LEFT JOIN teamhub.tasks t ON t.project_id=p.id AND t.organization_id=p.organization_id AND t.deleted_at IS NULL AND t.archived_at IS NULL WHERE p.organization_id=${org} AND p.archived_at IS NULL AND (${unrestricted} OR (p.access_mode='organization' AND ${role!=='guest'}) OR (p.owner_subject=${subject} AND ${role!=='guest'}) OR p.manager_subject=${subject} OR EXISTS (SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject})) GROUP BY p.id ORDER BY p.created_at DESC`;
   const layout=await sql`SELECT project_ids FROM teamhub.project_card_layouts WHERE organization_id=${org} AND auth_subject=${subject}`;
   const preferred=Array.isArray(layout[0]?.project_ids)?layout[0].project_ids:[];
   const position=new Map(preferred.map((id,index)=>[id,index]));

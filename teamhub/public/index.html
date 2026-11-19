@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#0c2646"><script src="./theme.js?v=0.1.58"></script><meta name="description" content="AnnA Nexus — gestão de projetos e equipes">
-<title>AnnA Nexus | AnnA One</title><link rel="stylesheet" href="./styles.css?v=0.1.58"><link rel="manifest" href="./manifest.webmanifest"></head>
+<meta name="theme-color" content="#0c2646"><script src="./theme.js?v=0.1.59"></script><meta name="description" content="AnnA Nexus — gestão de projetos e equipes">
+<title>AnnA Nexus | AnnA One</title><link rel="stylesheet" href="./styles.css?v=0.1.59"><link rel="manifest" href="./manifest.webmanifest"></head>
 <body>
-<header class="top"><button id="mobile-menu-toggle" class="icon mobile-menu-toggle" type="button" aria-label="Abrir menu de navegação" aria-controls="nexus-sidebar" aria-expanded="false">☰</button><div class="brand"><img class="logo" src="./anna-symbol.svg" alt="Símbolo AnnA One"><div><strong>AnnA <em>One</em></strong><small>NEXUS · GESTÃO DE EQUIPES</small></div></div><div class="top-actions"><span class="version-tag" title="Versão instalada do AnnA Nexus">v0.1.58</span><button id="notify-header" class="icon notify-header" type="button" aria-label="Abrir notificações">♧<span id="notify-header-count" hidden>0</span></button><button id="theme" class="icon" aria-label="Alternar tema">◐</button><span id="account">Verificando sessão…</span><a id="portal" href="https://annaone.com.br/app/login-neon.html">Portal</a></div></header>
+<header class="top"><button id="mobile-menu-toggle" class="icon mobile-menu-toggle" type="button" aria-label="Abrir menu de navegação" aria-controls="nexus-sidebar" aria-expanded="false">☰</button><div class="brand"><img class="logo" src="./anna-symbol.svg" alt="Símbolo AnnA One"><div><strong>AnnA <em>One</em></strong><small>NEXUS · GESTÃO DE EQUIPES</small></div></div><div class="top-actions"><span class="version-tag" title="Versão instalada do AnnA Nexus">v0.1.59</span><button id="notify-header" class="icon notify-header" type="button" aria-label="Abrir notificações">♧<span id="notify-header-count" hidden>0</span></button><button id="theme" class="icon" aria-label="Alternar tema">◐</button><span id="account">Verificando sessão…</span><a id="portal" href="https://annaone.com.br/app/login-neon.html">Portal</a></div></header>
 <div id="status" role="status" aria-live="polite"></div>
 <section id="signin" class="signin" hidden>
  <div class="signin-card">
@@ -78,7 +78,17 @@
   <div class="panel dash-chart-panel"><div class="section-head"><h2>Projetos em acompanhamento</h2><span class="muted">Progresso e pendências por projeto</span></div><div id="dash-project-rows" class="data-container"></div></div>
   <div class="panel attention-panel"><div class="section-head"><h2>Pendências que exigem atenção</h2><span class="muted">Bloqueadas e aguardando retorno</span></div><div id="attention-list" class="data-container"></div></div>
   <div class="dashboard-bottom-grid">
-  <div class="panel dashboard-recent-panel"><h2>Projetos recentes</h2><div id="overview-projects" class="data-container"></div></div>
+  <div class="panel dashboard-recent-panel">
+ <div class="section-head"><h2>Projetos recentes</h2><span id="recent-project-count" class="muted" aria-live="polite"></span></div>
+ <div class="recent-project-toolbar" role="group" aria-label="Organizar projetos recentes">
+  <label class="recent-project-search"><span>Buscar projeto</span><input id="recent-project-search" type="search" placeholder="Nome ou descrição" autocomplete="off"></label>
+  <label><span>Situação</span><select id="recent-project-status-filter"><option value="all">Todos</option><option value="overdue">Atrasados</option><option value="active">Em andamento</option><option value="review">Aguardando validação</option><option value="complete">Concluídos</option></select></label>
+  <label><span>Ordenar</span><select id="recent-project-order"><option value="recent">Ordem atual</option><option value="urgent">Atrasos primeiro</option><option value="progress">Maior progresso</option><option value="name">Nome A–Z</option></select></label>
+  <label><span>Exibir</span><select id="recent-project-limit"><option value="6">6 projetos</option><option value="12">12 projetos</option><option value="all">Todos</option></select></label>
+  <button id="recent-project-clear" type="button" class="secondary">Limpar filtros</button>
+ </div>
+ <div id="overview-projects" class="data-container"></div>
+ </div>
  <div id="production-dashboard-panel" class="panel" hidden>
  <div class="section-head"><h2>Visão gerencial da produção</h2><button id="production-dashboard-refresh" type="button" class="secondary">Atualizar</button></div>
  <p class="muted">Indicadores calculados a partir dos lançamentos do Nexus. Valores de unidades diferentes não são somados.</p>
@@ -320,4 +330,4 @@ Noite,22:00,06:00</textarea>
  <button id="attachment-upload" type="button" class="secondary">Enviar anexo</button></div>
 </section>
 <div class="modal-actions"><button type="button" class="secondary" id="cancel">Cancelar</button><button class="primary" type="submit" id="save">Salvar</button></div></form></dialog>
-<script type="module" src="./app.js?v=0.1.58"></script></body></html>
+<script type="module" src="./app.js?v=0.1.59"></script></body></html>

@@ -92,6 +92,11 @@
  <div id="production-dashboard-panel" class="panel" hidden>
  <div class="section-head"><h2>Visão gerencial da produção</h2><button id="production-dashboard-refresh" type="button" class="secondary">Atualizar</button></div>
  <p class="muted">Indicadores calculados a partir dos lançamentos do Nexus. Valores de unidades diferentes não são somados.</p>
+ <div class="production-dashboard-toolbar" role="group" aria-label="Organizar produções">
+  <label><span>Situação</span><select id="production-status-filter"><option value="all">Todas</option><option value="overdue">Atrasadas</option><option value="due-soon">Prazo próximo</option><option value="on-track">Em andamento</option><option value="complete">Meta atingida</option></select></label>
+  <label><span>Ordem</span><select id="production-order"><option value="urgent">Prioridade</option><option value="due">Prazo</option><option value="progress">Maior progresso</option><option value="name">Nome A–Z</option></select></label>
+  <span id="production-filter-count" aria-live="polite"></span>
+ </div>
  <div id="production-dashboard-list"></div>
 </div>
  </div>

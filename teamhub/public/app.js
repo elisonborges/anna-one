@@ -876,7 +876,7 @@ $('notify-read-all').addEventListener('click',async()=>{
  try{await api('/api/notifications/read-all'+qs(),{method:'POST'});await loadNotifications();message('Notificações marcadas como lidas.')}
  catch(e){message(e.message,true)}
 });
-let calendarItems=[],calendarCursor=new Date(new Date().getFullYear(),new Date().getMonth(),1),calendarSelectedDay=null,calendarEditorReturn=false;
+let calendarItems=[],calendarCursor=new Date(new Date().getFullYear(),new Date().getMonth(),1),calendarSelectedDay=null,calendarEditorReturn=false,calendarFilter='all';
 const calendarDay=item=>String(item.due_at||'').slice(0,10);
 $('dialog').addEventListener('close',()=>{calendarEditorReturn=false;});
 const calendarTodayKey=()=>todayInFortaleza();
@@ -914,7 +914,9 @@ function drawCalendar(){
  const offset=(first.getDay()+6)%7;
  for(let i=0;i<offset;i++){const empty=document.createElement('div');empty.className='calendar-day is-empty';grid.append(empty);}
  const monthPrefix=String(year)+'-'+String(month+1).padStart(2,'0')+'-';
- const monthly=calendarItems.filter(x=>calendarDay(x).startsWith(monthPrefix));
+ const monthItems=calendarItems.filter(x=>calendarDay(x).startsWith(monthPrefix));
+ const monthly=monthItems.filter(item=>calendarFilter==='all'||(calendarFilter==='done'&&item.status==='done')||(calendarFilter==='pending'&&item.status!=='done')||(calendarFilter==='overdue'&&calendarStatus(item)==='Atrasada'));
+ $('calendar-filter-count').textContent=monthly.length+' de '+monthItems.length+' entrega(s) no mês';
  const grouped=new Map();
  for(const item of monthly){const day=calendarDay(item);if(!grouped.has(day))grouped.set(day,[]);grouped.get(day).push(item);}
  const today=new Date(),todayKey=[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
@@ -982,6 +984,7 @@ function drawCalendar(){
 async function loadCalendar(){
  const data=await api('/api/calendar'+qs());calendarItems=data.items;drawCalendar();
 }
+$('calendar-filter').addEventListener('change',event=>{calendarFilter=event.target.value;drawCalendar();});
 $('calendar-prev').addEventListener('click',()=>{calendarCursor=new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()-1,1);calendarSelectedDay=null;drawCalendar();});
 $('calendar-next').addEventListener('click',()=>{calendarCursor=new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()+1,1);calendarSelectedDay=null;drawCalendar();});
 $('calendar-today').addEventListener('click',()=>{const now=new Date();calendarCursor=new Date(now.getFullYear(),now.getMonth(),1);calendarSelectedDay=null;drawCalendar();});

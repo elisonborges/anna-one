@@ -876,8 +876,9 @@ $('notify-read-all').addEventListener('click',async()=>{
  try{await api('/api/notifications/read-all'+qs(),{method:'POST'});await loadNotifications();message('Notificações marcadas como lidas.')}
  catch(e){message(e.message,true)}
 });
-let calendarItems=[],calendarCursor=new Date(new Date().getFullYear(),new Date().getMonth(),1),calendarSelectedDay=null;
+let calendarItems=[],calendarCursor=new Date(new Date().getFullYear(),new Date().getMonth(),1),calendarSelectedDay=null,calendarEditorReturn=false;
 const calendarDay=item=>String(item.due_at||'').slice(0,10);
+$('dialog').addEventListener('close',()=>{calendarEditorReturn=false;});
 const calendarTodayKey=()=>todayInFortaleza();
 const calendarStatus=item=>{
  if(item.status==='done')return 'Concluída';
@@ -896,6 +897,8 @@ async function openCalendarItem(item){
   if(!taskId)throw Error('Tarefa principal não encontrada.');
   const task=await openTaskFromList({id:taskId,project_id:item.project_id});
   if(!task)throw Error('Tarefa não disponível.');
+  calendarEditorReturn=true;
+  show('calendar');
   modal('edit',task);
  }catch(e){message(e.message,true)}
 }
@@ -2072,8 +2075,13 @@ $('editor').addEventListener('submit',async e=>{
    }
    await openProject(state.project);await refreshProjects();
   }
+  const backToCalendar=calendarEditorReturn;
+  calendarEditorReturn=false;
   $('dialog').close();message('Dados salvos com sucesso.');
-  if(state.org&&state.view==='calendar')await loadCalendar();
+  if(state.org&&(backToCalendar||state.view==='calendar')){
+   await loadCalendar();
+   if(backToCalendar)show('calendar');
+  }
  }catch(e){message(e.message,true)}finally{$('save').disabled=false}
 });
 

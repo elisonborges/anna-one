@@ -168,7 +168,7 @@ async function masterInstitution(req,id){
  return {institution:data.institution,entry,
   enabled:data.institution.status==='active'&&entry.status==='available'&&entry.parent_allowed!==false&&entry.enabled===true};
 }
-const NEXUS_INVITE_URL='https://anna-nexus-dev.onrender.com/';
+const NEXUS_INVITE_URL='https://nexus.annaone.com.br/';
 const escapeEmailHtml=value=>String(value??'').replace(/[&<>"']/g,char=>({
  '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
 })[char]);
@@ -345,7 +345,7 @@ async function processEmailOutbox(){
      headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json','Idempotency-Key':'nexus-'+n.id},
      body:JSON.stringify({from:process.env.NEXUS_EMAIL_FROM,to:[n.email],
       subject:'Você tem um novo aviso no AnnA Nexus',
-      text:'Uma nova notificação está disponível na sua conta AnnA Nexus. Acesse https://anna-nexus-dev.onrender.com para consultar. Nenhum detalhe confidencial é enviado por e-mail.'}),
+      text:'Uma nova notificação está disponível na sua conta AnnA Nexus. Acesse '+NEXUS_INVITE_URL+' para consultar. Nenhum detalhe confidencial é enviado por e-mail.'}),
      signal:AbortSignal.timeout(10000)
     });
     const result=await response.json().catch(()=>({}));
@@ -492,7 +492,7 @@ const route=async(req,res)=>{
   }
   res.writeHead(405);return res.end();
  }
- if(masterRoute&&origin&&origin!=='https://annaone.com.br'&&origin!=='https://anna-nexus-dev.onrender.com')
+ if(masterRoute&&origin&&origin!=='https://annaone.com.br'&&origin!=='https://nexus.annaone.com.br'&&origin!=='https://anna-nexus-dev.onrender.com')
   bad('Origem administrativa não autorizada.',403);
  if(p==='/health')return reply(res,200,{ok:true,service:'anna-nexus'});
  if(!p.startsWith('/api/')){

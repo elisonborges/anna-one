@@ -2194,12 +2194,19 @@ async function loadProductionDashboard(){
  for(const card of data.cards){
   const target=Number(card.target),done=Number(card.completed),left=Math.max(0,target-done);
   const due=String(card.due_date).slice(0,10),today=todayInFortaleza();
-  const remainingDays=Math.max(1,Math.ceil((Date.parse(due+'T12:00:00Z')-Date.parse(today+'T12:00:00Z'))/86400000)+1);
+  const daysToDeadline=Math.ceil((Date.parse(due+'T12:00:00Z')-Date.parse(today+'T12:00:00Z'))/86400000);
+  const remainingDays=Math.max(1,daysToDeadline+1);
+  const percent=target>0?Math.max(0,Math.min(100,done/target*100)):0;
+  const progressText=new Intl.NumberFormat('pt-BR',{maximumFractionDigits:1}).format(percent)+'%';
+  const progressState=done>=target?'complete':daysToDeadline<0?'overdue':daysToDeadline<=3?'due-soon':'on-track';
   const row=document.createElement('div');row.className='production-dashboard-card';
+  row.classList.add('production-is-'+progressState);
   const button=document.createElement('button');button.className='secondary';button.type='button';button.textContent=card.name;
   button.onclick=async()=>{try{const current=state.projects.find(p=>p.id===card.id);if(current)await openProject(current)}catch(e){message(e.message,true)}};
-  const status=document.createElement('small');
-  status.textContent=done>=target?'Meta atingida':due<today?'Atrasado':'Prazo '+due;
+  const status=document.createElement('span');status.className='production-dashboard-status';
+  status.textContent=progressState==='complete'?'Meta atingida':progressState==='overdue'?'Prazo vencido':progressState==='due-soon'?'Prazo próximo':'Em andamento';
+  const dueLabel=document.createElement('small');dueLabel.className='production-dashboard-deadline';
+  dueLabel.textContent='Prazo: '+due.split('-').reverse().join('/');
   const summary=document.createElement('div');summary.className='production-dashboard-summary';
   const metrics=[
    ['Meta',prodFmt(target)+' '+card.unit],
@@ -2212,11 +2219,21 @@ async function loadProductionDashboard(){
    const metric=document.createElement('div');metric.className='production-dashboard-metric';
    const caption=document.createElement('span');caption.textContent=label;
    const number=document.createElement('strong');number.textContent=value;
+   if(label==='Realizado')metric.classList.add('metric-done');
+   if(label==='Falta'&&progressState==='overdue')metric.classList.add('metric-alert');
+   if(label==='Necessário/dia'&&progressState==='due-soon')metric.classList.add('metric-attention');
    metric.append(caption,number);summary.append(metric);
   }
+  const progressHeading=document.createElement('div');progressHeading.className='production-dashboard-progress-heading';
+  const progressTitle=document.createElement('span');progressTitle.textContent='Progresso';
+  const progressValue=document.createElement('strong');progressValue.textContent=progressText;
+  progressHeading.append(progressTitle,progressValue);
   const track=document.createElement('div');track.className='production-progress';
-  const fill=document.createElement('span');fill.style.width=Math.min(100,done/target*100)+'%';track.append(fill);
-  row.append(button,status,summary,track);list.append(row);
+  track.setAttribute('role','progressbar');track.setAttribute('aria-label','Progresso de '+card.name);
+  track.setAttribute('aria-valuemin','0');track.setAttribute('aria-valuemax','100');track.setAttribute('aria-valuenow',String(Math.round(percent)));
+  const fill=document.createElement('span');fill.style.width=percent+'%';track.append(fill);
+  const header=document.createElement('div');header.className='production-dashboard-card-heading';header.append(button,status);
+  row.append(header,dueLabel,summary,progressHeading,track);list.append(row);
  }
  if(!data.cards.length)list.textContent='Ainda não existem cards de produção sob sua gestão.';
 }

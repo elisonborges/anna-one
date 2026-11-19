@@ -1179,3 +1179,14 @@ body[data-nexus-role="manager"] .bottom{grid-template-columns:repeat(5,minmax(0,
 .production-is-overdue .production-progress span{background:#d45151}
 .production-is-due-soon .production-progress span{background:#c18a28}
 @media(max-width:600px){.production-dashboard-card-heading{align-items:flex-start}.production-dashboard-status{font-size:10px}}
+
+
+/* Nexus v0.1.58 — leitura de pendências e conclusões em projetos recentes */
+#overview-projects .recent-project-title{display:flex;align-items:flex-start;flex-direction:column;gap:3px;min-width:0}
+#overview-projects .recent-project-status{display:inline-flex;max-width:100%;align-items:center;border-radius:20px;border:1px solid var(--line);padding:3px 8px;font-size:10px;font-weight:800;line-height:1.4;background:var(--tint);color:var(--ink);white-space:normal}
+#overview-projects .recent-project-status-complete{background:#e0f5e8;border-color:#9ad5b0;color:#17683a}
+#overview-projects .recent-project-status-overdue{background:#ffe8e8;border-color:#f4b1b1;color:#9e2020}
+#overview-projects .recent-project-status-review{background:#fff1d7;border-color:#f0cb8b;color:#84520c}
+#overview-projects .recent-project-progress{font-variant-numeric:tabular-nums;font-weight:750}
+#overview-projects .recent-project-progress.is-complete{color:#17683a}
+#overview-projects .recent-project-progress.is-overdue{color:#9e2020}

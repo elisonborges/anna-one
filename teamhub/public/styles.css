@@ -1159,3 +1159,23 @@ body[data-nexus-role="manager"] .bottom{grid-template-columns:repeat(5,minmax(0,
 .dashboard-bottom-grid .production-dashboard-card{align-content:start}
 @media(max-width:1180px){.dashboard-bottom-grid{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:600px){.dashboard-bottom-grid{gap:12px}.dashboard-bottom-grid .production-dashboard-metric{padding:8px}.dashboard-bottom-grid .production-dashboard-metric>strong{font-size:13px}}
+
+
+/* Nexus v0.1.57 — leitura imediata do andamento da produção */
+.production-dashboard-card-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.production-dashboard-card-heading>button{max-width:100%;text-align:left;overflow-wrap:anywhere}
+.production-dashboard-status{display:inline-flex;align-items:center;min-height:28px;border:1px solid var(--line);border-radius:20px;padding:4px 10px;font-size:11px;font-weight:800;background:var(--tint);color:var(--ink)}
+.production-dashboard-deadline{font-size:12px;font-weight:650;color:var(--muted)}
+.production-is-complete .production-dashboard-status{background:#e0f5e8;border-color:#9ad5b0;color:#17683a}
+.production-is-overdue .production-dashboard-status{background:#ffe8e8;border-color:#f4b1b1;color:#9e2020}
+.production-is-due-soon .production-dashboard-status{background:#fff1d7;border-color:#f0cb8b;color:#84520c}
+.production-is-complete .production-dashboard-metric.metric-done{border-color:#9ad5b0;background:#e0f5e8}
+.production-is-overdue .production-dashboard-metric.metric-alert{border-color:#f4b1b1;background:#ffe8e8}
+.production-is-due-soon .production-dashboard-metric.metric-attention{border-color:#f0cb8b;background:#fff1d7}
+.production-dashboard-progress-heading{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;font-weight:700}
+.production-dashboard-progress-heading strong{font-size:15px;font-variant-numeric:tabular-nums}
+.production-dashboard-card .production-progress{overflow:hidden;border-radius:50px;background:var(--line);height:10px}
+.production-is-complete .production-progress span{background:#228b57}
+.production-is-overdue .production-progress span{background:#d45151}
+.production-is-due-soon .production-progress span{background:#c18a28}
+@media(max-width:600px){.production-dashboard-card-heading{align-items:flex-start}.production-dashboard-status{font-size:10px}}

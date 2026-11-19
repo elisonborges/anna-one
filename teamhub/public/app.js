@@ -382,9 +382,21 @@ async function deleteCard(p){
 }
 function renderProjects(){
  const overviewRows=state.projects.slice(0,6).map(p=>{
-  const progress=p.card_type==='production'&&Number(p.production_target)>0?Math.round(Number(p.production_done)/Number(p.production_target)*100):p.total?Math.round(p.done/p.total*100):0;
+  const isProduction=p.card_type==='production';
+  const target=Number(p.production_target)||0,done=Number(p.production_done)||0;
+  const progress=isProduction&&target>0?Math.round(done/target*100):p.total?Math.round(p.done/p.total*100):0;
+  const completed=p.completion_status==='completed'||(isProduction&&target>0&&done>=target);
+  const productionLate=isProduction&&!completed&&p.production_due_date&&String(p.production_due_date).slice(0,10)<todayInFortaleza();
+  const overdue=Number(p.overdue_activities)||0;
+  const label=completed?'Concluído':productionLate?'Produção atrasada':overdue?overdue+' atividade'+(overdue===1?' atrasada':'s atrasadas'):p.completion_status==='review'?'Aguardando validação':p.paused_at?'Em pausa':'Em andamento';
+  const kind=completed?'complete':productionLate||overdue?'overdue':p.completion_status==='review'?'review':'normal';
   const name=makeAction(p.name,()=>openProject(p));name.classList.add('recent-project-link');
-  return [name,p.description||'—',p.card_type==='production'?'Meta '+prodFmt(p.production_target):String(p.total),progress+'%'];
+  const title=document.createElement('div');title.className='recent-project-title';
+  const status=document.createElement('span');status.className='recent-project-status recent-project-status-'+kind;
+  status.textContent=label;title.append(name,status);
+  const progressCell=document.createElement('span');progressCell.className='recent-project-progress'+(completed?' is-complete':kind==='overdue'?' is-overdue':'');
+  progressCell.textContent=Math.max(0,Math.min(100,progress))+'%';
+  return [title,p.description||'—',isProduction?'Meta '+prodFmt(p.production_target):String(p.total),progressCell];
  });
  renderTable('overview-projects',['Projeto','Descrição','Tarefas / Meta','Progresso'],overviewRows);
  const projectsContainer=$('projects-list'),productionsContainer=$('productions-list');

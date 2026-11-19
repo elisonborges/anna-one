@@ -1056,7 +1056,7 @@ const route=async(req,res)=>{
    AND (${unrestricted} OR (p.access_mode='organization' AND ${role!=='guest'}) OR (p.owner_subject=${subject} AND ${role!=='guest'}) OR p.manager_subject=${subject}
      OR EXISTS(SELECT 1 FROM teamhub.project_members pm WHERE pm.organization_id=${org} AND pm.project_id=p.id AND pm.auth_subject=${subject}))
    ORDER BY t.due_at,t.created_at LIMIT 2000`;
-  const subtasks=await sql`SELECT s.id,s.project_id,s.title,s.due_at,s.created_at,s.status,p.name AS project_name,'subtask' AS kind
+  const subtasks=await sql`SELECT s.id,s.task_id,s.project_id,s.title,s.due_at,s.created_at,s.status,p.name AS project_name,'subtask' AS kind
    FROM teamhub.subtasks s JOIN teamhub.tasks t ON t.id=s.task_id AND t.organization_id=s.organization_id
    JOIN teamhub.projects p ON p.id=s.project_id AND p.organization_id=s.organization_id
    WHERE s.organization_id=${org} AND t.deleted_at IS NULL AND t.archived_at IS NULL AND p.archived_at IS NULL

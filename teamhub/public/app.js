@@ -2235,13 +2235,48 @@ async function productionCommand(path,payload){
  await api('/api/production/'+productionData.card.id+'/'+path+qs(),{method:'POST',body:JSON.stringify(payload)});
  await loadProduction();
 }
+const productionView={status:'all',order:'urgent'};
+let productionDashboardCards=[];
+function productionCardInfo(card){
+ const target=Number(card.target),done=Number(card.completed);
+ const due=String(card.due_date).slice(0,10);
+ const daysToDeadline=Math.ceil((Date.parse(due+'T12:00:00Z')-Date.parse(todayInFortaleza()+'T12:00:00Z'))/86400000);
+ const progress=target>0?Math.max(0,Math.min(100,done/target*100)):0;
+ const status=done>=target?'complete':daysToDeadline<0?'overdue':daysToDeadline<=3?'due-soon':'on-track';
+ return {due,progress,status,daysToDeadline};
+}
+function renderProductionDashboardCards(){
+ const list=$('production-dashboard-list');list.replaceChildren();
+ const all=productionDashboardCards.map((card,index)=>({card,index,info:productionCardInfo(card)}));
+ const cards=all.filter(({info})=>productionView.status==='all'||info.status===productionView.status);
+ if(productionView.order==='urgent'){
+  const rank={overdue:0,'due-soon':1,'on-track':2,complete:3};
+  cards.sort((a,b)=>rank[a.info.status]-rank[b.info.status]||a.info.daysToDeadline-b.info.daysToDeadline||a.index-b.index);
+ }else if(productionView.order==='due'){
+  cards.sort((a,b)=>a.info.due.localeCompare(b.info.due)||a.index-b.index);
+ }else if(productionView.order==='progress'){
+  cards.sort((a,b)=>b.info.progress-a.info.progress||a.index-b.index);
+ }else if(productionView.order==='name'){
+  cards.sort((a,b)=>a.card.name.localeCompare(b.card.name,'pt-BR')||a.index-b.index);
+ }
+ $('production-filter-count').textContent=cards.length+' de '+all.length+' produção(ões)';
+ for(const {card} of cards){
+  renderProductionDashboardCard(list,card);
+ }
+ if(!cards.length)list.textContent=all.length?'Nenhuma produção corresponde ao filtro.':'Ainda não existem cards de produção sob sua gestão.';
+}
+for(const [id,key] of [['production-status-filter','status'],['production-order','order']]){
+ $(id).addEventListener('change',event=>{productionView[key]=event.target.value;renderProductionDashboardCards();});
+}
 async function loadProductionDashboard(){
  const host=$('production-dashboard-panel');
  host.hidden=!['admin','manager'].includes(state.role);
  if(host.hidden)return;
  const data=await api('/api/production/dashboard'+qs());
- const list=$('production-dashboard-list');list.replaceChildren();
- for(const card of data.cards){
+ productionDashboardCards=Array.isArray(data.cards)?data.cards:[];
+ renderProductionDashboardCards();
+}
+function renderProductionDashboardCard(list,card){
   const target=Number(card.target),done=Number(card.completed),left=Math.max(0,target-done);
   const due=String(card.due_date).slice(0,10),today=todayInFortaleza();
   const daysToDeadline=Math.ceil((Date.parse(due+'T12:00:00Z')-Date.parse(today+'T12:00:00Z'))/86400000);
@@ -2284,8 +2319,6 @@ async function loadProductionDashboard(){
   const fill=document.createElement('span');fill.style.width=percent+'%';track.append(fill);
   const header=document.createElement('div');header.className='production-dashboard-card-heading';header.append(button,status);
   row.append(header,dueLabel,summary,progressHeading,track);list.append(row);
- }
- if(!data.cards.length)list.textContent='Ainda não existem cards de produção sob sua gestão.';
 }
 $('production-dashboard-refresh').onclick=async()=>{try{await loadProductionDashboard()}catch(e){message(e.message,true)}};
 async function loadProductionReport(){

@@ -2201,9 +2201,19 @@ async function loadProductionDashboard(){
   const status=document.createElement('small');
   status.textContent=done>=target?'Meta atingida':due<today?'Atrasado':'Prazo '+due;
   const summary=document.createElement('div');summary.className='production-dashboard-summary';
-  summary.textContent='Meta '+prodFmt(target)+' '+card.unit+' · Realizado '+prodFmt(done)+
-   ' · Falta '+prodFmt(left)+' · Aguardando '+prodFmt(card.pending)+
-   ' · Necessário/dia '+prodFmt(left/remainingDays)+' '+card.unit;
+  const metrics=[
+   ['Meta',prodFmt(target)+' '+card.unit],
+   ['Realizado',prodFmt(done)+' '+card.unit],
+   ['Falta',prodFmt(left)+' '+card.unit],
+   ['Aguardando',prodFmt(card.pending)+' '+card.unit],
+   ['Necessário/dia',prodFmt(left/remainingDays)+' '+card.unit]
+  ];
+  for(const [label,value] of metrics){
+   const metric=document.createElement('div');metric.className='production-dashboard-metric';
+   const caption=document.createElement('span');caption.textContent=label;
+   const number=document.createElement('strong');number.textContent=value;
+   metric.append(caption,number);summary.append(metric);
+  }
   const track=document.createElement('div');track.className='production-progress';
   const fill=document.createElement('span');fill.style.width=Math.min(100,done/target*100)+'%';track.append(fill);
   row.append(button,status,summary,track);list.append(row);

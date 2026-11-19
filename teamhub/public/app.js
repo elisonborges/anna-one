@@ -821,11 +821,15 @@ function renderNotificationInbox(){
    try{await api('/api/notifications/'+n.id+'/read'+qs(),{method:'POST'});await loadNotifications()}catch(e){message(e.message,true)}
   }));
   if(n.project_id&&(/^(task.reopen|project.review|project.completion)/.test(n.event_type))&&state.role!=='guest')actions.append(makeAction('Ver solicitação',async()=>{try{await loadCentral();show('approvals');await api('/api/notifications/'+n.id+'/read'+qs(),{method:'POST'});await loadNotifications();}catch(e){message(e.message,true)}}));
-  if(n.project_id&&!/^(task.reopen|project.review|project.completion)/.test(n.event_type))actions.append(makeAction('Abrir projeto',async()=>{
+  if(n.project_id&&!/^(task.reopen|project.review|project.completion)/.test(n.event_type))actions.append(makeAction(n.task_id&&state.role!=='guest'?'Abrir tarefa':'Abrir projeto',async()=>{
    try{
     const p=state.projects.find(x=>x.id===n.project_id);
     if(!p)throw Error('Projeto indisponível.');
-    await openProject(p);
+    if(n.task_id&&state.role!=='guest'){
+     const task=await openTaskFromList({project_id:n.project_id,id:n.task_id});
+     if(!task)throw Error('Tarefa indisponível.');
+     modal('edit',task);
+    }else await openProject(p);
     await api('/api/notifications/'+n.id+'/read'+qs(),{method:'POST'});
     await loadNotifications();
    }catch(e){message(e.message,true)}
@@ -851,6 +855,12 @@ async function loadNotificationPreferences(){
   :data.can_enable_email?'Se ativado, avisos novos e não lidos poderão ser enviados ao e-mail verificado da conta.'
   :'Para habilitar e-mail, a conta precisa apresentar um endereço verificado no login.';
 }
+// Atualiza discretamente os contadores e a caixa aberta durante o uso do Nexus.
+// Não dispara requisições quando a página está oculta ou sem sessão.
+setInterval(()=>{
+ if(!document.hidden&&state.jwt&&state.org&&!$('app').hidden)
+  loadNotifications().catch(()=>{});
+},90000);
 $('notification-filter').addEventListener('change',renderNotificationInbox);
 $('pref-save').addEventListener('click',async()=>{
  const button=$('pref-save');button.disabled=true;

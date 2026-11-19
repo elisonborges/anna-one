@@ -866,8 +866,30 @@ $('notify-read-all').addEventListener('click',async()=>{
  try{await api('/api/notifications/read-all'+qs(),{method:'POST'});await loadNotifications();message('Notificações marcadas como lidas.')}
  catch(e){message(e.message,true)}
 });
-let calendarItems=[],calendarCursor=new Date(new Date().getFullYear(),new Date().getMonth(),1);
+let calendarItems=[],calendarCursor=new Date(new Date().getFullYear(),new Date().getMonth(),1),calendarSelectedDay=null;
 const calendarDay=item=>String(item.due_at||'').slice(0,10);
+const calendarTodayKey=()=>todayInFortaleza();
+const calendarStatus=item=>{
+ if(item.status==='done')return 'Concluída';
+ const day=calendarDay(item),today=calendarTodayKey();
+ if(day<today)return 'Atrasada';
+ const soon=new Date(today+'T12:00:00Z');soon.setUTCDate(soon.getUTCDate()+3);
+ if(day<=soon.toISOString().slice(0,10))return 'Próxima do prazo';
+ return item.status==='doing'?'Em andamento':'A fazer';
+};
+async function openCalendarItem(item){
+ try{
+  const project=state.projects.find(p=>p.id===item.project_id);
+  if(!project)throw Error('Projeto não disponível.');
+  if(state.role==='guest'){await openProject(project);return;}
+  const taskId=item.kind==='subtask'?item.task_id:item.id;
+  if(!taskId)throw Error('Tarefa principal não encontrada.');
+  const task=await openTaskFromList({id:taskId,project_id:item.project_id});
+  if(!task)throw Error('Tarefa não disponível.');
+  modal('edit',task);
+ }catch(e){message(e.message,true)}
+}
+
 function drawCalendar(){
  const year=calendarCursor.getFullYear(),month=calendarCursor.getMonth();
  $('calendar-month').textContent=new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric'}).format(calendarCursor);
@@ -885,26 +907,45 @@ function drawCalendar(){
  const today=new Date(),todayKey=[today.getFullYear(),String(today.getMonth()+1).padStart(2,'0'),String(today.getDate()).padStart(2,'0')].join('-');
  for(let day=1;day<=days;day++){
   const key=monthPrefix+String(day).padStart(2,'0');
-  const card=document.createElement('div');card.className='calendar-day';if(key===todayKey)card.classList.add('is-today');
+  const card=document.createElement('button');card.type='button';card.className='calendar-day';
+  if(key===todayKey)card.classList.add('is-today');
+  if(key===calendarSelectedDay)card.classList.add('is-selected');
+  card.setAttribute('aria-label','Ver entregas do dia '+String(day).padStart(2,'0')+'/'+String(month+1).padStart(2,'0')+'/'+year);
+  card.setAttribute('aria-pressed',String(key===calendarSelectedDay));
+  card.addEventListener('click',()=>{calendarSelectedDay=calendarSelectedDay===key?null:key;drawCalendar();});
   const number=document.createElement('strong');number.textContent=String(day);card.append(number);
   const items=grouped.get(key)||[];
   if(items.length){
-   const count=document.createElement('span');count.className='calendar-day-count';count.textContent=items.length+' entrega'+(items.length===1?'':'s');card.append(count);
+   const count=document.createElement('span');count.className='calendar-day-count';
+   count.textContent=items.length+' entrega'+(items.length===1?'':'s');card.append(count);
+   if(items.some(x=>calendarStatus(x)==='Atrasada'))card.classList.add('is-overdue');
+   else if(items.some(x=>calendarStatus(x)==='Próxima do prazo'))card.classList.add('is-due-soon');
    const hints=document.createElement('div');hints.className='calendar-hints';
-   for(const item of items.slice(0,2)){const hint=document.createElement('span');hint.className='calendar-hint';hint.title=item.title;hint.textContent=item.title;hints.append(hint);}
+   for(const item of items.slice(0,2)){const hint=document.createElement('span');hint.className='calendar-hint';hint.title=item.title+' — '+calendarStatus(item);hint.textContent=item.title;
+    if(item.status==='done')hint.classList.add('is-complete');
+    if(calendarStatus(item)==='Atrasada')hint.classList.add('is-overdue');
+    hints.append(hint);}
    card.append(hints);
   }
   grid.append(card);
  }
- const rows=monthly.sort((a,b)=>calendarDay(a).localeCompare(calendarDay(b))).map(item=>{
-  const open=makeAction('Abrir',async()=>{
-   const project=state.projects.find(p=>p.id===item.project_id);
-   if(!project){message('Projeto não disponível.',true);return;}
-   try{await openProject(project);}catch(e){message(e.message,true)}
-  });
-  return [new Date(calendarDay(item)+'T12:00:00Z').toLocaleDateString('pt-BR',{timeZone:'UTC'}),item.title,item.project_name,item.kind==='subtask'?'Subtarefa':'Tarefa',item.status==='done'?'Concluída':item.status==='doing'?'Em andamento':'A fazer',open];
+ const selection=$('calendar-selection');
+ const shown=calendarSelectedDay?monthly.filter(x=>calendarDay(x)===calendarSelectedDay):monthly;
+ selection.hidden=!calendarSelectedDay;
+ if(calendarSelectedDay){
+  $('calendar-selection-label').textContent=shown.length+' entrega(s) em '+calendarSelectedDay.split('-').reverse().join('/');
+ }
+ const rows=shown.sort((a,b)=>calendarDay(a).localeCompare(calendarDay(b))).map(item=>{
+  const actions=document.createElement('div');actions.className='calendar-activity-action';
+  const open=makeAction(state.role==='guest'?'Ver projeto':'Abrir / editar',()=>openCalendarItem(item));
+  actions.append(open);
+  const status=calendarStatus(item),date=document.createElement('span');
+  date.textContent=calendarDay(item).split('-').reverse().join('/');
+  if(status==='Atrasada')date.className='calendar-date-overdue';
+  if(status==='Próxima do prazo')date.className='calendar-date-soon';
+  return [date,item.title,item.project_name,item.kind==='subtask'?'Subtarefa':'Tarefa',status,actions];
  });
- renderTable('calendar-list',['Prazo','Atividade','Projeto','Tipo','Etapa','Ação'],rows);
+ renderTable('calendar-list',['Prazo','Atividade','Projeto','Tipo','Situação','Ação'],rows);
  const display=$('timeline-list');display.replaceChildren();
  if(!monthly.length){display.textContent='Nenhuma entrega com prazo neste mês.';return;}
  const msDay=86400000,windowStart=Date.UTC(year,month,1),windowEnd=Date.UTC(year,month+1,0,23,59,59);
@@ -928,9 +969,10 @@ function drawCalendar(){
 async function loadCalendar(){
  const data=await api('/api/calendar'+qs());calendarItems=data.items;drawCalendar();
 }
-$('calendar-prev').addEventListener('click',()=>{calendarCursor=new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()-1,1);drawCalendar();});
-$('calendar-next').addEventListener('click',()=>{calendarCursor=new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()+1,1);drawCalendar();});
-$('calendar-today').addEventListener('click',()=>{const now=new Date();calendarCursor=new Date(now.getFullYear(),now.getMonth(),1);drawCalendar();});
+$('calendar-prev').addEventListener('click',()=>{calendarCursor=new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()-1,1);calendarSelectedDay=null;drawCalendar();});
+$('calendar-next').addEventListener('click',()=>{calendarCursor=new Date(calendarCursor.getFullYear(),calendarCursor.getMonth()+1,1);calendarSelectedDay=null;drawCalendar();});
+$('calendar-today').addEventListener('click',()=>{const now=new Date();calendarCursor=new Date(now.getFullYear(),now.getMonth(),1);calendarSelectedDay=null;drawCalendar();});
+$('calendar-clear-day').addEventListener('click',()=>{calendarSelectedDay=null;drawCalendar();});
 async function loadMySubtasks(){
  const data=await api('/api/my-subtasks'+qs());
  const rows=data.subtasks.map(sub=>{
@@ -2021,6 +2063,7 @@ $('editor').addEventListener('submit',async e=>{
    await openProject(state.project);await refreshProjects();
   }
   $('dialog').close();message('Dados salvos com sucesso.');
+  if(state.org&&state.view==='calendar')await loadCalendar();
  }catch(e){message(e.message,true)}finally{$('save').disabled=false}
 });
 

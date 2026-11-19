@@ -380,25 +380,63 @@ async function deleteCard(p){
   message('Card excluído. O histórico foi preservado.');
  }catch(e){message(e.message,true)}
 }
-function renderProjects(){
- const overviewRows=state.projects.slice(0,6).map(p=>{
-  const isProduction=p.card_type==='production';
-  const target=Number(p.production_target)||0,done=Number(p.production_done)||0;
-  const progress=isProduction&&target>0?Math.round(done/target*100):p.total?Math.round(p.done/p.total*100):0;
-  const completed=p.completion_status==='completed'||(isProduction&&target>0&&done>=target);
-  const productionLate=isProduction&&!completed&&p.production_due_date&&String(p.production_due_date).slice(0,10)<todayInFortaleza();
-  const overdue=Number(p.overdue_activities)||0;
-  const label=completed?'Concluído':productionLate?'Produção atrasada':overdue?overdue+' atividade'+(overdue===1?' atrasada':'s atrasadas'):p.completion_status==='review'?'Aguardando validação':p.paused_at?'Em pausa':'Em andamento';
-  const kind=completed?'complete':productionLate||overdue?'overdue':p.completion_status==='review'?'review':'normal';
+const recentProjectControls={search:'',status:'all',order:'recent',limit:'6'};
+function getRecentProjectInfo(p){
+ const isProduction=p.card_type==='production';
+ const target=Number(p.production_target)||0,done=Number(p.production_done)||0;
+ const progress=isProduction&&target>0?Math.round(done/target*100):p.total?Math.round(p.done/p.total*100):0;
+ const completed=p.completion_status==='completed'||(isProduction&&target>0&&done>=target);
+ const productionLate=!!(isProduction&&!completed&&p.production_due_date&&String(p.production_due_date).slice(0,10)<todayInFortaleza());
+ const overdue=Number(p.overdue_activities)||0;
+ const label=completed?'Concluído':productionLate?'Produção atrasada':overdue?overdue+' atividade'+(overdue===1?' atrasada':'s atrasadas'):p.completion_status==='review'?'Aguardando validação':p.paused_at?'Em pausa':'Em andamento';
+ const kind=completed?'complete':productionLate||overdue?'overdue':p.completion_status==='review'?'review':'active';
+ return {isProduction,progress,label,kind,overdue,productionLate};
+}
+function renderRecentProjects(){
+ const query=recentProjectControls.search.trim().toLocaleLowerCase('pt-BR');
+ const filtered=state.projects.map((project,index)=>({project,index,info:getRecentProjectInfo(project)}))
+  .filter(({project,info})=>(recentProjectControls.status==='all'||recentProjectControls.status===info.kind)
+   &&(!query||(project.name+' '+(project.description||'')).toLocaleLowerCase('pt-BR').includes(query)));
+ if(recentProjectControls.order==='urgent'){
+  const order={overdue:0,review:1,active:2,complete:3};
+  filtered.sort((a,b)=>order[a.info.kind]-order[b.info.kind]||b.info.overdue-a.info.overdue||a.index-b.index);
+ }else if(recentProjectControls.order==='progress'){
+  filtered.sort((a,b)=>b.info.progress-a.info.progress||a.index-b.index);
+ }else if(recentProjectControls.order==='name'){
+  filtered.sort((a,b)=>a.project.name.localeCompare(b.project.name,'pt-BR')||a.index-b.index);
+ }
+ const limit=recentProjectControls.limit==='all'?filtered.length:Number(recentProjectControls.limit)||6;
+ const visible=filtered.slice(0,limit);
+ $('recent-project-count').textContent=visible.length+' de '+filtered.length+' encontrado(s) · '+state.projects.length+' no total';
+ if(!visible.length){
+  $('overview-projects').textContent=state.projects.length?'Nenhum projeto corresponde aos filtros.':'Nenhum projeto cadastrado.';
+  return;
+ }
+ const rows=visible.map(({project:p,info})=>{
   const name=makeAction(p.name,()=>openProject(p));name.classList.add('recent-project-link');
   const title=document.createElement('div');title.className='recent-project-title';
-  const status=document.createElement('span');status.className='recent-project-status recent-project-status-'+kind;
-  status.textContent=label;title.append(name,status);
-  const progressCell=document.createElement('span');progressCell.className='recent-project-progress'+(completed?' is-complete':kind==='overdue'?' is-overdue':'');
-  progressCell.textContent=Math.max(0,Math.min(100,progress))+'%';
-  return [title,p.description||'—',isProduction?'Meta '+prodFmt(p.production_target):String(p.total),progressCell];
+  const status=document.createElement('span');status.className='recent-project-status recent-project-status-'+info.kind;
+  status.textContent=info.label;title.append(name,status);
+  const progressCell=document.createElement('span');progressCell.className='recent-project-progress'+(info.kind==='complete'?' is-complete':info.kind==='overdue'?' is-overdue':'');
+  progressCell.textContent=Math.max(0,Math.min(100,info.progress))+'%';
+  return [title,p.description||'—',info.isProduction?'Meta '+prodFmt(p.production_target):String(p.total),progressCell];
  });
- renderTable('overview-projects',['Projeto','Descrição','Tarefas / Meta','Progresso'],overviewRows);
+ renderTable('overview-projects',['Projeto','Descrição','Tarefas / Meta','Progresso'],rows);
+}
+for(const [id,key] of [['recent-project-search','search'],['recent-project-status-filter','status'],['recent-project-order','order'],['recent-project-limit','limit']]){
+ const element=$(id);
+ element.addEventListener(key==='search'?'input':'change',()=>{
+  recentProjectControls[key]=element.value;
+  renderRecentProjects();
+ });
+}
+$('recent-project-clear').addEventListener('click',()=>{
+ Object.assign(recentProjectControls,{search:'',status:'all',order:'recent',limit:'6'});
+ for(const [id,key] of [['recent-project-search','search'],['recent-project-status-filter','status'],['recent-project-order','order'],['recent-project-limit','limit']])$(id).value=recentProjectControls[key];
+ renderRecentProjects();
+});
+function renderProjects(){
+ renderRecentProjects();
  const projectsContainer=$('projects-list'),productionsContainer=$('productions-list');
  projectsContainer.replaceChildren();productionsContainer.replaceChildren();
  const empty=$('guest-projects-empty');

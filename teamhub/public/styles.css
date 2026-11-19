@@ -1142,3 +1142,20 @@ body[data-nexus-role="manager"] .bottom{grid-template-columns:repeat(5,minmax(0,
 .calendar-filters select{min-height:40px;width:auto;max-width:100%;padding:8px 12px}
 #calendar-filter-count{font-size:12px;color:var(--muted)}
 @media(max-width:750px){.calendar-filters select{flex:1;min-width:155px}.calendar-filters #calendar-filter-count{width:100%}}
+
+
+/* Nexus v0.1.56 — Painéis do dashboard lado a lado em telas largas */
+.dashboard-bottom-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px;align-items:stretch}
+.dashboard-bottom-grid>.panel{min-width:0;margin:0}
+.dashboard-bottom-grid>.panel[hidden]{display:none!important}
+.dashboard-bottom-grid:has(>#production-dashboard-panel[hidden]){grid-template-columns:minmax(0,1fr)}
+.dashboard-recent-panel #overview-projects{min-width:0;overflow-x:auto}
+.dashboard-recent-panel #overview-projects .nexus-table{width:100%}
+.dashboard-bottom-grid #production-dashboard-list{min-width:0}
+.dashboard-bottom-grid .production-dashboard-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:4px}
+.dashboard-bottom-grid .production-dashboard-metric{min-width:0;border:1px solid var(--line);border-radius:8px;padding:9px 10px;background:var(--tint)}
+.dashboard-bottom-grid .production-dashboard-metric>span{display:block;color:var(--muted);font-size:11px;margin-bottom:3px}
+.dashboard-bottom-grid .production-dashboard-metric>strong{display:block;font-size:14px;overflow-wrap:anywhere}
+.dashboard-bottom-grid .production-dashboard-card{align-content:start}
+@media(max-width:1180px){.dashboard-bottom-grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:600px){.dashboard-bottom-grid{gap:12px}.dashboard-bottom-grid .production-dashboard-metric{padding:8px}.dashboard-bottom-grid .production-dashboard-metric>strong{font-size:13px}}

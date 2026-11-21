@@ -218,7 +218,79 @@ body:has(.eduplay-page) .module-footer{background:#0c1033;padding:24px;margin-to
 @media(max-width:1100px){.health-compact #services,.hm-preview-cards{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:650px){.health-compact #services,.hm-preview-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.hm-preview-footer p{flex-basis:100%}}
 @media(max-width:380px){.health-compact #services,.hm-preview-cards{grid-template-columns:1fr}}
-</style><script defer src="https://annaone.com.br/assets/anna-virtual-widget.js?v=1"></script></head><body><header class="module-header"><a class="module-brand" href="../"><img src="../assets/anna-symbol.svg" alt=""><span><strong>AnnA One</strong><small>TECNOLOGIA E EDUCAÇÃO JUNTAS</small></span></a><nav aria-label="Navegação"><a href="../#modulos">← Voltar aos módulos</a><a href="../">Site institucional</a></nav></header><main class="module-page"><section class="module-hero"><div class="module-hero-content"><div class="module-intro"><div class="module-label">AnnA One · Apresentação do módulo</div><div class="module-hero-top"><span class="module-icon" id="module-icon" aria-hidden="true"></span><h1 id="title"></h1></div><p id="description"></p><div class="module-actions" id="actions"></div></div><div class="module-usage"><h2>Como pode ser utilizado</h2><p id="use"></p><p class="note">Os módulos podem ser oferecidos separadamente ou integrados ao ecossistema AnnA One. A disponibilidade de cada recurso depende do estágio real de desenvolvimento e de futuras condições de implantação. Esta página é uma apresentação experimental, não uma oferta comercial ou contratação.</p></div></div></section><section class="module-panel"><h2>Serviços e recursos do módulo</h2><div class="service-grid" id="services"></div></section><section class="module-panel module-next-steps" id="module-next-steps" hidden><h2>Visão geral do módulo</h2><div class="module-next-grid"><div><strong>🎯 Objetivo</strong><p id="module-goal"></p></div><div><strong>🧩 Recursos</strong><p id="module-count"></p></div><div><strong>📌 Situação atual</strong><p id="module-stage"></p></div></div></section><section class="module-panel hm-preview-summary" id="health-summary" hidden><div class="hm-preview-top"><div><span class="hm-eyebrow">MONITORAMENTO DO ECOSSISTEMA</span><h2>Saúde dos módulos</h2><p>Verificações periódicas e identificação rápida de falhas.</p></div><strong id="hm-preview-total" class="hm-overall" aria-live="polite">Consultando...</strong></div><div id="hm-preview-cards" class="hm-preview-cards" aria-label="Status público dos módulos"></div><div class="hm-preview-footer"><p id="hm-preview-updated" role="status">Carregando...</p><a href="health-monitor/v5.3-preview.html">Painel completo ↗</a><a class="hm-secondary" href="health-monitor/gestao-a-vista.html" target="_blank" rel="noopener noreferrer">Gestão à Vista ↗</a></div><p class="hm-disclaimer">Estados das últimas sondagens disponíveis, não monitoramento em tempo real. Acesso à página não comprova o funcionamento interno. Recursos administrativos exigem autenticação.</p></section></main><footer class="module-footer"><strong>AnnA One · TECNOLOGIA E EDUCAÇÃO JUNTAS</strong>© 2026 AnnA One · Desenvolvimento: Prof. Elison Borges</footer><script>
+
+.health-compact .module-actions a.hm-secondary{background:#ffffff16;color:#fff;border:1px solid #8bc9e0;box-shadow:none}
+.health-compact .module-actions a.hm-secondary:hover{background:#ffffff2b}
+/* Health Monitor v2 — identidade visual isolada, sem alterar os demais módulos. */
+body:has(.health-compact){background:linear-gradient(160deg,#e8f3ff 0%,#f6f9fe 46%,#eaf2fb 100%);color:#17375a}
+body:has(.health-compact) .module-header{background:linear-gradient(100deg,#071c38,#123e72);border-bottom:3px solid #38c8d8}
+.health-compact.module-page{max-width:1240px!important;gap:16px!important;padding:20px 22px!important;margin:0 auto!important;scrollbar-gutter:stable}
+.health-compact .module-hero,.health-compact .module-panel{border-radius:22px!important;margin:0!important;box-shadow:0 12px 32px #153f7114!important}
+.health-compact .module-hero{background:radial-gradient(circle at 91% 8%,#23669c 0%,transparent 37%),linear-gradient(120deg,#092344,#0c4274 72%,#13548b)!important;color:#f5fbff;border:1px solid #255d8e!important;padding:28px 32px!important;position:relative;overflow:hidden}
+.health-compact .module-hero:after{content:"";position:absolute;right:-70px;bottom:-150px;width:340px;height:340px;border:1px solid #ffffff25;border-radius:50%;box-shadow:0 0 0 48px #ffffff08,0 0 0 96px #ffffff06;pointer-events:none}
+.health-compact .module-hero-content{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(270px,.75fr);gap:28px!important;position:relative;z-index:1}
+.health-compact .module-label{color:#7de6e8;font-size:11px;font-weight:800;letter-spacing:.12em}
+.health-compact .module-hero h1{color:white!important;font-size:clamp(29px,3.3vw,44px)!important;line-height:1.1}
+.health-compact .module-icon{background:#ffffff1a;border:1px solid #ffffff4d;width:66px;height:66px;font-size:35px;box-shadow:0 8px 22px #00152e44}
+.health-compact .module-hero p{color:#d6e9fa;font-size:15px!important;line-height:1.6!important;max-width:670px}
+.health-compact .module-usage{border:1px solid #ffffff26!important;border-radius:17px;padding:20px!important;background:#ffffff0e!important;align-self:center}
+.health-compact .module-usage h2{color:#8fecef;font-size:17px!important}
+.health-compact .module-usage p{font-size:13px!important;color:#e2effc!important;line-height:1.55!important}
+.health-compact .module-usage .note{font-size:11px!important;color:#b9d4ec!important;line-height:1.45!important}
+.health-compact .module-actions{margin-top:20px!important;gap:10px}
+.health-compact .module-actions a{display:inline-flex;align-items:center;min-height:43px;border-radius:11px;background:#35c5d7;color:#072947;font-size:13px;box-shadow:0 6px 16px #001b2a33}
+.health-compact .module-actions .module-label{background:#ffffff17;color:#dffaff;border:1px solid #ffffff3a;border-radius:999px;padding:9px 13px;letter-spacing:0}
+.health-compact .module-panel{padding:23px 27px!important;border:1px solid #d5e4f2}
+.health-compact .module-panel h2{font-size:22px!important;color:#123d6a!important;margin-bottom:16px!important}
+.health-compact #services{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px!important}
+.health-compact #services .service{padding:17px!important;min-height:145px!important;background:#f3f8fd;border:1px solid #dce9f5;border-radius:15px;gap:9px}
+.health-compact #services .service-icon{display:inline-flex!important;width:37px;height:37px;font-size:20px;margin:0;background:white}
+.health-compact #services .service strong{font-size:14px!important;color:#153c65}
+.health-compact #services .service span:not(.service-icon){font-size:12px!important;line-height:1.5!important}
+.health-compact .hm-preview-summary{background:white!important;border:1px solid #cfe1f0!important}
+.health-compact .hm-preview-top{margin-bottom:19px;gap:16px}
+.health-compact .hm-preview-top h2{font-size:26px!important;margin:4px 0!important}
+.health-compact .hm-preview-top p{font-size:14px}
+.health-compact .hm-eyebrow{color:#177f98;font-size:11px}
+.health-compact .hm-overall{font-size:13px;border:1px solid #cce5ee;background:#e9f8fb;color:#155267;padding:11px 15px}
+.health-compact .hm-preview-cards{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.health-compact .hm-preview-card{padding:16px 18px;border-radius:14px;border:1px solid #d9e7f1;background:#f8fbfe;gap:12px;min-height:90px;flex-direction:row;justify-content:space-between;align-items:center}
+.health-compact .hm-preview-card strong{font-size:14px}
+.health-compact .hm-preview-state{white-space:nowrap;font-size:12px}
+.health-compact .hm-preview-card[data-state="ok"]{background:#f1fbf6;border-color:#ccebdc}
+.health-compact .hm-preview-card[data-state="down"]{background:#fff3f4;border-color:#f1c5cb}
+.health-compact .hm-preview-footer{border-top:1px solid #e4edf5;padding-top:17px;margin-top:20px;gap:10px}
+.health-compact .hm-preview-footer a{padding:11px 16px;border-radius:11px;font-size:13px}
+.health-compact .hm-disclaimer{font-size:12px!important;line-height:1.55;color:#637d94}
+body:has(.health-compact) .module-footer{padding:16px;font-size:12px}
+@media(min-width:900px){
+ html:has(.health-compact),body:has(.health-compact){height:auto!important;min-height:100%;overflow:auto!important}
+ body:has(.health-compact){display:block!important}
+ .health-compact{display:flex;flex-direction:column;overflow:visible!important}
+}
+@media(max-width:1050px){.health-compact #services{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:780px){
+ .health-compact.module-page{padding:14px!important}
+ .health-compact .module-hero{padding:24px!important}
+ .health-compact .module-hero-content{grid-template-columns:1fr}
+ .health-compact .module-usage{padding:16px!important}
+ .health-compact .hm-preview-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .health-compact .hm-preview-card{flex-direction:column;align-items:flex-start;min-height:95px}
+ .health-compact #services{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:520px){
+ .health-compact .module-hero,.health-compact .module-panel{padding:19px!important;border-radius:18px!important}
+ .health-compact .module-hero h1{font-size:29px!important}
+ .health-compact .module-hero-top{align-items:flex-start}
+ .health-compact .module-icon{width:50px;height:50px;font-size:26px}
+ .health-compact .hm-preview-cards,.health-compact #services{grid-template-columns:1fr}
+ .health-compact .hm-preview-card{flex-direction:row;align-items:center;min-height:70px}
+ .health-compact #services .service{min-height:0!important}
+ .health-compact .hm-preview-footer p{flex-basis:100%}
+}
+@media(prefers-reduced-motion:reduce){.health-compact .service{transition:none!important}}
+
+</style><script defer src="https://annaone.com.br/assets/anna-virtual-widget.js?v=1"></script></head><body><header class="module-header"><a class="module-brand" href="../"><img src="../assets/anna-symbol.svg" alt=""><span><strong>AnnA One</strong><small>TECNOLOGIA E EDUCAÇÃO JUNTAS</small></span></a><nav aria-label="Navegação"><a href="../#modulos">← Voltar aos módulos</a><a href="../">Site institucional</a></nav></header><main class="module-page"><section class="module-hero"><div class="module-hero-content"><div class="module-intro"><div class="module-label">AnnA One · Apresentação do módulo</div><div class="module-hero-top"><span class="module-icon" id="module-icon" aria-hidden="true"></span><h1 id="title"></h1></div><p id="description"></p><div class="module-actions" id="actions"></div></div><div class="module-usage"><h2>Como pode ser utilizado</h2><p id="use"></p><p class="note">Os módulos podem ser oferecidos separadamente ou integrados ao ecossistema AnnA One. A disponibilidade de cada recurso depende do estágio real de desenvolvimento e de futuras condições de implantação. Esta página é uma apresentação experimental, não uma oferta comercial ou contratação.</p></div></div></section><section class="module-panel"><h2>Serviços e recursos do módulo</h2><div class="service-grid" id="services"></div></section><section class="module-panel module-next-steps" id="module-next-steps" hidden><h2>Visão geral do módulo</h2><div class="module-next-grid"><div><strong>🎯 Objetivo</strong><p id="module-goal"></p></div><div><strong>🧩 Recursos</strong><p id="module-count"></p></div><div><strong>📌 Situação atual</strong><p id="module-stage"></p></div></div></section><section class="module-panel hm-preview-summary" id="health-summary" hidden><div class="hm-preview-top"><div><span class="hm-eyebrow">MONITORAMENTO DO ECOSSISTEMA</span><h2>Saúde dos módulos</h2><p>Verificações periódicas e identificação rápida de falhas.</p></div><strong id="hm-preview-total" class="hm-overall" aria-live="polite">Consultando...</strong></div><div id="hm-preview-cards" class="hm-preview-cards" aria-label="Status público dos módulos"></div><div class="hm-preview-footer"><p id="hm-preview-updated" role="status">Carregando...</p></div><p class="hm-disclaimer">Estados das últimas sondagens disponíveis, não monitoramento em tempo real. Acesso à página não comprova o funcionamento interno. Recursos administrativos exigem autenticação.</p></section></main><footer class="module-footer"><strong>AnnA One · TECNOLOGIA E EDUCAÇÃO JUNTAS</strong>© 2026 AnnA One · Desenvolvimento: Prof. Elison Borges</footer><script>
 const data={
 "labmanager":{title:"AnnA Infra",description:"Gestão do parque computacional e da infraestrutura de T.I. de escolas, faculdades e universidades.",services:[["Dispositivos","Cadastro e acompanhamento de computadores e equipamentos"],["Inventário","Organização dos ativos de hardware e software"],["Deploy","Planejamento de instalações e distribuição de programas"],["Redes e conectividade","Gestão da infraestrutura de rede institucional"],["Acesso de visitantes","Cadastro temporário para acesso autorizado à internet"],["Comunicação técnica","Mensagens e ferramentas de apoio aos laboratórios"]],use:"Pode ser adotado independentemente para a gestão de T.I. de uma instituição. Integrações com Service Desk, monitoramento e AnnA One Connect são possibilidades planejadas.",status:"Em desenvolvimento"},
 "service-desk":{title:"AnnA Service Desk",description:"Central de atendimento e suporte técnico para solicitações e ocorrências da instituição.",services:[["Chamados","Registro e acompanhamento de solicitações"],["Atendimento","Organização da fila de suporte"],["Histórico","Consulta de atendimentos e soluções"],["Integração com AnnA Infra","Associação futura de chamados a equipamentos"]],use:"Pode atender à instituição como serviço independente ou funcionar integrado à gestão de T.I.",status:"Em desenvolvimento"},
@@ -251,7 +323,10 @@ if(key!=="health-monitor"){
 
 const actions=document.getElementById("actions");if(key==="anna-flow"){for(const [label,url] of [["Demonstração do painel ↗","https://flow.annaone.com.br/panel-demo.html"],["Administração ↗","https://flow.annaone.com.br/flow-login.html"]]){const link=document.createElement("a");link.href=url;link.textContent=label;link.target="_blank";link.rel="noopener noreferrer";actions.appendChild(link);}}if(m.url){const a=document.createElement("a");a.href=m.url;a.textContent=key==="agenda"?"Acessar Agenda ↗":"Acessar portal ↗";if(m.url.startsWith("http")){a.target="_blank";a.rel="noopener noreferrer"}actions.appendChild(a)}if(key==="eduplay"){const gamelab=document.createElement("a");gamelab.href="https://eduplay.annaone.com.br/gamelab/";gamelab.textContent="Acessar AnnA GameLab ↗";gamelab.target="_blank";gamelab.rel="noopener noreferrer";actions.appendChild(gamelab)}if(key==="anna-flow"){const activation=document.createElement("a");activation.href="https://flow.annaone.com.br/device.html";activation.textContent="Ativar dispositivo ↗";activation.target="_blank";activation.rel="noopener noreferrer";actions.appendChild(activation)}else{const status=document.createElement("span");status.className="module-label";status.style.alignSelf="center";status.textContent=m.status;if(key!=="labpc")actions.appendChild(status)}
 if(key==="health-monitor"){
- const panel=document.getElementById("health-summary");panel.hidden=false;
+ const actions=document.getElementById("actions");
+ const oldPortal=actions.querySelector('a[href="health-monitor/v5.3-preview.html"]');if(oldPortal)oldPortal.remove();
+ for(const [label,url,secondary] of [["Painel completo ↗","health-monitor/v5.3-preview.html",false],["Gestão à Vista ↗","health-monitor/gestao-a-vista.html",true]]){const link=document.createElement("a");link.href=url;link.textContent=label;if(secondary){link.className="hm-secondary";link.target="_blank";link.rel="noopener noreferrer";}actions.appendChild(link);}
+ const panel=document.getElementById("health-summary");panel.hidden=false;panel.parentElement.insertBefore(panel,document.getElementById("services").closest(".module-panel"));
  const modules=[["agenda_portal","Agenda"],["labpc_portal","LabPC"],["service_desk_portal","Service Desk"],["eduplay_portal","EduPlay"],["anna_flow_public","Flow"],["anna_one","AnnA One"],["projetos_escolares","Projetos Escolares"],["agenda_educacional","Agenda Educacional"],["neon_agenda","Neon Agenda"]];
  const root=document.getElementById("hm-preview-cards"),total=document.getElementById("hm-preview-total"),updated=document.getElementById("hm-preview-updated");
  const url="https://tnvghprwltbziivlxeod.supabase.co/rest/v1/health_monitor_public_status?select=service_code,healthy,checked_at";

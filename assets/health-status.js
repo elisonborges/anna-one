@@ -1,12 +1,8 @@
 (()=>{'use strict';
 const root=document.getElementById('anna-health-services');if(!root)return;
-const primary=[['agenda_portal','Agenda'],['labpc_portal','LabPC'],['service_desk_portal','Service Desk'],['eduplay_portal','EduPlay'],['anna_flow_public','Flow']];
-const secondary=[['anna_one','AnnA One'],['projetos_escolares','Projetos Escolares'],['agenda_educacional','Agenda Educacional'],['neon_agenda','Neon Agenda']];
+const modules=[['agenda_portal','Agenda'],['labpc_portal','LabPC'],['service_desk_portal','Service Desk'],['eduplay_portal','EduPlay'],['anna_flow_public','Flow'],['anna_one','AnnA One'],['projetos_escolares','Projetos'],['agenda_educacional','Agenda Edu.'],['neon_agenda','Neon Agenda']];
 const url='https://tnvghprwltbziivlxeod.supabase.co/rest/v1/health_monitor_public_status?select=service_code,healthy,checked_at';
 const key='sb_publishable_yI9_7tD4RwGrjolPjiq9vg_oSGpxxFR';
-const more=document.createElement('div');more.className='anna-health-more';more.id='anna-health-more';more.hidden=true;
-root.insertAdjacentElement('afterend',more);
-let expanded=false;
 function status(row){
  const time=Date.parse(row?.checked_at||''),fresh=Number.isFinite(time)&&Date.now()-time<24*3600*1000&&Date.now()-time>-300000;
  return !fresh?'unknown':row.healthy===true?'ok':row.healthy===false?'down':'unknown';
@@ -23,13 +19,9 @@ function item(code,label,byCode){
 }
 function render(rows){
  const byCode=new Map(rows.map(x=>[x.service_code,x]));
- root.replaceChildren();more.replaceChildren();
- for(const [code,name] of primary)root.append(item(code,name,byCode));
- const button=document.createElement('button');button.type='button';button.className='anna-health-more-button';button.textContent='+ Outros';button.setAttribute('aria-expanded',String(expanded));button.setAttribute('aria-controls','anna-health-more');
- button.addEventListener('click',()=>{expanded=!expanded;more.hidden=!expanded;button.setAttribute('aria-expanded',String(expanded));button.textContent=expanded?'− Outros':'+ Outros';});
- root.append(button);
- for(const [code,name] of secondary)more.append(item(code,name,byCode));
- more.hidden=!expanded;
+ root.replaceChildren();
+ for(const [code,name] of modules)root.append(item(code,name,byCode));
+
 }
 async function load(){
  try{

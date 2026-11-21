@@ -13,7 +13,35 @@
 .anna-health-more{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;border-top:1px solid #ffffff55;padding-top:10px;margin-top:10px}
 @media(max-width:900px){.anna-health-services{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.anna-health-more{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:420px){.anna-health-services{grid-template-columns:repeat(2,minmax(0,1fr))}}
-</style><script defer src="assets/health-status.js?v=3"></script><style>
+</style><style>
+/* Health Monitor: nove módulos, faixa cheia e leitura compacta */
+.anna-status-banner{grid-template-columns:minmax(0,1fr)}
+.anna-status-banner .anna-connect-side{padding:10px 18px;gap:9px}
+.anna-status-banner .home-connect-icon{font-size:23px}
+.anna-status-banner .anna-connect-copy{display:flex;align-items:center;flex-wrap:wrap;gap:6px 16px}
+.anna-status-banner .anna-connect-copy>strong{font-size:14px}
+.anna-status-banner .anna-connect-copy>p{font-size:11px;margin:0}
+.anna-status-banner .anna-connect-badge{margin:0!important;padding:4px 8px;font-size:9px}
+.anna-status-banner .anna-health-side{border-left:0;border-top:1px solid #ffffff45;padding:13px 18px 12px}
+.anna-health-heading{gap:9px}
+.anna-health-heading>span{font-size:21px}
+.anna-health-heading strong{font-size:16px}
+.anna-health-heading p{font-size:11px;margin:2px 0 0}
+.anna-health-services{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:7px;margin-top:11px;align-items:stretch}
+.anna-health-service{display:flex;flex-direction:column;align-items:stretch;gap:5px;min-width:0;padding:8px 8px 7px;border:1px solid #ffffff30;border-radius:9px;background:#ffffff0c}
+.anna-health-service>.anna-health-dot{display:none}
+.anna-health-service>span:last-child{display:flex;flex-direction:column;align-items:flex-start;min-width:0;height:100%}
+.anna-health-service strong{display:block;font-size:clamp(10px,.9vw,12px);line-height:1.2;white-space:normal;overflow-wrap:anywhere;font-weight:750;min-height:2.4em}
+.anna-health-service small{display:inline-flex;align-items:center;gap:5px;margin-top:auto;padding:4px 7px;border:1px solid #ffffff42;border-radius:999px;color:#e7f4ff;background:#ffffff12;font-size:10px;line-height:1.1;white-space:nowrap}
+.anna-health-service small:before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#f7bf55;flex:none}
+.anna-health-service[data-state="ok"] small:before{background:#52e98d}
+.anna-health-service[data-state="down"] small:before{background:#ff7777}
+.anna-health-service[data-state="down"]{border-color:#ff97975a;background:#ff7b7b12}
+.anna-health-note{margin-top:10px!important;font-size:10px!important}
+@media(max-width:720px){.anna-health-services{grid-template-columns:repeat(5,minmax(0,1fr))}}
+@media(max-width:540px){.anna-health-services{grid-template-columns:repeat(3,minmax(0,1fr))}.anna-health-service strong{min-height:0}.anna-status-banner .anna-connect-copy>p{display:none}}
+@media(max-width:350px){.anna-health-services{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style><script defer src="assets/health-status.js?v=4"></script><style>
 .anna-assistant-launch{position:fixed;right:22px;bottom:22px;z-index:1000;border:0;border-radius:999px;background:linear-gradient(135deg,#0d4e9b,#702fc5);color:#fff;padding:12px 17px;box-shadow:0 8px 28px #071f4670;display:flex;align-items:center;gap:9px;font:700 14px system-ui,sans-serif;cursor:pointer}.anna-assistant-launch:focus-visible,.anna-assistant-close:focus-visible{outline:3px solid #fbbf24;outline-offset:3px}.anna-assistant-panel{position:fixed;z-index:1001;right:22px;bottom:86px;width:min(365px,calc(100vw - 32px));max-height:min(540px,calc(100dvh - 112px));background:#fff;border-radius:19px;box-shadow:0 15px 48px #071f4670;overflow:hidden;display:flex;flex-direction:column;color:#153451;font-family:system-ui,sans-serif}.anna-assistant-panel[hidden]{display:none}.anna-assistant-head{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;background:linear-gradient(110deg,#0c3767,#145aa4);color:#fff}.anna-assistant-head strong{font-size:16px}.anna-assistant-close{border:0;background:#ffffff28;color:white;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:19px}.anna-assistant-content{padding:19px;overflow:auto;line-height:1.55;font-size:14px}.anna-assistant-content p{margin:0 0 13px}.anna-assistant-content a{color:#0c579b;font-weight:700}.anna-assistant-tag{font-size:11px;color:#687a90}.anna-assistant-icon{width:29px;height:29px;border-radius:50%;background:#ffffff30;display:grid;place-items:center}@media(max-width:540px){.anna-assistant-launch{right:14px;bottom:14px}.anna-assistant-panel{right:12px;bottom:76px;max-height:calc(100dvh - 100px)}}
 .anna-assistant-panel{width:min(450px,calc(100vw - 32px));height:min(660px,calc(100dvh - 112px))}.anna-assistant-online{display:flex;flex-direction:column;flex:1;min-height:0;padding:0}.anna-assistant-online iframe{display:block;flex:1;min-height:0;width:100%;border:0;background:#f7faff}.anna-assistant-external{margin:0!important;padding:8px 13px;font-size:11px;text-align:center;background:#f2f6fd}/* A AnnA online já possui cabeçalho e controles próprios: priorizar espaço para o conteúdo. */
 .anna-assistant-panel{width:min(560px,calc(100vw - 32px));height:min(760px,calc(100dvh - 104px));max-height:calc(100dvh - 104px)}

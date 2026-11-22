@@ -82,9 +82,19 @@ async function handle(req,res,{pool,auth,send,deviceApi}){
  case 'issue':{
  const serviceId=id(a.serviceId);if(!serviceIds.has(serviceId))throw Error('Serviço não pertence à unidade');
  const priority=a.priority==='preferencial'?'preferencial':'normal';const key=serviceId+':'+priority;
+ const options=require('./coverage-api').normalized(state.coverageOptions);
+ let paymentType=null,providerName=null;
+ if(options.enabled){
+  if(a.paymentType==='particular'&&options.allowPrivate)paymentType='particular';
+  else if(a.paymentType==='convenio'&&typeof a.providerName==='string'){
+   providerName=options.providers.find(n=>n===a.providerName)||null;
+   if(providerName)paymentType='convenio';
+  }
+  if(!paymentType)throw Error('Selecione Particular ou um convênio autorizado para esta unidade');
+ }
  const issuedAt=new Date(),numbering=nextTicketNumber(state,key,issuedAt);
  const code=(priority==='preferencial'?'P':'A')+'-'+serviceId+'-'+String(numbering.number).padStart(3,'0');
- state.queue.push({code,serviceId,priority,issuedAt:issuedAt.toISOString()});result={code,issuedAt:issuedAt.toISOString(),serviceName:serviceResult.rows.find(s=>Number(s.id)===serviceId)?.name||'',unitName:unitResult.rows[0].name,institutionName:unitResult.rows[0].institution_name,serviceStartLocal:numbering.openingTime?numbering.day+'T'+numbering.openingTime:null,timeZone:numbering.zone,paperWidth:['58','80','a4'].includes(state.ticketSettings?.paperWidth)?state.ticketSettings.paperWidth:'58'};break}
+ state.queue.push({code,serviceId,priority,issuedAt:issuedAt.toISOString(),...(paymentType?{paymentType,providerName}: {})});result={code,paymentType,providerName,issuedAt:issuedAt.toISOString(),serviceName:serviceResult.rows.find(s=>Number(s.id)===serviceId)?.name||'',unitName:unitResult.rows[0].name,institutionName:unitResult.rows[0].institution_name,serviceStartLocal:numbering.openingTime?numbering.day+'T'+numbering.openingTime:null,timeZone:numbering.zone,paperWidth:['58','80','a4'].includes(state.ticketSettings?.paperWidth)?state.ticketSettings.paperWidth:'58'};break}
  case 'call':{
  if(active(state,id(a.destinationId)))throw Error('Conclua o atendimento deste guichê antes de chamar outra senha');
  const serviceId=id(a.serviceId);if(!serviceIds.has(serviceId))throw Error('Serviço não pertence à unidade');
@@ -144,7 +154,7 @@ async function handle(req,res,{pool,auth,send,deviceApi}){
  const h=state.history.find(x=>x.code===original.code&&x.status==='chamado'&&Number(x.destinationId)===destId);
  if(h){h.status='encaminhado';h.transferredToServiceId=target;h.transferredAt=transferAt;}
  const trace=Array.isArray(original.transfers)?original.transfers:[];
- const moved={code:original.code,serviceId:target,priority:original.priority,issuedAt:original.issuedAt||transferAt,transfers:[...trace,{fromServiceId:original.serviceId,toServiceId:target,at:transferAt}]};
+ const moved={code:original.code,serviceId:target,priority:original.priority,paymentType:original.paymentType||null,providerName:original.providerName||null,issuedAt:original.issuedAt||transferAt,transfers:[...trace,{fromServiceId:original.serviceId,toServiceId:target,at:transferAt}]};
  // A política pertence à unidade e é definida pelo administrador institucional.
  // A prioridade continua respeitada pelo algoritmo de chamada do serviço.
  const policy=['start','end','original'].includes(state.transferPolicy)?state.transferPolicy:'end';

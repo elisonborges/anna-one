@@ -45,6 +45,7 @@ async function units(){
   const d=await api();const sel=$('iaUnit'),old=sel.value;
   sel.replaceChildren(...(d.units||[]).map(x=>{const o=document.createElement('option');o.value=x.id;o.textContent=x.name;return o}));
   if((d.units||[]).some(x=>String(x.id)===old))sel.value=old;
+  sel.dispatchEvent(new Event('coverage-units-loaded'));
   if(!sel.value){put('iaStatus','Nenhuma unidade autorizada nesta instituição.');return}
   await load();
  }catch(e){put('iaStatus',e.message)}

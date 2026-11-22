@@ -1,6 +1,7 @@
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 let token='',deviceMode=false,deviceCredential='';
+let coverage={enabled:false,allowPrivate:true,providers:[]},paymentType='';
 const note=(id,text)=>$(id).textContent=text;
 function linked(){try{const x=JSON.parse(localStorage.getItem('annaFlowDevice')||'null');return x?.status==='active'&&typeof x.credential==='string'?x:null}catch{return null}}
 function storedProduction(){try{const x=JSON.parse(sessionStorage.getItem('flowProductionSession')||'null');return x?.token&&x?.clientId?x:null}catch{return null}}
@@ -29,6 +30,8 @@ function showReceipt(data,serviceId,priority){
  note('receiptCode',value.code);
  note('receiptType',priority==='preferencial'?'Atendimento preferencial':'Atendimento normal');
  note('receiptService',value.serviceName||service);
+ const coverageText=value.paymentType==='particular'?'Particular':value.paymentType==='convenio'?'Convênio: '+value.providerName:'';
+ $('receiptCoverageRow').hidden=!coverageText;note('receiptCoverage',coverageText);
  note('receiptIssued',value.issuedAt?formatEmission(value.issuedAt,zone):'Não informado');
  note('receiptStart',formattedStart);
  $('receipt').hidden=false;$('receiptTools').hidden=false;
@@ -43,10 +46,39 @@ function sampleReceipt(){
  showReceipt({result:{code:'A-001-001',institutionName:'INSTITUIÇÃO EXEMPLO',unitName,serviceName,issuedAt:now.toISOString(),serviceStartLocal:p.year+'-'+p.month+'-'+p.day+'T'+p.hour+':'+p.minute,timeZone:zone,paperWidth:$('receiptWidth').value}},null,'normal');
  $('receipt').dataset.sample='true';
  $('receiptSample').hidden=false;
+ $('receiptCoverageRow').hidden=true;
  note('message','AMOSTRA de impressão criada sem emissão de senha nem alteração na fila. Selecione o papel e clique em Imprimir senha para testar.');
 }
 function clearReceipt(){
  $('receipt').hidden=true;$('receiptTools').hidden=true;$('receipt').dataset.sample='false';$('receiptSample').hidden=true;
+}
+function choosePriority(value){
+ $('priority').value=value;
+ for(const [id,key] of [['chooseNormal','normal'],['choosePriority','preferencial']]){
+  const b=$(id),on=key===value;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on));
+ }
+}
+function chooseCoverage(value){
+ paymentType=value;
+ for(const [id,key] of [['choosePrivate','particular'],['chooseInsurance','convenio']]){
+  const b=$(id),on=key===value;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on));
+ }
+ $('providerField').hidden=value!=='convenio';
+}
+async function loadCoverage(){
+ coverage={enabled:false,allowPrivate:true,providers:[]};paymentType='';
+ $('coverageStep').hidden=true;$('providerField').hidden=true;
+ const unit=$('unit').value;if(!unit)return;
+ const d=await api('/api/coverage-options?unit='+encodeURIComponent(unit));
+ const x=d.options||{};coverage={enabled:x.enabled===true,allowPrivate:x.allowPrivate!==false,providers:Array.isArray(x.providers)?x.providers:[]};
+ $('coverageStep').hidden=!coverage.enabled;
+ $('choosePrivate').hidden=!coverage.allowPrivate;
+ $('chooseInsurance').hidden=!coverage.providers.length;
+ $('providerSelect').replaceChildren(...coverage.providers.map(n=>new Option(n,n)));
+ if(coverage.enabled){
+  chooseCoverage(coverage.allowPrivate?'particular':'convenio');
+  if(!coverage.allowPrivate&&!coverage.providers.length)throw Error('Não há modalidades ativas para esta unidade.');
+ }else chooseCoverage('');
 }
 function fill(id,items){
  const sel=$(id);sel.replaceChildren(...items.map(item=>{const option=document.createElement('option');option.value=String(item.id);option.textContent=item.name;return option}));
@@ -56,6 +88,7 @@ async function catalog(){
  if(!unit)return;
  const data=await api('/api/catalog?unit='+encodeURIComponent(unit));
  fill('service',data.services);
+ await loadCoverage();
 }
 function authorized(){
  $('auth').hidden=true;$('emit').hidden=false;
@@ -68,7 +101,7 @@ async function resume(){
    const catalog=await api('/api/device/catalog');
    if(['totem','recepcao'].includes(catalog.kind)){
     fill('unit',[{id:catalog.unitId,name:'Unidade vinculada'}]);
-    $('unit').disabled=true;fill('service',catalog.services);authorized();
+    $('unit').disabled=true;fill('service',catalog.services);await loadCoverage();authorized();
     note('message','Equipamento autorizado para emissão de senhas.');return;
    }
   }catch(e){note('authStatus','O vínculo do dispositivo não está disponível. Verificando a sessão da Produção...')}
@@ -92,12 +125,17 @@ $('unit').onchange=()=>{clearReceipt();$('ticket').textContent='';catalog().catc
 $('issue').onclick=async()=>{
  try{
   const unit=$('unit').value,serviceId=$('service').value;
+  if(coverage.enabled&&(!paymentType||(paymentType==='convenio'&&!$('providerSelect').value)))throw Error('Selecione uma modalidade e um convênio válido.');
   if(!unit||!serviceId)throw Error('Selecione a unidade e o serviço');
   $('issue').disabled=true;
-  const d=await api('/api/tenant?unit='+encodeURIComponent(unit),'POST',{type:'issue',serviceId:Number(serviceId),priority:$('priority').value});
+  const d=await api('/api/tenant?unit='+encodeURIComponent(unit),'POST',{type:'issue',serviceId:Number(serviceId),priority:$('priority').value,...(coverage.enabled?{paymentType,providerName:paymentType==='convenio'?$('providerSelect').value:null}:{})});
   note('ticket',d.result.code);showReceipt(d,serviceId,$('priority').value);$('receipt').dataset.sample='false';$('receiptSample').hidden=true;note('message','Senha emitida com sucesso. Utilize Imprimir senha se desejar um comprovante.');
  }catch(e){note('message',e.message)}finally{$('issue').disabled=false}
 };
+$('chooseNormal').onclick=()=>choosePriority('normal');
+$('choosePriority').onclick=()=>choosePriority('preferencial');
+$('choosePrivate').onclick=()=>chooseCoverage('particular');
+$('chooseInsurance').onclick=()=>chooseCoverage('convenio');
 $('testPrint').onclick=sampleReceipt;
 $('receiptWidth').addEventListener('change',()=>{$('receipt').dataset.width=$('receiptWidth').value});
 $('printTicket').onclick=()=>{if(!$('receipt').hidden)window.print()};

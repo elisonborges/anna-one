@@ -28,7 +28,7 @@ async function save(){
  }catch(e){status(e.message)}
 }
 $('flowCoverageSave').onclick=save;$('flowCoverageReload').onclick=load;
-$('iaUnit').addEventListener('change',load);
+$('iaUnit').addEventListener('change',load);$('iaUnit').addEventListener('coverage-units-loaded',load);
 document.querySelector('[data-view-btn="attendance"]')?.addEventListener('click',()=>{if(token)load()});
 window.flowCoverageAdminLogin=(value)=>{token=value;load()};
 })();

@@ -31,6 +31,27 @@ export async function handleStudyGuides(request,env,cors,url){
     if(!grant)return reply({error:"Instituição não autorizada"},403,cors);
     const manager=isMaster||["institution_admin","manager","coordinator","coordenacao","coordenador"].includes(grant.role);
     const base="/v1/agenda/study-guides";
+    if(url.pathname===base+"/distribution"){
+      if(!manager)return reply({error:"Acesso restrito à coordenação"},403,cors);
+      if(request.method==="GET"){
+        const documents=await sql`SELECT id,content->'fields'->>'titulo' AS title FROM public.agenda_communications_central WHERE institution_id=${institution}::uuid AND status='approved' ORDER BY updated_at DESC LIMIT 100`;
+        const recipients=await sql`SELECT DISTINCT m.user_id,u.display_name,m.role FROM public.memberships m JOIN public.app_users u ON u.id=m.user_id WHERE m.institution_id=${institution}::uuid AND m.active=true AND u.email IS NOT NULL AND u.email<>'' ORDER BY u.display_name`;
+        const history=await sql`SELECT q.id,q.status,q.scheduled_at,q.sent_at,q.error,q.attempts,u.display_name,d.content->'fields'->>'titulo' AS title FROM public.agenda_distribution q JOIN public.app_users u ON u.id=q.recipient_id JOIN public.agenda_communications_central d ON d.id=q.document_id WHERE q.institution_id=${institution}::uuid ORDER BY q.created_at DESC LIMIT 200`;
+        return reply({documents,recipients,history,delivery_enabled:env.AGENDA_DISTRIBUTION_ENABLED==="true"},200,cors);
+      }
+      const b=await request.json().catch(()=>null);
+      if(request.method==="POST"){
+        if(!uuid(b?.document_id)||!Array.isArray(b.recipient_ids)||!b.recipient_ids.length||b.recipient_ids.length>50||!b.recipient_ids.every(uuid)||!Number.isFinite(Date.parse(b.scheduled_at)))return reply({error:"Envio inválido"},400,cors);
+        const rows=await sql`INSERT INTO public.agenda_distribution(institution_id,document_id,created_by,recipient_id,scheduled_at)
+        SELECT d.institution_id,d.id,${user}::uuid,m.user_id,GREATEST(now(),${b.scheduled_at}::timestamptz) FROM public.agenda_communications_central d JOIN public.memberships m ON m.institution_id=d.institution_id AND m.active=true JOIN public.app_users u ON u.id=m.user_id WHERE d.id=${b.document_id}::uuid AND d.institution_id=${institution}::uuid AND d.status='approved' AND m.user_id=ANY(${b.recipient_ids}::uuid[]) AND u.email IS NOT NULL AND u.email<>'' ON CONFLICT DO NOTHING RETURNING id`;
+        return reply({queued:rows.length},200,cors);
+      }
+      if(request.method==="PATCH"){
+        if(!uuid(b?.id)||!["cancel","retry"].includes(b.action))return reply({error:"Ação inválida"},400,cors);
+        const rows=await sql`UPDATE public.agenda_distribution SET status=CASE WHEN ${b.action}='cancel' THEN 'cancelled' ELSE 'pending' END,scheduled_at=now(),error=NULL WHERE id=${b.id}::uuid AND institution_id=${institution}::uuid AND ((${b.action}='cancel' AND status='pending') OR (${b.action}='retry' AND status='failed' AND attempts<3)) RETURNING id`;
+        return rows.length?reply({saved:true},200,cors):reply({error:"Ação indisponível"},409,cors);
+      }
+    }
     if(url.pathname===base+"/communications"){
       if(!manager)return reply({error:"Acesso restrito à coordenação"},403,cors);
       if(request.method==="GET"){

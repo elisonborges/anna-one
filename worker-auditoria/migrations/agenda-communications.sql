@@ -1,0 +1,3 @@
+CREATE TABLE IF NOT EXISTS public.agenda_communications_central (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), institution_id uuid NOT NULL REFERENCES public.institutions(id), author_id uuid NOT NULL REFERENCES public.app_users(id), content jsonb NOT NULL, status text NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','review','approved')), created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+ALTER TABLE public.agenda_communications_central ENABLE ROW LEVEL SECURITY;
+CREATE INDEX IF NOT EXISTS agenda_comm_institution_idx ON public.agenda_communications_central(institution_id,updated_at DESC);

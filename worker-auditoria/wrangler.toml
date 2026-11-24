@@ -11,3 +11,6 @@ AUTH_JWKS_URL = "https://ep-spring-snow-b6mci3yx.neonauth.c-2.sa-east-1.aws.neon
 # DATABASE_URL e RESEND_API_KEY são secrets configurados no Cloudflare.
 # Remetente público preservado no deploy via GitHub.
 RESEND_FROM_EMAIL = "convites@annaone.com.br"
+
+[triggers]
+crons = ["*/30 * * * *"]

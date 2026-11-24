@@ -1,3 +1,4 @@
+import { runAgendaNotifications } from "./agenda-notification-job.js";
 import {handleAgendaPeople} from "./agenda-people.js";
 import { neon } from "@neondatabase/serverless";
 import { verifyBearer } from "./auth.js";
@@ -11,6 +12,7 @@ const json = (data, status = 200, headers = {}) =>
   });
 
 export default {
+  async scheduled(event, env, ctx) { ctx.waitUntil(runAgendaNotifications(env)); },
   async fetch(request, env) {
     const url = new URL(request.url);
     const origin = request.headers.get("Origin");

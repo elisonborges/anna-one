@@ -31,6 +31,27 @@ export async function handleStudyGuides(request,env,cors,url){
     if(!grant)return reply({error:"Instituição não autorizada"},403,cors);
     const manager=isMaster||["institution_admin","manager","coordinator","coordenacao","coordenador"].includes(grant.role);
     const base="/v1/agenda/study-guides";
+    if(url.pathname===base+"/notifications/reminders"&&request.method==="POST"){
+      if(!manager)return reply({error:"Acesso restrito à coordenação"},403,cors);
+      const rows=await sql`INSERT INTO public.agenda_notifications(institution_id,recipient_id,guide_id,event_key,title,message)
+      SELECT g.institution_id,s.teacher_user_id,g.id,s.id::text||':'||g.deadline::text||':'||CASE WHEN g.deadline < (now() AT TIME ZONE 'America/Fortaleza')::date THEN 'late' ELSE 'due' END,
+      CASE WHEN g.deadline < (now() AT TIME ZONE 'America/Fortaleza')::date THEN 'Prazo vencido' ELSE 'Prazo próximo' END,g.title||' · '||s.subject
+      FROM public.agenda_study_guides g JOIN public.agenda_study_guide_subjects s ON s.guide_id=g.id JOIN public.memberships m ON m.institution_id=g.institution_id AND m.user_id=s.teacher_user_id AND m.active=true
+      WHERE g.institution_id=${institution}::uuid AND g.status IN ('open','review') AND s.status IN ('pending','revision') AND g.deadline <= (now() AT TIME ZONE 'America/Fortaleza')::date+2 ON CONFLICT DO NOTHING RETURNING id`;
+      return reply({created:rows.length},200,cors);
+    }
+    if(url.pathname===base+"/notifications"){
+      if(request.method==="GET"){
+        const notifications=await sql`SELECT id,guide_id,title,message,created_at,read_at FROM public.agenda_notifications WHERE institution_id=${institution}::uuid AND recipient_id=${user}::uuid ORDER BY created_at DESC LIMIT 100`;
+        return reply({notifications},200,cors);
+      }
+      if(request.method==="PATCH"){
+        const b=await request.json().catch(()=>null);
+        if(!uuid(b?.id))return reply({error:"Notificação inválida"},400,cors);
+        await sql`UPDATE public.agenda_notifications SET read_at=COALESCE(read_at,now()) WHERE id=${b.id}::uuid AND institution_id=${institution}::uuid AND recipient_id=${user}::uuid`;
+        return reply({saved:true},200,cors);
+      }
+    }
     if(url.pathname===base+"/assignments"){
       if(!manager)return reply({error:"Acesso restrito à coordenação"},403,cors);
       if(request.method==="GET"){
@@ -65,8 +86,8 @@ export async function handleStudyGuides(request,env,cors,url){
     }
     if(url.pathname===base&&request.method==="GET"){
       const guides=await sql`SELECT id,institution_id,grade,classroom,title,period,academic_year,deadline,status,created_at
-        FROM public.agenda_study_guides WHERE institution_id=${institution}::uuid
-        AND (${manager} OR EXISTS(SELECT 1 FROM public.agenda_study_guide_subjects s WHERE s.guide_id=id AND s.teacher_user_id=${user}::uuid))
+        FROM public.agenda_study_guides g WHERE institution_id=${institution}::uuid
+        AND (${manager} OR EXISTS(SELECT 1 FROM public.agenda_study_guide_subjects s WHERE s.guide_id=g.id AND g.status<>'draft' AND s.teacher_user_id=${user}::uuid))
         ORDER BY created_at DESC LIMIT 100`;
       const subjects=manager
         ? await sql`SELECT s.id,s.guide_id,s.subject,s.exam_date,s.teacher_user_id,s.topics,s.materials,s.status
@@ -97,6 +118,19 @@ export async function handleStudyGuides(request,env,cors,url){
         RETURNING id`;
       return reply({id:rows[0].id},201,cors);
     }
+    if(url.pathname===base+"/duplicate"&&request.method==="POST"){
+      if(!manager)return reply({error:"Acesso restrito à coordenação"},403,cors);
+      const b=await request.json().catch(()=>null);
+      if(!uuid(b?.guide_id)||!Number.isInteger(b.academic_year)||b.academic_year<2020||b.academic_year>2100)return reply({error:"Dados inválidos"},400,cors);
+      const rows=await sql`WITH source AS (SELECT * FROM public.agenda_study_guides WHERE id=${b.guide_id}::uuid AND institution_id=${institution}::uuid AND status='published'),
+      new_guide AS (INSERT INTO public.agenda_study_guides(institution_id,grade,classroom,title,period,academic_year,created_by,status)
+      SELECT institution_id,grade,classroom,title,period,${b.academic_year},${user}::uuid,'draft' FROM source
+      WHERE NOT EXISTS(SELECT 1 FROM public.agenda_study_guide_subjects s WHERE s.guide_id=source.id AND NOT EXISTS(SELECT 1 FROM public.memberships m WHERE m.institution_id=source.institution_id AND m.user_id=s.teacher_user_id AND m.active=true AND m.role='teacher')) RETURNING id),
+      copied AS (INSERT INTO public.agenda_study_guide_subjects(guide_id,subject,teacher_user_id,topics,materials,status)
+      SELECT n.id,s.subject,s.teacher_user_id,s.topics,s.materials,'pending' FROM new_guide n CROSS JOIN public.agenda_study_guide_subjects s WHERE s.guide_id=${b.guide_id}::uuid RETURNING id)
+      SELECT n.id,(SELECT count(*) FROM copied)::integer AS copied FROM new_guide n`;
+      return rows.length?reply(rows[0],201,cors):reply({error:"Roteiro indisponível ou professor original sem vínculo ativo"},409,cors);
+    }
     const subjectRoute=url.pathname.match(/^\/v1\/agenda\/study-guides\/([0-9a-f-]{36})\/subjects$/);
     if(subjectRoute&&request.method==="POST"){
       if(!manager)return reply({error:"Acesso restrito à coordenação"},403,cors);
@@ -105,7 +139,7 @@ export async function handleStudyGuides(request,env,cors,url){
       const rows=await sql`INSERT INTO public.agenda_study_guide_subjects (guide_id,subject,exam_date,teacher_user_id)
         SELECT g.id,${clean(body.subject,120)},${body.exam_date||null},m.user_id
         FROM public.agenda_study_guides g JOIN public.memberships m ON m.institution_id=g.institution_id
-        WHERE g.id=${guideId}::uuid AND g.institution_id=${institution}::uuid AND m.user_id=${body.teacher_user_id}::uuid AND m.active=true
+        WHERE g.id=${guideId}::uuid AND g.institution_id=${institution}::uuid AND g.status='draft' AND m.user_id=${body.teacher_user_id}::uuid AND m.active=true
         RETURNING id`;
       return rows.length?reply({id:rows[0].id},201,cors):reply({error:"Professor ou roteiro não autorizado"},403,cors);
     }
@@ -115,13 +149,14 @@ export async function handleStudyGuides(request,env,cors,url){
       if(!uuid(id)||!body||!["draft","submitted","revision","approved"].includes(body.action))return reply({error:"Atualização inválida"},400,cors);
       if(body.action==="approved"||body.action==="revision"){if(!manager)return reply({error:"Aprovação restrita à coordenação"},403,cors)}
       const status={draft:"pending",submitted:"submitted",revision:"revision",approved:"approved"}[body.action];
-      const rows=await sql`UPDATE public.agenda_study_guide_subjects s
+      const rows=await sql`WITH changed AS (UPDATE public.agenda_study_guide_subjects s
         SET topics=${clean(body.topics,20000)},materials=${clean(body.materials,20000)},status=${status},updated_at=now()
         FROM public.agenda_study_guides g
         WHERE s.id=${id}::uuid AND s.guide_id=g.id AND g.institution_id=${institution}::uuid
-          AND ( ${manager} OR (s.teacher_user_id=${user}::uuid AND g.status='open' AND ${body.action} IN ('draft','submitted')))
+          AND g.status<>'published' AND ( ${manager} OR (s.teacher_user_id=${user}::uuid AND g.status='open' AND ${body.action} IN ('draft','submitted')))
           AND ( ${manager} OR s.status IN ('pending','revision','submitted'))
-        RETURNING s.id`;
+        RETURNING s.id,s.guide_id,s.teacher_user_id,s.updated_at,s.subject), notices AS (INSERT INTO public.agenda_notifications(institution_id,recipient_id,guide_id,event_key,title,message) SELECT ${institution}::uuid,c.teacher_user_id,c.guide_id,c.id::text||':'||${status}||':'||c.updated_at::text,CASE WHEN ${status}='approved' THEN 'Disciplina aprovada' ELSE 'Correção solicitada' END,c.subject FROM changed c WHERE ${status} IN ('approved','revision') ON CONFLICT DO NOTHING RETURNING id)  , coordinator_notices AS (INSERT INTO public.agenda_notifications(institution_id,recipient_id,guide_id,event_key,title,message)
+      SELECT DISTINCT ${institution}::uuid,m.user_id,c.guide_id,c.id::text||':submitted:'||c.updated_at::text,'Disciplina enviada',c.subject FROM changed c JOIN public.memberships m ON m.institution_id=${institution}::uuid AND m.active=true AND m.role IN ('institution_admin','manager') WHERE ${status}='submitted' ON CONFLICT DO NOTHING RETURNING id) SELECT id FROM changed`;
       return rows.length?reply({saved:true},200,cors):reply({error:"Edição não permitida"},403,cors);
     }
     const guidePatch=url.pathname.match(/^\/v1\/agenda\/study-guides\/([0-9a-f-]{36})$/);
@@ -138,8 +173,8 @@ export async function handleStudyGuides(request,env,cors,url){
           WHERE g.id=${guidePatch[1]}::uuid AND g.institution_id=${institution}::uuid`;
         if(!total[0]?.count||pending[0]?.count)return reply({error:"Aprove todas as disciplinas antes de publicar"},409,cors);
       }
-      const rows=await sql`UPDATE public.agenda_study_guides SET status=${body.status},updated_at=now()
-        WHERE id=${guidePatch[1]}::uuid AND institution_id=${institution}::uuid RETURNING id`;
+      const rows=await sql`WITH changed AS (UPDATE public.agenda_study_guides SET status=${body.status},updated_at=now()
+        WHERE id=${guidePatch[1]}::uuid AND institution_id=${institution}::uuid AND status<>'published' AND status<>${body.status} RETURNING id,updated_at,title), notices AS (INSERT INTO public.agenda_notifications(institution_id,recipient_id,guide_id,event_key,title,message) SELECT DISTINCT ${institution}::uuid,s.teacher_user_id,c.id,c.id::text||':'||${body.status}||':'||c.updated_at::text,CASE WHEN ${body.status}='open' THEN 'Roteiro liberado' ELSE 'Roteiro publicado' END,c.title FROM changed c JOIN public.agenda_study_guide_subjects s ON s.guide_id=c.id WHERE ${body.status} IN ('open','published') ON CONFLICT DO NOTHING RETURNING id) SELECT id FROM changed`;
       return rows.length?reply({saved:true},200,cors):reply({error:"Roteiro não encontrado"},404,cors);
     }
     return reply({error:"Operação não encontrada"},404,cors);

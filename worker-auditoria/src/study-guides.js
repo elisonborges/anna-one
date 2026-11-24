@@ -31,6 +31,30 @@ export async function handleStudyGuides(request,env,cors,url){
     if(!grant)return reply({error:"Instituição não autorizada"},403,cors);
     const manager=isMaster||["institution_admin","manager","coordinator","coordenacao","coordenador"].includes(grant.role);
     const base="/v1/agenda/study-guides";
+    if(url.pathname===base+"/communications"){
+      if(!manager)return reply({error:"Acesso restrito à coordenação"},403,cors);
+      if(request.method==="GET"){
+        const documents=await sql`SELECT id,content,status,updated_at FROM public.agenda_communications_central WHERE institution_id=${institution}::uuid ORDER BY updated_at DESC LIMIT 100`;
+        const events=await sql`SELECT DISTINCT g.grade,g.classroom,g.academic_year,s.exam_date AS date,s.subject,g.title FROM public.agenda_study_guides g JOIN public.agenda_study_guide_subjects s ON s.guide_id=g.id WHERE g.institution_id=${institution}::uuid AND g.status='published' AND s.exam_date IS NOT NULL ORDER BY s.exam_date LIMIT 500`;
+        return reply({documents,events},200,cors);
+      }
+      if(request.method==="POST"||request.method==="PATCH"){
+        const b=await request.json().catch(()=>null);
+        if(!b||!b.fields||!clean(b.fields.titulo,200)||!["Aviso","Comunicado","Circular"].includes(b.fields.tipo))return reply({error:"Documento inválido"},400,cors);
+        const fields={};for(const k of ["tipo","numero","modelo","escola","data","destino","titulo","texto","eventos","assinatura","cargo","rodape","grade","classroom"])fields[k]=clean(b.fields[k],k==="texto"||k==="eventos"?20000:300);
+        fields.escola=grant.name;
+        const state=b.status||"draft";if(!["draft","review","approved"].includes(state))return reply({error:"Situação inválida"},400,cors);
+        const content=JSON.stringify({fields});
+        if(request.method==="POST"){
+          if(state!=="draft")return reply({error:"Salve o rascunho primeiro"},400,cors);
+          const rows=await sql`INSERT INTO public.agenda_communications_central(institution_id,author_id,content) VALUES (${institution}::uuid,${user}::uuid,${content}::jsonb) RETURNING id,status`;
+          return reply(rows[0],201,cors);
+        }
+        if(!uuid(b.id))return reply({error:"Documento inválido"},400,cors);
+        const rows=await sql`UPDATE public.agenda_communications_central SET content=CASE WHEN status='review' AND ${state}='approved' THEN content ELSE ${content}::jsonb END,status=${state},updated_at=now() WHERE id=${b.id}::uuid AND institution_id=${institution}::uuid AND ((status='draft' AND ${state} IN ('draft','review')) OR (status='review' AND ${state} IN ('draft','approved'))) RETURNING id,status`;
+        return rows.length?reply(rows[0],200,cors):reply({error:"Documento indisponível ou aprovado"},409,cors);
+      }
+    }
     if(url.pathname===base+"/notifications/reminders"&&request.method==="POST"){
       if(!manager)return reply({error:"Acesso restrito à coordenação"},403,cors);
       const rows=await sql`INSERT INTO public.agenda_notifications(institution_id,recipient_id,guide_id,event_key,title,message)

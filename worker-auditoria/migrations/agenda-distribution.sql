@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS public.agenda_distribution (
+id uuid PRIMARY KEY DEFAULT gen_random_uuid(), institution_id uuid NOT NULL REFERENCES public.institutions(id), document_id uuid NOT NULL REFERENCES public.agenda_communications_central(id), created_by uuid NOT NULL REFERENCES public.app_users(id), recipient_id uuid NOT NULL REFERENCES public.app_users(id), scheduled_at timestamptz NOT NULL, status text NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','cancelled','sending','sent','failed')), attempts integer NOT NULL DEFAULT 0, attempted_at timestamptz, sent_at timestamptz, error text, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(document_id,recipient_id));
+ALTER TABLE public.agenda_distribution ENABLE ROW LEVEL SECURITY;
+CREATE INDEX IF NOT EXISTS agenda_distribution_queue_idx ON public.agenda_distribution(status,scheduled_at);

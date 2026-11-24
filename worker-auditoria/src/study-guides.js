@@ -31,6 +31,37 @@ export async function handleStudyGuides(request,env,cors,url){
     if(!grant)return reply({error:"Instituição não autorizada"},403,cors);
     const manager=isMaster||["institution_admin","manager","coordinator","coordenacao","coordenador"].includes(grant.role);
     const base="/v1/agenda/study-guides";
+    if(url.pathname===base+"/daily-entries"){
+      if(request.method==="GET"){
+        const assignments=await sql`SELECT id,grade,classroom,subject,academic_year FROM public.agenda_teaching_assignments WHERE institution_id=${institution}::uuid AND active=true AND teacher_user_id=${user}::uuid ORDER BY grade,classroom,subject`;
+        const entries=await sql`SELECT e.*,a.grade,a.classroom,a.subject FROM public.agenda_daily_entries e JOIN public.agenda_teaching_assignments a ON a.id=e.assignment_id WHERE a.institution_id=${institution}::uuid AND (e.author_id=${user}::uuid OR (${manager} AND e.status<>'draft')) ORDER BY e.agenda_date DESC LIMIT 200`;
+        return reply({assignments,entries,manager},200,cors);
+      }
+      const b=await request.json().catch(()=>null);
+      const fields=v=>({classContent:clean(v?.classContent,12000),classActivity:clean(v?.classActivity,12000),homeActivity:clean(v?.homeActivity,12000)});
+      if(request.method==="POST"){
+        if(!uuid(b?.assignment_id)||typeof b.agenda_date!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(b.agenda_date))return reply({error:"Registro inválido"},400,cors);
+        const content=fields(b.content);
+        if(!Object.values(content).some(Boolean))return reply({error:"Preencha o conteúdo"},400,cors);
+        const rows=await sql`INSERT INTO public.agenda_daily_entries(assignment_id,author_id,agenda_date,content) SELECT id,${user}::uuid,${b.agenda_date}::date,${JSON.stringify(content)}::jsonb FROM public.agenda_teaching_assignments WHERE id=${b.assignment_id}::uuid AND institution_id=${institution}::uuid AND teacher_user_id=${user}::uuid AND active=true AND academic_year=EXTRACT(YEAR FROM ${b.agenda_date}::date) ON CONFLICT(assignment_id,agenda_date) DO NOTHING RETURNING id`;
+        return reply(rows.length?rows[0]:{error:"Vínculo inválido ou agenda já existente"},rows.length?201:409,cors);
+      }
+      if(request.method==="PATCH"){
+        if(!uuid(b?.id))return reply({error:"Registro inválido"},400,cors);
+        let rows;
+        if(b.action==="save"||b.action==="submit"){
+          const content=fields(b.content);
+          if(!Object.values(content).some(Boolean))return reply({error:"Preencha o conteúdo"},400,cors);
+          rows=await sql`UPDATE public.agenda_daily_entries e SET content=${JSON.stringify(content)}::jsonb,status=${b.action==="submit"?"submitted":"draft"},review_content=NULL,reviewer_id=NULL,review_note=NULL,updated_at=now() FROM public.agenda_teaching_assignments a WHERE a.id=e.assignment_id AND a.institution_id=${institution}::uuid AND a.active=true AND a.teacher_user_id=${user}::uuid AND e.author_id=${user}::uuid AND e.id=${b.id}::uuid AND e.status IN ('draft','needs_clarification') RETURNING e.id`;
+        }else if(manager&&(b.action==="approve"||b.action==="return")){
+          const content=fields(b.content),note=clean(b.note,2000);
+          if(b.action==="return"&&!note||b.action==="approve"&&!Object.values(content).some(Boolean))return reply({error:"Informe revisão ou justificativa"},400,cors);
+          rows=await sql`UPDATE public.agenda_daily_entries e SET status=${b.action==="approve"?"approved":"needs_clarification"},review_content=${JSON.stringify(content)}::jsonb,reviewer_id=${user}::uuid,review_note=${note},updated_at=now() FROM public.agenda_teaching_assignments a WHERE a.id=e.assignment_id AND a.institution_id=${institution}::uuid AND e.id=${b.id}::uuid AND e.status='submitted' RETURNING e.id`;
+        }else return reply({error:"Ação não autorizada"},403,cors);
+        return reply(rows.length?rows[0]:{error:"Registro indisponível para esta ação"},rows.length?200:409,cors);
+      }
+      return reply({error:"Método não permitido"},405,cors);
+    }
     if(url.pathname===base+"/distribution"){
       if(!manager)return reply({error:"Acesso restrito à coordenação"},403,cors);
       if(request.method==="GET"){

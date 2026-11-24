@@ -31,6 +31,15 @@ export async function handleStudyGuides(request,env,cors,url){
     if(!grant)return reply({error:"Instituição não autorizada"},403,cors);
     const manager=isMaster||["institution_admin","manager","coordinator","coordenacao","coordenador"].includes(grant.role);
     const base="/v1/agenda/study-guides";
+    if(url.pathname===base+"/notifications/reminders"&&request.method==="POST"){
+      if(!manager)return reply({error:"Acesso restrito à coordenação"},403,cors);
+      const rows=await sql`INSERT INTO public.agenda_notifications(institution_id,recipient_id,guide_id,event_key,title,message)
+      SELECT g.institution_id,s.teacher_user_id,g.id,s.id::text||':'||g.deadline::text||':'||CASE WHEN g.deadline < (now() AT TIME ZONE 'America/Fortaleza')::date THEN 'late' ELSE 'due' END,
+      CASE WHEN g.deadline < (now() AT TIME ZONE 'America/Fortaleza')::date THEN 'Prazo vencido' ELSE 'Prazo próximo' END,g.title||' · '||s.subject
+      FROM public.agenda_study_guides g JOIN public.agenda_study_guide_subjects s ON s.guide_id=g.id JOIN public.memberships m ON m.institution_id=g.institution_id AND m.user_id=s.teacher_user_id AND m.active=true
+      WHERE g.institution_id=${institution}::uuid AND g.status IN ('open','review') AND s.status IN ('pending','revision') AND g.deadline <= (now() AT TIME ZONE 'America/Fortaleza')::date+2 ON CONFLICT DO NOTHING RETURNING id`;
+      return reply({created:rows.length},200,cors);
+    }
     if(url.pathname===base+"/notifications"){
       if(request.method==="GET"){
         const notifications=await sql`SELECT id,guide_id,title,message,created_at,read_at FROM public.agenda_notifications WHERE institution_id=${institution}::uuid AND recipient_id=${user}::uuid ORDER BY created_at DESC LIMIT 100`;
@@ -146,7 +155,8 @@ export async function handleStudyGuides(request,env,cors,url){
         WHERE s.id=${id}::uuid AND s.guide_id=g.id AND g.institution_id=${institution}::uuid
           AND g.status<>'published' AND ( ${manager} OR (s.teacher_user_id=${user}::uuid AND g.status='open' AND ${body.action} IN ('draft','submitted')))
           AND ( ${manager} OR s.status IN ('pending','revision','submitted'))
-        RETURNING s.id,s.guide_id,s.teacher_user_id,s.updated_at,s.subject), notices AS (INSERT INTO public.agenda_notifications(institution_id,recipient_id,guide_id,event_key,title,message) SELECT ${institution}::uuid,c.teacher_user_id,c.guide_id,c.id::text||':'||${status}||':'||c.updated_at::text,CASE WHEN ${status}='approved' THEN 'Disciplina aprovada' ELSE 'Correção solicitada' END,c.subject FROM changed c WHERE ${status} IN ('approved','revision') ON CONFLICT DO NOTHING RETURNING id) SELECT id FROM changed`;
+        RETURNING s.id,s.guide_id,s.teacher_user_id,s.updated_at,s.subject), notices AS (INSERT INTO public.agenda_notifications(institution_id,recipient_id,guide_id,event_key,title,message) SELECT ${institution}::uuid,c.teacher_user_id,c.guide_id,c.id::text||':'||${status}||':'||c.updated_at::text,CASE WHEN ${status}='approved' THEN 'Disciplina aprovada' ELSE 'Correção solicitada' END,c.subject FROM changed c WHERE ${status} IN ('approved','revision') ON CONFLICT DO NOTHING RETURNING id)  , coordinator_notices AS (INSERT INTO public.agenda_notifications(institution_id,recipient_id,guide_id,event_key,title,message)
+      SELECT DISTINCT ${institution}::uuid,m.user_id,c.guide_id,c.id::text||':submitted:'||c.updated_at::text,'Disciplina enviada',c.subject FROM changed c JOIN public.memberships m ON m.institution_id=${institution}::uuid AND m.active=true AND m.role IN ('institution_admin','manager') WHERE ${status}='submitted' ON CONFLICT DO NOTHING RETURNING id) SELECT id FROM changed`;
       return rows.length?reply({saved:true},200,cors):reply({error:"Edição não permitida"},403,cors);
     }
     const guidePatch=url.pathname.match(/^\/v1\/agenda\/study-guides\/([0-9a-f-]{36})$/);

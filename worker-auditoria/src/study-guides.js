@@ -65,8 +65,8 @@ export async function handleStudyGuides(request,env,cors,url){
     }
     if(url.pathname===base&&request.method==="GET"){
       const guides=await sql`SELECT id,institution_id,grade,classroom,title,period,academic_year,deadline,status,created_at
-        FROM public.agenda_study_guides WHERE institution_id=${institution}::uuid
-        AND (${manager} OR EXISTS(SELECT 1 FROM public.agenda_study_guide_subjects s WHERE s.guide_id=id AND s.teacher_user_id=${user}::uuid))
+        FROM public.agenda_study_guides g WHERE institution_id=${institution}::uuid
+        AND (${manager} OR EXISTS(SELECT 1 FROM public.agenda_study_guide_subjects s WHERE s.guide_id=g.id AND g.status<>'draft' AND s.teacher_user_id=${user}::uuid))
         ORDER BY created_at DESC LIMIT 100`;
       const subjects=manager
         ? await sql`SELECT s.id,s.guide_id,s.subject,s.exam_date,s.teacher_user_id,s.topics,s.materials,s.status
@@ -97,6 +97,19 @@ export async function handleStudyGuides(request,env,cors,url){
         RETURNING id`;
       return reply({id:rows[0].id},201,cors);
     }
+    if(url.pathname===base+"/duplicate"&&request.method==="POST"){
+      if(!manager)return reply({error:"Acesso restrito à coordenação"},403,cors);
+      const b=await request.json().catch(()=>null);
+      if(!uuid(b?.guide_id)||!Number.isInteger(b.academic_year)||b.academic_year<2020||b.academic_year>2100)return reply({error:"Dados inválidos"},400,cors);
+      const rows=await sql`WITH source AS (SELECT * FROM public.agenda_study_guides WHERE id=${b.guide_id}::uuid AND institution_id=${institution}::uuid AND status='published'),
+      new_guide AS (INSERT INTO public.agenda_study_guides(institution_id,grade,classroom,title,period,academic_year,created_by,status)
+      SELECT institution_id,grade,classroom,title,period,${b.academic_year},${user}::uuid,'draft' FROM source
+      WHERE NOT EXISTS(SELECT 1 FROM public.agenda_study_guide_subjects s WHERE s.guide_id=source.id AND NOT EXISTS(SELECT 1 FROM public.memberships m WHERE m.institution_id=source.institution_id AND m.user_id=s.teacher_user_id AND m.active=true AND m.role='teacher')) RETURNING id),
+      copied AS (INSERT INTO public.agenda_study_guide_subjects(guide_id,subject,teacher_user_id,topics,materials,status)
+      SELECT n.id,s.subject,s.teacher_user_id,s.topics,s.materials,'pending' FROM new_guide n CROSS JOIN public.agenda_study_guide_subjects s WHERE s.guide_id=${b.guide_id}::uuid RETURNING id)
+      SELECT n.id,(SELECT count(*) FROM copied)::integer AS copied FROM new_guide n`;
+      return rows.length?reply(rows[0],201,cors):reply({error:"Roteiro indisponível ou professor original sem vínculo ativo"},409,cors);
+    }
     const subjectRoute=url.pathname.match(/^\/v1\/agenda\/study-guides\/([0-9a-f-]{36})\/subjects$/);
     if(subjectRoute&&request.method==="POST"){
       if(!manager)return reply({error:"Acesso restrito à coordenação"},403,cors);
@@ -105,7 +118,7 @@ export async function handleStudyGuides(request,env,cors,url){
       const rows=await sql`INSERT INTO public.agenda_study_guide_subjects (guide_id,subject,exam_date,teacher_user_id)
         SELECT g.id,${clean(body.subject,120)},${body.exam_date||null},m.user_id
         FROM public.agenda_study_guides g JOIN public.memberships m ON m.institution_id=g.institution_id
-        WHERE g.id=${guideId}::uuid AND g.institution_id=${institution}::uuid AND m.user_id=${body.teacher_user_id}::uuid AND m.active=true
+        WHERE g.id=${guideId}::uuid AND g.institution_id=${institution}::uuid AND g.status='draft' AND m.user_id=${body.teacher_user_id}::uuid AND m.active=true
         RETURNING id`;
       return rows.length?reply({id:rows[0].id},201,cors):reply({error:"Professor ou roteiro não autorizado"},403,cors);
     }
@@ -119,7 +132,7 @@ export async function handleStudyGuides(request,env,cors,url){
         SET topics=${clean(body.topics,20000)},materials=${clean(body.materials,20000)},status=${status},updated_at=now()
         FROM public.agenda_study_guides g
         WHERE s.id=${id}::uuid AND s.guide_id=g.id AND g.institution_id=${institution}::uuid
-          AND ( ${manager} OR (s.teacher_user_id=${user}::uuid AND g.status='open' AND ${body.action} IN ('draft','submitted')))
+          AND g.status<>'published' AND ( ${manager} OR (s.teacher_user_id=${user}::uuid AND g.status='open' AND ${body.action} IN ('draft','submitted')))
           AND ( ${manager} OR s.status IN ('pending','revision','submitted'))
         RETURNING s.id`;
       return rows.length?reply({saved:true},200,cors):reply({error:"Edição não permitida"},403,cors);
@@ -139,7 +152,7 @@ export async function handleStudyGuides(request,env,cors,url){
         if(!total[0]?.count||pending[0]?.count)return reply({error:"Aprove todas as disciplinas antes de publicar"},409,cors);
       }
       const rows=await sql`UPDATE public.agenda_study_guides SET status=${body.status},updated_at=now()
-        WHERE id=${guidePatch[1]}::uuid AND institution_id=${institution}::uuid RETURNING id`;
+        WHERE id=${guidePatch[1]}::uuid AND institution_id=${institution}::uuid AND status<>'published' RETURNING id`;
       return rows.length?reply({saved:true},200,cors):reply({error:"Roteiro não encontrado"},404,cors);
     }
     return reply({error:"Operação não encontrada"},404,cors);

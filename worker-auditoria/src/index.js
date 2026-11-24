@@ -1,3 +1,4 @@
+import {handleAgendaPeople} from "./agenda-people.js";
 import { neon } from "@neondatabase/serverless";
 import { verifyBearer } from "./auth.js";
 import { handleStudyGuides } from "./study-guides.js";
@@ -92,6 +93,7 @@ export default {
         return json({ authorized: rows.length > 0, institutions: rows, modules }, 200, cors);
       } catch { return json({ authorized: false, error: "Consulta institucional indisponivel" }, 503, cors); }
     }
+    if (url.pathname === "/v1/agenda/people") return handleAgendaPeople(request,env,cors,url);
     if (url.pathname.startsWith("/v1/agenda/study-guides")) return handleStudyGuides(request, env, cors, url);
     // AnnA Agenda: autorização central somente leitura. Não concede acesso ao banco da Agenda.
     if (url.pathname === "/v1/agenda/access" && request.method === "GET") {

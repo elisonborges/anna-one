@@ -1,5 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import { verifyBearer } from "./auth.js";
+import { handleStudyGuides } from "./study-guides.js";
 import { handleUserModulePermissions } from "./user-module-permissions.js";
 
 const json = (data, status = 200, headers = {}) =>
@@ -13,7 +14,7 @@ export default {
     const url = new URL(request.url);
     const origin = request.headers.get("Origin");
     const allowed = env.APP_ORIGIN || "https://annaone.com.br";
-    const allowedOrigins = new Set([allowed, "https://elisonborges.github.io"]);
+    const allowedOrigins = new Set([allowed, "https://elisonborges.github.io", "https://agenda.annaone.com.br"]);
     const cors = origin && allowedOrigins.has(origin)
       ? { "access-control-allow-origin": origin, "access-control-allow-headers": "authorization, content-type",
           "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS", "vary": "Origin" }
@@ -91,6 +92,7 @@ export default {
         return json({ authorized: rows.length > 0, institutions: rows, modules }, 200, cors);
       } catch { return json({ authorized: false, error: "Consulta institucional indisponivel" }, 503, cors); }
     }
+    if (url.pathname.startsWith("/v1/agenda/study-guides")) return handleStudyGuides(request, env, cors, url);
     // AnnA Agenda: autorização central somente leitura. Não concede acesso ao banco da Agenda.
     if (url.pathname === "/v1/agenda/access" && request.method === "GET") {
       let identity;

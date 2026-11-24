@@ -11,7 +11,9 @@ export async function handleStudyGuides(request,env,cors,url){
   if(!env.DATABASE_URL)return reply({error:"Banco central indisponível"},503,cors);
   const sql=neon(env.DATABASE_URL),user=identity.userId;
   try{
-    const grants=await sql`SELECT m.institution_id,m.role,i.name FROM public.memberships m
+    const master=await sql`SELECT EXISTS(SELECT 1 FROM public.platform_admins WHERE user_id=${user}::uuid) AS ok`;
+    const isMaster=master[0]?.ok===true;
+    const grants=isMaster?await sql`SELECT id AS institution_id,name,'master' AS role FROM public.institutions WHERE status='active' ORDER BY name`:await sql`SELECT m.institution_id,m.role,i.name FROM public.memberships m
       JOIN public.institutions i ON i.id=m.institution_id
       JOIN public.institution_modules im ON im.institution_id=i.id AND im.enabled=true
       JOIN public.modules mo ON mo.id=im.module_id AND mo.code='agenda' AND mo.status='available'
@@ -23,11 +25,11 @@ export async function handleStudyGuides(request,env,cors,url){
         AND ((m.role='institution_admin' AND NOT EXISTS(
           SELECT 1 FROM public.user_module_permissions p WHERE p.institution_id=i.id AND p.user_id=m.user_id
         )) OR up.enabled=true)`;
-    if(!grants.length)return reply({error:"Sem acesso institucional à Agenda"},403,cors);
+    if(!grants.length)return isMaster&&request.method==="GET"&&url.pathname==="/v1/agenda/study-guides"?reply({is_master:true,manager:true,institution:null,institutions:[],guides:[],subjects:[]},200,cors):reply({error:isMaster?"Cadastre uma instituição antes de criar roteiros":"Sem acesso institucional à Agenda"},403,cors);
     const institution=url.searchParams.get("institution_id")||grants[0].institution_id;
     const grant=grants.find(g=>g.institution_id===institution);
     if(!grant)return reply({error:"Instituição não autorizada"},403,cors);
-    const manager=["institution_admin","manager","coordinator","coordenacao","coordenador"].includes(grant.role);
+    const manager=isMaster||["institution_admin","manager","coordinator","coordenacao","coordenador"].includes(grant.role);
     const base="/v1/agenda/study-guides";
     if(url.pathname===base&&request.method==="GET"){
       const guides=await sql`SELECT id,institution_id,grade,classroom,title,period,academic_year,deadline,status,created_at
@@ -42,7 +44,7 @@ export async function handleStudyGuides(request,env,cors,url){
             FROM public.agenda_study_guide_subjects s JOIN public.agenda_study_guides g ON g.id=s.guide_id
             WHERE g.institution_id=${institution}::uuid AND s.teacher_user_id=${user}::uuid
               AND g.status IN ('open','review','published') ORDER BY s.exam_date,s.subject`;
-      return reply({institution:{id:institution,name:grant.name},role:grant.role,manager,guides,subjects},200,cors);
+      return reply({institution:{id:institution,name:grant.name},role:grant.role,is_master:isMaster,institutions:grants,manager,guides,subjects},200,cors);
     }
     if(url.pathname===base+"/teachers"&&request.method==="GET"){
       if(!manager)return reply({error:"Acesso restrito à coordenação"},403,cors);

@@ -95,6 +95,15 @@ export async function handleStudyGuides(request,env,cors,url){
       if(!manager)return reply({error:"Acesso restrito à coordenação"},403,cors);
       const body=await request.json().catch(()=>null);
       if(!uuid(guidePatch[1])||!["draft","open","review","published"].includes(body?.status))return reply({error:"Status inválido"},400,cors);
+      if(body.status==='published'){
+        const pending=await sql`SELECT COUNT(*)::integer AS count FROM public.agenda_study_guide_subjects s
+          JOIN public.agenda_study_guides g ON g.id=s.guide_id
+          WHERE g.id=${guidePatch[1]}::uuid AND g.institution_id=${institution}::uuid AND s.status<>'approved'`;
+        const total=await sql`SELECT COUNT(*)::integer AS count FROM public.agenda_study_guide_subjects s
+          JOIN public.agenda_study_guides g ON g.id=s.guide_id
+          WHERE g.id=${guidePatch[1]}::uuid AND g.institution_id=${institution}::uuid`;
+        if(!total[0]?.count||pending[0]?.count)return reply({error:"Aprove todas as disciplinas antes de publicar"},409,cors);
+      }
       const rows=await sql`UPDATE public.agenda_study_guides SET status=${body.status},updated_at=now()
         WHERE id=${guidePatch[1]}::uuid AND institution_id=${institution}::uuid RETURNING id`;
       return rows.length?reply({saved:true},200,cors):reply({error:"Roteiro não encontrado"},404,cors);

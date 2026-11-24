@@ -31,6 +31,38 @@ export async function handleStudyGuides(request,env,cors,url){
     if(!grant)return reply({error:"Instituição não autorizada"},403,cors);
     const manager=isMaster||["institution_admin","manager","coordinator","coordenacao","coordenador"].includes(grant.role);
     const base="/v1/agenda/study-guides";
+    if(url.pathname===base+"/assignments"){
+      if(!manager)return reply({error:"Acesso restrito à coordenação"},403,cors);
+      if(request.method==="GET"){
+        const assignments=await sql`SELECT a.*,u.display_name,u.email FROM public.agenda_teaching_assignments a JOIN public.app_users u ON u.id=a.teacher_user_id WHERE a.institution_id=${institution}::uuid ORDER BY a.academic_year DESC,a.grade,a.classroom,a.subject`;
+        return reply({assignments},200,cors);
+      }
+      if(request.method==="POST"){
+        const b=await request.json().catch(()=>null);
+        if(!b||!uuid(b.teacher_user_id)||!clean(b.grade,80)||!clean(b.subject,120)||!Number.isInteger(b.academic_year)||b.academic_year<2020||b.academic_year>2100)return reply({error:"Atribuição inválida"},400,cors);
+        const rows=await sql`INSERT INTO public.agenda_teaching_assignments(institution_id,teacher_user_id,academic_year,grade,classroom,subject)
+          SELECT m.institution_id,m.user_id,${b.academic_year},${clean(b.grade,80)},${clean(b.classroom,80)},${clean(b.subject,120)} FROM public.memberships m
+          WHERE m.institution_id=${institution}::uuid AND m.user_id=${b.teacher_user_id}::uuid AND m.active=true AND m.role='teacher'
+          ON CONFLICT(institution_id,teacher_user_id,academic_year,grade,classroom,subject) DO UPDATE SET active=true RETURNING id`;
+        return rows.length?reply({saved:true},200,cors):reply({error:"Professor não vinculado"},403,cors);
+      }
+      if(request.method==="PATCH"){
+        const b=await request.json().catch(()=>null);
+        if(!uuid(b?.id)||typeof b.active!=="boolean")return reply({error:"Atribuição inválida"},400,cors);
+        const rows=await sql`UPDATE public.agenda_teaching_assignments SET active=${b.active} WHERE id=${b.id}::uuid AND institution_id=${institution}::uuid RETURNING id`;
+        return rows.length?reply({saved:true},200,cors):reply({error:"Atribuição não encontrada"},404,cors);
+      }
+    }
+    if(url.pathname===base+"/import-assignments"&&request.method==="POST"){
+      if(!manager)return reply({error:"Acesso restrito à coordenação"},403,cors);
+      const b=await request.json().catch(()=>null);
+      if(!uuid(b?.guide_id))return reply({error:"Roteiro inválido"},400,cors);
+      const rows=await sql`INSERT INTO public.agenda_study_guide_subjects(guide_id,subject,teacher_user_id)
+        SELECT DISTINCT g.id,a.subject,a.teacher_user_id FROM public.agenda_study_guides g JOIN public.agenda_teaching_assignments a ON a.institution_id=g.institution_id AND a.academic_year=g.academic_year AND lower(a.grade)=lower(g.grade) AND lower(a.classroom)=lower(g.classroom) AND a.active=true
+        JOIN public.memberships m ON m.institution_id=a.institution_id AND m.user_id=a.teacher_user_id AND m.active=true AND m.role='teacher'
+        WHERE g.id=${b.guide_id}::uuid AND g.institution_id=${institution}::uuid AND g.status='draft' AND NOT EXISTS(SELECT 1 FROM public.agenda_study_guide_subjects s WHERE s.guide_id=g.id AND lower(s.subject)=lower(a.subject) AND s.teacher_user_id=a.teacher_user_id) RETURNING id`;
+      return reply({imported:rows.length},200,cors);
+    }
     if(url.pathname===base&&request.method==="GET"){
       const guides=await sql`SELECT id,institution_id,grade,classroom,title,period,academic_year,deadline,status,created_at
         FROM public.agenda_study_guides WHERE institution_id=${institution}::uuid

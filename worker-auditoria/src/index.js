@@ -101,6 +101,11 @@ export default {
       if (!env.DATABASE_URL) return json({ authorized: false, error: "Banco indisponível" }, 503, cors);
       try {
         const sql = neon(env.DATABASE_URL);
+        const master=await sql`SELECT EXISTS(SELECT 1 FROM public.platform_admins WHERE user_id=${identity.userId}::uuid) AS ok`;
+        if(master[0]?.ok===true){
+          const institutions=await sql`SELECT id AS institution_id,name AS institution_name,'master' AS role FROM public.institutions WHERE status='active' ORDER BY name`;
+          return json({authorized:true,is_master:true,institutions},200,cors);
+        }
         const rows = await sql`SELECT i.id AS institution_id, i.name AS institution_name, mb.role,
           md.code AS module_code
           FROM public.memberships mb

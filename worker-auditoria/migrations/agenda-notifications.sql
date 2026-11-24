@@ -12,3 +12,5 @@ CREATE TABLE IF NOT EXISTS public.agenda_notifications (
 );
 CREATE INDEX IF NOT EXISTS agenda_notifications_inbox_idx ON public.agenda_notifications(institution_id,recipient_id,created_at DESC);
 ALTER TABLE public.agenda_notifications ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.agenda_notifications ADD COLUMN IF NOT EXISTS email_sent_at timestamptz, ADD COLUMN IF NOT EXISTS email_attempt_at timestamptz, ADD COLUMN IF NOT EXISTS email_attempts integer NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS email_error text;

@@ -389,7 +389,7 @@ for(const form of [brandForm,networkForm,franchiseForm])form.addEventListener('s
 
 
 let orgRevision=0,orgBusy=false,orgNodes=new Map(),orgEdges=[],orgHistory=[];
-const orgKindLabels={PF:'Pessoa física',PJ:'Pessoa jurídica',establishment:'Estabelecimento',group:'Grupo empresarial',brand:'Marca',network:'Rede franqueadora',institution:'Instituição operacional'};
+const orgKindLabels={PF:'Pessoa física',PJ:'Pessoa jurídica',establishment:'Estabelecimento',group:'Grupo empresarial',brand:'Marca',network:'Rede franqueadora',institution:'Instituição operacional',master_group:'Grupo do Master'};
 const orgCategories={legal:'Jurídica / fiscal',operational:'Operacional',group:'Grupo empresarial',administrative:'Administrativa',ownership:'Societária',commercial:'Marcas e franquias',contact:'Contatos e representantes'};
 function resetOrganogram(){orgRevision++;orgNodes=new Map();orgEdges=[];orgHistory=[];$('org-content').hidden=true;$('org-map').hidden=true;$('org-search').value='';$('org-category').value='';for(const id of ['org-focus','org-metrics','org-center','org-incoming','org-outgoing','org-rows'])$(id).replaceChildren();$('org-back').disabled=true;txt('org-trail','');txt('org-focus-status','');txt('org-status','Aguardando consulta.');}
 function buildOrganogram(data,masterInstitutions,masterGroups,canUseGroups){
@@ -399,7 +399,8 @@ function buildOrganogram(data,masterInstitutions,masterGroups,canUseGroups){
  const allowed=masterInstitutions.filter(i=>scope.has(String(i.id).toLowerCase()));
  for(const i of allowed)nodes.set('institution:'+i.id.toLowerCase(),{id:'institution:'+i.id.toLowerCase(),kind:'institution',label:i.name,meta:{code:i.client_code,status:i.status,kind:i.organization_kind}});
  const validEdge=e=>e&&typeof e.id==='string'&&Object.hasOwn(orgCategories,e.category)&&typeof e.label==='string'&&nodes.has(e.source)&&nodes.has(e.target);
- for(const e of data.edges)if(validEdge(e))edges.push(e);
+ for(const e of data.edges)if(validEdge(e)&&(e.category!=='contact'||data.contacts_visible===true))edges.push(e);
+ if(canUseGroups){const used=new Set(allowed.map(i=>String(i.group_id||'').toLowerCase()).filter(Boolean));for(const g of masterGroups){const gid=String(g.id).toLowerCase();if(used.has(gid))nodes.set('master_group:'+gid,{id:'master_group:'+gid,kind:'master_group',label:g.name||'Grupo do Master',meta:{}});}for(const i of allowed){const e={id:'master_group_member:'+i.id,category:'operational',source:'master_group:'+String(i.group_id||'').toLowerCase(),target:'institution:'+i.id.toLowerCase(),label:'Grupo direto no Master'};if(validEdge(e))edges.push(e);}}
  for(const i of allowed){
   const target='institution:'+i.id.toLowerCase(),source='institution:'+String(i.parent_institution_id||'').toLowerCase();
   const e={id:'master_parent:'+i.id,category:'operational',source,target,label:'Matriz / filial no Master'};
@@ -410,7 +411,7 @@ function buildOrganogram(data,masterInstitutions,masterGroups,canUseGroups){
 function orgMatching(search){const query=norm(search.trim());return [...orgNodes.values()].filter(n=>!query||norm([n.label,n.meta?.code,orgKindLabels[n.kind]].filter(Boolean).join(' ')).includes(query)).sort((a,b)=>a.label.localeCompare(b.label,'pt-BR')||a.id.localeCompare(b.id));}
 function updateOrgOptions(preferred){const matches=orgMatching($('org-search').value),select=$('org-focus');options(select,matches.map(n=>({id:n.id,label:n.label+' · '+orgKindLabels[n.kind]})),'Selecione a entidade');if(matches.some(n=>n.id===preferred))select.value=preferred;else if(matches.length===1)select.value=matches[0].id;}
 function orgFocus(id,remember=true){if(!orgNodes.has(id))return;const current=$('org-focus').value;if(remember&&current&&current!==id)orgHistory.push(current);$('org-search').value='';updateOrgOptions(id);renderOrganogram();}
-function orgNodeCard(n,edge=null){const card=node('div',undefined,'org-node'+(edge?' org-related':''));if(edge){card.append(node('span',(edge.target===$('org-focus').value?'→ ':'← ')+edge.label,'org-relation'));card.append(node('span',orgCategories[edge.category],'org-dimension'));}
+function orgNodeCard(n,edge=null){const card=node('div',undefined,'org-node'+(edge?' org-related':''));if(edge){card.append(node('span',(edge.target===$('org-focus').value?'Origem · ':'Destino · ')+edge.label,'org-relation'));card.append(node('span',orgCategories[edge.category],'org-dimension'));}
  const heading=node(edge?'button':'strong',n.label,edge?'org-node-link':'org-node-title');if(edge){heading.type='button';heading.addEventListener('click',()=>orgFocus(n.id));}card.append(heading,node('span',orgKindLabels[n.kind],'muted small'));
  if(n.meta?.code)card.append(node('span','Código: '+n.meta.code,'muted small'));if(n.meta?.own_company)card.append(node('span','Empresa própria','org-dimension'));if(Array.isArray(n.meta?.roles)&&n.meta.roles.length)card.append(node('span',n.meta.roles.map(r=>classLabels[r]||r).join(' · '),'muted small'));return card;}
 function renderOrganogram(){const focus=$('org-focus').value,category=$('org-category').value,n=orgNodes.get(focus);for(const id of ['org-center','org-incoming','org-outgoing','org-rows'])$(id).replaceChildren();$('org-back').disabled=!orgHistory.length;$('org-map').hidden=!n;txt('org-trail',orgHistory.length?'Navegação: '+orgHistory.length+' etapa(s) anterior(es)':'');
@@ -426,7 +427,7 @@ async function refreshOrganogram(){
  const data=await registryRequest('/v1/organogram');if(rev!==orgRevision||!authorized)return;if(![data?.nodes,data?.edges,data?.institution_ids].every(Array.isArray))throw Error('Resposta integrada inválida.');
  const model=buildOrganogram(data,institutions,groups,groupsAvailable);orgNodes=model.nodes;orgEdges=model.edges;const contactOption=$('org-category').querySelector('option[value=contact]');contactOption.disabled=data.contacts_visible!==true;
  for(const [label,value] of [['Entidades',orgNodes.size],['Relações diretas',orgEdges.length],['Pessoas jurídicas',[...orgNodes.values()].filter(n=>n.kind==='PJ').length],['Instituições',[...orgNodes.values()].filter(n=>n.kind==='institution').length]]){const card=node('article',undefined,'business-card');card.append(node('span',label),node('strong',value));$('org-metrics').append(card);}
- const first=[...orgNodes.values()].find(n=>n.kind==='PJ'&&n.meta?.own_company)||[...orgNodes.values()].find(n=>n.kind==='PJ')||orgMatching('')[0];updateOrgOptions(first?.id);$('org-content').hidden=false;renderOrganogram();txt('org-status','Consulta integrada concluída. '+(data.contacts_visible===true?'Contatos incluídos conforme permissões.':'Contatos restritos neste perfil.'));
+ const first=[...orgNodes.values()].find(n=>n.kind==='PJ'&&n.meta?.own_company)||[...orgNodes.values()].find(n=>n.kind==='PJ')||orgMatching('')[0];updateOrgOptions(first?.id);$('org-content').hidden=false;renderOrganogram();txt('org-status','Consulta integrada concluída. '+(data.contacts_visible===true?'Contatos incluídos conforme permissões.':'Contatos restritos neste perfil.')+(!groupsAvailable?' Grupos do Master indisponíveis.':''));
  }catch(e){if(rev===orgRevision)txt('org-status',e.message+' Nenhum dado foi alterado.');}finally{orgBusy=false;$('org-refresh').disabled=false;}
 }
 $('org-search').addEventListener('input',()=>{updateOrgOptions($('org-focus').value);renderOrganogram();});

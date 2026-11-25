@@ -2,3 +2,60 @@
 :root{--ab-bg:#f5f9ff;--ab-card:#fff;--ab-ink:#0c2146;--ab-muted:#4c6484;--ab-line:#e0eaf7;--ab-primary:#086cf3;--ab-soft:#ecf6ff;--ab-dark:#0c2646;--ab-accent:#198dff;color-scheme:light}
 :root[data-theme=dark]{--ab-bg:#101d30;--ab-card:#172b45;--ab-ink:#edf5ff;--ab-muted:#b7cde5;--ab-line:#37506d;--ab-primary:#0875e5;--ab-soft:#243d5e;--ab-dark:#0c2646;--ab-accent:#67d6ff;color-scheme:dark}
 body{background:var(--ab-bg);color:var(--ab-ink)}[hidden]{display:none!important}.business-wrap{max-width:1320px;margin:auto;padding:24px clamp(16px,4.5vw,56px) 42px;min-height:calc(100vh - 150px)}.business-hero{display:grid;grid-template-columns:1fr minmax(120px,230px);align-items:center;gap:24px;background:linear-gradient(110deg,var(--ab-soft),var(--ab-card));border:1px solid var(--ab-line);border-radius:16px;padding:clamp(22px,5vw,60px)}.business-hero img{width:100%;max-width:200px;justify-self:center}.business-hero h1{font-size:clamp(36px,5.5vw,65px);line-height:1.1;margin:12px 0;letter-spacing:-2px}.business-hero h1 span{color:var(--ab-accent)}.eyebrow{font-size:12px;font-weight:800;letter-spacing:1.2px;color:var(--ab-muted);margin:0}.lead{font-size:clamp(18px,2.8vw,26px);font-weight:750;margin:12px 0}.business-hero p{max-width:680px;line-height:1.6}.business-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:20px}.business-wrap .section{padding:25px 0}.business-wrap .section h2,.business-wrap h2,.business-wrap h3{color:var(--ab-ink)}.business-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px}.business-card{background:var(--ab-card);border:1px solid var(--ab-line);border-radius:15px;padding:18px;margin:12px 0;min-width:0}.business-grid .business-card{margin:0}.business-card h3{margin:0 0 8px}.business-card p{line-height:1.55}.muted{color:var(--ab-muted)}.small{font-size:12px}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}.panel-head h1{margin:8px 0;font-size:clamp(26px,4vw,38px)}.notice{border:1px solid var(--ab-line);border-left:4px solid var(--ab-primary);background:var(--ab-soft);padding:13px 16px;border-radius:9px;margin:12px 0;line-height:1.5}.business-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0}.business-tabs button{font:inherit;font-weight:700;color:var(--ab-ink);background:var(--ab-card);border:1px solid var(--ab-line);padding:12px 16px;border-radius:10px;cursor:pointer}.business-tabs button[aria-pressed=true]{background:var(--ab-primary);color:white;border-color:var(--ab-primary)}.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.metrics .business-card{margin:0;display:flex;flex-direction:column;gap:10px}.metrics span{font-size:13px;color:var(--ab-muted)}.metrics strong{font-size:30px;line-height:1.1}.filters{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;margin:14px 0}.filters label{font-size:13px;font-weight:700;display:flex;flex-direction:column;gap:6px}.filters input,.filters select{width:100%;min-height:44px;padding:10px;border:1px solid var(--ab-line);border-radius:9px;background:var(--ab-bg);color:var(--ab-ink);font:inherit}.table-scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;text-align:left;font-size:14px}th,td{padding:12px 10px;border-bottom:1px solid var(--ab-line);vertical-align:middle}th{background:var(--ab-soft);font-weight:750;white-space:nowrap}td .btn{padding:8px 12px;font-size:13px;min-height:40px}.profile-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:14px}.profile-grid div{background:var(--ab-soft);border-radius:9px;padding:12px;overflow-wrap:anywhere}.profile-grid dt{font-size:12px;color:var(--ab-muted);font-weight:700}.profile-grid dd{margin:6px 0 0}.business-footer{background:var(--ab-dark);color:#e0ebff;text-align:center;padding:19px;font-size:12px}button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid #00baf6;outline-offset:3px}.btn:disabled{opacity:.65;cursor:not-allowed}.btn.light,.btn.ghost{background:var(--ab-card);color:var(--ab-ink);border:1px solid var(--ab-line)}.top .btn.ghost{background:#ecf6ff;color:#0452ba}.module-state{font-size:12px;font-weight:700;color:var(--ab-muted)}@media(max-width:760px){.business-hero{grid-template-columns:1fr}.business-hero img{max-width:100px;grid-row:1;justify-self:start}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.filters{grid-template-columns:1fr}.business-wrap{padding-top:16px}.business-tabs button{flex:1 1 45%}.top-inner{gap:10px}.top .btn{font-size:12px;padding:9px 12px}}
+
+/* Incremento 04: painel compacto, escopo exclusivo do modo painel. */
+body:has(#painel:not([hidden])){min-height:100dvh;display:flex;flex-direction:column}
+body:has(#painel:not([hidden])) .top-inner{max-width:none;padding-inline:clamp(12px,2vw,30px)}
+body:has(#painel:not([hidden])) .business-wrap{max-width:1800px;width:100%;box-sizing:border-box;flex:1;min-height:0;padding:12px clamp(12px,1.7vw,28px) 18px}
+body:has(#painel:not([hidden])) .business-footer{padding:9px 12px;font-size:11px}
+#painel .workspace-heading{min-height:48px;padding:0 0 10px;border-bottom:1px solid var(--ab-line);margin:0 0 12px}
+.workspace-identity{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;min-width:0}
+#painel .workspace-heading h1{font-size:clamp(21px,2.2vw,29px);line-height:1.15;margin:0;letter-spacing:-.6px}
+.workspace-tag{font-size:11px;font-weight:700;padding:4px 8px;border:1px solid var(--ab-line);border-radius:5px;background:var(--ab-card);color:var(--ab-muted)}
+.workspace-version{font-size:11px;color:var(--ab-muted)}
+#painel .btn{min-height:36px;padding:8px 12px;border-radius:7px;font-size:13px;box-shadow:none}
+#workspace:not([hidden]){display:grid;grid-template-columns:218px minmax(0,1fr);gap:16px;align-items:start}
+.business-sidebar{min-width:0;position:sticky;top:12px;background:var(--ab-card);border:1px solid var(--ab-line);border-radius:10px;padding:12px 8px;display:flex;flex-direction:column;min-height:300px}
+.sidebar-title{font-size:11px;letter-spacing:.65px;text-transform:uppercase;color:var(--ab-muted);font-weight:750;padding:3px 10px 9px}
+#painel .business-tabs{display:flex;flex-direction:column;gap:3px;margin:0}
+#painel .business-tabs button{display:flex;align-items:center;gap:9px;flex:none;text-align:left;min-height:39px;padding:8px 10px;border-radius:6px;border:1px solid transparent;background:transparent;white-space:nowrap;font-size:13px;line-height:1.3}
+#painel .business-tabs button svg{width:18px;height:18px;flex:0 0 18px}
+#painel .business-tabs button:hover{background:var(--ab-soft)}
+#painel .business-tabs button[aria-pressed=true]{background:var(--ab-primary);color:#fff;border-color:var(--ab-primary)}
+.nav-group{font-size:10px;text-transform:uppercase;letter-spacing:.75px;color:var(--ab-muted);font-weight:750;padding:11px 10px 3px}
+.sidebar-foot{margin-top:auto;border-top:1px solid var(--ab-line);padding:12px 9px 0;font-size:10px;color:var(--ab-muted)}
+.workspace-content{min-width:0}
+#painel h2{font-size:20px;line-height:1.25;margin:0 0 8px;letter-spacing:-.35px}
+#painel h3{font-size:15px;line-height:1.35;margin:0 0 7px}
+#painel .business-card{padding:15px;margin:0 0 12px;border-radius:10px}
+#painel .business-card p{margin:6px 0;line-height:1.45}
+#painel .metrics{gap:10px;margin-bottom:12px}
+#painel .metrics .business-card{padding:13px 15px;margin:0;gap:5px}
+#painel .metrics strong{font-size:25px}
+#painel .metrics span{font-size:12px}
+#painel .panel-head{gap:9px}
+.view-heading{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;margin-bottom:10px}
+#painel .view-heading h2{margin:0}
+#painel .filters{gap:9px;margin:10px 0}
+#painel .filters label{gap:4px;font-size:12px}
+#painel .filters input,#painel .filters select{box-sizing:border-box;min-width:0;min-height:38px;padding:7px 9px;border-radius:6px;font-size:13px}
+#painel .table-scroll{border:1px solid var(--ab-line);border-radius:7px}
+#painel table{font-size:13px}
+#painel th,#painel td{padding:9px 10px}
+#painel tbody tr:last-child td{border-bottom:0}
+#painel tbody tr:hover{background:var(--ab-soft)}
+#painel .profile-grid{gap:8px;margin:10px 0 0}
+#painel .profile-grid div{padding:9px;border-radius:6px}
+#painel .profile-grid dd{margin:4px 0 0}
+#painel #registry-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;margin:10px 0;font-size:13px}
+#painel #registry-context:empty{display:none}
+.registry-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;margin-top:12px}
+.registry-grid form,.party-list,.registry-establishments{min-width:0}
+#painel #party-form,#painel #establishment-form{padding:12px;border:1px solid var(--ab-line);background:var(--ab-bg);border-radius:8px}
+#painel .registry-fields{grid-template-columns:repeat(2,minmax(0,1fr))}
+#painel .registry-fields label:nth-child(3),#painel .registry-fields label:nth-child(4){grid-column:1/-1}
+#painel .registry-establishments{grid-column:1/-1;border-top:1px solid var(--ab-line);padding-top:14px}
+#painel .registry-establishments .table-scroll{margin-top:10px}
+@media(min-width:1200px){.registry-grid:has(#party-form:not([hidden])){grid-template-columns:minmax(260px,32%) minmax(0,1fr);align-items:start}}
+@media(min-width:761px) and (max-width:1000px){#workspace:not([hidden]){grid-template-columns:190px minmax(0,1fr);gap:10px}#painel .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}#painel .business-tabs button{font-size:12px;padding-inline:7px}}
+@media(max-width:760px){#workspace:not([hidden]){display:flex;flex-direction:column;gap:10px;align-items:stretch}.business-sidebar{position:static;min-height:0;padding:5px;border-radius:8px}.sidebar-title,.sidebar-foot,.nav-group{display:none}#painel .business-tabs{flex-direction:row;overflow-x:auto;scrollbar-width:thin;gap:4px;padding:2px}#painel .business-tabs button{flex:0 0 auto;font-size:12px;min-height:42px;padding:8px}#painel .business-tabs button svg{width:16px;height:16px;flex-basis:16px}#painel .workspace-heading{gap:6px}.workspace-identity{gap:5px 8px}#painel .business-card{padding:12px}#painel .filters{grid-template-columns:1fr}#painel .registry-fields{grid-template-columns:1fr}#painel .registry-fields label{grid-column:auto!important}#painel .metrics strong{font-size:23px}#painel .filters input,#painel .filters select{min-height:44px}#painel .btn{min-height:40px}}

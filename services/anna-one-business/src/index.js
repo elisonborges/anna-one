@@ -75,7 +75,7 @@ export default {async fetch(request,env){
   const sql=neon(env.DATABASE_URL);
   if(path==='/v1/context'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT id,name FROM business.tenants WHERE id=$1::uuid AND kind='internal' AND status='active'",[tenant]);
-   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,finance:r.role==='owner',financial_settlements:r.role==='owner',contract_dashboard:['owner','registry_editor'].includes(r.role),license_allocations:['owner','registry_editor'].includes(r.role),license_rights:['owner','registry_editor'].includes(r.role),contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
+   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,finance:r.role==='owner',financial_settlements:r.role==='owner',treasury:r.role==='owner',contract_dashboard:['owner','registry_editor'].includes(r.role),license_allocations:['owner','registry_editor'].includes(r.role),license_rights:['owner','registry_editor'].includes(r.role),contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
   }
   if(path==='/v1/parties'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT p.id,p.code::text AS code,p.kind,p.legal_name,p.display_name,p.cnpj_root,p.status,EXISTS(SELECT 1 FROM business.companies c WHERE c.tenant_id=p.tenant_id AND c.party_id=p.id) AS own_company,ARRAY(SELECT pr.role FROM business.party_roles pr WHERE pr.tenant_id=p.tenant_id AND pr.party_id=p.id AND pr.active ORDER BY pr.role) AS roles FROM core.parties p WHERE p.tenant_id=$1::uuid ORDER BY p.legal_name,p.id LIMIT 500",[tenant]);
@@ -141,6 +141,40 @@ SELECT jsonb_build_object(
     if(!r.rows.length)fail(409,'Transição não autorizada, proposta vencida, revisão desatualizada ou oportunidade já encerrada.');
     return send({item:r.rows[0]});
    }
+  }
+  if(path==='/v1/treasury'&&request.method==='GET'){
+   const r=await execute(sql,tenant,user,`WITH accounts AS (SELECT a.*,p.legal_name AS company_name FROM business.treasury_accounts a JOIN core.parties p ON p.tenant_id=a.tenant_id AND p.id=a.company_id WHERE a.tenant_id=$1::uuid),
+ settlements AS (SELECT s.id,s.code::text AS code,s.settled_on,s.cash_amount,o.company_id,o.direction,o.title,v.reversed_on,l.account_id FROM business.financial_settlements s JOIN business.financial_installments i ON i.tenant_id=s.tenant_id AND i.id=s.installment_id JOIN business.financial_obligations o ON o.tenant_id=i.tenant_id AND o.id=i.obligation_id LEFT JOIN business.financial_reversals v ON v.tenant_id=s.tenant_id AND v.settlement_id=s.id LEFT JOIN business.treasury_settlement_links l ON l.tenant_id=s.tenant_id AND l.settlement_id=s.id WHERE s.tenant_id=$1::uuid AND s.cash_amount>0),
+ movements AS (
+ SELECT account_id,settled_on AS occurred_on,CASE WHEN direction='receivable' THEN cash_amount ELSE -cash_amount END AS amount,'settlement' AS kind,'BXA-'||code AS reference,title,id::text AS source_ref FROM settlements WHERE account_id IS NOT NULL
+ UNION ALL SELECT account_id,reversed_on,CASE WHEN direction='receivable' THEN -cash_amount ELSE cash_amount END,'reversal','BXA-'||code,title,id::text FROM settlements WHERE account_id IS NOT NULL AND reversed_on IS NOT NULL
+ UNION ALL SELECT source_id,occurred_on,-amount,'transfer',reference,'Transferência interna',id::text FROM business.treasury_transfers WHERE tenant_id=$1::uuid
+ UNION ALL SELECT destination_id,occurred_on,amount,'transfer',reference,'Transferência interna',id::text FROM business.treasury_transfers WHERE tenant_id=$1::uuid
+ ), balances AS (SELECT a.id,a.code::text AS code,a.company_id,a.company_name,a.name,a.kind,a.opening_on::text AS opening_on,a.opening_balance::text AS opening_balance,a.reference,(a.opening_balance+COALESCE(sum(m.amount),0))::text AS balance FROM accounts a LEFT JOIN movements m ON m.account_id=a.id GROUP BY a.id,a.code,a.company_id,a.company_name,a.name,a.kind,a.opening_on,a.opening_balance,a.reference),
+ companies AS (SELECT p.id,p.legal_name AS name FROM business.companies b JOIN core.parties p ON p.tenant_id=b.tenant_id AND p.id=b.party_id WHERE b.tenant_id=$1::uuid AND p.status='active')
+ SELECT jsonb_build_object('as_of',(now() AT TIME ZONE 'America/Fortaleza')::date::text,'accounts',COALESCE((SELECT jsonb_agg(to_jsonb(b) ORDER BY b.company_name,b.name) FROM balances b),'[]'::jsonb),'companies',COALESCE((SELECT jsonb_agg(to_jsonb(c) ORDER BY c.name) FROM companies c),'[]'::jsonb),'unlinked',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',s.id,'code',s.code,'date',s.settled_on,'amount',s.cash_amount::text,'company_id',s.company_id,'direction',s.direction,'title',s.title,'reversed_on',s.reversed_on) ORDER BY s.settled_on,s.code) FROM settlements s WHERE s.account_id IS NULL),'[]'::jsonb),'movements',COALESCE((SELECT jsonb_agg(jsonb_build_object('account_id',m.account_id,'date',m.occurred_on,'amount',m.amount::text,'kind',m.kind,'reference',m.reference,'title',m.title,'source_ref',m.source_ref) ORDER BY m.occurred_on DESC,m.source_ref,m.kind,m.account_id) FROM movements m),'[]'::jsonb)) AS treasury`,[tenant]);
+   if(r.role!=='owner')fail(403,'Tesouraria restrita ao proprietário.');
+   return send(r.rows[0]?.treasury||{});
+  }
+  if(['/v1/treasury/accounts','/v1/treasury/transfers','/v1/treasury/links'].includes(path)&&request.method==='POST'){
+   const b=await body(request),id=requestId(b),uuid=v=>typeof v==='string'&&UUID.test(v),decimal=v=>typeof v==='string'&&/^-?(?:0|[1-9][0-9]{0,17})(?:\.[0-9]{1,2})?$/.test(v);
+   let statement,params;
+   if(path.endsWith('/accounts')){
+    const date=crmDate(b.opening_on);
+    if(!uuid(b.company_id)||!['bank','cash'].includes(b.kind)||!date||!decimal(b.opening_balance))fail(400,'Informe empresa, tipo, data e saldo inicial.');
+    statement="SELECT account_id,account_code::text AS account_code FROM business.create_treasury_account($1::uuid,$2,$3,$4::date,$5::numeric,$6,$7::uuid)";params=[b.company_id,name(b.name),b.kind,date,b.opening_balance,name(b.reference),id];
+   }else if(path.endsWith('/transfers')){
+    const date=crmDate(b.occurred_on);
+    if(!uuid(b.source_id)||!uuid(b.destination_id)||b.source_id===b.destination_id||!date||!decimal(b.amount)||Number(b.amount)<=0)fail(400,'Informe contas distintas, data e valor positivo.');
+    statement="SELECT transfer_id FROM business.record_treasury_transfer($1::uuid,$2::uuid,$3::numeric,$4::date,$5,$6::uuid)";params=[b.source_id,b.destination_id,b.amount,date,name(b.reference),id];
+   }else{
+    if(!uuid(b.settlement_id)||!uuid(b.account_id))fail(400,'Informe baixa e conta.');
+    statement="SELECT link_id FROM business.link_treasury_settlement($1::uuid,$2::uuid,$3::uuid)";params=[b.settlement_id,b.account_id,id];
+   }
+   const r=await execute(sql,tenant,user,statement,params,true);
+   if(r.role!=='owner')fail(403,'Tesouraria restrita ao proprietário.');
+   if(!r.rows.length)fail(409,'Registro duplicado ou incompatível com empresa, conta ou data.');
+   return send({item:r.rows[0]},201);
   }
   if(path==='/v1/financial-obligations'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,`WITH clock AS (SELECT (now() AT TIME ZONE 'America/Fortaleza')::date AS today),
@@ -482,7 +516,7 @@ SELECT COALESCE((SELECT jsonb_agg(to_jsonb(e) ORDER BY e.name,e.id) FROM entitie
   if(path==='/v1/audit'&&request.method==='GET'){
    const scope=await masterInstitutions(request,env);
    const r=await execute(sql,tenant,user,`SELECT a.id,a.actor_id,a.entity_type,a.entity_id,a.action,a.request_id,a.details,a.created_at FROM business.audit_events a WHERE a.tenant_id=$1::uuid AND (
- a.entity_type IN ('party','establishment','corporate_group','corporate_group_member','ownership_interest','company_contact','brand','franchise_network','franchise_relationship','opportunity','crm_interaction','catalog_category','catalog_item','price_list','price_entry','proposal','commercial_order','contract','contract_amendment','license_right','financial_obligation','financial_settlement','financial_reversal')
+ a.entity_type IN ('party','establishment','corporate_group','corporate_group_member','ownership_interest','company_contact','brand','franchise_network','franchise_relationship','opportunity','crm_interaction','catalog_category','catalog_item','price_list','price_entry','proposal','commercial_order','contract','contract_amendment','license_right','financial_obligation','financial_settlement','financial_reversal','treasury_account','treasury_transfer','treasury_link')
  OR (a.entity_type='license_allocation' AND EXISTS (SELECT 1 FROM business.license_allocations la WHERE la.tenant_id=a.tenant_id AND la.id=a.entity_id AND (la.institution_id IS NULL OR la.institution_id=ANY($2::uuid[]))))
  OR (a.entity_type='institution_link' AND EXISTS (SELECT 1 FROM core.institution_links l WHERE l.tenant_id=a.tenant_id AND l.id=a.entity_id AND l.institution_id=ANY($2::uuid[])))
  OR (a.entity_type='institution_admin_relation' AND EXISTS (SELECT 1 FROM core.institution_admin_relations r WHERE r.tenant_id=a.tenant_id AND r.id=a.entity_id AND r.supervisor_id=ANY($2::uuid[]) AND r.subordinate_id=ANY($2::uuid[])))

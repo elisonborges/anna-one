@@ -112,3 +112,22 @@ body:has(#painel:not([hidden])) .business-footer{padding:9px 12px;font-size:11px
 #painel #brands-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;font-size:13px}
 @media(max-width:1050px){#painel .brands-grid{grid-template-columns:1fr}#painel .franchise-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){#painel .franchise-fields,#painel .franchise-filters{grid-template-columns:1fr}}
+
+/* Incremento 11: organograma relacional navegável */
+#painel .org-fields{grid-template-columns:repeat(3,minmax(0,1fr))}
+#painel #org-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;font-size:13px}
+#painel .org-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0}
+#painel .org-map{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:14px 0;align-items:start}
+#painel .org-column{min-width:0;border:1px solid var(--ab-line);border-radius:8px;padding:10px;background:var(--ab-bg)}
+#painel .org-column h3{font-size:12px;color:var(--ab-muted);margin:0 0 10px}
+#painel .org-node{display:flex;flex-direction:column;gap:4px;border:1px solid var(--ab-line);border-radius:7px;padding:10px;margin:0 0 8px;background:var(--ab-card);overflow-wrap:anywhere}
+#painel .org-node:last-child{margin-bottom:0}
+#painel .org-central .org-node{border:2px solid var(--ab-primary)}
+#painel .org-node-link{font:inherit;font-weight:700;color:var(--ab-ink);text-decoration:underline;text-underline-offset:3px;text-align:left;background:none;border:0;padding:4px 0;cursor:pointer;overflow-wrap:anywhere}
+#painel .org-node-title{font-size:15px}
+#painel .org-relation{font-size:11px;font-weight:700;color:var(--ab-ink)}
+#painel .org-dimension{font-size:10px;align-self:flex-start;background:var(--ab-soft);border:1px solid var(--ab-line);border-radius:4px;padding:2px 5px;color:var(--ab-muted)}
+#painel .org-details{margin-top:14px}
+#painel .org-details summary{cursor:pointer;font-size:13px;font-weight:700;margin-bottom:9px}
+@media(min-width:761px){#painel .business-tabs button span{white-space:normal;overflow-wrap:anywhere}}
+@media(max-width:950px){#painel .org-fields,#painel .org-map{grid-template-columns:1fr}#painel .org-central{grid-row:1}}

@@ -72,7 +72,7 @@ RETURNS TABLE(allocation_id uuid) LANGUAGE sql SECURITY INVOKER AS $$
  RETURNING id,tenant_id,released_by
  ), logged AS (
  INSERT INTO business.audit_events(tenant_id,actor_id,entity_type,entity_id,action,request_id,details)
- SELECT tenant_id,released_by,'license_allocation',id,'deactivate',p_request FROM changed
+ SELECT tenant_id,released_by,'license_allocation',id,'deactivate',p_request,jsonb_build_object('reason',btrim(p_reason)) FROM changed
  ) SELECT id FROM changed
 $$;
 REVOKE ALL ON FUNCTION business.allocate_license(uuid,text,uuid,text,integer,text,uuid[],uuid) FROM PUBLIC;

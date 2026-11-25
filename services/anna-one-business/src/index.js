@@ -67,7 +67,7 @@ export default {async fetch(request,env){
   const sql=neon(env.DATABASE_URL);
   if(path==='/v1/context'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT id,name FROM business.tenants WHERE id=$1::uuid AND kind='internal' AND status='active'",[tenant]);
-   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
+   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
   }
   if(path==='/v1/parties'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT p.id,p.code::text AS code,p.kind,p.legal_name,p.display_name,p.cnpj_root,p.status,EXISTS(SELECT 1 FROM business.companies c WHERE c.tenant_id=p.tenant_id AND c.party_id=p.id) AS own_company,ARRAY(SELECT pr.role FROM business.party_roles pr WHERE pr.tenant_id=p.tenant_id AND pr.party_id=p.id AND pr.active ORDER BY pr.role) AS roles FROM core.parties p WHERE p.tenant_id=$1::uuid ORDER BY p.legal_name,p.id LIMIT 500",[tenant]);
@@ -86,6 +86,33 @@ export default {async fetch(request,env){
   }
   const crmDate=v=>{if(v===null||v===undefined||v==='')return null;if(typeof v!=='string'||! /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(v)||v.slice(0,4)==='0000'||Number.isNaN(Date.parse(v+'T00:00:00Z'))||new Date(v+'T00:00:00Z').toISOString().slice(0,10)!==v)fail(400,'Data inválida.');return v;};
   const crmValue=v=>{if(v===null||v===undefined||v==='')return null;if(typeof v!=='string'||! /^(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,2})?$/.test(v))fail(400,'Valor estimado inválido.');return v;};
+  if(path==='/v1/commercial-dashboard'&&request.method==='GET'){
+   const r=await execute(sql,tenant,user,`WITH opp AS (
+ SELECT stage,estimated_value,next_followup FROM business.opportunities WHERE tenant_id=$1::uuid
+), proposals AS (
+ SELECT p.id,p.status,p.valid_until,COALESCE(sum(l.net),0) AS total FROM business.proposals p LEFT JOIN business.proposal_lines l ON l.tenant_id=p.tenant_id AND l.proposal_id=p.id WHERE p.tenant_id=$1::uuid GROUP BY p.id
+), orders AS (
+ SELECT o.id,o.code,o.total,o.status,o.created_at,p.code AS proposal_code,p.title,p.customer_name,p.seller_name FROM business.commercial_orders o JOIN business.proposals p ON p.tenant_id=o.tenant_id AND p.id=o.proposal_id WHERE o.tenant_id=$1::uuid
+), funnel AS (
+ SELECT stage,count(*) AS count,COALESCE(sum(estimated_value),0)::text AS value,count(*) FILTER(WHERE estimated_value IS NULL) AS unestimated FROM opp GROUP BY stage
+), proposal_stages AS (
+ SELECT status,count(*) AS count,COALESCE(sum(total),0)::text AS value FROM proposals GROUP BY status
+), monthly AS (
+ SELECT to_char(date_trunc('month',created_at AT TIME ZONE 'America/Fortaleza'),'YYYY-MM') AS month,count(*) AS count,sum(total)::text AS value FROM orders WHERE created_at >= (date_trunc('month',now() AT TIME ZONE 'America/Fortaleza')-interval '11 months') AT TIME ZONE 'America/Fortaleza' GROUP BY 1
+)
+SELECT jsonb_build_object(
+ 'as_of',(now() AT TIME ZONE 'America/Fortaleza')::date::text,
+ 'opportunities',jsonb_build_object('total',(SELECT count(*) FROM opp),'open',(SELECT count(*) FROM opp WHERE stage NOT IN ('won','lost')),'won',(SELECT count(*) FROM opp WHERE stage='won'),'lost',(SELECT count(*) FROM opp WHERE stage='lost'),'open_value',(SELECT COALESCE(sum(estimated_value),0)::text FROM opp WHERE stage NOT IN ('won','lost')),'unestimated_open',(SELECT count(*) FROM opp WHERE stage NOT IN ('won','lost') AND estimated_value IS NULL),'overdue',(SELECT count(*) FROM opp WHERE stage NOT IN ('won','lost') AND next_followup<(now() AT TIME ZONE 'America/Fortaleza')::date),'followup_today',(SELECT count(*) FROM opp WHERE stage NOT IN ('won','lost') AND next_followup=(now() AT TIME ZONE 'America/Fortaleza')::date)),
+ 'proposals',jsonb_build_object('total',(SELECT count(*) FROM proposals),'converted',(SELECT count(*) FROM proposals WHERE status='converted'),'accepted_pending',(SELECT count(*) FROM proposals WHERE status='accepted'),'awaiting_approval',(SELECT count(*) FROM proposals WHERE status='submitted'),'expired_issued',(SELECT count(*) FROM proposals WHERE status='issued' AND valid_until<(now() AT TIME ZONE 'America/Fortaleza')::date)),
+ 'orders',jsonb_build_object('total',(SELECT count(*) FROM orders),'value',(SELECT COALESCE(sum(total),0)::text FROM orders),'pending',(SELECT count(*) FROM orders WHERE status='pending_contract'),'pending_value',(SELECT COALESCE(sum(total),0)::text FROM orders WHERE status='pending_contract')),
+ 'funnel',COALESCE((SELECT jsonb_agg(to_jsonb(f)) FROM funnel f),'[]'::jsonb),
+ 'proposal_stages',COALESCE((SELECT jsonb_agg(to_jsonb(s)) FROM proposal_stages s),'[]'::jsonb),
+ 'monthly_orders',COALESCE((SELECT jsonb_agg(to_jsonb(m) ORDER BY m.month) FROM monthly m),'[]'::jsonb),
+ 'recent_orders',COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.code_num DESC) FROM (SELECT code AS code_num,code::text AS code,proposal_code::text AS proposal_code,title,customer_name,seller_name,total::text AS total,status,created_at FROM orders ORDER BY code DESC LIMIT 20) r),'[]'::jsonb)
+) AS dashboard`,[tenant]);
+   if(!['owner','registry_editor'].includes(r.role))fail(403,'Indicadores restritos à equipe comercial.');
+   return send(r.rows[0]?.dashboard||{});
+  }
   if(path==='/v1/proposals'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT p.id,p.code::text AS code,p.customer_id,p.seller_id,p.list_id,p.opportunity_id,p.title,p.customer_name,p.seller_name,p.list_name,p.payment_terms,p.notes,p.issued_on::text AS issued_on,p.valid_until::text AS valid_until,p.status,p.revision,p.emitted_at,p.currency,COALESCE(sum(l.gross),0)::text AS gross,COALESCE(sum(l.discount),0)::text AS discount,COALESCE(sum(l.net),0)::text AS total,COALESCE(jsonb_agg(jsonb_build_object('id',l.id,'item_code',l.item_code::text,'item_name',l.item_name,'unit',l.unit,'quantity',l.quantity::text,'unit_price',l.unit_price::text,'discount_pct',l.discount_pct::text,'gross',l.gross::text,'discount',l.discount::text,'net',l.net::text) ORDER BY l.item_code) FILTER (WHERE l.id IS NOT NULL),'[]'::jsonb) AS lines FROM business.proposals p LEFT JOIN business.proposal_lines l ON l.tenant_id=p.tenant_id AND l.proposal_id=p.id WHERE p.tenant_id=$1::uuid GROUP BY p.id ORDER BY p.code DESC",[tenant]);
    if(!['owner','registry_editor'].includes(r.role))fail(403,'Propostas restritas à equipe comercial.');

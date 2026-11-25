@@ -24,7 +24,7 @@ CREATE TABLE business.financial_obligations (
  FOREIGN KEY(tenant_id,counterparty_id) REFERENCES core.parties(tenant_id,id) ON DELETE RESTRICT,
  FOREIGN KEY(tenant_id,contract_id) REFERENCES business.contracts(tenant_id,id) ON DELETE RESTRICT,
  CHECK(company_id<>counterparty_id),
- CHECK((contract_id IS NULL AND contract_revision IS NULL) OR (contract_id IS NOT NULL AND contract_revision>=1 AND direction='receivable')),
+ CHECK((contract_id IS NULL AND contract_revision IS NULL) OR (contract_id IS NOT NULL AND contract_revision IS NOT NULL AND contract_revision>=1 AND direction='receivable')),
  CHECK(amount*100>=installment_count),
  UNIQUE(tenant_id,id),
  UNIQUE(tenant_id,request_id)

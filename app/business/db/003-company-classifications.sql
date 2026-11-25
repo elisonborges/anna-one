@@ -1,4 +1,4 @@
--- 003: classificação comercial e empresas próprias; aditiva.
+-- 003: classificação comercial e empresas próprias (aditiva).
 -- Aplicar após 001, 002 e criação de anna_business_runtime.
 GRANT SELECT, INSERT ON business.party_roles TO anna_business_runtime;
 GRANT INSERT ON business.companies TO anna_business_runtime;

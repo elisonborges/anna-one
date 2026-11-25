@@ -59,3 +59,11 @@ body:has(#painel:not([hidden])) .business-footer{padding:9px 12px;font-size:11px
 @media(min-width:1200px){.registry-grid:has(#party-form:not([hidden])){grid-template-columns:minmax(260px,32%) minmax(0,1fr);align-items:start}}
 @media(min-width:761px) and (max-width:1000px){#workspace:not([hidden]){grid-template-columns:190px minmax(0,1fr);gap:10px}#painel .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}#painel .business-tabs button{font-size:12px;padding-inline:7px}}
 @media(max-width:760px){#workspace:not([hidden]){display:flex;flex-direction:column;gap:10px;align-items:stretch}.business-sidebar{position:static;min-height:0;padding:5px;border-radius:8px}.sidebar-title,.sidebar-foot,.nav-group{display:none}#painel .business-tabs{flex-direction:row;overflow-x:auto;scrollbar-width:thin;gap:4px;padding:2px}#painel .business-tabs button{flex:0 0 auto;font-size:12px;min-height:42px;padding:8px}#painel .business-tabs button svg{width:16px;height:16px;flex-basis:16px}#painel .workspace-heading{gap:6px}.workspace-identity{gap:5px 8px}#painel .business-card{padding:12px}#painel .filters{grid-template-columns:1fr}#painel .registry-fields{grid-template-columns:1fr}#painel .registry-fields label{grid-column:auto!important}#painel .metrics strong{font-size:23px}#painel .filters input,#painel .filters select{min-height:44px}#painel .btn{min-height:40px}}
+
+/* Incremento 05 — classificação e pesquisa cadastral */
+#painel .registry-list-filters{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}
+#painel .party-actions{white-space:normal;min-width:110px}
+#painel .party-actions .btn{margin:2px 4px 2px 0;min-height:32px;font-size:12px;padding:6px 9px}
+#painel #classification-form{background:var(--ab-bg);border:1px solid var(--ab-line);border-radius:8px;padding:12px}
+#painel #classification-form .filters{grid-template-columns:minmax(0,320px)}
+@media(max-width:760px){#painel .registry-list-filters{grid-template-columns:1fr}}

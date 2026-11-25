@@ -84,9 +84,12 @@ function route(){const panel=location.hash==='#painel';$('presentation').hidden=
 
 const REGISTRY_URL='https://anna-one-business.elisonborg.workers.dev';
 let registryRole=null,selectedParty=null,registryRevision=0,estRevision=0,registryBusy=false;
+let partyRecords=[],classificationSupported=false,classificationParty=null,classificationRevision=0;
+const classLabels={customer:'Cliente',supplier:'Fornecedor',partner:'Parceiro',service_provider:'Prestador',representative:'Representante',own_company:'Empresa própria'};
+const classifications=p=>[...(Array.isArray(p.roles)?p.roles.filter(r=>Object.hasOwn(classLabels,r)&&r!=='own_company'):[]),...(p.own_company?['own_company']:[])];
 const canWrite=()=>['owner','registry_editor'].includes(registryRole);
 function resetRegistry(){
- registryRevision++;estRevision++;registryRole=null;selectedParty=null;
+ registryRevision++;estRevision++;registryRole=null;selectedParty=null;partyRecords=[];classificationSupported=false;closeClassification();$('party-search').value='';$('party-filter').value='';$('party-count').textContent='';
  $('registry-content').hidden=true;$('party-form').hidden=true;$('establishment-panel').hidden=true;$('establishment-form').hidden=true;
  $('party-form').reset();$('establishment-form').reset();$('party-rows').replaceChildren();$('establishment-rows').replaceChildren();txt('registry-context','');txt('registry-status','Serviço cadastral não consultado.');
 }
@@ -98,13 +101,30 @@ async function registryRequest(path,method='GET',payload){
  return data;
 }
 function closeEstablishments(){estRevision++;selectedParty=null;$('establishment-panel').hidden=true;$('establishment-form').reset();$('establishment-rows').replaceChildren();}
-function drawParties(rows){
+function closeClassification(){classificationRevision++;classificationParty=null;$('classification-panel').hidden=true;$('classification-form').reset();}
+function openClassification(p){
+ if(!authorized||!canWrite()||!classificationSupported)return;
+ closeEstablishments();closeClassification();classificationParty=p;
+ const existing=classifications(p);
+ const choices=Object.keys(classLabels).filter(k=>!existing.includes(k)&&(k!=='own_company'||(registryRole==='owner'&&p.kind==='PJ')));
+ const select=$('classification-form').elements.namedItem('classification');select.replaceChildren();
+ for(const k of choices){const opt=node('option',classLabels[k]);opt.value=k;select.append(opt);}
+ txt('classification-title','Classificações · '+p.legal_name);
+ txt('classification-status',existing.length?'Atuais: '+existing.map(k=>classLabels[k]).join(' · '):'Nenhuma classificação cadastrada.');
+ $('classification-form').hidden=!choices.length;$('classification-panel').hidden=false;
+}
+function drawParties(rows=partyRecords){
  const body=$('party-rows');body.replaceChildren();
- if(!rows.length){const tr=node('tr'),td=node('td','Nenhum parceiro cadastrado.');td.colSpan=6;tr.append(td);body.append(tr);}
- for(const p of rows){
-  const tr=node('tr');for(const value of [p.code,p.kind,p.legal_name,p.cnpj_root||'—',p.own_company?'Sim':'—'])tr.append(node('td',value||'—'));
-  const td=node('td');if(p.kind==='PJ'){const button=node('button','Estabelecimentos','btn light');button.type='button';button.addEventListener('click',()=>openEstablishments(p));td.append(button);}else td.textContent='—';
-  tr.append(td);body.append(tr);
+ const search=norm($('party-search').value.trim()),filter=$('party-filter').value;
+ const visible=rows.filter(p=>{const cl=classifications(p);return (!search||norm([p.legal_name,p.display_name,p.code,p.cnpj_root].filter(Boolean).join(' ')).includes(search))&&(!filter||(filter==='unclassified'?!cl.length:cl.includes(filter)));});
+ txt('party-count',visible.length+' de '+rows.length+' registro(s) carregado(s). CPF não é exibido.');
+ if(!visible.length){const tr=node('tr'),td=node('td','Nenhum cadastro encontrado.');td.colSpan=6;tr.append(td);body.append(tr);}
+ for(const p of visible){
+  const tr=node('tr');for(const value of [p.code,p.kind,p.legal_name,p.cnpj_root||'—',classifications(p).map(k=>classLabels[k]).join(' · ')||'—'])tr.append(node('td',value||'—'));
+  const td=node('td');td.className='party-actions';
+  if(classificationSupported&&canWrite()){const button=node('button','Classificar','btn light');button.type='button';button.addEventListener('click',()=>openClassification(p));td.append(button);}
+  if(p.kind==='PJ'){const button=node('button','Estabelecimentos','btn light');button.type='button';button.addEventListener('click',()=>openEstablishments(p));td.append(button);}
+  if(!td.childNodes.length)td.textContent='—';tr.append(td);body.append(tr);
  }
 }
 async function refreshRegistry(){
@@ -115,20 +135,36 @@ async function refreshRegistry(){
   const result=await registryRequest('/v1/parties');
   if(rev!==registryRevision||!authorized)return;
   if(!context?.tenant||!Array.isArray(result?.items))throw new Error('Resposta cadastral inválida.');
-  registryRole=context.role;txt('registry-context',context.tenant.name+' · '+(canWrite()?'Cadastro e consulta':'Somente consulta'));
-  drawParties(result.items);$('party-form').hidden=!canWrite();$('registry-content').hidden=false;txt('registry-status','Cadastro conectado ao Neon. '+result.items.length+' registro(s) exibido(s).');
+  registryRole=context.role;classificationSupported=context.classifications===true;partyRecords=result.items;$('party-filter').disabled=!classificationSupported;txt('registry-context',context.tenant.name+' · '+(canWrite()?'Cadastro e consulta':'Somente consulta'));
+  drawParties();$('party-form').hidden=!canWrite();$('registry-content').hidden=false;txt('registry-status','Cadastro conectado ao Neon. '+result.items.length+' registro(s) exibido(s).');
  }catch(e){if(rev===registryRevision)txt('registry-status',e.message+' O cadastro não está habilitado. Nenhum dado foi gravado.');}
  finally{registryBusy=false;$('registry-refresh').disabled=false;}
 }
 async function openEstablishments(p){
  if(!authorized||!registryRole)return;
- closeEstablishments();selectedParty=p;const rev=++estRevision;
+ closeClassification();closeEstablishments();selectedParty=p;const rev=++estRevision;
  $('establishment-panel').hidden=false;$('establishment-form').hidden=true;txt('establishment-title','Estabelecimentos · '+p.legal_name);txt('establishment-status','Consultando…');
  try{const data=await registryRequest('/v1/parties/'+encodeURIComponent(p.id)+'/establishments');if(rev!==estRevision||!authorized)return;if(!Array.isArray(data?.items))throw new Error('Resposta inválida.');
  const body=$('establishment-rows');body.replaceChildren();for(const item of data.items){const tr=node('tr');for(const value of [item.name,item.cnpj,labels[item.kind]||item.kind,item.status==='active'?'Ativo':'Inativo'])tr.append(node('td',value||'—'));body.append(tr);}
  txt('establishment-status',data.items.length+' estabelecimento(s).');$('establishment-form').hidden=!canWrite();
  }catch(e){if(rev===estRevision)txt('establishment-status',e.message);}
 }
+$('party-search').addEventListener('input',()=>drawParties());
+$('party-filter').addEventListener('change',()=>drawParties());
+$('close-classification').addEventListener('click',closeClassification);
+$('classification-form').addEventListener('submit',async event=>{
+ event.preventDefault();if(!authorized||!canWrite()||!classificationSupported||!classificationParty||registryBusy)return;
+ const form=event.currentTarget,p=classificationParty,rev=classificationRevision,button=form.querySelector('button[type=submit]');
+ button.disabled=true;
+ try{
+  const data=Object.fromEntries(new FormData(form));data.request_id=crypto.randomUUID();
+  const result=await registryRequest('/v1/parties/'+encodeURIComponent(p.id)+'/classifications','POST',data);
+  if(rev!==classificationRevision||!authorized)return;
+  if(!result?.item||typeof result.item.inserted!=='boolean')throw new Error('Confirmação não recebida. Consulte antes de repetir.');
+  await refreshRegistry();if(authorized&&registryRole)txt('registry-status',result.item.inserted?'Classificação registrada.':'Classificação já existente.');
+ }catch(e){if(rev===classificationRevision)txt('classification-status',e.message+' Consulte antes de reenviar.');}
+ finally{button.disabled=false;}
+});
 $('registry-refresh').addEventListener('click',refreshRegistry);
 $('close-establishments').addEventListener('click',closeEstablishments);
 $('party-form').addEventListener('submit',async event=>{

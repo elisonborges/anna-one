@@ -232,3 +232,11 @@ body:has(#painel:not([hidden])) .business-footer{padding:9px 12px;font-size:11px
 #painel #contract-amendments{border-top:1px solid var(--ab-line);margin-top:16px;padding-top:12px}
 #painel #amendment-form,#painel #amendment-decision{padding:12px;border:1px solid var(--ab-line);border-radius:8px;background:var(--ab-bg);margin:10px 0}
 #painel #amendment-history{max-height:420px;overflow:auto}
+
+/* v0.3 — Direitos de utilização */
+#painel .license-fields{grid-template-columns:repeat(3,minmax(0,1fr))}
+#painel .license-filters{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}
+#painel #license-form,#painel #license-revoke{margin:12px 0;padding:12px;border:1px solid var(--ab-line);border-radius:8px;background:var(--ab-bg)}
+#painel #licenses-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;font-size:13px}
+@media(max-width:1050px){#painel .license-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){#painel .license-fields,#painel .license-filters{grid-template-columns:1fr}}

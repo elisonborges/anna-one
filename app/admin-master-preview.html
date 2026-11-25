@@ -90,6 +90,43 @@ main>.master-diagnostics[hidden]{display:none!important}
 main>.master-diagnostics>section{margin:14px 0 0}
 @media(max-width:1000px){#master-overview-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:480px){#master-overview-cards{grid-template-columns:minmax(0,1fr)}}
+
+/* Gerenciamento institucional: dimensões proporcionais ao conteúdo */
+#institution-detail{padding:16px}
+#institution-detail>dl{display:grid!important;grid-template-columns:max-content minmax(0,2fr) max-content minmax(0,.6fr) max-content minmax(0,1fr)!important;gap:8px 14px!important;padding:12px;background:#f3f7fc;border-radius:9px;margin:12px 0 16px;align-items:center}
+#institution-detail>dl dt{font-size:12px;color:#52677c;font-weight:650}
+#institution-detail>dl dd{margin:0;min-width:0;overflow-wrap:anywhere;font-size:13px;font-weight:600}
+#institution-edit-form{display:grid;grid-template-columns:minmax(0,1fr) minmax(130px,190px) auto;gap:10px 14px;align-items:end}
+#institution-edit-form>h4,#institution-edit-feedback{grid-column:1/-1;margin:0}
+#institution-edit-form>label{font-size:13px;font-weight:650;min-width:0}
+#institution-edit-form>label>input,#institution-edit-form>label>select{margin:6px 0 0!important;min-height:42px}
+#institution-edit-form>button{min-height:42px}
+#institution-profile-form{padding:16px;margin:18px 0 12px}
+#institution-profile-form>p{margin:6px 0 12px}
+#institution-profile-form fieldset{min-width:0;padding:10px 14px;margin:12px 0}
+#institution-profile-form fieldset>p{margin:4px 0 10px}
+#institution-profile-form .institution-form-grid{gap:10px 14px;margin:6px 0}
+#institution-profile-form .institution-form-grid label{min-width:0}
+#institution-profile-form .institution-form-grid input{padding:9px 10px;min-height:38px;font-weight:400}
+#institution-profile-form fieldset:first-of-type .institution-form-grid{grid-template-columns:minmax(0,1fr) minmax(180px,220px) minmax(165px,200px)}
+#institution-profile-form fieldset:first-of-type .wide{grid-column:auto}
+#institution-profile-form fieldset:first-of-type label:nth-child(4){grid-column:1}
+#institution-profile-form fieldset:first-of-type label:nth-child(5){grid-column:2/-1}
+#institution-profile-form fieldset:nth-of-type(2) .institution-form-grid{grid-template-columns:minmax(100px,145px) minmax(145px,190px) minmax(0,1fr) minmax(0,1fr) minmax(75px,110px) minmax(60px,75px);align-items:start}
+#institution-profile-form fieldset:nth-of-type(2) .wide{grid-column:3/5}
+#institution-profile-form fieldset:nth-of-type(2) label:nth-child(4){grid-column:5/7}
+#institution-profile-form fieldset:nth-of-type(2) label:nth-child(5){grid-column:1/3}
+#institution-profile-form fieldset:nth-of-type(2) label:nth-child(6){grid-column:3}
+#institution-profile-form fieldset:nth-of-type(2) label:nth-child(7){grid-column:4/6}
+#institution-profile-form fieldset:nth-of-type(2) label:nth-child(8){grid-column:5;grid-row:3}
+#institution-profile-form fieldset:nth-of-type(2) label:nth-child(7){grid-column:4/6;grid-row:2}
+#institution-profile-form fieldset:nth-of-type(2) label:nth-child(8){grid-column:6;grid-row:2}
+#institution-profile-form fieldset:nth-of-type(2) .institution-form-actions{margin-top:6px;gap:5px}
+#institution-cep-lookup{min-height:38px;padding:8px 10px}
+#institution-profile-form>.institution-form-actions{margin-top:10px}
+@media(max-width:1100px){#institution-detail>dl{grid-template-columns:max-content minmax(0,1fr)!important}#institution-profile-form fieldset:nth-of-type(2) .institution-form-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}#institution-profile-form fieldset:nth-of-type(2) .institution-form-grid>label{grid-column:auto;grid-row:auto}#institution-profile-form fieldset:nth-of-type(2) .institution-form-grid>.wide{grid-column:1/-1}}
+@media(max-width:850px){#institution-edit-form{grid-template-columns:minmax(0,1fr) minmax(120px,160px)}#institution-edit-form>button{justify-self:start}#institution-profile-form fieldset:first-of-type .institution-form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#institution-profile-form fieldset:first-of-type .wide{grid-column:1/-1}#institution-profile-form fieldset:first-of-type label:nth-child(4),#institution-profile-form fieldset:first-of-type label:nth-child(5){grid-column:auto}}
+@media(max-width:550px){#institution-edit-form,#institution-profile-form fieldset:first-of-type .institution-form-grid,#institution-profile-form fieldset:nth-of-type(2) .institution-form-grid{grid-template-columns:minmax(0,1fr)}#institution-edit-form>button{width:100%}#institution-profile-form{padding:12px}}
 </style><script defer src="https://annaone.com.br/assets/anna-virtual-widget.js?v=1"></script></head><body><div class="layout"><aside class="master-side"><a class="master-brand" href="./"><img src="../assets/anna-symbol.svg" alt=""><span>AnnA One<small>TECNOLOGIA E EDUCAÇÃO JUNTAS</small></span></a><nav aria-label="Menu Administração Master"><a href="#visao-geral" class="active">🏠 Visão Geral</a><a href="#instituicoes">🏫 Instituições</a><a href="#usuarios">👥 Usuários</a><a href="#masters">🔑 Masters</a><a href="#permissoes">🛡️ Perfis e Permissões</a><a href="#modulos-master">🧩 Módulos</a><a href="#auditoria">📋 Auditoria</a><span class="side-label">NAVEGAÇÃO</span><a href="./">↩ Voltar ao Painel</a></nav></aside><div class="master-body"><header class="master-top"><div><h1>Administração Master</h1><p>Gestão central da plataforma AnnA One</p><p id="master-identity" role="status" style="font-size:.85rem;margin-top:5px">Verificando administrador geral…</p></div><a href="./">← Painel principal</a></header><main><section id="visao-geral"><h2>Visão Geral</h2><p class="master-note">Acompanhe instituições e serviços cadastrados, com informações reais.</p><div class="status" id="status" role="status">Verificando autenticação e perfil…</div>
 </section>
 <div id="master-public-invite" class="institution-form-card" hidden><h3>Convite para Master adicional</h3><p id="master-public-invite-info"></p><button id="master-public-accept" type="button">Aceitar convite Master</button><p id="master-public-result" role="status"></p></div><div id="app" hidden><p class="muted">Gestão central de instituições e módulos. Cadastros exigem autorização Master.</p>

@@ -53,42 +53,40 @@ GRANT SELECT,INSERT ON business.proposals TO anna_business_runtime;
 ALTER TABLE business.proposal_lines ENABLE ROW LEVEL SECURITY;
 ALTER TABLE business.proposal_lines FORCE ROW LEVEL SECURITY;
 CREATE POLICY proposal_lines_read ON business.proposal_lines FOR SELECT USING (tenant_id::text=current_setting('anna.tenant_id',true) AND EXISTS (SELECT 1 FROM business.tenant_memberships m JOIN business.tenants t ON t.id=m.tenant_id WHERE m.tenant_id=proposal_lines.tenant_id AND m.active AND m.role IN ('owner','registry_editor') AND t.kind='internal' AND t.status='active'));
-CREATE POLICY proposal_lines_insert ON business.proposal_lines FOR INSERT WITH CHECK (tenant_id::text=current_setting('anna.tenant_id',true) AND EXISTS (SELECT 1 FROM business.tenant_memberships m JOIN business.tenants t ON t.id=m.tenant_id WHERE m.tenant_id=proposal_lines.tenant_id AND m.active AND m.role IN ('owner','registry_editor') AND t.kind='internal' AND t.status='active') AND EXISTS (SELECT 1 FROM business.proposals p WHERE p.tenant_id=proposal_lines.tenant_id AND p.id=proposal_lines.proposal_id AND p.created_by::text=current_setting('anna.actor_id',true) AND p.status='draft'));
+CREATE POLICY proposal_lines_insert ON business.proposal_lines FOR INSERT WITH CHECK (tenant_id::text=current_setting('anna.tenant_id',true) AND EXISTS (SELECT 1 FROM business.tenant_memberships m JOIN business.tenants t ON t.id=m.tenant_id WHERE m.tenant_id=proposal_lines.tenant_id AND m.active AND m.role IN ('owner','registry_editor') AND t.kind='internal' AND t.status='active'));
 REVOKE ALL ON business.proposal_lines FROM PUBLIC;
 GRANT SELECT,INSERT ON business.proposal_lines TO anna_business_runtime;
 GRANT USAGE,SELECT ON SEQUENCE business.proposals_code_seq TO anna_business_runtime;
+-- Operação atômica via CTE. A API usa transação serializável.
 CREATE FUNCTION business.create_proposal(p_customer uuid,p_list uuid,p_opportunity uuid,p_title text,p_until date,p_terms text,p_notes text,p_lines jsonb,p_request uuid)
-RETURNS TABLE(proposal_id uuid,proposal_code bigint) LANGUAGE plpgsql SECURITY INVOKER AS $$
-DECLARE
- v_tenant uuid := current_setting('anna.tenant_id',true)::uuid;
- v_actor uuid := current_setting('anna.actor_id',true)::uuid;
- v_id uuid;
- v_code bigint;
- v_count integer;
-BEGIN
- IF jsonb_typeof(p_lines) IS DISTINCT FROM 'array' OR jsonb_array_length(p_lines) NOT BETWEEN 1 AND 20 THEN RAISE EXCEPTION 'Quantidade de itens inválida' USING ERRCODE='22023'; END IF;
- IF p_until IS NULL OR p_until<CURRENT_DATE THEN RAISE EXCEPTION 'Validade inválida' USING ERRCODE='22023'; END IF;
- INSERT INTO business.proposals(tenant_id,customer_id,seller_id,list_id,opportunity_id,title,customer_name,seller_name,list_name,payment_terms,notes,valid_until,created_by)
- SELECT v_tenant,c.id,l.seller_id,l.id,p_opportunity,btrim(p_title),c.legal_name,s.legal_name,l.name,NULLIF(btrim(p_terms),''),NULLIF(btrim(p_notes),''),p_until,v_actor
- FROM business.price_lists l JOIN core.parties s ON s.tenant_id=l.tenant_id AND s.id=l.seller_id JOIN core.parties c ON c.tenant_id=l.tenant_id AND c.id=p_customer
- WHERE l.tenant_id=v_tenant AND l.id=p_list AND s.status='active' AND c.status='active' AND s.id<>c.id
- AND (p_opportunity IS NULL OR EXISTS (SELECT 1 FROM business.opportunities o WHERE o.tenant_id=v_tenant AND o.id=p_opportunity AND o.party_id=c.id AND o.stage NOT IN ('won','lost')))
- RETURNING id,code INTO v_id,v_code;
- IF v_id IS NULL THEN RAISE EXCEPTION 'Cliente, empresa, tabela ou oportunidade incompatível' USING ERRCODE='22023'; END IF;
- INSERT INTO business.proposal_lines(tenant_id,proposal_id,price_entry_id,item_id,item_code,item_name,unit,quantity,unit_price,discount_pct)
- SELECT v_tenant,v_id,e.id,i.id,i.code,i.name,e.unit,x.quantity,e.unit_price,x.discount_pct
- FROM jsonb_to_recordset(p_lines) AS x(price_entry_id uuid,quantity numeric,discount_pct numeric)
- JOIN business.price_entries e ON e.tenant_id=v_tenant AND e.id=x.price_entry_id AND e.list_id=p_list
+RETURNS TABLE(proposal_id uuid,proposal_code bigint) LANGUAGE sql SECURITY INVOKER AS $$
+ WITH input AS MATERIALIZED (
+ SELECT x.price_entry_id,x.quantity,x.discount_pct FROM jsonb_to_recordset(CASE WHEN jsonb_typeof(p_lines)='array' THEN p_lines ELSE '[]'::jsonb END) AS x(price_entry_id uuid,quantity numeric,discount_pct numeric)
+ ), eligible AS MATERIALIZED (
+ SELECT e.id AS entry_id,i.id AS item_id,i.code AS item_code,i.name AS item_name,e.unit,e.unit_price,x.quantity,x.discount_pct
+ FROM input x JOIN business.price_entries e ON e.tenant_id=current_setting('anna.tenant_id',true)::uuid AND e.id=x.price_entry_id AND e.list_id=p_list
  JOIN business.catalog_items i ON i.tenant_id=e.tenant_id AND i.id=e.item_id AND i.status='active' AND i.unit=e.unit
  WHERE e.valid_from<=CURRENT_DATE AND (e.valid_until IS NULL OR e.valid_until>=CURRENT_DATE)
  AND x.quantity>0 AND x.quantity<=999999.999 AND x.quantity=round(x.quantity,3)
- AND x.discount_pct BETWEEN 0 AND 100 AND x.discount_pct=round(x.discount_pct,2);
- GET DIAGNOSTICS v_count = ROW_COUNT;
- IF v_count<>jsonb_array_length(p_lines) THEN RAISE EXCEPTION 'Item, preço ou quantidade inválida ou fora da vigência' USING ERRCODE='22023'; END IF;
+ AND x.discount_pct BETWEEN 0 AND 100 AND x.discount_pct=round(x.discount_pct,2)
+ ), validated AS (
+ SELECT count(*) AS n FROM eligible HAVING count(*) BETWEEN 1 AND 20 AND count(*)=(SELECT count(*) FROM input) AND count(DISTINCT item_id)=count(*)
+ ), header AS (
+ INSERT INTO business.proposals(tenant_id,customer_id,seller_id,list_id,opportunity_id,title,customer_name,seller_name,list_name,payment_terms,notes,valid_until,created_by)
+ SELECT l.tenant_id,c.id,l.seller_id,l.id,p_opportunity,btrim(p_title),c.legal_name,s.legal_name,l.name,NULLIF(btrim(p_terms),''),NULLIF(btrim(p_notes),''),p_until,current_setting('anna.actor_id',true)::uuid
+ FROM business.price_lists l JOIN core.parties s ON s.tenant_id=l.tenant_id AND s.id=l.seller_id JOIN core.parties c ON c.tenant_id=l.tenant_id AND c.id=p_customer CROSS JOIN validated
+ WHERE l.tenant_id=current_setting('anna.tenant_id',true)::uuid AND l.id=p_list AND s.status='active' AND c.status='active' AND s.id<>c.id AND p_until>=CURRENT_DATE
+ AND (p_opportunity IS NULL OR EXISTS (SELECT 1 FROM business.opportunities o WHERE o.tenant_id=l.tenant_id AND o.id=p_opportunity AND o.party_id=c.id AND o.stage NOT IN ('won','lost')))
+ RETURNING id,tenant_id,code,created_by
+ ), inserted AS (
+ INSERT INTO business.proposal_lines(tenant_id,proposal_id,price_entry_id,item_id,item_code,item_name,unit,quantity,unit_price,discount_pct)
+ SELECT h.tenant_id,h.id,e.entry_id,e.item_id,e.item_code,e.item_name,e.unit,e.quantity,e.unit_price,e.discount_pct FROM header h CROSS JOIN eligible e
+ RETURNING proposal_id,net
+ ), logged AS (
  INSERT INTO business.audit_events(tenant_id,actor_id,entity_type,entity_id,action,request_id,details)
- SELECT v_tenant,v_actor,'proposal',v_id,'create',p_request,jsonb_build_object('lines',v_count,'total',sum(net)) FROM business.proposal_lines WHERE tenant_id=v_tenant AND proposal_id=v_id;
- RETURN QUERY SELECT v_id,v_code;
-END
+ SELECT h.tenant_id,h.created_by,'proposal',h.id,'create',p_request,jsonb_build_object('lines',count(i.proposal_id),'total',sum(i.net))
+ FROM header h JOIN inserted i ON i.proposal_id=h.id GROUP BY h.id,h.tenant_id,h.created_by
+ ) SELECT id,code FROM header
 $$;
 REVOKE ALL ON FUNCTION business.create_proposal(uuid,uuid,uuid,text,date,text,text,jsonb,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION business.create_proposal(uuid,uuid,uuid,text,date,text,text,jsonb,uuid) TO anna_business_runtime;

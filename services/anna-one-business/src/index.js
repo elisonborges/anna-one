@@ -67,7 +67,7 @@ export default {async fetch(request,env){
   const sql=neon(env.DATABASE_URL);
   if(path==='/v1/context'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT id,name FROM business.tenants WHERE id=$1::uuid AND kind='internal' AND status='active'",[tenant]);
-   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
+   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
   }
   if(path==='/v1/parties'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT p.id,p.code::text AS code,p.kind,p.legal_name,p.display_name,p.cnpj_root,p.status,EXISTS(SELECT 1 FROM business.companies c WHERE c.tenant_id=p.tenant_id AND c.party_id=p.id) AS own_company,ARRAY(SELECT pr.role FROM business.party_roles pr WHERE pr.tenant_id=p.tenant_id AND pr.party_id=p.id AND pr.active ORDER BY pr.role) AS roles FROM core.parties p WHERE p.tenant_id=$1::uuid ORDER BY p.legal_name,p.id LIMIT 500",[tenant]);
@@ -154,6 +154,30 @@ SELECT jsonb_build_object(
     if(!r.rows.length)fail(409,'Transição não autorizada, revisão desatualizada ou data incompatível com a vigência.');
     return send({item:r.rows[0]});
    }
+  }
+  const amendmentMatch=path.match(/^\/v1\/contracts\/([^/]+)\/amendments$/);
+  if(amendmentMatch&&UUID.test(amendmentMatch[1])){
+   const contract=amendmentMatch[1];
+   if(request.method==='GET'){
+    const r=await execute(sql,tenant,user,"SELECT id,code::text AS code,contract_id,base_revision,kind,old_total::text AS old_total,new_total::text AS new_total,old_terms,new_terms,old_until::text AS old_until,new_until::text AS new_until,reason,status,signed_on::text AS signed_on,signature_ref,effective_on::text AS effective_on,decision_reason,decided_by,decided_at,created_by,created_at FROM business.contract_amendments WHERE tenant_id=$1::uuid AND contract_id=$2::uuid ORDER BY code DESC",[tenant,contract]);
+    if(!['owner','registry_editor'].includes(r.role))fail(403,'Aditivos restritos à equipe contratual.');
+    return send({items:r.rows});
+   }
+   if(request.method==='POST'){
+    const b=await body(request),id=requestId(b),kind=b.kind,total=b.new_total,until=crmDate(b.new_until),terms=typeof b.new_terms==='string'?b.new_terms.trim():'',reason=typeof b.reason==='string'?b.reason.trim():'';
+    if(!Number.isInteger(b.revision)||b.revision<1||b.revision>2147483646||!['amendment','renewal'].includes(kind)||typeof total!=='string'||!/^(?:0|[1-9][0-9]{0,23})(?:\.[0-9]{1,2})?$/.test(total)||terms.length>300||!reason||reason.length>300)fail(400,'Informe tipo, revisão, valor total revisado e motivo válidos.');
+    const r=await execute(sql,tenant,user,"SELECT amendment_id,amendment_code::text AS amendment_code FROM business.create_contract_amendment($1::uuid,$2::integer,$3,$4::numeric,$5,$6::date,$7,$8::uuid)",[contract,b.revision,kind,total,terms||null,until,reason,id],true);
+    if(!r.rows.length)fail(409,'Contrato indisponível, revisão desatualizada, alteração inválida ou aditivo em aberto.');
+    return send({item:r.rows[0]},201);
+   }
+  }
+  const decisionMatch=path.match(/^\/v1\/contract-amendments\/([^/]+)\/decide$/);
+  if(decisionMatch&&UUID.test(decisionMatch[1])&&request.method==='POST'){
+   const b=await body(request),id=requestId(b),decision=b.decision,reference=typeof b.reference==='string'?b.reference.trim():'',signed=crmDate(b.signed_on);
+   if(!['applied','rejected'].includes(decision)||!reference||reference.length>(decision==='applied'?200:300)||(decision==='applied'?!signed:!!signed))fail(400,'Informe decisão, referência ou motivo e data de assinatura quando aplicável.');
+   const r=await execute(sql,tenant,user,"SELECT amendment_id,new_status,contract_id FROM business.decide_contract_amendment($1::uuid,$2,$3,$4::date,$5::uuid)",[decisionMatch[1],decision,reference,signed,id],true);
+   if(!r.rows.length)fail(409,'Decisão não autorizada, aditivo encerrado ou contrato alterado. Confira os registros.');
+   return send({item:r.rows[0]});
   }
   if(path==='/v1/contracts'&&request.method==='POST'){
    const b=await body(request),id=requestId(b),order=b.order_id,payer=b.payer_id||null,title=name(b.title),kind=b.contract_kind,from=crmDate(b.valid_from),until=crmDate(b.valid_until);
@@ -285,7 +309,7 @@ SELECT COALESCE((SELECT jsonb_agg(to_jsonb(e) ORDER BY e.name,e.id) FROM entitie
   if(path==='/v1/audit'&&request.method==='GET'){
    const scope=await masterInstitutions(request,env);
    const r=await execute(sql,tenant,user,`SELECT a.id,a.actor_id,a.entity_type,a.entity_id,a.action,a.request_id,a.details,a.created_at FROM business.audit_events a WHERE a.tenant_id=$1::uuid AND (
- a.entity_type IN ('party','establishment','corporate_group','corporate_group_member','ownership_interest','company_contact','brand','franchise_network','franchise_relationship','opportunity','crm_interaction','catalog_category','catalog_item','price_list','price_entry','proposal','commercial_order','contract')
+ a.entity_type IN ('party','establishment','corporate_group','corporate_group_member','ownership_interest','company_contact','brand','franchise_network','franchise_relationship','opportunity','crm_interaction','catalog_category','catalog_item','price_list','price_entry','proposal','commercial_order','contract','contract_amendment')
  OR (a.entity_type='institution_link' AND EXISTS (SELECT 1 FROM core.institution_links l WHERE l.tenant_id=a.tenant_id AND l.id=a.entity_id AND l.institution_id=ANY($2::uuid[])))
  OR (a.entity_type='institution_admin_relation' AND EXISTS (SELECT 1 FROM core.institution_admin_relations r WHERE r.tenant_id=a.tenant_id AND r.id=a.entity_id AND r.supervisor_id=ANY($2::uuid[]) AND r.subordinate_id=ANY($2::uuid[])))
 ) ORDER BY a.created_at DESC,a.id DESC LIMIT 100`,[tenant,[...scope]]);

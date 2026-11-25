@@ -67,7 +67,7 @@ export default {async fetch(request,env){
   const sql=neon(env.DATABASE_URL);
   if(path==='/v1/context'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT id,name FROM business.tenants WHERE id=$1::uuid AND kind='internal' AND status='active'",[tenant]);
-   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
+   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
   }
   if(path==='/v1/parties'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT p.id,p.code::text AS code,p.kind,p.legal_name,p.display_name,p.cnpj_root,p.status,EXISTS(SELECT 1 FROM business.companies c WHERE c.tenant_id=p.tenant_id AND c.party_id=p.id) AS own_company,ARRAY(SELECT pr.role FROM business.party_roles pr WHERE pr.tenant_id=p.tenant_id AND pr.party_id=p.id AND pr.active ORDER BY pr.role) AS roles FROM core.parties p WHERE p.tenant_id=$1::uuid ORDER BY p.legal_name,p.id LIMIT 500",[tenant]);
@@ -86,6 +86,35 @@ export default {async fetch(request,env){
   }
   const crmDate=v=>{if(v===null||v===undefined||v==='')return null;if(typeof v!=='string'||! /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(v)||v.slice(0,4)==='0000'||Number.isNaN(Date.parse(v+'T00:00:00Z'))||new Date(v+'T00:00:00Z').toISOString().slice(0,10)!==v)fail(400,'Data inválida.');return v;};
   const crmValue=v=>{if(v===null||v===undefined||v==='')return null;if(typeof v!=='string'||! /^(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,2})?$/.test(v))fail(400,'Valor estimado inválido.');return v;};
+  if(path==='/v1/price-lists'&&request.method==='GET'){
+   const r=await execute(sql,tenant,user,`SELECT
+   COALESCE((SELECT jsonb_agg(to_jsonb(s) ORDER BY s.name,s.id) FROM (SELECT p.id,p.legal_name AS name FROM business.companies c JOIN core.parties p ON p.tenant_id=c.tenant_id AND p.id=c.party_id WHERE c.tenant_id=$1::uuid AND p.status='active' AND p.kind='PJ') s),'[]'::jsonb) AS sellers,
+   COALESCE((SELECT jsonb_agg(to_jsonb(l) ORDER BY l.name,l.id) FROM (SELECT l.id,l.seller_id,p.legal_name AS seller_name,l.name,l.segment,l.payment_terms,l.currency FROM business.price_lists l JOIN core.parties p ON p.tenant_id=l.tenant_id AND p.id=l.seller_id WHERE l.tenant_id=$1::uuid) l),'[]'::jsonb) AS lists,
+   COALESCE((SELECT jsonb_agg(to_jsonb(e) ORDER BY e.valid_from DESC,e.id) FROM (SELECT e.id,e.list_id,e.item_id,i.name AS item_name,i.code::text AS item_code,e.unit,e.unit_price::text AS unit_price,e.valid_from::text AS valid_from,e.valid_until::text AS valid_until,CASE WHEN e.valid_from>CURRENT_DATE THEN 'scheduled' WHEN e.valid_until<CURRENT_DATE THEN 'expired' ELSE 'active' END AS validity FROM business.price_entries e JOIN business.catalog_items i ON i.tenant_id=e.tenant_id AND i.id=e.item_id WHERE e.tenant_id=$1::uuid) e),'[]'::jsonb) AS entries`,[tenant]);
+   if(!['owner','registry_editor'].includes(r.role))fail(403,'Preços restritos à equipe comercial.');
+   return send({sellers:r.rows[0]?.sellers||[],lists:r.rows[0]?.lists||[],entries:r.rows[0]?.entries||[]});
+  }
+  if(path==='/v1/price-lists'&&request.method==='POST'){
+   const b=await body(request),id=requestId(b),seller=b.seller_id,label=name(b.name),segment=name(b.segment,false),terms=typeof b.payment_terms==='string'?b.payment_terms.trim():'';
+   if(typeof seller!=='string'||!UUID.test(seller)||label.length>120||(segment&&segment.length>120)||terms.length>300)fail(400,'Informe empresa própria, nome e condições válidas.');
+   const r=await execute(sql,tenant,user,"SELECT list_id FROM business.create_price_list($1::uuid,$2,$3,$4,$5::uuid)",[seller,label,segment,terms||null,id]);
+   return send({item:r.rows[0]},201);
+  }
+  if(path==='/v1/price-entries'&&request.method==='POST'){
+   const b=await body(request),id=requestId(b),list=b.list_id,item=b.item_id,price=crmValue(b.unit_price),from=crmDate(b.valid_from),until=crmDate(b.valid_until);
+   if(typeof list!=='string'||!UUID.test(list)||typeof item!=='string'||!UUID.test(item)||price===null||!from||(until&&until<from))fail(400,'Informe tabela, item, preço e vigência válidos.');
+   const r=await execute(sql,tenant,user,"SELECT entry_id FROM business.add_price_entry($1::uuid,$2::uuid,$3::numeric,$4::date,$5::date,$6::uuid)",[list,item,price,from,until,id],true);
+   if(!r.rows.length)fail(409,'Item indisponível ou vigência sobreposta. Encerre o preço anterior antes de cadastrar outro.');
+   return send({item:r.rows[0]},201);
+  }
+  const priceMatch=path.match(/^\/v1\/price-entries\/([^/]+)\/close$/);
+  if(priceMatch&&UUID.test(priceMatch[1])&&request.method==='POST'){
+   const b=await body(request),id=requestId(b),until=crmDate(b.valid_until),reason=typeof b.reason==='string'?b.reason.trim():'';
+   if(!until||!reason||reason.length>300)fail(400,'Informe último dia de vigência e motivo.');
+   const r=await execute(sql,tenant,user,"SELECT entry_id FROM business.close_price_entry($1::uuid,$2::date,$3,$4::uuid)",[priceMatch[1],until,reason,id],true);
+   if(!r.rows.length)fail(409,'Preço não encontrado ou encerramento inválido.');
+   return send({item:r.rows[0]});
+  }
   if(path==='/v1/catalog'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT COALESCE((SELECT jsonb_agg(to_jsonb(c) ORDER BY c.name,c.id) FROM (SELECT id,name FROM business.catalog_categories WHERE tenant_id=$1::uuid) c),'[]'::jsonb) AS categories,COALESCE((SELECT jsonb_agg(to_jsonb(i) ORDER BY i.name,i.id) FROM (SELECT i.id,i.code::text AS code,i.category_id,c.name AS category_name,i.kind,i.name,i.description,i.unit,i.status,i.revision FROM business.catalog_items i JOIN business.catalog_categories c ON c.tenant_id=i.tenant_id AND c.id=i.category_id WHERE i.tenant_id=$1::uuid) i),'[]'::jsonb) AS items",[tenant]);
    if(!['owner','registry_editor'].includes(r.role))fail(403,'Catálogo restrito à equipe de cadastro.');
@@ -163,7 +192,7 @@ SELECT COALESCE((SELECT jsonb_agg(to_jsonb(e) ORDER BY e.name,e.id) FROM entitie
   if(path==='/v1/audit'&&request.method==='GET'){
    const scope=await masterInstitutions(request,env);
    const r=await execute(sql,tenant,user,`SELECT a.id,a.actor_id,a.entity_type,a.entity_id,a.action,a.request_id,a.details,a.created_at FROM business.audit_events a WHERE a.tenant_id=$1::uuid AND (
- a.entity_type IN ('party','establishment','corporate_group','corporate_group_member','ownership_interest','company_contact','brand','franchise_network','franchise_relationship','opportunity','crm_interaction','catalog_category','catalog_item')
+ a.entity_type IN ('party','establishment','corporate_group','corporate_group_member','ownership_interest','company_contact','brand','franchise_network','franchise_relationship','opportunity','crm_interaction','catalog_category','catalog_item','price_list','price_entry')
  OR (a.entity_type='institution_link' AND EXISTS (SELECT 1 FROM core.institution_links l WHERE l.tenant_id=a.tenant_id AND l.id=a.entity_id AND l.institution_id=ANY($2::uuid[])))
  OR (a.entity_type='institution_admin_relation' AND EXISTS (SELECT 1 FROM core.institution_admin_relations r WHERE r.tenant_id=a.tenant_id AND r.id=a.entity_id AND r.supervisor_id=ANY($2::uuid[]) AND r.subordinate_id=ANY($2::uuid[])))
 ) ORDER BY a.created_at DESC,a.id DESC LIMIT 100`,[tenant,[...scope]]);

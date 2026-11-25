@@ -35,6 +35,14 @@ async function masterInstitutions(request,env){
  if(!Array.isArray(data?.items))fail(503,'Lista de instituições não confirmada.');
  return new Set(data.items.filter(i=>typeof i?.id==='string'&&UUID.test(i.id)).map(i=>i.id.toLowerCase()));
 }
+async function masterLicenseModules(request,env){
+ const url=new URL('/v1/admin/modules',AUTHZ);
+ let response;try{response=await env.MASTER_AUTH.fetch(new Request(url,{method:'GET',headers:{Authorization:request.headers.get('Authorization'),Origin:ORIGIN},redirect:'manual'}));}catch{fail(503,'Catálogo de módulos Master indisponível.');}
+ if(!response.ok)fail(response.status===401?401:response.status===403?403:503,'Catálogo Master não autorizado ou indisponível.');
+ let data;try{data=await response.json();}catch{fail(503,'Resposta inválida do Master.');}
+ if(!Array.isArray(data?.items))fail(503,'Lista de módulos não confirmada.');
+ return data.items.filter(m=>typeof m?.id==='string'&&UUID.test(m.id)&&typeof m.code==='string'&&m.code.length>0&&m.code.length<=100&&typeof m.name==='string'&&m.status==='available').map(m=>({id:m.id,code:m.code,name:m.name}));
+}
 async function body(request){
  if(!/^application\/json(?:;|$)/i.test(request.headers.get('Content-Type')||''))fail(415,'Envie JSON.');
  const reader=request.body?.getReader();if(!reader)fail(400,'Corpo obrigatório.');
@@ -67,7 +75,7 @@ export default {async fetch(request,env){
   const sql=neon(env.DATABASE_URL);
   if(path==='/v1/context'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT id,name FROM business.tenants WHERE id=$1::uuid AND kind='internal' AND status='active'",[tenant]);
-   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
+   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,license_rights:['owner','registry_editor'].includes(r.role),contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
   }
   if(path==='/v1/parties'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT p.id,p.code::text AS code,p.kind,p.legal_name,p.display_name,p.cnpj_root,p.status,EXISTS(SELECT 1 FROM business.companies c WHERE c.tenant_id=p.tenant_id AND c.party_id=p.id) AS own_company,ARRAY(SELECT pr.role FROM business.party_roles pr WHERE pr.tenant_id=p.tenant_id AND pr.party_id=p.id AND pr.active ORDER BY pr.role) AS roles FROM core.parties p WHERE p.tenant_id=$1::uuid ORDER BY p.legal_name,p.id LIMIT 500",[tenant]);
@@ -133,6 +141,42 @@ SELECT jsonb_build_object(
     if(!r.rows.length)fail(409,'Transição não autorizada, proposta vencida, revisão desatualizada ou oportunidade já encerrada.');
     return send({item:r.rows[0]});
    }
+  }
+  if(path==='/v1/license-rights'&&request.method==='GET'){
+   const r=await execute(sql,tenant,user,`WITH clock AS (SELECT (now() AT TIME ZONE 'America/Fortaleza')::date AS today),
+ rights AS (
+ SELECT r.id,r.code::text AS code,r.contract_id,c.code::text AS contract_code,c.title AS contract_title,c.customer_name,r.proposal_line_id,r.item_name,r.commercial_unit,r.commercial_quantity::text AS commercial_quantity,r.capacity,r.module_id,r.module_code,r.scope_label,r.valid_from::text AS valid_from,r.valid_until::text AS valid_until,LEAST(r.valid_until,c.valid_until,c.ended_on)::text AS effective_until,r.instrument_ref,r.status,r.revocation_reason,r.revoked_at,r.created_at,c.status AS contract_status,
+ CASE WHEN r.status='revoked' THEN 'revoked' WHEN c.status IN ('terminated','expired') OR (LEAST(r.valid_until,c.valid_until)<clock.today) THEN 'expired' WHEN c.status='suspended' THEN 'suspended' WHEN c.status<>'active' OR r.valid_from>LEAST(r.valid_until,c.valid_until) THEN 'blocked' WHEN r.valid_from>clock.today OR c.valid_from>clock.today THEN 'scheduled' ELSE 'effective' END AS validity
+ FROM business.license_rights r JOIN business.contracts c ON c.tenant_id=r.tenant_id AND c.id=r.contract_id CROSS JOIN clock WHERE r.tenant_id=$1::uuid
+ ), eligible AS (
+ SELECT c.id AS contract_id,c.code::text AS contract_code,c.title AS contract_title,c.customer_name,c.valid_until::text AS contract_until,l.id AS line_id,l.item_name,l.item_code::text AS item_code,l.unit,l.quantity::text AS quantity,CASE WHEN l.unit IN ('seat','device','institution','unit') THEN l.quantity::integer END AS capacity
+ FROM business.contracts c JOIN business.commercial_orders o ON o.tenant_id=c.tenant_id AND o.id=c.order_id JOIN business.proposal_lines l ON l.tenant_id=o.tenant_id AND l.proposal_id=o.proposal_id JOIN business.catalog_items i ON i.tenant_id=l.tenant_id AND i.id=l.item_id CROSS JOIN clock
+ WHERE c.tenant_id=$1::uuid AND c.status='active' AND c.signed_on IS NOT NULL AND c.valid_from<=clock.today AND (c.valid_until IS NULL OR c.valid_until>=clock.today) AND c.contract_kind IN ('license','mixed') AND i.kind='license' AND (l.unit IN ('month','year') OR (l.unit IN ('seat','device','institution','unit') AND l.quantity=trunc(l.quantity))) AND NOT EXISTS (SELECT 1 FROM business.license_rights r WHERE r.tenant_id=c.tenant_id AND r.contract_id=c.id AND r.proposal_line_id=l.id)
+ )
+ SELECT COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.created_at DESC,r.id) FROM rights r),'[]'::jsonb) AS rights,COALESCE((SELECT jsonb_agg(to_jsonb(e) ORDER BY e.contract_code,e.item_name,e.line_id) FROM eligible e),'[]'::jsonb) AS eligible`,[tenant]);
+   if(!['owner','registry_editor'].includes(r.role))fail(403,'Licenciamento restrito à equipe autorizada.');
+   return send({items:r.rows[0]?.rights||[],eligible:r.rows[0]?.eligible||[],can_write:r.role==='owner'});
+  }
+  if(path==='/v1/license-modules'&&request.method==='GET'){
+   const r=await execute(sql,tenant,user,"SELECT 1",[ ]);
+   if(!['owner','registry_editor'].includes(r.role))fail(403,'Licenciamento restrito à equipe autorizada.');
+   return send({items:await masterLicenseModules(request,env)});
+  }
+  if(path==='/v1/license-rights'&&request.method==='POST'){
+   const b=await body(request),id=requestId(b),contract=b.contract_id,line=b.proposal_line_id,module=b.module_id||null,scope=name(b.scope_label,false),reference=name(b.instrument_ref),from=crmDate(b.valid_from),until=crmDate(b.valid_until);
+   if(typeof contract!=='string'||!UUID.test(contract)||typeof line!=='string'||!UUID.test(line)||(module!==null&&(typeof module!=='string'||!UUID.test(module)))||(!module&&!scope)||!from||(until&&until<from))fail(400,'Informe contrato, item, módulo ou escopo, referência e vigência.');
+   let code=null;if(module){const m=(await masterLicenseModules(request,env)).find(m=>m.id.toLowerCase()===module.toLowerCase());if(!m)fail(409,'Módulo não disponível no Master.');code=m.code;}
+   const r=await execute(sql,tenant,user,"SELECT right_id,right_code::text AS right_code FROM business.create_license_right($1::uuid,$2::uuid,$3::uuid,$4,$5,$6::date,$7::date,$8,$9::uuid)",[contract,line,module,code,scope,from,until,reference,id],true);
+   if(!r.rows.length)fail(409,'Item não elegível, direito já registrado ou vigência incompatível.');
+   return send({item:r.rows[0]},201);
+  }
+  const rightMatch=path.match(/^\/v1\/license-rights\/([^/]+)\/revoke$/);
+  if(rightMatch&&UUID.test(rightMatch[1])&&request.method==='POST'){
+   const b=await body(request),id=requestId(b),reason=typeof b.reason==='string'?b.reason.trim():'';
+   if(!reason||reason.length>300)fail(400,'Informe o motivo da revogação.');
+   const r=await execute(sql,tenant,user,"SELECT right_id FROM business.revoke_license_right($1::uuid,$2,$3::uuid)",[rightMatch[1],reason,id],true);
+   if(!r.rows.length)fail(409,'Direito não encontrado, já revogado ou acesso restrito.');
+   return send({item:r.rows[0]});
   }
   if(path==='/v1/contracts'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT c.id,c.code::text AS code,c.order_id,o.code::text AS order_code,p.code::text AS proposal_code,c.customer_id,c.seller_id,c.payer_id,c.title,c.contract_kind,c.customer_name,c.seller_name,c.payer_name,c.total::text AS total,c.currency,c.valid_from::text AS valid_from,c.valid_until::text AS valid_until,c.payment_terms,c.instrument_ref,c.notes,c.status,c.revision,c.signed_on::text AS signed_on,c.signature_ref,c.activated_at,c.ended_on::text AS ended_on,CASE WHEN c.status IN ('signed','active','suspended') AND c.valid_until<(now() AT TIME ZONE 'America/Fortaleza')::date THEN 'expired' WHEN c.valid_from>(now() AT TIME ZONE 'America/Fortaleza')::date THEN 'scheduled' ELSE 'current' END AS validity,c.created_at,COALESCE((SELECT jsonb_agg(jsonb_build_object('item_code',l.item_code::text,'item_name',l.item_name,'unit',l.unit,'quantity',l.quantity::text,'unit_price',l.unit_price::text,'discount_pct',l.discount_pct::text,'net',l.net::text) ORDER BY l.item_code) FROM business.proposal_lines l WHERE l.tenant_id=c.tenant_id AND l.proposal_id=o.proposal_id),'[]'::jsonb) AS lines FROM business.contracts c JOIN business.commercial_orders o ON o.tenant_id=c.tenant_id AND o.id=c.order_id JOIN business.proposals p ON p.tenant_id=o.tenant_id AND p.id=o.proposal_id WHERE c.tenant_id=$1::uuid ORDER BY c.code DESC",[tenant]);
@@ -309,7 +353,7 @@ SELECT COALESCE((SELECT jsonb_agg(to_jsonb(e) ORDER BY e.name,e.id) FROM entitie
   if(path==='/v1/audit'&&request.method==='GET'){
    const scope=await masterInstitutions(request,env);
    const r=await execute(sql,tenant,user,`SELECT a.id,a.actor_id,a.entity_type,a.entity_id,a.action,a.request_id,a.details,a.created_at FROM business.audit_events a WHERE a.tenant_id=$1::uuid AND (
- a.entity_type IN ('party','establishment','corporate_group','corporate_group_member','ownership_interest','company_contact','brand','franchise_network','franchise_relationship','opportunity','crm_interaction','catalog_category','catalog_item','price_list','price_entry','proposal','commercial_order','contract','contract_amendment')
+ a.entity_type IN ('party','establishment','corporate_group','corporate_group_member','ownership_interest','company_contact','brand','franchise_network','franchise_relationship','opportunity','crm_interaction','catalog_category','catalog_item','price_list','price_entry','proposal','commercial_order','contract','contract_amendment','license_right')
  OR (a.entity_type='institution_link' AND EXISTS (SELECT 1 FROM core.institution_links l WHERE l.tenant_id=a.tenant_id AND l.id=a.entity_id AND l.institution_id=ANY($2::uuid[])))
  OR (a.entity_type='institution_admin_relation' AND EXISTS (SELECT 1 FROM core.institution_admin_relations r WHERE r.tenant_id=a.tenant_id AND r.id=a.entity_id AND r.supervisor_id=ANY($2::uuid[]) AND r.subordinate_id=ANY($2::uuid[])))
 ) ORDER BY a.created_at DESC,a.id DESC LIMIT 100`,[tenant,[...scope]]);

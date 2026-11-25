@@ -194,3 +194,9 @@ body:has(#painel:not([hidden])) .business-footer{padding:9px 12px;font-size:11px
 #painel #proposals-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;font-size:13px}
 @media(max-width:1050px){#painel .proposal-fields,#painel .proposal-line-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){#painel .proposal-fields,#painel .proposal-line-fields{grid-template-columns:1fr}}
+
+/* v0.2 — Fluxo de propostas */
+#painel #proposal-workflow{border-top:1px solid var(--ab-line);margin-top:16px;padding-top:12px}
+#painel #proposal-workflow-form{padding:12px;border:1px solid var(--ab-line);border-radius:8px;background:var(--ab-bg)}
+#painel #proposal-orders{margin-top:20px}
+#painel #proposal-history{max-height:300px;overflow:auto}

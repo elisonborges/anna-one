@@ -212,3 +212,13 @@ body:has(#painel:not([hidden])) .business-footer{padding:9px 12px;font-size:11px
 #painel .commercial-recent{margin-top:12px}
 #painel #commercial-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;font-size:13px}
 @media(max-width:950px){#painel .commercial-grid{grid-template-columns:1fr}}
+
+/* v0.3 — Contratos */
+#painel .contract-fields{grid-template-columns:repeat(3,minmax(0,1fr))}
+#painel .contract-wide{grid-column:1/-1}
+#painel .contract-wide textarea{width:100%;box-sizing:border-box;border:1px solid var(--ab-line);border-radius:6px;background:var(--ab-card);color:var(--ab-ink);padding:8px;font:inherit;resize:vertical}
+#painel .contract-filters{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}
+#painel #contract-form,#painel #contract-detail{margin:12px 0}
+#painel #contracts-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;font-size:13px}
+@media(max-width:1050px){#painel .contract-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){#painel .contract-fields,#painel .contract-filters{grid-template-columns:1fr}}

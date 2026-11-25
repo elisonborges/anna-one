@@ -98,3 +98,33 @@ REVOKE ALL ON FUNCTION business.settle_financial_installment(uuid,integer,numeri
 GRANT EXECUTE ON FUNCTION business.settle_financial_installment(uuid,integer,numeric,numeric,numeric,numeric,date,text,text,uuid) TO anna_business_runtime;
 REVOKE ALL ON FUNCTION business.reverse_financial_settlement(uuid,integer,date,text,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION business.reverse_financial_settlement(uuid,integer,date,text,uuid) TO anna_business_runtime;
+
+CREATE OR REPLACE FUNCTION business.create_financial_obligation(p_direction text,p_company uuid,p_counterparty uuid,p_contract uuid,p_revision integer,p_title text,p_reference text,p_amount numeric,p_issued date,p_first_due date,p_count integer,p_request uuid)
+RETURNS TABLE(obligation_id uuid,obligation_code bigint) LANGUAGE sql SECURITY INVOKER AS $$
+ WITH clock AS (SELECT (now() AT TIME ZONE 'America/Fortaleza')::date AS today),
+ source AS (
+ SELECT p_direction AS direction,p_company AS company_id,p_counterparty AS counterparty_id,NULL::uuid AS contract_id,NULL::integer AS contract_revision,p_amount AS amount
+ WHERE p_contract IS NULL AND p_revision IS NULL
+ UNION ALL
+ SELECT 'receivable',c.seller_id,c.payer_id,c.id,c.revision,c.total FROM business.contracts c
+ WHERE c.tenant_id=current_setting('anna.tenant_id',true)::uuid AND c.id=p_contract AND c.revision=p_revision AND c.status IN ('signed','active','suspended') AND c.signed_on IS NOT NULL AND p_direction='receivable' AND p_company IS NULL AND p_counterparty IS NULL AND p_amount IS NULL
+ ), header AS (
+ INSERT INTO business.financial_obligations(tenant_id,direction,company_id,counterparty_id,company_name,counterparty_name,contract_id,contract_revision,title,reference,amount,issued_on,first_due,installment_count,request_id,created_by)
+ SELECT own.tenant_id,s.direction,s.company_id,s.counterparty_id,p.legal_name,q.legal_name,s.contract_id,s.contract_revision,btrim(p_title),btrim(p_reference),s.amount,p_issued,p_first_due,p_count,p_request,current_setting('anna.actor_id',true)::uuid
+ FROM source s JOIN business.companies own ON own.tenant_id=current_setting('anna.tenant_id',true)::uuid AND own.party_id=s.company_id
+ JOIN core.parties p ON p.tenant_id=own.tenant_id AND p.id=s.company_id AND p.status='active'
+ JOIN core.parties q ON q.tenant_id=own.tenant_id AND q.id=s.counterparty_id AND q.status='active' CROSS JOIN clock
+ WHERE s.company_id<>s.counterparty_id AND s.direction IN ('receivable','payable') AND s.amount>0 AND s.amount=round(s.amount,2) AND s.amount<=9999999999999999.99 AND s.amount*100>=p_count AND p_count BETWEEN 1 AND 24 AND p_issued<=clock.today AND p_first_due>=p_issued AND p_first_due<='9997-12-31'::date
+ ON CONFLICT DO NOTHING RETURNING id,tenant_id,code,amount,first_due,installment_count,created_by
+ ), installments AS (
+ INSERT INTO business.financial_installments(tenant_id,obligation_id,installment_no,due_on,amount,remaining)
+ SELECT h.tenant_id,h.id,n,(h.first_due+make_interval(months=>n-1))::date,
+ (floor(h.amount*100/h.installment_count)+CASE WHEN n=h.installment_count THEN mod(h.amount*100,h.installment_count) ELSE 0 END)/100,
+ (floor(h.amount*100/h.installment_count)+CASE WHEN n=h.installment_count THEN mod(h.amount*100,h.installment_count) ELSE 0 END)/100
+ FROM header h CROSS JOIN LATERAL generate_series(1,h.installment_count) n
+ RETURNING obligation_id,amount
+ ), logged AS (
+ INSERT INTO business.audit_events(tenant_id,actor_id,entity_type,entity_id,action,request_id,details)
+ SELECT h.tenant_id,h.created_by,'financial_obligation',h.id,'create',p_request,jsonb_build_object('direction',p_direction,'contract_id',p_contract,'amount',sum(i.amount),'installments',count(*)) FROM header h JOIN installments i ON i.obligation_id=h.id GROUP BY h.id,h.tenant_id,h.created_by
+ ) SELECT id,code FROM header
+$$;

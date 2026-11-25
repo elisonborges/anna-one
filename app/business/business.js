@@ -15,7 +15,7 @@ function applyTheme(dark){document.documentElement.dataset.theme=dark?'dark':'li
 let theme='light';try{theme=localStorage.getItem('anna-business-theme')||'light';}catch{}applyTheme(theme==='dark');
 themeButton.addEventListener('click',()=>{const dark=document.documentElement.dataset.theme!=='dark';applyTheme(dark);try{localStorage.setItem('anna-business-theme',dark?'dark':'light');}catch{}});
 function clearProfile(){profileRevision++;$('profile').hidden=true;$('profile-fields').replaceChildren();txt('profile-status','');}
-function resetWorkspace(){resetMaintenance();resetOrganogram();resetBrands();resetContacts();resetOwnership();resetCorporate();resetLinks();resetRegistry();authorized=false;institutions=[];groups=[];groupsAvailable=false;clearProfile();$('workspace').hidden=true;$('access').hidden=false;$('institution-rows').replaceChildren();$('group-list').replaceChildren();for(const id of ['metric-total','metric-active','metric-matrix','metric-groups'])txt(id,'—');txt('result-count','');txt('groups-status','');txt('data-status','Aguardando consulta…');}
+function resetWorkspace(){maintenanceOrgTarget=null;resetMaintenance();resetOrganogram();resetBrands();resetContacts();resetOwnership();resetCorporate();resetLinks();resetRegistry();authorized=false;institutions=[];groups=[];groupsAvailable=false;clearProfile();$('workspace').hidden=true;$('access').hidden=false;$('institution-rows').replaceChildren();$('group-list').replaceChildren();for(const id of ['metric-total','metric-active','metric-matrix','metric-groups'])txt(id,'—');txt('result-count','');txt('groups-status','');txt('data-status','Aguardando consulta…');}
 class AccessError extends Error{}
 async function getJwt(){
  if(!authClient){const sdk=await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');authClient=sdk.createAuthClient(AUTH_URL);}
@@ -457,7 +457,7 @@ function renderMaintenanceEntities(){
  if(!visible.length){const tr=node('tr'),td=node('td','Nenhuma entidade encontrada.');td.colSpan=4;tr.append(td);rows.append(tr);}
 }
 function maintenanceLinkName(l){const institution=l.institution_id?institutions.find(i=>String(i.id).toLowerCase()===String(l.institution_id).toLowerCase()):null;return [institution?.name,l.label].filter(Boolean).join(' · ');}
-function closeMaintenance(l){if(!maintenanceCanClose||maintenanceSaving)return;cancelMaintenanceEdit();maintenanceClosing=l;txt('maintenance-close-title','Encerrar · '+maintenanceLinkName(l));const field=maintenanceField(maintenanceClose,'last_day');field.min=l.valid_from;field.max=l.last_day||'9999-12-30';field.value=localDate()<l.valid_from?l.valid_from:localDate()>field.max?field.max:localDate();maintenanceClose.hidden=false;field.focus();}
+function closeMaintenance(l){if(!maintenanceCanClose||maintenanceSaving)return;cancelMaintenanceEdit();maintenanceClosing=l;txt('maintenance-close-title','Encerrar · '+maintenanceLinkName(l));const field=maintenanceField(maintenanceClose,'last_day');field.min=l.valid_from;field.max=l.last_day?new Date(Date.parse(l.last_day+'T00:00:00Z')-86400000).toISOString().slice(0,10):'9999-12-30';field.value=localDate()<l.valid_from?l.valid_from:localDate()>field.max?field.max:localDate();maintenanceClose.hidden=false;field.focus();}
 function renderMaintenanceLinks(){
  const kind=$('maintenance-link-kind').value,validity=$('maintenance-link-validity').value,body=$('maintenance-link-rows');body.replaceChildren();
  const rows=maintenanceLinks.filter(l=>(!kind||l.kind===kind)&&(!validity||l.validity===validity));

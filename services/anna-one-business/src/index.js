@@ -75,7 +75,7 @@ export default {async fetch(request,env){
   const sql=neon(env.DATABASE_URL);
   if(path==='/v1/context'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT id,name FROM business.tenants WHERE id=$1::uuid AND kind='internal' AND status='active'",[tenant]);
-   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,license_rights:['owner','registry_editor'].includes(r.role),contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
+   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,license_allocations:['owner','registry_editor'].includes(r.role),license_rights:['owner','registry_editor'].includes(r.role),contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
   }
   if(path==='/v1/parties'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT p.id,p.code::text AS code,p.kind,p.legal_name,p.display_name,p.cnpj_root,p.status,EXISTS(SELECT 1 FROM business.companies c WHERE c.tenant_id=p.tenant_id AND c.party_id=p.id) AS own_company,ARRAY(SELECT pr.role FROM business.party_roles pr WHERE pr.tenant_id=p.tenant_id AND pr.party_id=p.id AND pr.active ORDER BY pr.role) AS roles FROM core.parties p WHERE p.tenant_id=$1::uuid ORDER BY p.legal_name,p.id LIMIT 500",[tenant]);
@@ -141,6 +141,47 @@ SELECT jsonb_build_object(
     if(!r.rows.length)fail(409,'Transição não autorizada, proposta vencida, revisão desatualizada ou oportunidade já encerrada.');
     return send({item:r.rows[0]});
    }
+  }
+  if(path==='/v1/license-allocations'&&request.method==='GET'){
+   const scope=[...await masterInstitutions(request,env)];
+   const r=await execute(sql,tenant,user,`WITH clock AS (SELECT (now() AT TIME ZONE 'America/Fortaleza')::date AS today),
+ rights AS (
+ SELECT r.id,r.code::text AS code,r.item_name,r.commercial_unit,r.capacity,c.customer_name,c.customer_id,c.code::text AS contract_code,
+ COALESCE((SELECT sum(a.quantity) FROM business.license_allocations a WHERE a.tenant_id=r.tenant_id AND a.right_id=r.id AND a.status='allocated'),0)::integer AS reserved,
+ CASE WHEN r.status='revoked' THEN 'revoked' WHEN c.status IN ('terminated','expired') OR LEAST(r.valid_until,c.valid_until)<clock.today THEN 'expired' WHEN c.status='suspended' THEN 'suspended' WHEN c.status<>'active' OR r.valid_from>LEAST(r.valid_until,c.valid_until) THEN 'blocked' WHEN r.valid_from>clock.today OR c.valid_from>clock.today THEN 'scheduled' ELSE 'effective' END AS validity
+ FROM business.license_rights r JOIN business.contracts c ON c.tenant_id=r.tenant_id AND c.id=r.contract_id CROSS JOIN clock WHERE r.tenant_id=$1::uuid
+ ), allocations AS (
+ SELECT a.id,a.code::text AS code,a.right_id,a.beneficiary_kind,a.institution_id,a.establishment_id,a.person_id,a.beneficiary_ref,COALESCE(p.legal_name,s.name,a.beneficiary_ref) AS beneficiary_name,a.quantity,a.status,a.authorization_ref,a.created_at,a.released_at,a.release_reason,
+ CASE WHEN a.status='released' THEN 'released' WHEN r.validity<>'effective' THEN r.validity WHEN a.beneficiary_kind='institution' AND NOT EXISTS (SELECT 1 FROM core.institution_links l CROSS JOIN clock WHERE l.tenant_id=a.tenant_id AND l.institution_id=a.institution_id AND l.party_id=r.customer_id AND l.valid_from<=clock.today AND (l.valid_until IS NULL OR l.valid_until>clock.today)) THEN 'blocked' WHEN a.beneficiary_kind='person' AND p.status IS DISTINCT FROM 'active' THEN 'blocked' WHEN a.beneficiary_kind='establishment' AND s.status IS DISTINCT FROM 'active' THEN 'blocked' ELSE 'effective' END AS validity
+ FROM business.license_allocations a JOIN rights r ON r.id=a.right_id LEFT JOIN core.parties p ON p.tenant_id=a.tenant_id AND p.id=a.person_id LEFT JOIN core.establishments s ON s.tenant_id=a.tenant_id AND s.id=a.establishment_id WHERE a.tenant_id=$1::uuid AND (a.institution_id IS NULL OR a.institution_id=ANY($2::uuid[]))
+ ), institutions AS (
+ SELECT DISTINCT l.institution_id,l.party_id FROM core.institution_links l CROSS JOIN clock WHERE l.tenant_id=$1::uuid AND l.institution_id=ANY($2::uuid[]) AND l.valid_from<=clock.today AND (l.valid_until IS NULL OR l.valid_until>clock.today)
+ ), establishments AS (
+ SELECT id,party_id,name FROM core.establishments WHERE tenant_id=$1::uuid AND status='active'
+ ), persons AS (
+ SELECT id,legal_name AS name FROM core.parties WHERE tenant_id=$1::uuid AND kind='PF' AND status='active'
+ )
+ SELECT COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.code) FROM rights r),'[]'::jsonb) AS rights,COALESCE((SELECT jsonb_agg(to_jsonb(a) ORDER BY a.created_at DESC,a.id) FROM allocations a),'[]'::jsonb) AS allocations,COALESCE((SELECT jsonb_agg(to_jsonb(i)) FROM institutions i),'[]'::jsonb) AS institutions,COALESCE((SELECT jsonb_agg(to_jsonb(s) ORDER BY s.name) FROM establishments s),'[]'::jsonb) AS establishments,COALESCE((SELECT jsonb_agg(to_jsonb(p) ORDER BY p.name) FROM persons p),'[]'::jsonb) AS persons`,[tenant,scope]);
+   if(!['owner','registry_editor'].includes(r.role))fail(403,'Distribuição restrita à equipe autorizada.');
+   return send({...r.rows[0],can_write:r.role==='owner'});
+  }
+  if(path==='/v1/license-allocations'&&request.method==='POST'){
+   const b=await body(request),id=requestId(b),right=b.right_id,kind=b.beneficiary_kind,target=b.target_id||null,ref=name(b.beneficiary_ref,false),authorization=name(b.authorization_ref),quantity=b.quantity;
+   const identified=['institution','establishment','person'].includes(kind);
+   if(typeof right!=='string'||!UUID.test(right)||!['institution','establishment','person','device','external_unit'].includes(kind)||(identified?(typeof target!=='string'||!UUID.test(target)||!!ref):(!!target||!ref))||!Number.isInteger(quantity)||quantity<1||quantity>999999)fail(400,'Informe direito, beneficiário, quantidade e referência de autorização.');
+   const scope=kind==='institution'?[...await masterInstitutions(request,env)]:[];
+   const r=await execute(sql,tenant,user,"SELECT allocation_id,allocation_code::text AS allocation_code FROM business.allocate_license($1::uuid,$2,$3::uuid,$4,$5::integer,$6,$7::uuid[],$8::uuid)",[right,kind,target,ref,quantity,authorization,scope,id],true);
+   if(!r.rows.length)fail(409,'Capacidade insuficiente, direito indisponível, beneficiário incompatível ou já alocado.');
+   return send({item:r.rows[0]},201);
+  }
+  const allocationMatch=path.match(/^\/v1\/license-allocations\/([^/]+)\/release$/);
+  if(allocationMatch&&UUID.test(allocationMatch[1])&&request.method==='POST'){
+   const b=await body(request),id=requestId(b),reason=typeof b.reason==='string'?b.reason.trim():'';
+   if(!reason||reason.length>300)fail(400,'Informe o motivo da liberação.');
+   const scope=[...await masterInstitutions(request,env)];
+   const r=await execute(sql,tenant,user,"SELECT allocation_id FROM business.release_license_allocation($1::uuid,$2,$3::uuid[],$4::uuid)",[allocationMatch[1],reason,scope,id],true);
+   if(!r.rows.length)fail(409,'Alocação indisponível, fora do escopo ou já liberada.');
+   return send({item:r.rows[0]});
   }
   if(path==='/v1/license-rights'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,`WITH clock AS (SELECT (now() AT TIME ZONE 'America/Fortaleza')::date AS today),
@@ -354,6 +395,7 @@ SELECT COALESCE((SELECT jsonb_agg(to_jsonb(e) ORDER BY e.name,e.id) FROM entitie
    const scope=await masterInstitutions(request,env);
    const r=await execute(sql,tenant,user,`SELECT a.id,a.actor_id,a.entity_type,a.entity_id,a.action,a.request_id,a.details,a.created_at FROM business.audit_events a WHERE a.tenant_id=$1::uuid AND (
  a.entity_type IN ('party','establishment','corporate_group','corporate_group_member','ownership_interest','company_contact','brand','franchise_network','franchise_relationship','opportunity','crm_interaction','catalog_category','catalog_item','price_list','price_entry','proposal','commercial_order','contract','contract_amendment','license_right')
+ OR (a.entity_type='license_allocation' AND EXISTS (SELECT 1 FROM business.license_allocations la WHERE la.tenant_id=a.tenant_id AND la.id=a.entity_id AND (la.institution_id IS NULL OR la.institution_id=ANY($2::uuid[]))))
  OR (a.entity_type='institution_link' AND EXISTS (SELECT 1 FROM core.institution_links l WHERE l.tenant_id=a.tenant_id AND l.id=a.entity_id AND l.institution_id=ANY($2::uuid[])))
  OR (a.entity_type='institution_admin_relation' AND EXISTS (SELECT 1 FROM core.institution_admin_relations r WHERE r.tenant_id=a.tenant_id AND r.id=a.entity_id AND r.supervisor_id=ANY($2::uuid[]) AND r.subordinate_id=ANY($2::uuid[])))
 ) ORDER BY a.created_at DESC,a.id DESC LIMIT 100`,[tenant,[...scope]]);

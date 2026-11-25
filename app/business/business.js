@@ -15,7 +15,7 @@ function applyTheme(dark){document.documentElement.dataset.theme=dark?'dark':'li
 let theme='light';try{theme=localStorage.getItem('anna-business-theme')||'light';}catch{}applyTheme(theme==='dark');
 themeButton.addEventListener('click',()=>{const dark=document.documentElement.dataset.theme!=='dark';applyTheme(dark);try{localStorage.setItem('anna-business-theme',dark?'dark':'light');}catch{}});
 function clearProfile(){profileRevision++;$('profile').hidden=true;$('profile-fields').replaceChildren();txt('profile-status','');}
-function resetWorkspace(){authorized=false;institutions=[];groups=[];groupsAvailable=false;clearProfile();$('workspace').hidden=true;$('access').hidden=false;$('institution-rows').replaceChildren();$('group-list').replaceChildren();for(const id of ['metric-total','metric-active','metric-matrix','metric-groups'])txt(id,'—');txt('result-count','');txt('groups-status','');txt('data-status','Aguardando consulta…');}
+function resetWorkspace(){resetRegistry();authorized=false;institutions=[];groups=[];groupsAvailable=false;clearProfile();$('workspace').hidden=true;$('access').hidden=false;$('institution-rows').replaceChildren();$('group-list').replaceChildren();for(const id of ['metric-total','metric-active','metric-matrix','metric-groups'])txt(id,'—');txt('result-count','');txt('groups-status','');txt('data-status','Aguardando consulta…');}
 class AccessError extends Error{}
 async function getJwt(){
  if(!authClient){const sdk=await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');authClient=sdk.createAuthClient(AUTH_URL);}
@@ -76,9 +76,77 @@ async function load(){
  }catch(e){if(rev!==revision)return;resetWorkspace();txt('auth-status',e instanceof AccessError?e.message:'Não foi possível consultar o serviço existente. Verifique a conexão e tente novamente.');}
  finally{loading=false;$('retry').disabled=false;$('refresh').disabled=false;if(rev!==revision&&location.hash==='#painel')load();}
 }
-function showView(view){for(const b of document.querySelectorAll('[data-view]')){const active=b.dataset.view===view;b.setAttribute('aria-pressed',String(active));$('view-'+b.dataset.view).hidden=!active;}if(view!=='institutions')clearProfile();}
+function showView(view){for(const b of document.querySelectorAll('[data-view]')){const active=b.dataset.view===view;b.setAttribute('aria-pressed',String(active));$('view-'+b.dataset.view).hidden=!active;}if(view!=='institutions')clearProfile();if(view==='registry')refreshRegistry();else resetRegistry();}
 for(const b of document.querySelectorAll('[data-view]'))b.addEventListener('click',()=>showView(b.dataset.view));
 for(const id of ['search','kind','status-filter'])$(id).addEventListener(id==='search'?'input':'change',()=>{clearProfile();renderInstitutions();});
 $('close-profile').addEventListener('click',clearProfile);$('retry').addEventListener('click',load);$('refresh').addEventListener('click',load);
 function route(){const panel=location.hash==='#painel';$('presentation').hidden=panel;$('areas').hidden=panel;$('painel').hidden=!panel;if(panel){showView('dashboard');load();}else{revision++;resetWorkspace();}window.scrollTo(0,0);}
+
+const REGISTRY_URL='https://anna-one-business.elisonborg.workers.dev';
+let registryRole=null,selectedParty=null,registryRevision=0,estRevision=0,registryBusy=false;
+const canWrite=()=>['owner','registry_editor'].includes(registryRole);
+function resetRegistry(){
+ registryRevision++;estRevision++;registryRole=null;selectedParty=null;
+ $('registry-content').hidden=true;$('party-form').hidden=true;$('establishment-panel').hidden=true;$('establishment-form').hidden=true;
+ $('party-form').reset();$('establishment-form').reset();$('party-rows').replaceChildren();$('establishment-rows').replaceChildren();txt('registry-context','');txt('registry-status','Serviço cadastral não consultado.');
+}
+async function registryRequest(path,method='GET',payload){
+ const jwt=await getJwt();
+ const response=await fetch(REGISTRY_URL+path,{method,headers:{Authorization:'Bearer '+jwt,...(payload?{'Content-Type':'application/json'}:{})},...(payload?{body:JSON.stringify(payload)}:{}),cache:'no-store'});
+ const data=await response.json().catch(()=>null);
+ if(!response.ok)throw new Error(data?.error||'Serviço cadastral indisponível (HTTP '+response.status+').');
+ return data;
+}
+function closeEstablishments(){estRevision++;selectedParty=null;$('establishment-panel').hidden=true;$('establishment-form').reset();$('establishment-rows').replaceChildren();}
+function drawParties(rows){
+ const body=$('party-rows');body.replaceChildren();
+ if(!rows.length){const tr=node('tr'),td=node('td','Nenhum parceiro cadastrado.');td.colSpan=6;tr.append(td);body.append(tr);}
+ for(const p of rows){
+  const tr=node('tr');for(const value of [p.code,p.kind,p.legal_name,p.cnpj_root||'—',p.own_company?'Sim':'—'])tr.append(node('td',value||'—'));
+  const td=node('td');if(p.kind==='PJ'){const button=node('button','Estabelecimentos','btn light');button.type='button';button.addEventListener('click',()=>openEstablishments(p));td.append(button);}else td.textContent='—';
+  tr.append(td);body.append(tr);
+ }
+}
+async function refreshRegistry(){
+ if(!authorized||registryBusy)return;registryBusy=true;resetRegistry();const rev=registryRevision;
+ $('registry-refresh').disabled=true;txt('registry-status','Consultando autorização Business…');
+ try{
+  const context=await registryRequest('/v1/context');
+  const result=await registryRequest('/v1/parties');
+  if(rev!==registryRevision||!authorized)return;
+  if(!context?.tenant||!Array.isArray(result?.items))throw new Error('Resposta cadastral inválida.');
+  registryRole=context.role;txt('registry-context',context.tenant.name+' · '+(canWrite()?'Cadastro e consulta':'Somente consulta'));
+  drawParties(result.items);$('party-form').hidden=!canWrite();$('registry-content').hidden=false;txt('registry-status','Cadastro conectado ao Neon. '+result.items.length+' registro(s) exibido(s).');
+ }catch(e){if(rev===registryRevision)txt('registry-status',e.message+' O cadastro não está habilitado. Nenhum dado foi gravado.');}
+ finally{registryBusy=false;$('registry-refresh').disabled=false;}
+}
+async function openEstablishments(p){
+ if(!authorized||!registryRole)return;
+ closeEstablishments();selectedParty=p;const rev=++estRevision;
+ $('establishment-panel').hidden=false;$('establishment-form').hidden=true;txt('establishment-title','Estabelecimentos · '+p.legal_name);txt('establishment-status','Consultando…');
+ try{const data=await registryRequest('/v1/parties/'+encodeURIComponent(p.id)+'/establishments');if(rev!==estRevision||!authorized)return;if(!Array.isArray(data?.items))throw new Error('Resposta inválida.');
+ const body=$('establishment-rows');body.replaceChildren();for(const item of data.items){const tr=node('tr');for(const value of [item.name,item.cnpj,labels[item.kind]||item.kind,item.status==='active'?'Ativo':'Inativo'])tr.append(node('td',value||'—'));body.append(tr);}
+ txt('establishment-status',data.items.length+' estabelecimento(s).');$('establishment-form').hidden=!canWrite();
+ }catch(e){if(rev===estRevision)txt('establishment-status',e.message);}
+}
+$('registry-refresh').addEventListener('click',refreshRegistry);
+$('close-establishments').addEventListener('click',closeEstablishments);
+$('party-form').addEventListener('submit',async event=>{
+ event.preventDefault();if(!authorized||!canWrite()||registryBusy)return;
+ const form=event.currentTarget,button=form.querySelector('button[type=submit]'),rev=registryRevision;button.disabled=true;
+ const data=Object.fromEntries(new FormData(form));data.request_id=crypto.randomUUID();
+ try{const result=await registryRequest('/v1/parties','POST',data);if(rev!==registryRevision||!authorized)return;if(!result?.item?.party_id)throw new Error('Confirmação não recebida. Consulte antes de repetir.');
+ form.reset();await refreshRegistry();if(authorized&&registryRole)txt('registry-status','Parceiro cadastrado com sucesso.');}
+ catch(e){if(rev===registryRevision)txt('registry-status',e.message+' Consulte o cadastro antes de reenviar.');}
+ finally{button.disabled=false;}
+});
+$('establishment-form').addEventListener('submit',async event=>{
+ event.preventDefault();if(!authorized||!canWrite()||!selectedParty)return;
+ const form=event.currentTarget,button=form.querySelector('button[type=submit]'),p=selectedParty,rev=estRevision;button.disabled=true;
+ const data=Object.fromEntries(new FormData(form));data.request_id=crypto.randomUUID();
+ try{const result=await registryRequest('/v1/parties/'+encodeURIComponent(p.id)+'/establishments','POST',data);if(rev!==estRevision||!authorized)return;if(!result?.item?.establishment_id)throw new Error('Confirmação não recebida. Consulte antes de repetir.');form.reset();await openEstablishments(p);}
+ catch(e){if(rev===estRevision)txt('establishment-status',e.message+' Consulte antes de reenviar.');}
+ finally{button.disabled=false;}
+});
+
 window.addEventListener('hashchange',route);route();

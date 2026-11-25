@@ -183,3 +183,14 @@ body:has(#painel:not([hidden])) .business-footer{padding:9px 12px;font-size:11px
 #painel #prices-status{padding:9px 12px;border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;background:var(--ab-soft)}
 @media(max-width:1050px){#painel .prices-grid{grid-template-columns:1fr}}
 @media(max-width:760px){#painel .prices-fields,#painel .prices-filters{grid-template-columns:1fr}}
+
+/* v0.2 — Propostas comerciais */
+#painel .proposal-fields{grid-template-columns:repeat(3,minmax(0,1fr))}
+#painel .proposal-wide{grid-column:1/-1}
+#painel .proposal-wide textarea{width:100%;box-sizing:border-box;border:1px solid var(--ab-line);border-radius:6px;background:var(--ab-card);color:var(--ab-ink);padding:8px;font:inherit;resize:vertical}
+#painel .proposal-line-fields{grid-template-columns:minmax(0,2fr) minmax(90px,1fr) minmax(90px,1fr) auto;align-items:end}
+#painel .proposal-filters{grid-template-columns:minmax(0,1fr)}
+#painel #proposal-detail{margin-top:15px}
+#painel #proposals-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;font-size:13px}
+@media(max-width:1050px){#painel .proposal-fields,#painel .proposal-line-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){#painel .proposal-fields,#painel .proposal-line-fields{grid-template-columns:1fr}}

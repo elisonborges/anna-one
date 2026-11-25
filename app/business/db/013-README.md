@@ -1,0 +1,9 @@
+# Incremento 16 — Propostas comerciais
+
+Migração 013 preparada em homologação br-quiet-mud-b6gj51n2 (migration_id 6c15339b-6b39-4c6d-8acc-9c89973749c2). Não aplicada à produção.
+
+Proposta em BRL, código permanente, cliente PF/PJ ativo, empresa própria ativa derivada da tabela, oportunidade opcional do mesmo cliente ainda aberta, título, validade, condições de pagamento e observações. Até 20 itens distintos com preço vigente da tabela, item ativo e unidade compatível. Quantidades até 3 casas decimais, desconto percentual por item até 2 casas. Banco calcula bruto arredondado por linha, desconto sobre bruto arredondado e líquido. A interface usa inteiros BigInt para reproduzir o cálculo. Snapshot de nomes, unidade, preço, quantidade, desconto, condições. Cabeçalho, itens e auditoria em uma operação SQL atômica, chamada em transação serializável. RLS para proprietário/editor. API não oferece alteração de registros existentes ou SQL arbitrário. Rascunhos registrados são consultáveis; edição persistida, aprovação, emissão formal, conversão, impressão/PDF, faturamento e contratos não fazem parte deste incremento. Nenhum envio ao cliente.
+
+Testes reais em homologação com anna_business_runtime: criação por editor de proposta de dois itens; quantidade fracionária e descontos; total bruto 480,08, desconto 38,99, líquido 441,09; rejeição integral de conjunto com preço futuro, cliente incompatível com oportunidade, duplicidade e quantidade zero; uma proposta e um evento de auditoria; leitor sem acesso. Cálculo da interface conferido com o banco, sintaxe JS e IDs HTML verificados. O executor inicial não aceitou função PL/pgSQL com instruções internas separadas por ponto e vírgula; substituída por CTE atômica testada. Teste autenticado no navegador, deploy, concorrência simultânea e validação visual pendentes. Todos os dados fictícios exclusivamente em homologação.
+
+Migração 012 e PR 127 integrados. Esta migração e PR aguardam autorização de publicação.

@@ -52,7 +52,7 @@ RETURNS TABLE(right_id uuid,right_code bigint) LANGUAGE sql SECURITY INVOKER AS 
  FROM business.contracts c JOIN business.commercial_orders o ON o.tenant_id=c.tenant_id AND o.id=c.order_id JOIN business.proposal_lines l ON l.tenant_id=o.tenant_id AND l.proposal_id=o.proposal_id AND l.id=p_line JOIN business.catalog_items i ON i.tenant_id=l.tenant_id AND i.id=l.item_id CROSS JOIN clock
  WHERE c.tenant_id=current_setting('anna.tenant_id',true)::uuid AND c.id=p_contract AND c.status='active' AND c.signed_on IS NOT NULL AND c.valid_from<=clock.today AND (c.valid_until IS NULL OR c.valid_until>=clock.today) AND c.contract_kind IN ('license','mixed') AND i.kind='license'
  AND p_from>=GREATEST(c.valid_from,clock.today) AND (c.valid_until IS NULL OR p_from<=c.valid_until) AND (p_until IS NULL OR (p_until>=p_from AND (c.valid_until IS NULL OR p_until<=c.valid_until)))
- AND (l.unit IN ('month','year') OR (l.unit IN ('seat','device','institution','unit') AND l.quantity=trunc(l.quantity)))
+ AND ((l.unit IN ('month','year') AND p_until IS NOT NULL) OR (l.unit IN ('seat','device','institution','unit') AND l.quantity=trunc(l.quantity)))
  AND length(btrim(p_reference)) BETWEEN 1 AND 200 AND ((p_module IS NOT NULL AND length(btrim(p_module_code)) BETWEEN 1 AND 100) OR (p_module IS NULL AND p_module_code IS NULL AND length(btrim(p_scope)) BETWEEN 1 AND 200))
  ON CONFLICT(tenant_id,contract_id,proposal_line_id) DO NOTHING
  RETURNING id,code,tenant_id,created_by,capacity

@@ -173,3 +173,13 @@ body:has(#painel:not([hidden])) .business-footer{padding:9px 12px;font-size:11px
 #painel .catalog-row-description{white-space:pre-wrap;overflow-wrap:anywhere;max-width:320px;margin:5px 0 0}
 @media(max-width:1050px){#painel .catalog-grid{grid-template-columns:1fr}#painel .catalog-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){#painel .catalog-fields,#painel .catalog-filters{grid-template-columns:1fr}}
+
+/* v0.2 — Tabelas de preços */
+#painel .prices-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0 18px}
+#painel .prices-fields{grid-template-columns:repeat(2,minmax(0,1fr))}
+#painel .prices-filters{grid-template-columns:minmax(0,2fr) repeat(2,minmax(0,1fr))}
+#painel #price-lists-summary{max-height:220px;overflow:auto;margin-top:12px}
+#painel #price-close-form{padding:12px;margin:12px 0;border:1px solid var(--ab-line);border-radius:8px;background:var(--ab-bg)}
+#painel #prices-status{padding:9px 12px;border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;background:var(--ab-soft)}
+@media(max-width:1050px){#painel .prices-grid{grid-template-columns:1fr}}
+@media(max-width:760px){#painel .prices-fields,#painel .prices-filters{grid-template-columns:1fr}}

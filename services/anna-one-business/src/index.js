@@ -98,7 +98,8 @@ export default {async fetch(request,env){
    if(!uuid(customer)||!uuid(list)||(opportunity!==null&&!uuid(opportunity))||!until||terms.length>300||notes.length>1000||!Array.isArray(b.lines)||b.lines.length<1||b.lines.length>20)fail(400,'Informe cliente, tabela, validade e até 20 itens.');
    const lines=b.lines.map(l=>{if(!l||!uuid(l.price_entry_id)||typeof l.quantity!=='string'||!/^(?:0|[1-9][0-9]{0,5})(?:\.[0-9]{1,3})?$/.test(l.quantity)||Number(l.quantity)<=0||typeof l.discount_pct!=='string'||!/^(?:0|[1-9][0-9]{0,2})(?:\.[0-9]{1,2})?$/.test(l.discount_pct)||Number(l.discount_pct)>100)fail(400,'Quantidade ou desconto inválido.');return {price_entry_id:l.price_entry_id,quantity:l.quantity,discount_pct:l.discount_pct};});
    if(new Set(lines.map(l=>l.price_entry_id)).size!==lines.length)fail(400,'Não repita o mesmo item.');
-   const r=await execute(sql,tenant,user,"SELECT proposal_id,proposal_code::text AS proposal_code FROM business.create_proposal($1::uuid,$2::uuid,$3::uuid,$4,$5::date,$6,$7,$8::jsonb,$9::uuid)",[customer,list,opportunity,title,until,terms||null,notes||null,JSON.stringify(lines),id],true);
+   const r=await execute(sql,tenant,user,"SELECT proposal_id,proposal_code::text AS proposal_code FROM business.create_proposal($1::uuid,$2::uuid,$3::uuid,$4,$5::date,$6,$7,$8::jsonb,$9::uuid)",[customer,list,opportunity,title,until,terms||null,notes||null,JSON.stringify(lines),id],true); 
+   if(!r.rows.length)fail(409,'Cliente, tabela, oportunidade ou preços incompatíveis com a proposta. Atualize os dados.');
    return send({item:r.rows[0]},201);
   }
   if(path==='/v1/price-lists'&&request.method==='GET'){

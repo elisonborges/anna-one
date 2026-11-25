@@ -67,7 +67,7 @@ export default {async fetch(request,env){
   const sql=neon(env.DATABASE_URL);
   if(path==='/v1/context'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT id,name FROM business.tenants WHERE id=$1::uuid AND kind='internal' AND status='active'",[tenant]);
-   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,company_contacts:['owner','registry_editor'].includes(r.role)});
+   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
   }
   if(path==='/v1/parties'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT p.id,p.code::text AS code,p.kind,p.legal_name,p.display_name,p.cnpj_root,p.status,EXISTS(SELECT 1 FROM business.companies c WHERE c.tenant_id=p.tenant_id AND c.party_id=p.id) AS own_company,ARRAY(SELECT pr.role FROM business.party_roles pr WHERE pr.tenant_id=p.tenant_id AND pr.party_id=p.id AND pr.active ORDER BY pr.role) AS roles FROM core.parties p WHERE p.tenant_id=$1::uuid ORDER BY p.legal_name,p.id LIMIT 500",[tenant]);
@@ -83,6 +83,49 @@ export default {async fetch(request,env){
    // Política de INSERT também verifica associação e role. Não permitir papéis via payload.
    const r=await execute(sql,tenant,user,"SELECT party_id,party_code::text AS party_code FROM business.create_party($1,$2,$3,$4,$5,$6::uuid)",[kind,legal,display,cpf,root,id]);
    return send({item:r.rows[0]},201);
+  }
+  if(path==='/v1/maintenance'&&request.method==='GET'){
+   const scope=await masterInstitutions(request,env);
+   const r=await execute(sql,tenant,user,`WITH entities AS (
+ SELECT 'party' AS kind,p.id,p.legal_name AS name,p.display_name,p.code::text AS code,p.kind AS subtype,NULL::text AS parent_name,p.status FROM core.parties p WHERE p.tenant_id=$1::uuid
+ UNION ALL SELECT 'establishment',e.id,e.name,NULL::text,NULL::text,e.kind,p.legal_name,e.status FROM core.establishments e JOIN core.parties p ON p.tenant_id=e.tenant_id AND p.id=e.party_id WHERE e.tenant_id=$1::uuid
+), links AS (
+ SELECT 'institution_link' AS kind,l.id,l.institution_id,p.legal_name||COALESCE(' · '||e.name,'') AS label,l.valid_from,(l.valid_until-1) AS last_day FROM core.institution_links l JOIN core.parties p ON p.tenant_id=l.tenant_id AND p.id=l.party_id LEFT JOIN core.establishments e ON e.tenant_id=l.tenant_id AND e.id=l.establishment_id WHERE l.tenant_id=$1::uuid AND l.institution_id=ANY($2::uuid[])
+ UNION ALL SELECT 'company_contact',c.id,NULL::uuid,p.legal_name||' · '||f.legal_name||' · '||c.role,c.valid_from,c.valid_until FROM core.company_contacts c JOIN core.parties p ON p.tenant_id=c.tenant_id AND p.id=c.company_id JOIN core.parties f ON f.tenant_id=c.tenant_id AND f.id=c.person_id WHERE c.tenant_id=$1::uuid
+ UNION ALL SELECT 'franchise_relationship',r.id,NULL::uuid,b.name||' · '||f.legal_name||' → '||p.legal_name,r.valid_from,r.valid_until FROM core.franchise_relationships r JOIN core.franchise_networks n ON n.tenant_id=r.tenant_id AND n.id=r.network_id JOIN core.brands b ON b.tenant_id=n.tenant_id AND b.id=n.brand_id JOIN core.parties f ON f.tenant_id=n.tenant_id AND f.id=n.franchisor_id JOIN core.parties p ON p.tenant_id=r.tenant_id AND p.id=r.franchisee_id WHERE r.tenant_id=$1::uuid
+)
+SELECT COALESCE((SELECT jsonb_agg(to_jsonb(e) ORDER BY e.name,e.id) FROM entities e),'[]'::jsonb) AS entities,
+ COALESCE((SELECT jsonb_agg(to_jsonb(l)||jsonb_build_object('validity',CASE WHEN l.valid_from>CURRENT_DATE THEN 'scheduled' WHEN l.last_day<CURRENT_DATE THEN 'expired' ELSE 'active' END) ORDER BY l.valid_from DESC,l.id) FROM links l),'[]'::jsonb) AS links`,[tenant,[...scope]]);
+   return send({entities:r.rows[0]?.entities||[],links:r.rows[0]?.links||[],can_edit:['owner','registry_editor'].includes(r.role),can_close:r.role==='owner'});
+  }
+  if(path==='/v1/audit'&&request.method==='GET'){
+   const scope=await masterInstitutions(request,env);
+   const r=await execute(sql,tenant,user,`SELECT a.id,a.actor_id,a.entity_type,a.entity_id,a.action,a.request_id,a.details,a.created_at FROM business.audit_events a WHERE a.tenant_id=$1::uuid AND (
+ a.entity_type IN ('party','establishment','corporate_group','corporate_group_member','ownership_interest','company_contact','brand','franchise_network','franchise_relationship')
+ OR (a.entity_type='institution_link' AND EXISTS (SELECT 1 FROM core.institution_links l WHERE l.tenant_id=a.tenant_id AND l.id=a.entity_id AND l.institution_id=ANY($2::uuid[])))
+ OR (a.entity_type='institution_admin_relation' AND EXISTS (SELECT 1 FROM core.institution_admin_relations r WHERE r.tenant_id=a.tenant_id AND r.id=a.entity_id AND r.supervisor_id=ANY($2::uuid[]) AND r.subordinate_id=ANY($2::uuid[])))
+) ORDER BY a.created_at DESC,a.id DESC LIMIT 100`,[tenant,[...scope]]);
+   if(r.role!=='owner')fail(403,'Auditoria restrita ao proprietário.');
+   return send({items:r.rows,limit:100});
+  }
+  if(path==='/v1/maintenance/edit'&&request.method==='POST'){
+   const b=await body(request),id=requestId(b),entity=b.entity_id,kind=b.kind,label=name(b.name),oldName=name(b.old_name);
+   if(typeof entity!=='string'||!UUID.test(entity)||!['party','establishment'].includes(kind))fail(400,'Selecione um cadastro válido.');
+   const r=kind==='party'?await execute(sql,tenant,user,"SELECT party_id FROM business.update_party_name($1::uuid,$2,$3,$4,$5,$6::uuid)",[entity,oldName,name(b.old_display,false),label,name(b.display_name,false),id],true):await execute(sql,tenant,user,"SELECT establishment_id FROM business.update_establishment_name($1::uuid,$2,$3,$4::uuid)",[entity,oldName,label,id],true);
+   if(!r.rows.length)fail(409,'Cadastro não encontrado, alterado por outro usuário ou sem mudanças. Atualize os dados.');
+   return send({item:r.rows[0]});
+  }
+  if(path==='/v1/maintenance/close'&&request.method==='POST'){
+   const b=await body(request),id=requestId(b),entity=b.entity_id,kind=b.kind,last=b.last_day;
+   const reason=typeof b.reason==='string'?b.reason.trim():'';
+   const date=v=>typeof v==='string'&&/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(v)&&v.slice(0,4)!=='0000'&&v<='9999-12-30'&&!Number.isNaN(Date.parse(v+'T00:00:00Z'))&&new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v;
+   if(typeof entity!=='string'||!UUID.test(entity)||!['institution_link','company_contact','franchise_relationship'].includes(kind)||!date(last)||!reason||reason.length>300)fail(400,'Informe vínculo, último dia de vigência e motivo válido.');
+   let r;
+   if(kind==='institution_link'){const scope=await masterInstitutions(request,env);r=await execute(sql,tenant,user,"SELECT closed_id,valid_until FROM business.close_institution_link($1::uuid,$2::date,$3,$4::uuid,$5::uuid[])",[entity,last,reason,id,[...scope]],true);}
+   else if(kind==='company_contact')r=await execute(sql,tenant,user,"SELECT closed_id,valid_until FROM business.close_company_contact($1::uuid,$2::date,$3,$4::uuid)",[entity,last,reason,id],true);
+   else r=await execute(sql,tenant,user,"SELECT closed_id,valid_until FROM business.close_franchise_relationship($1::uuid,$2::date,$3,$4::uuid)",[entity,last,reason,id],true);
+   if(!r.rows.length)fail(409,'Vínculo fora do escopo, não encontrado, ou data não encurta a vigência.');
+   return send({item:r.rows[0]});
   }
   if(path==='/v1/organogram'&&request.method==='GET'){
    const scope=await masterInstitutions(request,env);

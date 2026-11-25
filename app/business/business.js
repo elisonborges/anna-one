@@ -15,7 +15,7 @@ function applyTheme(dark){document.documentElement.dataset.theme=dark?'dark':'li
 let theme='light';try{theme=localStorage.getItem('anna-business-theme')||'light';}catch{}applyTheme(theme==='dark');
 themeButton.addEventListener('click',()=>{const dark=document.documentElement.dataset.theme!=='dark';applyTheme(dark);try{localStorage.setItem('anna-business-theme',dark?'dark':'light');}catch{}});
 function clearProfile(){profileRevision++;$('profile').hidden=true;$('profile-fields').replaceChildren();txt('profile-status','');}
-function resetWorkspace(){resetCorporate();resetLinks();resetRegistry();authorized=false;institutions=[];groups=[];groupsAvailable=false;clearProfile();$('workspace').hidden=true;$('access').hidden=false;$('institution-rows').replaceChildren();$('group-list').replaceChildren();for(const id of ['metric-total','metric-active','metric-matrix','metric-groups'])txt(id,'—');txt('result-count','');txt('groups-status','');txt('data-status','Aguardando consulta…');}
+function resetWorkspace(){resetOwnership();resetCorporate();resetLinks();resetRegistry();authorized=false;institutions=[];groups=[];groupsAvailable=false;clearProfile();$('workspace').hidden=true;$('access').hidden=false;$('institution-rows').replaceChildren();$('group-list').replaceChildren();for(const id of ['metric-total','metric-active','metric-matrix','metric-groups'])txt(id,'—');txt('result-count','');txt('groups-status','');txt('data-status','Aguardando consulta…');}
 class AccessError extends Error{}
 async function getJwt(){
  if(!authClient){const sdk=await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');authClient=sdk.createAuthClient(AUTH_URL);}
@@ -76,7 +76,7 @@ async function load(){
  }catch(e){if(rev!==revision)return;resetWorkspace();txt('auth-status',e instanceof AccessError?e.message:'Não foi possível consultar o serviço existente. Verifique a conexão e tente novamente.');}
  finally{loading=false;$('retry').disabled=false;$('refresh').disabled=false;if(rev!==revision&&location.hash==='#painel')load();}
 }
-function showView(view){for(const b of document.querySelectorAll('[data-view]')){const active=b.dataset.view===view;b.setAttribute('aria-pressed',String(active));$('view-'+b.dataset.view).hidden=!active;}if(view!=='institutions')clearProfile();if(view==='registry')refreshRegistry();else resetRegistry();if(view==='links')refreshLinks();else resetLinks();if(view==='corporate')refreshCorporate();else resetCorporate();}
+function showView(view){for(const b of document.querySelectorAll('[data-view]')){const active=b.dataset.view===view;b.setAttribute('aria-pressed',String(active));$('view-'+b.dataset.view).hidden=!active;}if(view!=='institutions')clearProfile();if(view==='registry')refreshRegistry();else resetRegistry();if(view==='links')refreshLinks();else resetLinks();if(view==='corporate')refreshCorporate();else resetCorporate();if(view==='ownership')refreshOwnership();else resetOwnership();}
 for(const b of document.querySelectorAll('[data-view]'))b.addEventListener('click',()=>showView(b.dataset.view));
 for(const id of ['search','kind','status-filter'])$(id).addEventListener(id==='search'?'input':'change',()=>{clearProfile();renderInstitutions();});
 $('close-profile').addEventListener('click',clearProfile);$('retry').addEventListener('click',load);$('refresh').addEventListener('click',load);
@@ -265,6 +265,46 @@ for(const form of [groupForm,memberForm,adminForm])form.addEventListener('submit
  await refreshCorporate();if(authorized&&!$('corporate-content').hidden)txt('corporate-status','Registro efetuado com sucesso.');}
  catch(e){if(rev===corporateRevision)txt('corporate-status',e.message+' Consulte antes de reenviar.');}
  finally{corporateSaving=false;buttons.forEach(b=>b.disabled=false);}
+});
+
+
+let ownershipRevision=0,ownershipBusy=false,ownershipSaving=false,ownershipParties=[],ownershipRows=[];
+const ownershipForm=$('ownership-form'),ownershipField=n=>ownershipForm.elements.namedItem(n);
+const controlLabels={unspecified:'Não informado',individual:'Individual',joint:'Compartilhado',none:'Sem controle declarado'};
+const percentage=v=>v===null||v===undefined?'Não informado':Number(v).toLocaleString('pt-BR',{maximumFractionDigits:6})+'%';
+function resetOwnership(){ownershipRevision++;ownershipParties=[];ownershipRows=[];$('ownership-content').hidden=true;ownershipForm.hidden=true;ownershipForm.reset();$('ownership-rows').replaceChildren();$('ownership-summary').replaceChildren();$('ownership-filter').replaceChildren();txt('ownership-status','Aguardando consulta.');}
+function ownershipOptions(){
+ const company=ownershipField('company_id').value,registered=new Set(ownershipRows.filter(r=>r.company_id===company).map(r=>r.shareholder_id));
+ options(ownershipField('shareholder_id'),ownershipParties.filter(p=>p.id!==company&&!registered.has(p.id)).map(p=>({id:p.id,label:p.legal_name+' · '+p.kind})),'Selecione o sócio');
+}
+function renderOwnership(){
+ const company=$('ownership-filter').value,rows=ownershipRows.filter(r=>!company||r.company_id===company),body=$('ownership-rows');body.replaceChildren();$('ownership-summary').replaceChildren();
+ for(const r of rows){const tr=node('tr');for(const v of [r.company_name,r.shareholder_name,r.shareholder_kind,percentage(r.capital_pct),percentage(r.vote_pct),controlLabels[r.declared_control]||'Não informado',String(r.valid_from||'').slice(0,10)])tr.append(node('td',v||'—'));body.append(tr);}
+ if(!rows.length){const tr=node('tr'),td=node('td','Nenhuma participação registrada.');td.colSpan=7;tr.append(td);body.append(tr);}
+ if(company){const sum=k=>rows.reduce((a,r)=>a+Math.round(Number(r[k]||0)*1000000),0)/1000000;const capital=sum('capital_pct'),votes=sum('vote_pct'),unknown=rows.filter(r=>r.vote_pct===null||r.vote_pct===undefined).length;
+ for(const [label,value] of [['Capital registrado',percentage(capital)],['Capital restante',percentage(Math.max(0,100-capital))],['Votos informados',percentage(votes)],['Sócios sem votos informados',String(unknown)]]){const card=node('article',undefined,'business-card');card.append(node('span',label),node('strong',value));$('ownership-summary').append(card);}
+ }
+}
+async function refreshOwnership(){
+ if(!authorized||ownershipBusy)return;ownershipBusy=true;resetOwnership();const rev=ownershipRevision;$('ownership-refresh').disabled=true;txt('ownership-status','Consultando estrutura societária...');
+ try{const context=await registryRequest('/v1/context');if(rev!==ownershipRevision||!authorized)return;if(context?.ownership!==true)throw Error('Serviço societário ainda não ativado.');
+ const [data,parties]=await Promise.all([registryRequest('/v1/ownership'),registryRequest('/v1/parties')]);if(rev!==ownershipRevision||!authorized)return;if(!Array.isArray(data?.items)||!Array.isArray(parties?.items))throw Error('Resposta cadastral inválida.');
+ ownershipRows=data.items;ownershipParties=parties.items.filter(p=>p.status==='active');
+ const companies=ownershipParties.filter(p=>p.kind==='PJ').map(p=>({id:p.id,label:p.legal_name}));
+ const filters=new Map(companies.map(p=>[p.id,p]));for(const r of ownershipRows)if(!filters.has(r.company_id))filters.set(r.company_id,{id:r.company_id,label:r.company_name});
+ options($('ownership-filter'),[...filters.values()],'Todas as empresas');options(ownershipField('company_id'),companies,'Selecione a empresa');ownershipOptions();renderOwnership();
+ ownershipForm.hidden=context.role!=='owner';$('ownership-content').hidden=false;txt('ownership-status',data.items.length+' participação(ões) registrada(s). '+(context.role==='owner'?'Cadastro autorizado.':'Somente consulta.'));
+ }catch(e){if(rev===ownershipRevision)txt('ownership-status',e.message+' Nenhum dado foi alterado.');}finally{ownershipBusy=false;$('ownership-refresh').disabled=false;}
+}
+$('ownership-filter').addEventListener('change',renderOwnership);
+ownershipField('company_id').addEventListener('change',ownershipOptions);
+$('ownership-refresh').addEventListener('click',refreshOwnership);
+ownershipForm.addEventListener('submit',async event=>{
+ event.preventDefault();if(!authorized||ownershipForm.hidden||ownershipBusy||ownershipSaving)return;ownershipSaving=true;const rev=ownershipRevision,button=ownershipForm.querySelector('[type=submit]');button.disabled=true;
+ const data=Object.fromEntries(new FormData(ownershipForm));data.capital_pct=data.capital_pct.trim().replace(',','.');data.vote_pct=data.vote_pct.trim().replace(',','.')||null;data.request_id=crypto.randomUUID();
+ try{const result=await registryRequest('/v1/ownership','POST',data);if(rev!==ownershipRevision||!authorized)return;if(!result?.item?.interest_id)throw Error('Confirmação não recebida. Consulte antes de repetir.');const company=data.company_id;await refreshOwnership();if(authorized&&!$('ownership-content').hidden){$('ownership-filter').value=company;renderOwnership();txt('ownership-status','Participação registrada com sucesso.');}}
+ catch(e){if(rev===ownershipRevision)txt('ownership-status',e.message+' Consulte antes de reenviar.');}
+ finally{ownershipSaving=false;button.disabled=false;}
 });
 
 window.addEventListener('hashchange',route);route();

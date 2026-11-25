@@ -67,3 +67,9 @@ body:has(#painel:not([hidden])) .business-footer{padding:9px 12px;font-size:11px
 #painel #classification-form{background:var(--ab-bg);border:1px solid var(--ab-line);border-radius:8px;padding:12px}
 #painel #classification-form .filters{grid-template-columns:minmax(0,320px)}
 @media(max-width:760px){#painel .registry-list-filters{grid-template-columns:1fr}}
+
+/* Incremento 06: vínculos operacionais */
+#painel #links-form{background:var(--ab-bg);border:1px solid var(--ab-line);border-radius:8px;padding:12px;margin:12px 0}
+#painel .links-fields{grid-template-columns:repeat(3,minmax(0,1fr))}
+#painel #links-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;margin:10px 0;font-size:13px}
+@media(max-width:950px){#painel .links-fields{grid-template-columns:1fr}}

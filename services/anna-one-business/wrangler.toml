@@ -1,0 +1,7 @@
+name = "anna-one-business"
+main = "src/index.js"
+compatibility_date = "2026-11-25"
+workers_dev = true
+
+# DATABASE_URL e INTERNAL_TENANT_ID configurados no ambiente autorizado.
+# Não inserir credenciais no GitHub.

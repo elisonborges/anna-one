@@ -240,3 +240,10 @@ body:has(#painel:not([hidden])) .business-footer{padding:9px 12px;font-size:11px
 #painel #licenses-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;font-size:13px}
 @media(max-width:1050px){#painel .license-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){#painel .license-fields,#painel .license-filters{grid-template-columns:1fr}}
+
+/* v0.3 — Distribuição de licenças */
+#painel .allocation-fields{grid-template-columns:repeat(3,minmax(0,1fr))}
+#painel #allocation-form,#painel #allocation-release{margin:12px 0;padding:12px;border:1px solid var(--ab-line);border-radius:8px;background:var(--ab-bg)}
+#painel #allocations-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;font-size:13px}
+@media(max-width:1050px){#painel .allocation-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){#painel .allocation-fields{grid-template-columns:1fr}}

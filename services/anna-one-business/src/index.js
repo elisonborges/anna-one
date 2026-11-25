@@ -75,7 +75,7 @@ export default {async fetch(request,env){
   const sql=neon(env.DATABASE_URL);
   if(path==='/v1/context'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT id,name FROM business.tenants WHERE id=$1::uuid AND kind='internal' AND status='active'",[tenant]);
-   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,contract_dashboard:['owner','registry_editor'].includes(r.role),license_allocations:['owner','registry_editor'].includes(r.role),license_rights:['owner','registry_editor'].includes(r.role),contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
+   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,finance:r.role==='owner',contract_dashboard:['owner','registry_editor'].includes(r.role),license_allocations:['owner','registry_editor'].includes(r.role),license_rights:['owner','registry_editor'].includes(r.role),contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
   }
   if(path==='/v1/parties'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT p.id,p.code::text AS code,p.kind,p.legal_name,p.display_name,p.cnpj_root,p.status,EXISTS(SELECT 1 FROM business.companies c WHERE c.tenant_id=p.tenant_id AND c.party_id=p.id) AS own_company,ARRAY(SELECT pr.role FROM business.party_roles pr WHERE pr.tenant_id=p.tenant_id AND pr.party_id=p.id AND pr.active ORDER BY pr.role) AS roles FROM core.parties p WHERE p.tenant_id=$1::uuid ORDER BY p.legal_name,p.id LIMIT 500",[tenant]);
@@ -141,6 +141,26 @@ SELECT jsonb_build_object(
     if(!r.rows.length)fail(409,'Transição não autorizada, proposta vencida, revisão desatualizada ou oportunidade já encerrada.');
     return send({item:r.rows[0]});
    }
+  }
+  if(path==='/v1/financial-obligations'&&request.method==='GET'){
+   const r=await execute(sql,tenant,user,`WITH clock AS (SELECT (now() AT TIME ZONE 'America/Fortaleza')::date AS today),
+ obligations AS (SELECT o.id,o.code::text AS code,o.direction,o.company_id,o.company_name,o.counterparty_id,o.counterparty_name,o.contract_id,c.code::text AS contract_code,o.contract_revision,c.revision AS current_contract_revision,o.title,o.reference,o.amount::text AS amount,o.issued_on::text AS issued_on,o.first_due::text AS first_due,o.installment_count FROM business.financial_obligations o LEFT JOIN business.contracts c ON c.tenant_id=o.tenant_id AND c.id=o.contract_id WHERE o.tenant_id=$1::uuid),
+ installments AS (SELECT i.id,i.obligation_id,i.installment_no,i.due_on::text AS due_on,i.amount::text AS amount,CASE WHEN i.due_on<clock.today THEN 'overdue' WHEN i.due_on=clock.today THEN 'today' ELSE 'scheduled' END AS validity FROM business.financial_installments i CROSS JOIN clock WHERE i.tenant_id=$1::uuid),
+ companies AS (SELECT p.id,p.legal_name AS name FROM business.companies b JOIN core.parties p ON p.tenant_id=b.tenant_id AND p.id=b.party_id WHERE b.tenant_id=$1::uuid AND p.status='active'),
+ parties AS (SELECT id,legal_name AS name,kind FROM core.parties WHERE tenant_id=$1::uuid AND status='active'),
+ contracts AS (SELECT c.id,c.code::text AS code,c.title,c.seller_name,c.payer_name,c.total::text AS total,c.revision FROM business.contracts c WHERE c.tenant_id=$1::uuid AND c.status IN ('signed','active','suspended') AND c.signed_on IS NOT NULL AND c.total BETWEEN 0.01 AND 9999999999999999.99 AND NOT EXISTS (SELECT 1 FROM business.financial_obligations o WHERE o.tenant_id=c.tenant_id AND o.contract_id=c.id))
+ SELECT jsonb_build_object('as_of',(SELECT today::text FROM clock),'obligations',COALESCE((SELECT jsonb_agg(to_jsonb(o) ORDER BY o.issued_on DESC,o.code) FROM obligations o),'[]'::jsonb),'installments',COALESCE((SELECT jsonb_agg(to_jsonb(i) ORDER BY i.due_on,i.obligation_id,i.installment_no) FROM installments i),'[]'::jsonb),'companies',COALESCE((SELECT jsonb_agg(to_jsonb(c) ORDER BY c.name) FROM companies c),'[]'::jsonb),'parties',COALESCE((SELECT jsonb_agg(to_jsonb(p) ORDER BY p.name) FROM parties p),'[]'::jsonb),'contracts',COALESCE((SELECT jsonb_agg(to_jsonb(c) ORDER BY c.code) FROM contracts c),'[]'::jsonb)) AS finance`,[tenant]);
+   if(r.role!=='owner')fail(403,'Financeiro restrito ao proprietário.');
+   return send(r.rows[0]?.finance||{});
+  }
+  if(path==='/v1/financial-obligations'&&request.method==='POST'){
+   const b=await body(request),id=requestId(b),direction=b.direction,contract=b.contract_id||null,company=b.company_id||null,party=b.counterparty_id||null,revision=b.contract_revision??null,title=name(b.title),reference=name(b.reference),amount=b.amount??null,issued=crmDate(b.issued_on),due=crmDate(b.first_due),count=b.installment_count;
+   const uuid=v=>typeof v==='string'&&UUID.test(v);
+   if(!['receivable','payable'].includes(direction)||!issued||!due||due<issued||!Number.isInteger(count)||count<1||count>24||(contract?(!uuid(contract)||direction!=='receivable'||company!==null||party!==null||amount!==null||!Number.isInteger(revision)||revision<1||revision>2147483647):(!uuid(company)||!uuid(party)||company===party||revision!==null||typeof amount!=='string'||!/^(?:0|[1-9][0-9]{0,15})(?:\.[0-9]{1,2})?$/.test(amount))))fail(400,'Informe origem, partes, valor, referência, datas e até 24 parcelas.');
+   const r=await execute(sql,tenant,user,"SELECT obligation_id,obligation_code::text AS obligation_code FROM business.create_financial_obligation($1,$2::uuid,$3::uuid,$4::uuid,$5::integer,$6,$7,$8::numeric,$9::date,$10::date,$11::integer,$12::uuid)",[direction,company,party,contract,revision,title,reference,amount,issued,due,count,id],true);
+   if(r.role!=='owner')fail(403,'Financeiro restrito ao proprietário.');
+   if(!r.rows.length)fail(409,'Obrigação já registrada, contrato alterado ou dados incompatíveis. Confira valores e datas.');
+   return send({item:r.rows[0]},201);
   }
   if(path==='/v1/contract-dashboard'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,`WITH clock AS (SELECT (now() AT TIME ZONE 'America/Fortaleza')::date AS today),
@@ -436,7 +456,7 @@ SELECT COALESCE((SELECT jsonb_agg(to_jsonb(e) ORDER BY e.name,e.id) FROM entitie
   if(path==='/v1/audit'&&request.method==='GET'){
    const scope=await masterInstitutions(request,env);
    const r=await execute(sql,tenant,user,`SELECT a.id,a.actor_id,a.entity_type,a.entity_id,a.action,a.request_id,a.details,a.created_at FROM business.audit_events a WHERE a.tenant_id=$1::uuid AND (
- a.entity_type IN ('party','establishment','corporate_group','corporate_group_member','ownership_interest','company_contact','brand','franchise_network','franchise_relationship','opportunity','crm_interaction','catalog_category','catalog_item','price_list','price_entry','proposal','commercial_order','contract','contract_amendment','license_right')
+ a.entity_type IN ('party','establishment','corporate_group','corporate_group_member','ownership_interest','company_contact','brand','franchise_network','franchise_relationship','opportunity','crm_interaction','catalog_category','catalog_item','price_list','price_entry','proposal','commercial_order','contract','contract_amendment','license_right','financial_obligation')
  OR (a.entity_type='license_allocation' AND EXISTS (SELECT 1 FROM business.license_allocations la WHERE la.tenant_id=a.tenant_id AND la.id=a.entity_id AND (la.institution_id IS NULL OR la.institution_id=ANY($2::uuid[]))))
  OR (a.entity_type='institution_link' AND EXISTS (SELECT 1 FROM core.institution_links l WHERE l.tenant_id=a.tenant_id AND l.id=a.entity_id AND l.institution_id=ANY($2::uuid[])))
  OR (a.entity_type='institution_admin_relation' AND EXISTS (SELECT 1 FROM core.institution_admin_relations r WHERE r.tenant_id=a.tenant_id AND r.id=a.entity_id AND r.supervisor_id=ANY($2::uuid[]) AND r.subordinate_id=ANY($2::uuid[])))

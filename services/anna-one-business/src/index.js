@@ -67,7 +67,7 @@ export default {async fetch(request,env){
   const sql=neon(env.DATABASE_URL);
   if(path==='/v1/context'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT id,name FROM business.tenants WHERE id=$1::uuid AND kind='internal' AND status='active'",[tenant]);
-   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
+   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
   }
   if(path==='/v1/parties'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT p.id,p.code::text AS code,p.kind,p.legal_name,p.display_name,p.cnpj_root,p.status,EXISTS(SELECT 1 FROM business.companies c WHERE c.tenant_id=p.tenant_id AND c.party_id=p.id) AS own_company,ARRAY(SELECT pr.role FROM business.party_roles pr WHERE pr.tenant_id=p.tenant_id AND pr.party_id=p.id AND pr.active ORDER BY pr.role) AS roles FROM core.parties p WHERE p.tenant_id=$1::uuid ORDER BY p.legal_name,p.id LIMIT 500",[tenant]);
@@ -135,9 +135,25 @@ SELECT jsonb_build_object(
    }
   }
   if(path==='/v1/contracts'&&request.method==='GET'){
-   const r=await execute(sql,tenant,user,"SELECT c.id,c.code::text AS code,c.order_id,o.code::text AS order_code,p.code::text AS proposal_code,c.customer_id,c.seller_id,c.payer_id,c.title,c.contract_kind,c.customer_name,c.seller_name,c.payer_name,c.total::text AS total,c.currency,c.valid_from::text AS valid_from,c.valid_until::text AS valid_until,c.payment_terms,c.instrument_ref,c.notes,c.status,c.created_at,COALESCE((SELECT jsonb_agg(jsonb_build_object('item_code',l.item_code::text,'item_name',l.item_name,'unit',l.unit,'quantity',l.quantity::text,'unit_price',l.unit_price::text,'discount_pct',l.discount_pct::text,'net',l.net::text) ORDER BY l.item_code) FROM business.proposal_lines l WHERE l.tenant_id=c.tenant_id AND l.proposal_id=o.proposal_id),'[]'::jsonb) AS lines FROM business.contracts c JOIN business.commercial_orders o ON o.tenant_id=c.tenant_id AND o.id=c.order_id JOIN business.proposals p ON p.tenant_id=o.tenant_id AND p.id=o.proposal_id WHERE c.tenant_id=$1::uuid ORDER BY c.code DESC",[tenant]);
+   const r=await execute(sql,tenant,user,"SELECT c.id,c.code::text AS code,c.order_id,o.code::text AS order_code,p.code::text AS proposal_code,c.customer_id,c.seller_id,c.payer_id,c.title,c.contract_kind,c.customer_name,c.seller_name,c.payer_name,c.total::text AS total,c.currency,c.valid_from::text AS valid_from,c.valid_until::text AS valid_until,c.payment_terms,c.instrument_ref,c.notes,c.status,c.revision,c.signed_on::text AS signed_on,c.signature_ref,c.activated_at,c.ended_on::text AS ended_on,CASE WHEN c.status IN ('signed','active','suspended') AND c.valid_until<(now() AT TIME ZONE 'America/Fortaleza')::date THEN 'expired' WHEN c.valid_from>(now() AT TIME ZONE 'America/Fortaleza')::date THEN 'scheduled' ELSE 'current' END AS validity,c.created_at,COALESCE((SELECT jsonb_agg(jsonb_build_object('item_code',l.item_code::text,'item_name',l.item_name,'unit',l.unit,'quantity',l.quantity::text,'unit_price',l.unit_price::text,'discount_pct',l.discount_pct::text,'net',l.net::text) ORDER BY l.item_code) FROM business.proposal_lines l WHERE l.tenant_id=c.tenant_id AND l.proposal_id=o.proposal_id),'[]'::jsonb) AS lines FROM business.contracts c JOIN business.commercial_orders o ON o.tenant_id=c.tenant_id AND o.id=c.order_id JOIN business.proposals p ON p.tenant_id=o.tenant_id AND p.id=o.proposal_id WHERE c.tenant_id=$1::uuid ORDER BY c.code DESC",[tenant]);
    if(!['owner','registry_editor'].includes(r.role))fail(403,'Contratos restritos à equipe autorizada.');
    return send({items:r.rows});
+  }
+  const lifecycleMatch=path.match(/^\/v1\/contracts\/([^/]+)\/(advance|history)$/);
+  if(lifecycleMatch&&UUID.test(lifecycleMatch[1])){
+   const contract=lifecycleMatch[1],operation=lifecycleMatch[2];
+   if(operation==='history'&&request.method==='GET'){
+    const r=await execute(sql,tenant,user,"SELECT id,from_status,to_status,reference,effective_on::text AS effective_on,created_by,created_at FROM business.contract_events WHERE tenant_id=$1::uuid AND contract_id=$2::uuid ORDER BY created_at,id",[tenant,contract]);
+    if(!['owner','registry_editor'].includes(r.role))fail(403,'Histórico contratual restrito.');
+    return send({items:r.rows});
+   }
+   if(operation==='advance'&&request.method==='POST'){
+    const b=await body(request),id=requestId(b),next=b.status,reference=typeof b.reference==='string'?b.reference.trim():'',signed=crmDate(b.signed_on);
+    if(!Number.isInteger(b.revision)||b.revision<1||b.revision>2147483646||!['submitted','approved','rejected','signed','active','suspended','terminated','expired'].includes(next)||reference.length>(next==='signed'?200:300)||(['rejected','signed','suspended','terminated'].includes(next)&&!reference)||(next==='signed'?!signed:!!signed))fail(400,'Informe etapa, revisão, motivo ou referência e data de assinatura quando exigidos.');
+    const r=await execute(sql,tenant,user,"SELECT contract_id,new_status,new_revision FROM business.advance_contract($1::uuid,$2::integer,$3,$4,$5::date,$6::uuid)",[contract,b.revision,next,reference||null,signed,id],true);
+    if(!r.rows.length)fail(409,'Transição não autorizada, revisão desatualizada ou data incompatível com a vigência.');
+    return send({item:r.rows[0]});
+   }
   }
   if(path==='/v1/contracts'&&request.method==='POST'){
    const b=await body(request),id=requestId(b),order=b.order_id,payer=b.payer_id||null,title=name(b.title),kind=b.contract_kind,from=crmDate(b.valid_from),until=crmDate(b.valid_until);

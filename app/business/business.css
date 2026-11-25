@@ -269,3 +269,8 @@ body:has(#painel:not([hidden])) .business-footer{padding:9px 12px;font-size:11px
 #painel #treasury-account,#painel #treasury-transfer,#painel #treasury-link{margin:12px 0;padding:12px;border:1px solid var(--ab-line);border-radius:8px;background:var(--ab-bg)}
 #painel #treasury-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;font-size:13px}
 #painel #treasury-accounts td,#painel #treasury-movements td{vertical-align:top}
+
+/* v0.4 — Renegociações e recorrências */
+#painel #renegotiation-form,#painel #recurring-rule-form,#painel #recurring-generate,#painel #recurring-close{margin:12px 0;padding:12px;border:1px solid var(--ab-line);border-radius:8px;background:var(--ab-bg)}
+#painel #recurring-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;font-size:13px}
+#painel #recurring-rules td,#painel #renegotiation-rows td{vertical-align:top}

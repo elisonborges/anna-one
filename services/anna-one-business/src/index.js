@@ -39,9 +39,12 @@ function queryContext(sql,tenant,user){
 }
 const membershipSQL="SELECT m.role FROM business.tenant_memberships m JOIN business.tenants t ON t.id=m.tenant_id WHERE m.tenant_id=$1::uuid AND m.user_id=$2::uuid AND m.active AND t.kind='internal' AND t.status='active'";
 async function execute(sql,tenant,user,statement,params=[]){
- const results=await sql.transaction([queryContext(sql,tenant,user),sql.query(membershipSQL,[tenant,user]),sql.query(statement,params)]);
+ const roleCheck=await sql.query("SELECT current_user AS role, rolbypassrls, rolsuper FROM pg_roles WHERE rolname=current_user");
+ if(roleCheck[0]?.role!=='anna_business_runtime'||roleCheck[0]?.rolbypassrls!==false||roleCheck[0]?.rolsuper!==false)fail(503,'Credencial de serviço não autorizada.');
+ const lockScope=sql.query("SELECT set_config('anna.tenant_id',CASE WHEN EXISTS ("+membershipSQL+") THEN $1 ELSE '00000000-0000-0000-0000-000000000000' END,true)",[tenant,user]);
+ const results=await sql.transaction([queryContext(sql,tenant,user),sql.query(membershipSQL,[tenant,user]),lockScope,sql.query(statement,params)]);
  if(!results[1]?.length)fail(403,'Acesso Business ainda não concedido.');
- return {role:results[1][0].role,rows:results[2]};
+ return {role:results[1][0].role,rows:results[3]};
 }
 export default {async fetch(request,env){
  const origin=request.headers.get('Origin');
@@ -65,7 +68,7 @@ export default {async fetch(request,env){
    const b=await body(request),kind=b.kind,legal=name(b.legal_name),display=name(b.display_name,false),id=requestId(b);
    if(!['PF','PJ'].includes(kind))fail(400,'Selecione PF ou PJ.');
    const doc=cleanDoc(b.document);
-   if(kind==='PF'&&doc&&!validCpf(doc))fail(400,'CPF inválido.');
+   if(kind==='PF'&&!validCpf(doc))fail(400,'Informe um CPF válido.');
    if(kind==='PJ'&&!validCnpj(doc))fail(400,'Informe um CNPJ completo válido, numérico ou alfanumérico.');
    const root=kind==='PJ'?doc.slice(0,8):null,cpf=kind==='PF'?doc||null:null;
    // Política de INSERT também verifica associação e role. Não permitir papéis via payload.

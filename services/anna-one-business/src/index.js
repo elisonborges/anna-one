@@ -75,7 +75,7 @@ export default {async fetch(request,env){
   const sql=neon(env.DATABASE_URL);
   if(path==='/v1/context'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT id,name FROM business.tenants WHERE id=$1::uuid AND kind='internal' AND status='active'",[tenant]);
-   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,license_allocations:['owner','registry_editor'].includes(r.role),license_rights:['owner','registry_editor'].includes(r.role),contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
+   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,contract_dashboard:['owner','registry_editor'].includes(r.role),license_allocations:['owner','registry_editor'].includes(r.role),license_rights:['owner','registry_editor'].includes(r.role),contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
   }
   if(path==='/v1/parties'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT p.id,p.code::text AS code,p.kind,p.legal_name,p.display_name,p.cnpj_root,p.status,EXISTS(SELECT 1 FROM business.companies c WHERE c.tenant_id=p.tenant_id AND c.party_id=p.id) AS own_company,ARRAY(SELECT pr.role FROM business.party_roles pr WHERE pr.tenant_id=p.tenant_id AND pr.party_id=p.id AND pr.active ORDER BY pr.role) AS roles FROM core.parties p WHERE p.tenant_id=$1::uuid ORDER BY p.legal_name,p.id LIMIT 500",[tenant]);
@@ -141,6 +141,48 @@ SELECT jsonb_build_object(
     if(!r.rows.length)fail(409,'Transição não autorizada, proposta vencida, revisão desatualizada ou oportunidade já encerrada.');
     return send({item:r.rows[0]});
    }
+  }
+  if(path==='/v1/contract-dashboard'&&request.method==='GET'){
+   const r=await execute(sql,tenant,user,`WITH clock AS (SELECT (now() AT TIME ZONE 'America/Fortaleza')::date AS today),
+ contracts AS (
+ SELECT c.id,c.code::text AS code,c.title,c.customer_name,c.seller_name,c.status,c.revision,c.total,c.valid_from,c.valid_until,c.ended_on,
+ CASE WHEN c.status IN ('signed','active','suspended') AND c.valid_until<clock.today THEN 'expired' ELSE c.status END AS effective_status
+ FROM business.contracts c CROSS JOIN clock WHERE c.tenant_id=$1::uuid
+ ), amendments AS (
+ SELECT a.status,a.kind,a.base_revision,c.revision,c.effective_status FROM business.contract_amendments a JOIN contracts c ON c.id=a.contract_id WHERE a.tenant_id=$1::uuid
+ ), rights AS (
+ SELECT r.id,r.commercial_unit,r.capacity,LEAST(r.valid_until,c.valid_until,c.ended_on) AS effective_until,
+ CASE WHEN r.status='revoked' THEN 'revoked' WHEN c.status IN ('terminated','expired') OR LEAST(r.valid_until,c.valid_until)<clock.today THEN 'expired' WHEN c.status='suspended' THEN 'suspended' WHEN c.status<>'active' OR r.valid_from>LEAST(r.valid_until,c.valid_until) THEN 'blocked' WHEN r.valid_from>clock.today OR c.valid_from>clock.today THEN 'scheduled' ELSE 'effective' END AS validity
+ FROM business.license_rights r JOIN contracts c ON c.id=r.contract_id CROSS JOIN clock WHERE r.tenant_id=$1::uuid
+ ), reservations AS (
+ SELECT a.right_id,sum(a.quantity) FILTER(WHERE a.status='allocated') AS reserved,count(*) FILTER(WHERE a.status='allocated') AS allocated_count,count(*) FILTER(WHERE a.status='released') AS released_count
+ FROM business.license_allocations a WHERE a.tenant_id=$1::uuid GROUP BY a.right_id
+ ), orders AS (
+ SELECT o.id,o.status FROM business.commercial_orders o WHERE o.tenant_id=$1::uuid
+ ), contract_stages AS (
+ SELECT effective_status AS status,count(*) AS count,COALESCE(sum(total),0)::text AS value FROM contracts GROUP BY effective_status
+ ), right_stages AS (
+ SELECT validity,count(*) AS count FROM rights GROUP BY validity
+ ), capacities AS (
+ SELECT r.commercial_unit AS unit,count(*) AS rights, sum(r.capacity)::text AS capacity,sum(COALESCE(a.reserved,0))::text AS reserved,sum(r.capacity-COALESCE(a.reserved,0))::text AS available
+ FROM rights r LEFT JOIN reservations a ON a.right_id=r.id WHERE r.validity='effective' AND r.capacity IS NOT NULL GROUP BY r.commercial_unit
+ ), deadlines AS (
+ SELECT c.code,c.title,c.customer_name,c.effective_status AS status,c.valid_until::text AS valid_until,c.valid_until-clock.today AS days_left,c.total::text AS total FROM contracts c CROSS JOIN clock
+ WHERE c.status IN ('signed','active','suspended') AND c.valid_until BETWEEN clock.today AND clock.today+90 ORDER BY c.valid_until,c.id LIMIT 30
+ )
+ SELECT jsonb_build_object(
+ 'as_of',(SELECT today::text FROM clock),
+ 'contracts',jsonb_build_object('total',(SELECT count(*) FROM contracts),'active',(SELECT count(*) FROM contracts WHERE effective_status='active' AND valid_from<=(SELECT today FROM clock)),'active_value',(SELECT COALESCE(sum(total),0)::text FROM contracts WHERE effective_status='active' AND valid_from<=(SELECT today FROM clock)),'awaiting_approval',(SELECT count(*) FROM contracts WHERE status='submitted'),'awaiting_signature',(SELECT count(*) FROM contracts WHERE status='approved'),'signed_pending_activation',(SELECT count(*) FROM contracts WHERE effective_status='signed'),'expired_pending',(SELECT count(*) FROM contracts WHERE effective_status='expired' AND status<>'expired'),'due_30',(SELECT count(*) FROM contracts CROSS JOIN clock WHERE status IN ('signed','active','suspended') AND valid_until BETWEEN today AND today+30),'due_31_60',(SELECT count(*) FROM contracts CROSS JOIN clock WHERE status IN ('signed','active','suspended') AND valid_until BETWEEN today+31 AND today+60),'due_61_90',(SELECT count(*) FROM contracts CROSS JOIN clock WHERE status IN ('signed','active','suspended') AND valid_until BETWEEN today+61 AND today+90)),
+ 'amendments',jsonb_build_object('draft',(SELECT count(*) FROM amendments WHERE status='draft'),'stale',(SELECT count(*) FROM amendments WHERE status='draft' AND (base_revision<>revision OR effective_status NOT IN ('signed','active','suspended'))),'applied',(SELECT count(*) FROM amendments WHERE status='applied'),'renewals',(SELECT count(*) FROM amendments WHERE status='applied' AND kind='renewal')),
+ 'orders',jsonb_build_object('pending',(SELECT count(*) FROM orders WHERE status='pending_contract'),'formalized',(SELECT count(*) FROM orders WHERE status='contract_formalized')),
+ 'licenses',jsonb_build_object('total',(SELECT count(*) FROM rights),'effective',(SELECT count(*) FROM rights WHERE validity='effective'),'temporal_effective',(SELECT count(*) FROM rights WHERE validity='effective' AND capacity IS NULL),'due_30',(SELECT count(*) FROM rights CROSS JOIN clock WHERE validity='effective' AND effective_until BETWEEN today AND today+30),'reserved_count',(SELECT COALESCE(sum(allocated_count),0) FROM reservations),'released_count',(SELECT COALESCE(sum(released_count),0) FROM reservations)),
+ 'contract_stages',COALESCE((SELECT jsonb_agg(to_jsonb(s)) FROM contract_stages s),'[]'::jsonb),
+ 'right_stages',COALESCE((SELECT jsonb_agg(to_jsonb(s)) FROM right_stages s),'[]'::jsonb),
+ 'capacities',COALESCE((SELECT jsonb_agg(to_jsonb(s) ORDER BY s.unit) FROM capacities s),'[]'::jsonb),
+ 'deadlines',COALESCE((SELECT jsonb_agg(to_jsonb(d) ORDER BY d.valid_until,d.code) FROM deadlines d),'[]'::jsonb)
+ ) AS dashboard`,[tenant]);
+   if(!['owner','registry_editor'].includes(r.role))fail(403,'Indicadores restritos à equipe contratual.');
+   return send(r.rows[0]?.dashboard||{});
   }
   if(path==='/v1/license-allocations'&&request.method==='GET'){
    const scope=[...await masterInstitutions(request,env)];

@@ -143,3 +143,21 @@ body:has(#painel:not([hidden])) .business-footer{padding:9px 12px;font-size:11px
 #painel .maintenance-scroll td{overflow-wrap:anywhere}
 #painel .maintenance-audit-json{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;max-width:280px}
 @media(max-width:760px){#painel .maintenance-filters{grid-template-columns:1fr}}
+
+/* v0.2 — CRM */
+#painel #crm-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;font-size:13px}
+#painel .crm-fields{grid-template-columns:repeat(3,minmax(0,1fr))}
+#painel .crm-filters{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}
+#painel #crm-create,#painel #crm-edit,#painel #crm-interaction,#painel #crm-detail{border:1px solid var(--ab-line);border-radius:8px;padding:12px;margin:12px 0;background:var(--ab-bg)}
+#painel .crm-board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(190px,1fr);gap:9px;overflow:auto;padding:4px 0 10px;align-items:start}
+#painel .crm-column{min-width:0;padding:8px;border-radius:8px;background:var(--ab-soft);border:1px solid var(--ab-line)}
+#painel .crm-column h4{font-size:13px;margin:4px 0 10px}
+#painel .crm-card{background:var(--ab-card);border:1px solid var(--ab-line);border-radius:7px;padding:9px;margin-bottom:8px;overflow-wrap:anywhere}
+#painel .crm-card p{margin:5px 0}
+#painel .crm-card-link{font:inherit;font-weight:700;text-align:left;color:var(--ab-ink);border:0;background:none;padding:4px 0;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+#painel .crm-overdue{color:var(--ab-ink);font-weight:700;border-left:3px solid #b45309;padding-left:6px}
+#painel .crm-summary{grid-column:1/-1}
+#painel .crm-summary textarea{width:100%;min-height:76px;box-sizing:border-box;border:1px solid var(--ab-line);border-radius:6px;background:var(--ab-card);color:var(--ab-ink);padding:8px;font:inherit;resize:vertical}
+#painel .crm-interaction-text{white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:1050px){#painel .crm-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){#painel .crm-fields,#painel .crm-filters{grid-template-columns:1fr}#painel .crm-board{grid-auto-columns:minmax(205px,75%)}}

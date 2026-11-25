@@ -12,13 +12,14 @@ function name(v,required=true){if(typeof v!=='string'&&v!=null)fail(400,'Nome in
 function digit(s,cyclic){const n=[...s].reduce((a,c,i)=>a+(c.charCodeAt(0)-48)*(cyclic?((s.length-i-1)%8)+2:s.length-i+1),0)%11;return n<2?0:11-n;}
 export function validCpf(s){return /^[0-9]{11}$/.test(s)&&!/^([0-9])\1{10}$/.test(s)&&s[9]===String(digit(s.slice(0,9),false))&&s[10]===String(digit(s.slice(0,10),false));}
 export function validCnpj(s){return /^[A-Z0-9]{12}[0-9]{2}$/.test(s)&&!/^([0-9])\1{13}$/.test(s)&&s[12]===String(digit(s.slice(0,12),true))&&s[13]===String(digit(s.slice(0,13),true));}
-async function actor(request){
+export async function actor(request,env){
  const token=request.headers.get('Authorization')||'';
  if(!/^Bearer [A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+$/.test(token)||token.length>12000)fail(401,'Sessão necessária.');
  // Valida exatamente o mesmo bearer no serviço Master, sem aceitar identidade enviada no JSON.
- let check;try{check=await fetch(AUTHZ,{method:'GET',headers:{Authorization:token},redirect:'error',signal:AbortSignal.timeout(8000)});}catch{fail(503,'Autorização central indisponível.');}
+ if(!env.MASTER_AUTH||typeof env.MASTER_AUTH.fetch!=='function')fail(503,'Vínculo de autorização central não configurado.');
+ let check;try{check=await env.MASTER_AUTH.fetch(new Request(AUTHZ,{method:'GET',headers:{Authorization:token,Origin:ORIGIN},redirect:'manual'}));}catch{fail(503,'Autorização central indisponível.');}
  if(!check.ok)fail(check.status===401?401:check.status===403?403:503,'Autorização central não confirmada.');
- const result=await check.json();
+ let result;try{result=await check.json();}catch{fail(503,'Resposta inválida da autorização central.');}
  if(result?.authenticated!==true||result?.admin_authorized!==true)fail(403,'Acesso Master não autorizado.');
  // O sub só é usado depois da verificação do mesmo JWT pelo Worker existente.
  // A associação explícita na base deve corresponder ao UUID; nenhuma associação por e-mail.
@@ -54,7 +55,7 @@ export default {async fetch(request,env){
  if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'0.1.0-dev',status:'online'});
  try{
   if(!env.DATABASE_URL||!UUID.test(env.INTERNAL_TENANT_ID||''))fail(503,'Serviço cadastral ainda não configurado.');
-  const user=await actor(request),tenant=env.INTERNAL_TENANT_ID;
+  const user=await actor(request,env),tenant=env.INTERNAL_TENANT_ID;
   const sql=neon(env.DATABASE_URL);
   if(path==='/v1/context'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT id,name FROM business.tenants WHERE id=$1::uuid AND kind='internal' AND status='active'",[tenant]);

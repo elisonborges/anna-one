@@ -67,7 +67,7 @@ export default {async fetch(request,env){
   const sql=neon(env.DATABASE_URL);
   if(path==='/v1/context'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT id,name FROM business.tenants WHERE id=$1::uuid AND kind='internal' AND status='active'",[tenant]);
-   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
+   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
   }
   if(path==='/v1/parties'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT p.id,p.code::text AS code,p.kind,p.legal_name,p.display_name,p.cnpj_root,p.status,EXISTS(SELECT 1 FROM business.companies c WHERE c.tenant_id=p.tenant_id AND c.party_id=p.id) AS own_company,ARRAY(SELECT pr.role FROM business.party_roles pr WHERE pr.tenant_id=p.tenant_id AND pr.party_id=p.id AND pr.active ORDER BY pr.role) AS roles FROM core.parties p WHERE p.tenant_id=$1::uuid ORDER BY p.legal_name,p.id LIMIT 500",[tenant]);
@@ -83,6 +83,42 @@ export default {async fetch(request,env){
    // Política de INSERT também verifica associação e role. Não permitir papéis via payload.
    const r=await execute(sql,tenant,user,"SELECT party_id,party_code::text AS party_code FROM business.create_party($1,$2,$3,$4,$5,$6::uuid)",[kind,legal,display,cpf,root,id]);
    return send({item:r.rows[0]},201);
+  }
+  const crmDate=v=>{if(v===null||v===undefined||v==='')return null;if(typeof v!=='string'||! /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(v)||v.slice(0,4)==='0000'||Number.isNaN(Date.parse(v+'T00:00:00Z'))||new Date(v+'T00:00:00Z').toISOString().slice(0,10)!==v)fail(400,'Data inválida.');return v;};
+  const crmValue=v=>{if(v===null||v===undefined||v==='')return null;if(typeof v!=='string'||! /^(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,2})?$/.test(v))fail(400,'Valor estimado inválido.');return v;};
+  if(path==='/v1/crm/opportunities'&&request.method==='GET'){
+   const r=await execute(sql,tenant,user,"SELECT o.id,o.party_id,p.legal_name AS party_name,o.title,o.stage,o.estimated_value::text AS estimated_value,o.expected_close::text AS expected_close,o.next_followup::text AS next_followup,o.loss_reason,o.revision,o.created_at,o.updated_at,CASE WHEN o.stage NOT IN ('won','lost') AND o.next_followup<CURRENT_DATE THEN true ELSE false END AS overdue FROM business.opportunities o JOIN core.parties p ON p.tenant_id=o.tenant_id AND p.id=o.party_id WHERE o.tenant_id=$1::uuid ORDER BY o.updated_at DESC,o.id",[tenant]);
+   if(!['owner','registry_editor'].includes(r.role))fail(403,'CRM restrito à equipe de cadastro.');
+   return send({items:r.rows});
+  }
+  if(path==='/v1/crm/opportunities'&&request.method==='POST'){
+   const b=await body(request),id=requestId(b),party=b.party_id,title=name(b.title),value=crmValue(b.estimated_value),close=crmDate(b.expected_close),followup=crmDate(b.next_followup);
+   if(typeof party!=='string'||!UUID.test(party))fail(400,'Selecione a pessoa ou empresa.');
+   const r=await execute(sql,tenant,user,"SELECT opportunity_id FROM business.create_opportunity($1::uuid,$2,$3::numeric,$4::date,$5::date,$6::uuid)",[party,title,value,close,followup,id]);
+   return send({item:r.rows[0]},201);
+  }
+  const crmMatch=path.match(/^\/v1\/crm\/opportunities\/([^/]+)\/(update|interactions)$/);
+  if(crmMatch&&UUID.test(crmMatch[1])){
+   const opportunity=crmMatch[1],operation=crmMatch[2];
+   if(operation==='update'&&request.method==='POST'){
+    const b=await body(request),id=requestId(b),title=name(b.title),stage=b.stage,value=crmValue(b.estimated_value),close=crmDate(b.expected_close),followup=crmDate(b.next_followup),reason=typeof b.loss_reason==='string'?b.loss_reason.trim():'';
+    if(!Number.isInteger(b.revision)||b.revision<1||b.revision>2147483646||!['prospecting','qualified','proposal','negotiation','won','lost'].includes(stage)||reason.length>300||(stage==='lost'?!reason:!!reason))fail(400,'Informe etapa, revisão e motivo de perda quando aplicável.');
+    const r=await execute(sql,tenant,user,"SELECT opportunity_id,new_revision FROM business.update_opportunity($1::uuid,$2::integer,$3,$4,$5::numeric,$6::date,$7::date,$8,$9::uuid)",[opportunity,b.revision,title,stage,value,close,followup,reason||null,id],true);
+    if(!r.rows.length)fail(409,'Oportunidade encerrada, alterada por outro usuário ou não encontrada.');
+    return send({item:r.rows[0]});
+   }
+   if(operation==='interactions'&&request.method==='GET'){
+    const r=await execute(sql,tenant,user,"SELECT id,channel,interaction_date::text AS interaction_date,summary,created_at,created_by FROM business.crm_interactions WHERE tenant_id=$1::uuid AND opportunity_id=$2::uuid ORDER BY interaction_date DESC,created_at DESC,id",[tenant,opportunity]);
+    if(!['owner','registry_editor'].includes(r.role))fail(403,'CRM restrito à equipe de cadastro.');
+    return send({items:r.rows});
+   }
+   if(operation==='interactions'&&request.method==='POST'){
+    const b=await body(request),id=requestId(b),channel=b.channel,date=crmDate(b.interaction_date),summary=typeof b.summary==='string'?b.summary.trim():'';
+    if(!['phone','email','meeting','message','visit','other'].includes(channel)||!date||!summary||summary.length>1000)fail(400,'Informe canal, data e resumo da interação.');
+    const r=await execute(sql,tenant,user,"SELECT interaction_id FROM business.add_crm_interaction($1::uuid,$2,$3::date,$4,$5::uuid)",[opportunity,channel,date,summary,id]);
+    if(!r.rows.length)fail(404,'Oportunidade não encontrada ou acesso restrito.');
+    return send({item:r.rows[0]},201);
+   }
   }
   if(path==='/v1/maintenance'&&request.method==='GET'){
    const scope=await masterInstitutions(request,env);
@@ -101,7 +137,7 @@ SELECT COALESCE((SELECT jsonb_agg(to_jsonb(e) ORDER BY e.name,e.id) FROM entitie
   if(path==='/v1/audit'&&request.method==='GET'){
    const scope=await masterInstitutions(request,env);
    const r=await execute(sql,tenant,user,`SELECT a.id,a.actor_id,a.entity_type,a.entity_id,a.action,a.request_id,a.details,a.created_at FROM business.audit_events a WHERE a.tenant_id=$1::uuid AND (
- a.entity_type IN ('party','establishment','corporate_group','corporate_group_member','ownership_interest','company_contact','brand','franchise_network','franchise_relationship')
+ a.entity_type IN ('party','establishment','corporate_group','corporate_group_member','ownership_interest','company_contact','brand','franchise_network','franchise_relationship','opportunity','crm_interaction')
  OR (a.entity_type='institution_link' AND EXISTS (SELECT 1 FROM core.institution_links l WHERE l.tenant_id=a.tenant_id AND l.id=a.entity_id AND l.institution_id=ANY($2::uuid[])))
  OR (a.entity_type='institution_admin_relation' AND EXISTS (SELECT 1 FROM core.institution_admin_relations r WHERE r.tenant_id=a.tenant_id AND r.id=a.entity_id AND r.supervisor_id=ANY($2::uuid[]) AND r.subordinate_id=ANY($2::uuid[])))
 ) ORDER BY a.created_at DESC,a.id DESC LIMIT 100`,[tenant,[...scope]]);

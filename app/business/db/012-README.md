@@ -1,0 +1,9 @@
+# Incremento 15 — Tabelas de preços (v0.2)
+
+Migração 012 preparada na branch de homologação br-royal-fog-b6rptj4k (migration_id ef65800e-7746-4585-9937-0c14870d62d2). Não aplicada à produção.
+
+Tabelas por empresa própria PJ ativa, nome único por empresa, segmento e condições de pagamento opcionais, moeda BRL. Preços unitários por item ativo de catálogo, com unidade comercial copiada no momento do registro, início e último dia de vigência inclusivos. Uma vigência por item/tabela em cada data, sem sobreposição pelo comando SQL executado em transação serializável na API. Diferentes tabelas e empresas podem praticar diferentes preços. Encerramento somente encurta a vigência, exige motivo e preserva histórico e auditoria. Não altera preços anteriores nem gera contrato ou faturamento. RLS restrita ao proprietário e editor. Interface responsiva com indicadores, filtros e histórico. Segmentos e condições são informativos, sem cálculo automático de descontos, impostos ou parcelamento. A substituição do preço exige encerrar o anterior e cadastrar o novo; não há substituição atômica, edição das tabelas ou cancelamento de período futuro nesta entrega. Preços vigentes por data não são garantia de item atualmente ativo; a futura proposta deve validar item, unidade, empresa e vigência.
+
+Testes reais no Neon isolado com anna_business_runtime: duas tabelas de empresas distintas, três preços do mesmo item, sobreposição bloqueada, encerramento e preço sucessor, extensão indevida bloqueada, item inativo rejeitado, empresa não própria e tabela duplicada rejeitadas, leitor sem acesso nem criação, seis eventos de auditoria. Consulta consolidada SQL retornou 2 empresas, 2 tabelas e 3 preços. Sintaxe JS e IDs HTML verificados. Validação autenticada no navegador, deploy e concorrência simultânea pendentes. Dados fictícios exclusivamente na branch temporária.
+
+Migração 011 e PR 126 integrados. A migração 012 e este PR aguardam autorização de publicação.

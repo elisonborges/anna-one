@@ -15,7 +15,7 @@ function applyTheme(dark){document.documentElement.dataset.theme=dark?'dark':'li
 let theme='light';try{theme=localStorage.getItem('anna-business-theme')||'light';}catch{}applyTheme(theme==='dark');
 themeButton.addEventListener('click',()=>{const dark=document.documentElement.dataset.theme!=='dark';applyTheme(dark);try{localStorage.setItem('anna-business-theme',dark?'dark':'light');}catch{}});
 function clearProfile(){profileRevision++;$('profile').hidden=true;$('profile-fields').replaceChildren();txt('profile-status','');}
-function resetWorkspace(){resetCatalog();resetCrm();maintenanceOrgTarget=null;resetMaintenance();resetOrganogram();resetBrands();resetContacts();resetOwnership();resetCorporate();resetLinks();resetRegistry();authorized=false;institutions=[];groups=[];groupsAvailable=false;clearProfile();$('workspace').hidden=true;$('access').hidden=false;$('institution-rows').replaceChildren();$('group-list').replaceChildren();for(const id of ['metric-total','metric-active','metric-matrix','metric-groups'])txt(id,'—');txt('result-count','');txt('groups-status','');txt('data-status','Aguardando consulta…');}
+function resetWorkspace(){resetPrices();resetCatalog();resetCrm();maintenanceOrgTarget=null;resetMaintenance();resetOrganogram();resetBrands();resetContacts();resetOwnership();resetCorporate();resetLinks();resetRegistry();authorized=false;institutions=[];groups=[];groupsAvailable=false;clearProfile();$('workspace').hidden=true;$('access').hidden=false;$('institution-rows').replaceChildren();$('group-list').replaceChildren();for(const id of ['metric-total','metric-active','metric-matrix','metric-groups'])txt(id,'—');txt('result-count','');txt('groups-status','');txt('data-status','Aguardando consulta…');}
 class AccessError extends Error{}
 async function getJwt(){
  if(!authClient){const sdk=await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');authClient=sdk.createAuthClient(AUTH_URL);}
@@ -76,7 +76,7 @@ async function load(){
  }catch(e){if(rev!==revision)return;resetWorkspace();txt('auth-status',e instanceof AccessError?e.message:'Não foi possível consultar o serviço existente. Verifique a conexão e tente novamente.');}
  finally{loading=false;$('retry').disabled=false;$('refresh').disabled=false;if(rev!==revision&&location.hash==='#painel')load();}
 }
-function showView(view){for(const b of document.querySelectorAll('[data-view]')){const active=b.dataset.view===view;b.setAttribute('aria-pressed',String(active));$('view-'+b.dataset.view).hidden=!active;}if(view!=='institutions')clearProfile();if(view==='registry')refreshRegistry();else resetRegistry();if(view==='links')refreshLinks();else resetLinks();if(view==='corporate')refreshCorporate();else resetCorporate();if(view==='ownership')refreshOwnership();else resetOwnership();if(view==='contacts')refreshContacts();else resetContacts();if(view==='brands')refreshBrands();else resetBrands();if(view==='organogram')refreshOrganogram();else resetOrganogram();if(view==='maintenance')refreshMaintenance();else resetMaintenance();if(view==='crm')refreshCrm();else resetCrm();if(view==='catalog')refreshCatalog();else resetCatalog();}
+function showView(view){for(const b of document.querySelectorAll('[data-view]')){const active=b.dataset.view===view;b.setAttribute('aria-pressed',String(active));$('view-'+b.dataset.view).hidden=!active;}if(view!=='institutions')clearProfile();if(view==='registry')refreshRegistry();else resetRegistry();if(view==='links')refreshLinks();else resetLinks();if(view==='corporate')refreshCorporate();else resetCorporate();if(view==='ownership')refreshOwnership();else resetOwnership();if(view==='contacts')refreshContacts();else resetContacts();if(view==='brands')refreshBrands();else resetBrands();if(view==='organogram')refreshOrganogram();else resetOrganogram();if(view==='maintenance')refreshMaintenance();else resetMaintenance();if(view==='crm')refreshCrm();else resetCrm();if(view==='catalog')refreshCatalog();else resetCatalog();if(view==='prices')refreshPrices();else resetPrices();}
 for(const b of document.querySelectorAll('[data-view]'))b.addEventListener('click',()=>showView(b.dataset.view));
 for(const id of ['search','kind','status-filter'])$(id).addEventListener(id==='search'?'input':'change',()=>{clearProfile();renderInstitutions();});
 $('close-profile').addEventListener('click',clearProfile);$('retry').addEventListener('click',load);$('refresh').addEventListener('click',load);
@@ -442,7 +442,7 @@ const maintenanceEdit=$('maintenance-edit'),maintenanceClose=$('maintenance-clos
 const maintenanceField=(form,n)=>form.elements.namedItem(n);
 const maintenanceLinkLabels={institution_link:'Institucional',company_contact:'Contato / representação',franchise_relationship:'Franquia'};
 const maintenanceActions={create:'Criação',update:'Alteração',link:'Vínculo',unlink:'Encerramento',activate:'Ativação',deactivate:'Desativação'};
-const maintenanceAuditTypes={catalog_category:'Categoria comercial',catalog_item:'Item do catálogo',opportunity:'Oportunidade comercial',crm_interaction:'Interação comercial',party:'Pessoa física/jurídica',establishment:'Estabelecimento',corporate_group:'Grupo empresarial',corporate_group_member:'Integrante de grupo',ownership_interest:'Participação societária',company_contact:'Contato / representação',brand:'Marca',franchise_network:'Rede franqueadora',franchise_relationship:'Franquia',institution_link:'Vínculo institucional',institution_admin_relation:'Supervisão administrativa'};
+const maintenanceAuditTypes={price_list:'Tabela de preços',price_entry:'Preço comercial',catalog_category:'Categoria comercial',catalog_item:'Item do catálogo',opportunity:'Oportunidade comercial',crm_interaction:'Interação comercial',party:'Pessoa física/jurídica',establishment:'Estabelecimento',corporate_group:'Grupo empresarial',corporate_group_member:'Integrante de grupo',ownership_interest:'Participação societária',company_contact:'Contato / representação',brand:'Marca',franchise_network:'Rede franqueadora',franchise_relationship:'Franquia',institution_link:'Vínculo institucional',institution_admin_relation:'Supervisão administrativa'};
 function cancelMaintenanceEdit(){maintenanceSelected=null;maintenanceEdit.reset();maintenanceEdit.hidden=true;}
 function cancelMaintenanceClose(){maintenanceClosing=null;maintenanceClose.reset();maintenanceClose.hidden=true;}
 function resetMaintenance(){maintenanceRevision++;maintenanceNodes=new Map();maintenanceEntities=new Map();maintenanceLinks=[];maintenanceAudit=[];maintenanceCanEdit=false;maintenanceCanClose=false;cancelMaintenanceEdit();cancelMaintenanceClose();$('maintenance-content').hidden=true;$('maintenance-audit').hidden=true;for(const id of ['maintenance-search','maintenance-link-kind','maintenance-link-validity','maintenance-audit-search','maintenance-audit-action'])$(id).value='';$('maintenance-kind').replaceChildren();for(const id of ['maintenance-rows','maintenance-link-rows','maintenance-audit-rows'])$(id).replaceChildren();txt('maintenance-count','');txt('maintenance-audit-status','');txt('maintenance-status','Aguardando consulta.');}
@@ -582,6 +582,51 @@ for(const form of [catalogCategoryForm,catalogItemForm])form.addEventListener('s
  try{const result=await registryRequest(path,'POST',data);if(rev!==catalogRevision||!authorized)return;if(!result?.item?.[category?'category_id':'item_id'])throw Error('Confirmação não recebida. Consulte antes de repetir.');await refreshCatalog();if(authorized&&!$('catalog-content').hidden)txt('catalog-status','Registro efetuado com sucesso.');}
  catch(e){if(rev===catalogRevision)txt('catalog-status',e.message+' Consulte antes de reenviar.');}
  finally{catalogSaving=false;buttons[0].disabled=false;buttons[1].disabled=!catalogCategories.length;}
+});
+
+
+let pricesRevision=0,pricesBusy=false,pricesSaving=false,priceLists=[],priceEntries=[],priceSellers=[],priceItems=[],priceSelected=null;
+const priceListForm=$('price-list-form'),priceEntryForm=$('price-entry-form'),priceCloseForm=$('price-close-form');
+const priceField=(form,k)=>form.elements.namedItem(k);
+function cancelPriceClose(){priceSelected=null;priceCloseForm.reset();priceCloseForm.hidden=true;}
+function resetPrices(){pricesRevision++;priceLists=[];priceEntries=[];priceSellers=[];priceItems=[];cancelPriceClose();priceListForm.reset();priceEntryForm.reset();$('prices-content').hidden=true;$('prices-search').value='';$('prices-validity-filter').value='';for(const id of ['prices-list-filter','prices-metrics','price-lists-summary','prices-rows'])$(id).replaceChildren();txt('prices-count','');txt('prices-status','Aguardando consulta.');}
+function renderPrices(){
+ const metrics=$('prices-metrics');metrics.replaceChildren();
+ for(const [label,value] of [['Tabelas',priceLists.length],['Preços vigentes',priceEntries.filter(e=>e.validity==='active').length],['Preços futuros',priceEntries.filter(e=>e.validity==='scheduled').length],['Preços encerrados',priceEntries.filter(e=>e.validity==='expired').length]]){const card=node('article',undefined,'business-card');card.append(node('span',label),node('strong',value));metrics.append(card);}
+ const summary=$('price-lists-summary');summary.replaceChildren();
+ for(const l of priceLists){const card=node('div',undefined,'corp-item');card.append(node('strong',l.name),node('p',[l.seller_name,l.segment,l.payment_terms].filter(Boolean).join(' · '),'muted small'));summary.append(card);}
+ if(!priceLists.length)summary.append(node('p','Nenhuma tabela cadastrada.','muted small'));
+ const list=$('prices-list-filter').value,validity=$('prices-validity-filter').value,query=norm($('prices-search').value.trim()),body=$('prices-rows');body.replaceChildren();
+ const map=new Map(priceLists.map(l=>[l.id,l])),rows=priceEntries.filter(e=>{const l=map.get(e.list_id);return (!list||e.list_id===list)&&(!validity||e.validity===validity)&&(!query||norm([e.item_name,catalogCode(e.item_code),l?.name,l?.seller_name].join(' ')).includes(query));});
+ for(const e of rows){const l=map.get(e.list_id),tr=node('tr');for(const v of [[l?.name,l?.seller_name].filter(Boolean).join(' · '),catalogCode(e.item_code)+' · '+e.item_name,catalogUnits[e.unit]||e.unit,crmMoney(e.unit_price),e.valid_from,e.valid_until||'Sem término',validityLabels[e.validity]||e.validity])tr.append(node('td',v||'—'));const td=node('td');if(e.validity!=='expired'&&(!e.valid_until||e.valid_until>e.valid_from)){const b=node('button','Encerrar','btn light');b.type='button';b.addEventListener('click',()=>openPriceClose(e));td.append(b);}else td.textContent='—';tr.append(td);body.append(tr);}
+ if(!rows.length){const tr=node('tr'),td=node('td','Nenhum preço encontrado.');td.colSpan=8;tr.append(td);body.append(tr);}
+ txt('prices-count',rows.length+' de '+priceEntries.length+' preço(s).');
+}
+function openPriceClose(e){if(pricesSaving||pricesBusy||!authorized)return;cancelPriceClose();priceSelected=e;txt('price-close-title','Encerrar · '+e.item_name+' · '+crmMoney(e.unit_price));const field=priceField(priceCloseForm,'valid_until');field.min=e.valid_from;field.max=e.valid_until?new Date(Date.parse(e.valid_until+'T00:00:00Z')-86400000).toISOString().slice(0,10):'9999-12-31';field.value=localDate()<field.min?field.min:localDate()>field.max?field.max:localDate();priceCloseForm.hidden=false;field.focus();}
+async function refreshPrices(){
+ if(!authorized||pricesBusy)return;pricesBusy=true;resetPrices();const rev=pricesRevision;$('prices-refresh').disabled=true;txt('prices-status','Consultando tabelas de preços...');
+ try{const context=await registryRequest('/v1/context');if(rev!==pricesRevision||!authorized)return;if(context?.price_lists!==true)throw Error('Tabelas de preços indisponíveis ou acesso restrito.');
+ const [data,catalog]=await Promise.all([registryRequest('/v1/price-lists'),registryRequest('/v1/catalog')]);if(rev!==pricesRevision||!authorized)return;if(![data?.sellers,data?.lists,data?.entries,catalog?.items].every(Array.isArray))throw Error('Resposta comercial inválida.');
+ priceSellers=data.sellers;priceLists=data.lists;priceEntries=data.entries;priceItems=catalog.items.filter(i=>i.status==='active');
+ const listOptions=priceLists.map(l=>({id:l.id,label:l.name+' · '+l.seller_name}));
+ options(priceField(priceListForm,'seller_id'),priceSellers.map(s=>({id:s.id,label:s.name})),'Selecione a empresa própria');
+ options(priceField(priceEntryForm,'list_id'),listOptions,'Selecione a tabela');options($('prices-list-filter'),listOptions,'Todas as tabelas');
+ options(priceField(priceEntryForm,'item_id'),priceItems.map(i=>({id:i.id,label:catalogCode(i.code)+' · '+i.name+' · '+(catalogUnits[i.unit]||i.unit)})),'Selecione o item');priceField(priceEntryForm,'valid_from').value=localDate();
+ renderPrices();$('prices-content').hidden=false;priceListForm.querySelector('[type=submit]').disabled=!priceSellers.length;priceEntryForm.querySelector('[type=submit]').disabled=!priceLists.length||!priceItems.length;
+ txt('prices-status',!priceSellers.length?'Cadastre uma empresa própria ativa para criar tabelas.':!priceItems.length?'Cadastre itens ativos no catálogo para registrar preços.':'Tabelas de preços conectadas.');
+ }catch(e){if(rev===pricesRevision)txt('prices-status',e.message+' Nenhum dado foi alterado.');}finally{pricesBusy=false;$('prices-refresh').disabled=false;}
+}
+$('prices-refresh').addEventListener('click',refreshPrices);$('prices-search').addEventListener('input',renderPrices);
+for(const id of ['prices-list-filter','prices-validity-filter'])$(id).addEventListener('change',renderPrices);
+$('price-close-cancel').addEventListener('click',cancelPriceClose);
+for(const form of [priceListForm,priceEntryForm,priceCloseForm])form.addEventListener('submit',async event=>{
+ event.preventDefault();const list=form===priceListForm,closing=form===priceCloseForm,selected=priceSelected;if(!authorized||pricesBusy||pricesSaving||$('prices-content').hidden||(closing&&(!selected||form.hidden)))return;
+ pricesSaving=true;const rev=pricesRevision,buttons=[priceListForm,priceEntryForm,priceCloseForm].map(f=>f.querySelector('[type=submit]'));buttons.forEach(b=>b.disabled=true);
+ const data=Object.fromEntries(new FormData(form));data.request_id=crypto.randomUUID();if(!list&&!closing)data.unit_price=data.unit_price.trim().replace(',','.');
+ const path=list?'/v1/price-lists':closing?'/v1/price-entries/'+encodeURIComponent(selected.id)+'/close':'/v1/price-entries';
+ try{const result=await registryRequest(path,'POST',data);if(rev!==pricesRevision||!authorized)return;if(!result?.item?.[list?'list_id':'entry_id'])throw Error('Confirmação não recebida. Consulte antes de repetir.');await refreshPrices();if(authorized&&!$('prices-content').hidden)txt('prices-status','Registro efetuado com sucesso.');}
+ catch(e){if(rev===pricesRevision)txt('prices-status',e.message+' Consulte antes de reenviar.');}
+ finally{pricesSaving=false;buttons[0].disabled=!priceSellers.length;buttons[1].disabled=!priceLists.length||!priceItems.length;buttons[2].disabled=false;}
 });
 
 window.addEventListener('hashchange',route);route();

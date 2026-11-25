@@ -131,3 +131,15 @@ body:has(#painel:not([hidden])) .business-footer{padding:9px 12px;font-size:11px
 #painel .org-details summary{cursor:pointer;font-size:13px;font-weight:700;margin-bottom:9px}
 @media(min-width:761px){#painel .business-tabs button span{white-space:normal;overflow-wrap:anywhere}}
 @media(max-width:950px){#painel .org-fields,#painel .org-map{grid-template-columns:1fr}#painel .org-central{grid-row:1}}
+
+/* Incremento 12: gestão cadastral */
+#painel .maintenance-filters{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}
+#painel #maintenance-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;font-size:13px}
+#painel #maintenance-edit,#painel #maintenance-close{margin:12px 0;padding:12px;border:1px solid var(--ab-line);border-radius:8px;background:var(--ab-bg)}
+#painel .maintenance-divider{border:0;border-top:1px solid var(--ab-line);margin:20px 0 14px}
+#painel .maintenance-scroll{max-height:420px;overflow:auto}
+#painel .maintenance-scroll th{position:sticky;top:0;z-index:1}
+#painel .maintenance-scroll td .btn{margin:2px 3px 2px 0;min-height:32px;padding:6px 9px;font-size:12px}
+#painel .maintenance-scroll td{overflow-wrap:anywhere}
+#painel .maintenance-audit-json{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;max-width:280px}
+@media(max-width:760px){#painel .maintenance-filters{grid-template-columns:1fr}}

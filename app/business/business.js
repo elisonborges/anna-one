@@ -15,7 +15,7 @@ function applyTheme(dark){document.documentElement.dataset.theme=dark?'dark':'li
 let theme='light';try{theme=localStorage.getItem('anna-business-theme')||'light';}catch{}applyTheme(theme==='dark');
 themeButton.addEventListener('click',()=>{const dark=document.documentElement.dataset.theme!=='dark';applyTheme(dark);try{localStorage.setItem('anna-business-theme',dark?'dark':'light');}catch{}});
 function clearProfile(){profileRevision++;$('profile').hidden=true;$('profile-fields').replaceChildren();txt('profile-status','');}
-function resetWorkspace(){resetOrganogram();resetBrands();resetContacts();resetOwnership();resetCorporate();resetLinks();resetRegistry();authorized=false;institutions=[];groups=[];groupsAvailable=false;clearProfile();$('workspace').hidden=true;$('access').hidden=false;$('institution-rows').replaceChildren();$('group-list').replaceChildren();for(const id of ['metric-total','metric-active','metric-matrix','metric-groups'])txt(id,'—');txt('result-count','');txt('groups-status','');txt('data-status','Aguardando consulta…');}
+function resetWorkspace(){maintenanceOrgTarget=null;resetMaintenance();resetOrganogram();resetBrands();resetContacts();resetOwnership();resetCorporate();resetLinks();resetRegistry();authorized=false;institutions=[];groups=[];groupsAvailable=false;clearProfile();$('workspace').hidden=true;$('access').hidden=false;$('institution-rows').replaceChildren();$('group-list').replaceChildren();for(const id of ['metric-total','metric-active','metric-matrix','metric-groups'])txt(id,'—');txt('result-count','');txt('groups-status','');txt('data-status','Aguardando consulta…');}
 class AccessError extends Error{}
 async function getJwt(){
  if(!authClient){const sdk=await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');authClient=sdk.createAuthClient(AUTH_URL);}
@@ -76,7 +76,7 @@ async function load(){
  }catch(e){if(rev!==revision)return;resetWorkspace();txt('auth-status',e instanceof AccessError?e.message:'Não foi possível consultar o serviço existente. Verifique a conexão e tente novamente.');}
  finally{loading=false;$('retry').disabled=false;$('refresh').disabled=false;if(rev!==revision&&location.hash==='#painel')load();}
 }
-function showView(view){for(const b of document.querySelectorAll('[data-view]')){const active=b.dataset.view===view;b.setAttribute('aria-pressed',String(active));$('view-'+b.dataset.view).hidden=!active;}if(view!=='institutions')clearProfile();if(view==='registry')refreshRegistry();else resetRegistry();if(view==='links')refreshLinks();else resetLinks();if(view==='corporate')refreshCorporate();else resetCorporate();if(view==='ownership')refreshOwnership();else resetOwnership();if(view==='contacts')refreshContacts();else resetContacts();if(view==='brands')refreshBrands();else resetBrands();if(view==='organogram')refreshOrganogram();else resetOrganogram();}
+function showView(view){for(const b of document.querySelectorAll('[data-view]')){const active=b.dataset.view===view;b.setAttribute('aria-pressed',String(active));$('view-'+b.dataset.view).hidden=!active;}if(view!=='institutions')clearProfile();if(view==='registry')refreshRegistry();else resetRegistry();if(view==='links')refreshLinks();else resetLinks();if(view==='corporate')refreshCorporate();else resetCorporate();if(view==='ownership')refreshOwnership();else resetOwnership();if(view==='contacts')refreshContacts();else resetContacts();if(view==='brands')refreshBrands();else resetBrands();if(view==='organogram')refreshOrganogram();else resetOrganogram();if(view==='maintenance')refreshMaintenance();else resetMaintenance();}
 for(const b of document.querySelectorAll('[data-view]'))b.addEventListener('click',()=>showView(b.dataset.view));
 for(const id of ['search','kind','status-filter'])$(id).addEventListener(id==='search'?'input':'change',()=>{clearProfile();renderInstitutions();});
 $('close-profile').addEventListener('click',clearProfile);$('retry').addEventListener('click',load);$('refresh').addEventListener('click',load);
@@ -427,7 +427,7 @@ async function refreshOrganogram(){
  const data=await registryRequest('/v1/organogram');if(rev!==orgRevision||!authorized)return;if(![data?.nodes,data?.edges,data?.institution_ids].every(Array.isArray))throw Error('Resposta integrada inválida.');
  const model=buildOrganogram(data,institutions,groups,groupsAvailable);orgNodes=model.nodes;orgEdges=model.edges;const contactOption=$('org-category').querySelector('option[value=contact]');contactOption.disabled=data.contacts_visible!==true;
  for(const [label,value] of [['Entidades',orgNodes.size],['Relações diretas',orgEdges.length],['Pessoas jurídicas',[...orgNodes.values()].filter(n=>n.kind==='PJ').length],['Instituições',[...orgNodes.values()].filter(n=>n.kind==='institution').length]]){const card=node('article',undefined,'business-card');card.append(node('span',label),node('strong',value));$('org-metrics').append(card);}
- const first=[...orgNodes.values()].find(n=>n.kind==='PJ'&&n.meta?.own_company)||[...orgNodes.values()].find(n=>n.kind==='PJ')||orgMatching('')[0];updateOrgOptions(first?.id);$('org-content').hidden=false;renderOrganogram();txt('org-status','Consulta integrada concluída. '+(data.contacts_visible===true?'Contatos incluídos conforme permissões.':'Contatos restritos neste perfil.')+(!groupsAvailable?' Grupos do Master indisponíveis.':''));
+ const first=[...orgNodes.values()].find(n=>n.kind==='PJ'&&n.meta?.own_company)||[...orgNodes.values()].find(n=>n.kind==='PJ')||orgMatching('')[0];const requested=maintenanceOrgTarget;maintenanceOrgTarget=null;updateOrgOptions(requested&&orgNodes.has(requested)?requested:first?.id);$('org-content').hidden=false;renderOrganogram();txt('org-status','Consulta integrada concluída. '+(data.contacts_visible===true?'Contatos incluídos conforme permissões.':'Contatos restritos neste perfil.')+(!groupsAvailable?' Grupos do Master indisponíveis.':''));
  }catch(e){if(rev===orgRevision)txt('org-status',e.message+' Nenhum dado foi alterado.');}finally{orgBusy=false;$('org-refresh').disabled=false;}
 }
 $('org-search').addEventListener('input',()=>{updateOrgOptions($('org-focus').value);renderOrganogram();});
@@ -435,5 +435,66 @@ $('org-focus').addEventListener('change',()=>{orgHistory=[];renderOrganogram();}
 $('org-category').addEventListener('change',renderOrganogram);
 $('org-back').addEventListener('click',()=>{const id=orgHistory.pop();if(id)orgFocus(id,false);});
 $('org-refresh').addEventListener('click',refreshOrganogram);
+
+
+let maintenanceRevision=0,maintenanceBusy=false,maintenanceSaving=false,maintenanceNodes=new Map(),maintenanceEntities=new Map(),maintenanceLinks=[],maintenanceAudit=[],maintenanceCanEdit=false,maintenanceCanClose=false,maintenanceSelected=null,maintenanceClosing=null,maintenanceOrgTarget=null;
+const maintenanceEdit=$('maintenance-edit'),maintenanceClose=$('maintenance-close');
+const maintenanceField=(form,n)=>form.elements.namedItem(n);
+const maintenanceLinkLabels={institution_link:'Institucional',company_contact:'Contato / representação',franchise_relationship:'Franquia'};
+const maintenanceActions={create:'Criação',update:'Alteração',link:'Vínculo',unlink:'Encerramento',activate:'Ativação',deactivate:'Desativação'};
+const maintenanceAuditTypes={party:'Pessoa física/jurídica',establishment:'Estabelecimento',corporate_group:'Grupo empresarial',corporate_group_member:'Integrante de grupo',ownership_interest:'Participação societária',company_contact:'Contato / representação',brand:'Marca',franchise_network:'Rede franqueadora',franchise_relationship:'Franquia',institution_link:'Vínculo institucional',institution_admin_relation:'Supervisão administrativa'};
+function cancelMaintenanceEdit(){maintenanceSelected=null;maintenanceEdit.reset();maintenanceEdit.hidden=true;}
+function cancelMaintenanceClose(){maintenanceClosing=null;maintenanceClose.reset();maintenanceClose.hidden=true;}
+function resetMaintenance(){maintenanceRevision++;maintenanceNodes=new Map();maintenanceEntities=new Map();maintenanceLinks=[];maintenanceAudit=[];maintenanceCanEdit=false;maintenanceCanClose=false;cancelMaintenanceEdit();cancelMaintenanceClose();$('maintenance-content').hidden=true;$('maintenance-audit').hidden=true;for(const id of ['maintenance-search','maintenance-link-kind','maintenance-link-validity','maintenance-audit-search','maintenance-audit-action'])$(id).value='';$('maintenance-kind').replaceChildren();for(const id of ['maintenance-rows','maintenance-link-rows','maintenance-audit-rows'])$(id).replaceChildren();txt('maintenance-count','');txt('maintenance-audit-status','');txt('maintenance-status','Aguardando consulta.');}
+function maintenanceButton(label,handler){const b=node('button',label,'btn light');b.type='button';b.addEventListener('click',handler);return b;}
+function editMaintenance(entity){if(!maintenanceCanEdit||maintenanceSaving)return;cancelMaintenanceClose();maintenanceSelected=entity;txt('maintenance-edit-title','Editar · '+entity.name);maintenanceField(maintenanceEdit,'name').value=entity.name;maintenanceField(maintenanceEdit,'display_name').value=entity.display_name||'';$('maintenance-display-label').hidden=entity.kind!=='party';maintenanceField(maintenanceEdit,'display_name').disabled=entity.kind!=='party';maintenanceEdit.hidden=false;maintenanceField(maintenanceEdit,'name').focus();}
+function openMaintenanceOrganogram(id){maintenanceOrgTarget=id;showView('organogram');}
+function renderMaintenanceEntities(){
+ const query=norm($('maintenance-search').value.trim()),kind=$('maintenance-kind').value,rows=$('maintenance-rows');rows.replaceChildren();
+ const matches=[...maintenanceNodes.values()].filter(n=>{const entity=maintenanceEntities.get(n.id);return (!kind||n.kind===kind)&&(!query||norm([n.label,n.meta?.code,entity?.display_name,entity?.parent_name,orgKindLabels[n.kind]].filter(Boolean).join(' ')).includes(query));}).sort((a,b)=>a.label.localeCompare(b.label,'pt-BR')||a.id.localeCompare(b.id));
+ const visible=matches.slice(0,150);txt('maintenance-count',matches.length+' entidade(s) encontrada(s). '+(matches.length>150?'Exibindo as primeiras 150; refine a pesquisa.':''));
+ for(const n of visible){const tr=node('tr'),entity=maintenanceEntities.get(n.id),actions=node('td');for(const v of [n.label,orgKindLabels[n.kind]||n.kind,n.meta?.code||entity?.code||'—'])tr.append(node('td',v));if(maintenanceCanEdit&&entity)actions.append(maintenanceButton('Editar',()=>editMaintenance(entity)));actions.append(maintenanceButton('Organograma',()=>openMaintenanceOrganogram(n.id)));tr.append(actions);rows.append(tr);}
+ if(!visible.length){const tr=node('tr'),td=node('td','Nenhuma entidade encontrada.');td.colSpan=4;tr.append(td);rows.append(tr);}
+}
+function maintenanceLinkName(l){const institution=l.institution_id?institutions.find(i=>String(i.id).toLowerCase()===String(l.institution_id).toLowerCase()):null;return [institution?.name,l.label].filter(Boolean).join(' · ');}
+function closeMaintenance(l){if(!maintenanceCanClose||maintenanceSaving)return;cancelMaintenanceEdit();maintenanceClosing=l;txt('maintenance-close-title','Encerrar · '+maintenanceLinkName(l));const field=maintenanceField(maintenanceClose,'last_day');field.min=l.valid_from;field.max=l.last_day?new Date(Date.parse(l.last_day+'T00:00:00Z')-86400000).toISOString().slice(0,10):'9999-12-30';field.value=localDate()<l.valid_from?l.valid_from:localDate()>field.max?field.max:localDate();maintenanceClose.hidden=false;field.focus();}
+function renderMaintenanceLinks(){
+ const kind=$('maintenance-link-kind').value,validity=$('maintenance-link-validity').value,body=$('maintenance-link-rows');body.replaceChildren();
+ const rows=maintenanceLinks.filter(l=>(!kind||l.kind===kind)&&(!validity||l.validity===validity));
+ for(const l of rows){const tr=node('tr'),actions=node('td');for(const v of [maintenanceLinkName(l),maintenanceLinkLabels[l.kind]||l.kind,l.valid_from,l.last_day||'Sem término',validityLabels[l.validity]||l.validity])tr.append(node('td',v||'—'));if(maintenanceCanClose&&l.validity!=='expired'&&(!l.last_day||l.last_day>l.valid_from))actions.append(maintenanceButton('Encerrar',()=>closeMaintenance(l)));else actions.textContent='—';tr.append(actions);body.append(tr);}
+ if(!rows.length){const tr=node('tr'),td=node('td','Nenhum vínculo neste filtro.');td.colSpan=6;tr.append(td);body.append(tr);}
+}
+function renderMaintenanceAudit(){
+ const query=norm($('maintenance-audit-search').value.trim()),action=$('maintenance-audit-action').value,body=$('maintenance-audit-rows');body.replaceChildren();
+ const rows=maintenanceAudit.filter(a=>(!action||a.action===action)&&(!query||norm([a.created_at,a.entity_id,a.entity_type,maintenanceAuditTypes[a.entity_type],a.actor_id,a.request_id,a.action,maintenanceActions[a.action]].join(' ')).includes(query)));
+ txt('maintenance-audit-status',rows.length+' de '+maintenanceAudit.length+' evento(s) carregado(s).');
+ for(const a of rows){const tr=node('tr');const date=new Date(a.created_at),when=Number.isNaN(date.getTime())?String(a.created_at||'—'):date.toLocaleString('pt-BR');for(const v of [when,maintenanceActions[a.action]||a.action,(maintenanceAuditTypes[a.entity_type]||a.entity_type)+' · '+a.entity_id,a.actor_id+' / '+a.request_id])tr.append(node('td',v));const td=node('td'),details=node('details'),summary=node('summary','Ver detalhes');details.append(summary,node('pre',JSON.stringify(a.details||{},null,2),'maintenance-audit-json'));td.append(details);tr.append(td);body.append(tr);}
+ if(!rows.length){const tr=node('tr'),td=node('td','Nenhum evento encontrado.');td.colSpan=5;tr.append(td);body.append(tr);}
+}
+async function refreshMaintenance(){
+ if(!authorized||maintenanceBusy)return;maintenanceBusy=true;resetMaintenance();const rev=maintenanceRevision;$('maintenance-refresh').disabled=true;txt('maintenance-status','Consultando fundação corporativa...');
+ try{const context=await registryRequest('/v1/context');if(rev!==maintenanceRevision||!authorized)return;if(context?.maintenance!==true)throw Error('Gestão cadastral ainda não ativada.');
+ const [data,graph]=await Promise.all([registryRequest('/v1/maintenance'),registryRequest('/v1/organogram')]);if(rev!==maintenanceRevision||!authorized)return;
+ if(![data?.entities,data?.links,graph?.nodes,graph?.edges,graph?.institution_ids].every(Array.isArray))throw Error('Resposta cadastral inválida.');
+ const model=buildOrganogram(graph,institutions,groups,groupsAvailable);maintenanceNodes=model.nodes;maintenanceEntities=new Map(data.entities.map(e=>[e.kind+':'+e.id,e]));maintenanceLinks=data.links;maintenanceCanEdit=data.can_edit===true;maintenanceCanClose=data.can_close===true;
+ options($('maintenance-kind'),Object.entries(orgKindLabels).map(([id,label])=>({id,label})),'Todos os tipos');
+ renderMaintenanceEntities();renderMaintenanceLinks();$('maintenance-content').hidden=false;txt('maintenance-status','Consulta concluída. '+(maintenanceCanEdit?'Edição cadastral autorizada.':'Somente consulta.'));
+ if(context.audit===true){$('maintenance-audit').hidden=false;txt('maintenance-audit-status','Consultando auditoria...');try{const audit=await registryRequest('/v1/audit');if(rev!==maintenanceRevision||!authorized)return;if(!Array.isArray(audit?.items))throw Error('Resposta de auditoria inválida.');maintenanceAudit=audit.items;renderMaintenanceAudit();}catch(e){if(rev===maintenanceRevision)txt('maintenance-audit-status',e.message);}}
+ }catch(e){if(rev===maintenanceRevision)txt('maintenance-status',e.message+' Nenhum dado foi alterado.');}finally{maintenanceBusy=false;$('maintenance-refresh').disabled=false;}
+}
+for(const id of ['maintenance-search','maintenance-kind'])$(id).addEventListener(id==='maintenance-search'?'input':'change',renderMaintenanceEntities);
+for(const id of ['maintenance-link-kind','maintenance-link-validity'])$(id).addEventListener('change',renderMaintenanceLinks);
+for(const id of ['maintenance-audit-search','maintenance-audit-action'])$(id).addEventListener(id.endsWith('search')?'input':'change',renderMaintenanceAudit);
+$('maintenance-refresh').addEventListener('click',refreshMaintenance);
+$('maintenance-edit-cancel').addEventListener('click',cancelMaintenanceEdit);
+$('maintenance-close-cancel').addEventListener('click',cancelMaintenanceClose);
+for(const form of [maintenanceEdit,maintenanceClose])form.addEventListener('submit',async event=>{
+ event.preventDefault();const editing=form===maintenanceEdit,selected=editing?maintenanceSelected:maintenanceClosing;if(!authorized||form.hidden||!selected||maintenanceBusy||maintenanceSaving||(editing?!maintenanceCanEdit:!maintenanceCanClose))return;
+ maintenanceSaving=true;const rev=maintenanceRevision,button=form.querySelector('[type=submit]');button.disabled=true;
+ const data=Object.fromEntries(new FormData(form));data.request_id=crypto.randomUUID();data.entity_id=selected.id;data.kind=selected.kind;
+ if(editing){data.old_name=selected.name;data.old_display=selected.display_name||null;}
+ try{const result=await registryRequest(editing?'/v1/maintenance/edit':'/v1/maintenance/close','POST',data);if(rev!==maintenanceRevision||!authorized)return;if(!result?.item)throw Error('Confirmação não recebida. Consulte antes de repetir.');await refreshMaintenance();if(authorized&&!$('maintenance-content').hidden)txt('maintenance-status',editing?'Cadastro atualizado.':'Encerramento registrado.');}
+ catch(e){if(rev===maintenanceRevision)txt('maintenance-status',e.message+' Consulte antes de reenviar.');}finally{maintenanceSaving=false;button.disabled=false;}
+});
 
 window.addEventListener('hashchange',route);route();

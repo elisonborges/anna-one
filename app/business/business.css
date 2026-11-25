@@ -92,3 +92,13 @@ body:has(#painel:not([hidden])) .business-footer{padding:9px 12px;font-size:11px
 #painel #ownership-summary:empty{display:none}
 @media(max-width:1000px){#painel .ownership-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){#painel .ownership-fields{grid-template-columns:1fr}}
+
+/* Incremento 09: contatos e representantes */
+#painel #contacts-form{background:var(--ab-bg);border:1px solid var(--ab-line);border-radius:8px;padding:12px;margin:12px 0}
+#painel .contacts-fields{grid-template-columns:repeat(3,minmax(0,1fr))}
+#painel .contacts-scope{grid-column:span 2}
+#painel .contacts-scope textarea{width:100%;box-sizing:border-box;min-height:64px;padding:8px;border:1px solid var(--ab-line);border-radius:6px;background:var(--ab-bg);color:var(--ab-ink);font:inherit;resize:vertical}
+#painel #contacts-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;font-size:13px}
+#painel #contacts-rows td:last-child{min-width:150px;overflow-wrap:anywhere}
+@media(max-width:1050px){#painel .contacts-fields{grid-template-columns:repeat(2,minmax(0,1fr))}#painel .contacts-scope{grid-column:1/-1}}
+@media(max-width:760px){#painel .contacts-fields{grid-template-columns:1fr}}

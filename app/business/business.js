@@ -15,7 +15,7 @@ function applyTheme(dark){document.documentElement.dataset.theme=dark?'dark':'li
 let theme='light';try{theme=localStorage.getItem('anna-business-theme')||'light';}catch{}applyTheme(theme==='dark');
 themeButton.addEventListener('click',()=>{const dark=document.documentElement.dataset.theme!=='dark';applyTheme(dark);try{localStorage.setItem('anna-business-theme',dark?'dark':'light');}catch{}});
 function clearProfile(){profileRevision++;$('profile').hidden=true;$('profile-fields').replaceChildren();txt('profile-status','');}
-function resetWorkspace(){resetLinks();resetRegistry();authorized=false;institutions=[];groups=[];groupsAvailable=false;clearProfile();$('workspace').hidden=true;$('access').hidden=false;$('institution-rows').replaceChildren();$('group-list').replaceChildren();for(const id of ['metric-total','metric-active','metric-matrix','metric-groups'])txt(id,'—');txt('result-count','');txt('groups-status','');txt('data-status','Aguardando consulta…');}
+function resetWorkspace(){resetCorporate();resetLinks();resetRegistry();authorized=false;institutions=[];groups=[];groupsAvailable=false;clearProfile();$('workspace').hidden=true;$('access').hidden=false;$('institution-rows').replaceChildren();$('group-list').replaceChildren();for(const id of ['metric-total','metric-active','metric-matrix','metric-groups'])txt(id,'—');txt('result-count','');txt('groups-status','');txt('data-status','Aguardando consulta…');}
 class AccessError extends Error{}
 async function getJwt(){
  if(!authClient){const sdk=await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');authClient=sdk.createAuthClient(AUTH_URL);}
@@ -76,7 +76,7 @@ async function load(){
  }catch(e){if(rev!==revision)return;resetWorkspace();txt('auth-status',e instanceof AccessError?e.message:'Não foi possível consultar o serviço existente. Verifique a conexão e tente novamente.');}
  finally{loading=false;$('retry').disabled=false;$('refresh').disabled=false;if(rev!==revision&&location.hash==='#painel')load();}
 }
-function showView(view){for(const b of document.querySelectorAll('[data-view]')){const active=b.dataset.view===view;b.setAttribute('aria-pressed',String(active));$('view-'+b.dataset.view).hidden=!active;}if(view!=='institutions')clearProfile();if(view==='registry')refreshRegistry();else resetRegistry();if(view==='links')refreshLinks();else resetLinks();}
+function showView(view){for(const b of document.querySelectorAll('[data-view]')){const active=b.dataset.view===view;b.setAttribute('aria-pressed',String(active));$('view-'+b.dataset.view).hidden=!active;}if(view!=='institutions')clearProfile();if(view==='registry')refreshRegistry();else resetRegistry();if(view==='links')refreshLinks();else resetLinks();if(view==='corporate')refreshCorporate();else resetCorporate();}
 for(const b of document.querySelectorAll('[data-view]'))b.addEventListener('click',()=>showView(b.dataset.view));
 for(const id of ['search','kind','status-filter'])$(id).addEventListener(id==='search'?'input':'change',()=>{clearProfile();renderInstitutions();});
 $('close-profile').addEventListener('click',clearProfile);$('retry').addEventListener('click',load);$('refresh').addEventListener('click',load);
@@ -224,6 +224,47 @@ linksForm.addEventListener('submit',async event=>{
  try{const result=await registryRequest('/v1/institution-links','POST',data);if(rev!==linksRevision||!authorized)return;if(!result?.item?.link_id)throw Error('Confirmação não recebida. Consulte antes de repetir.');await refreshLinks();if(authorized&&!$('links-content').hidden)txt('links-status','Vínculo registrado com sucesso.');}
  catch(e){if(rev===linksRevision)txt('links-status',e.message+' Consulte antes de reenviar.');}
  finally{linksSaving=false;linkSubmitState();}
+});
+
+
+let corporateRevision=0,corporateBusy=false,corporateSaving=false,corporateGroups=[],corporateParties=[],corporateRelations=[];
+const groupForm=$('corp-group-form'),memberForm=$('corp-member-form'),adminForm=$('corp-admin-form');
+function corpField(form,name){return form.elements.namedItem(name);}
+function resetCorporate(){corporateRevision++;corporateGroups=[];corporateParties=[];corporateRelations=[];$('corporate-content').hidden=true;for(const form of [groupForm,memberForm,adminForm]){form.hidden=true;form.reset();}$('corp-group-list').replaceChildren();$('corp-admin-list').replaceChildren();txt('corporate-status','Aguardando consulta.');}
+function corpMemberOptions(){const group=corporateGroups.find(g=>g.id===corpField(memberForm,'group_id').value);const members=new Set((group?.members||[]).map(m=>m.party_id));options(corpField(memberForm,'party_id'),corporateParties.filter(p=>!members.has(p.id)).map(p=>({id:p.id,label:[p.legal_name,p.cnpj_root].filter(Boolean).join(' · ')})),'Selecione a pessoa jurídica');}
+function corpAdminOptions(){const supervisor=corpField(adminForm,'supervisor_id').value;const parents=new Set(corporateRelations.map(r=>r.subordinate_id));options(corpField(adminForm,'subordinate_id'),institutions.filter(i=>i.id!==supervisor&&!parents.has(i.id)).map(i=>({id:i.id,label:[i.name,i.client_code].filter(Boolean).join(' · ')})),'Selecione a instituição');}
+function renderCorporate(){
+ const list=$('corp-group-list');list.replaceChildren();
+ if(!corporateGroups.length)list.append(node('p','Nenhum grupo empresarial cadastrado.','muted small'));
+ for(const g of corporateGroups){const card=node('div',undefined,'corp-item');card.append(node('strong',g.name));const members=Array.isArray(g.members)?g.members:[];card.append(node('p',members.length+' pessoa(s) jurídica(s)','muted small'));for(const m of members)card.append(node('p',m.party_name+' · '+(m.membership_kind==='coordinator'?'Coordenadora':'Integrante'),'small'));list.append(card);}
+ const rels=$('corp-admin-list');rels.replaceChildren();
+ if(!corporateRelations.length)rels.append(node('p','Nenhuma supervisão cadastrada.','muted small'));
+ for(const r of corporateRelations){const s=institutions.find(i=>i.id===r.supervisor_id),d=institutions.find(i=>i.id===r.subordinate_id);const card=node('div',undefined,'corp-item');card.append(node('strong',(s?.name||'Instituição do Master')+' → '+(d?.name||'Instituição do Master')),node('p',r.autonomy==='delegated'?'Gestão delegada / autonomia local':'Gestão centralizada','muted small'));rels.append(card);}
+ options(corpField(memberForm,'group_id'),corporateGroups.map(g=>({id:g.id,label:g.name})),'Selecione o grupo');corpMemberOptions();
+ options(corpField(adminForm,'supervisor_id'),institutions.map(i=>({id:i.id,label:[i.name,i.client_code].filter(Boolean).join(' · ')})),'Selecione a instituição');corpAdminOptions();
+}
+async function refreshCorporate(){
+ if(!authorized||corporateBusy)return;corporateBusy=true;resetCorporate();const rev=corporateRevision;$('corporate-refresh').disabled=true;txt('corporate-status','Consultando estrutura corporativa...');
+ try{const context=await registryRequest('/v1/context');if(rev!==corporateRevision||!authorized)return;if(context?.corporate_structure!==true)throw Error('Serviço de estrutura corporativa ainda não ativado.');
+ const [groupsData,partiesData,relationsData]=await Promise.all([registryRequest('/v1/corporate-groups'),registryRequest('/v1/parties'),registryRequest('/v1/admin-relations')]);if(rev!==corporateRevision||!authorized)return;
+ if(![groupsData,partiesData,relationsData].every(d=>Array.isArray(d?.items)))throw Error('Resposta cadastral inválida.');
+ corporateGroups=groupsData.items;corporateParties=partiesData.items.filter(p=>p.kind==='PJ'&&p.status==='active');corporateRelations=relationsData.items;
+ renderCorporate();const owner=context.role==='owner';groupForm.hidden=!owner;memberForm.hidden=!owner||!corporateGroups.length;adminForm.hidden=!owner;
+ $('corporate-content').hidden=false;txt('corporate-status',corporateGroups.length+' grupo(s) · '+corporateRelations.length+' relação(ões) administrativa(s). '+(owner?'Cadastro autorizado.':'Somente consulta.'));
+ }catch(e){if(rev===corporateRevision)txt('corporate-status',e.message+' Nenhum dado foi alterado.');}finally{corporateBusy=false;$('corporate-refresh').disabled=false;}
+}
+corpField(memberForm,'group_id').addEventListener('change',corpMemberOptions);
+corpField(adminForm,'supervisor_id').addEventListener('change',corpAdminOptions);
+$('corporate-refresh').addEventListener('click',refreshCorporate);
+for(const form of [groupForm,memberForm,adminForm])form.addEventListener('submit',async event=>{
+ event.preventDefault();if(!authorized||form.hidden||corporateBusy||corporateSaving)return;corporateSaving=true;const rev=corporateRevision;
+ const buttons=[...document.querySelectorAll('#view-corporate form button[type=submit]')];buttons.forEach(b=>b.disabled=true);
+ const data=Object.fromEntries(new FormData(form));data.request_id=crypto.randomUUID();
+ const path=form===groupForm?'/v1/corporate-groups':form===adminForm?'/v1/admin-relations':'/v1/corporate-groups/'+encodeURIComponent(data.group_id)+'/members';
+ try{const result=await registryRequest(path,'POST',data);if(rev!==corporateRevision||!authorized)return;if(!result?.item?.[form===groupForm?'group_id':form===memberForm?'member_id':'relation_id'])throw Error('Confirmação não recebida. Consulte antes de repetir.');
+ await refreshCorporate();if(authorized&&!$('corporate-content').hidden)txt('corporate-status','Registro efetuado com sucesso.');}
+ catch(e){if(rev===corporateRevision)txt('corporate-status',e.message+' Consulte antes de reenviar.');}
+ finally{corporateSaving=false;buttons.forEach(b=>b.disabled=false);}
 });
 
 window.addEventListener('hashchange',route);route();

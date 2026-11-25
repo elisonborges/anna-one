@@ -73,3 +73,13 @@ body:has(#painel:not([hidden])) .business-footer{padding:9px 12px;font-size:11px
 #painel .links-fields{grid-template-columns:repeat(3,minmax(0,1fr))}
 #painel #links-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;margin:10px 0;font-size:13px}
 @media(max-width:950px){#painel .links-fields{grid-template-columns:1fr}}
+
+/* Incremento 07: estrutura corporativa */
+#painel .corporate-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+#painel .corporate-box{min-width:0;border:1px solid var(--ab-line);border-radius:9px;padding:12px}
+#painel .corporate-box form{margin:10px 0;background:var(--ab-bg);border:1px solid var(--ab-line);border-radius:7px;padding:10px}
+#painel .corp-fields{grid-template-columns:1fr}
+#painel .corp-item{padding:10px 0;border-bottom:1px solid var(--ab-line);overflow-wrap:anywhere}
+#painel .corp-item:last-child{border-bottom:0}
+#painel #corporate-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;font-size:13px}
+@media(max-width:1050px){#painel .corporate-grid{grid-template-columns:1fr}}

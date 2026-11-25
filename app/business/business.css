@@ -252,3 +252,10 @@ body:has(#painel:not([hidden])) .business-footer{padding:9px 12px;font-size:11px
 #painel #contract-dashboard-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;font-size:13px}
 #painel .contract-dashboard-deadlines{margin-top:12px}
 #painel #contract-dashboard-capacity td,#painel #contract-dashboard-deadlines td{vertical-align:top}
+
+/* v0.4 — Fundação financeira */
+#painel .finance-fields{grid-template-columns:repeat(3,minmax(0,1fr))}
+#painel #finance-form{margin:12px 0;padding:12px;border:1px solid var(--ab-line);border-radius:8px;background:var(--ab-bg)}
+#painel #finance-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;font-size:13px}
+@media(max-width:1050px){#painel .finance-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){#painel .finance-fields{grid-template-columns:1fr}}

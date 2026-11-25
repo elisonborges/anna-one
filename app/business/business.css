@@ -200,3 +200,15 @@ body:has(#painel:not([hidden])) .business-footer{padding:9px 12px;font-size:11px
 #painel #proposal-workflow-form{padding:12px;border:1px solid var(--ab-line);border-radius:8px;background:var(--ab-bg)}
 #painel #proposal-orders{margin-top:20px}
 #painel #proposal-history{max-height:300px;overflow:auto}
+
+/* v0.2 — Painel comercial */
+#painel .commercial-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}
+#painel .commercial-bar-item{margin:8px 0 12px}
+#painel .commercial-bar-label{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:12px}
+#painel .commercial-bar-track{height:8px;background:var(--ab-line);border-radius:4px;margin-top:4px;overflow:hidden}
+#painel .commercial-bar-fill{height:100%;background:var(--ab-primary);border-radius:4px}
+#painel .commercial-fact{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:9px 0;border-bottom:1px solid var(--ab-line);font-size:13px}
+#painel .commercial-fact strong{text-align:right}
+#painel .commercial-recent{margin-top:12px}
+#painel #commercial-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;font-size:13px}
+@media(max-width:950px){#painel .commercial-grid{grid-template-columns:1fr}}

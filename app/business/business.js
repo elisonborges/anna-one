@@ -15,7 +15,7 @@ function applyTheme(dark){document.documentElement.dataset.theme=dark?'dark':'li
 let theme='light';try{theme=localStorage.getItem('anna-business-theme')||'light';}catch{}applyTheme(theme==='dark');
 themeButton.addEventListener('click',()=>{const dark=document.documentElement.dataset.theme!=='dark';applyTheme(dark);try{localStorage.setItem('anna-business-theme',dark?'dark':'light');}catch{}});
 function clearProfile(){profileRevision++;$('profile').hidden=true;$('profile-fields').replaceChildren();txt('profile-status','');}
-function resetWorkspace(){resetContacts();resetOwnership();resetCorporate();resetLinks();resetRegistry();authorized=false;institutions=[];groups=[];groupsAvailable=false;clearProfile();$('workspace').hidden=true;$('access').hidden=false;$('institution-rows').replaceChildren();$('group-list').replaceChildren();for(const id of ['metric-total','metric-active','metric-matrix','metric-groups'])txt(id,'—');txt('result-count','');txt('groups-status','');txt('data-status','Aguardando consulta…');}
+function resetWorkspace(){resetBrands();resetContacts();resetOwnership();resetCorporate();resetLinks();resetRegistry();authorized=false;institutions=[];groups=[];groupsAvailable=false;clearProfile();$('workspace').hidden=true;$('access').hidden=false;$('institution-rows').replaceChildren();$('group-list').replaceChildren();for(const id of ['metric-total','metric-active','metric-matrix','metric-groups'])txt(id,'—');txt('result-count','');txt('groups-status','');txt('data-status','Aguardando consulta…');}
 class AccessError extends Error{}
 async function getJwt(){
  if(!authClient){const sdk=await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');authClient=sdk.createAuthClient(AUTH_URL);}
@@ -76,7 +76,7 @@ async function load(){
  }catch(e){if(rev!==revision)return;resetWorkspace();txt('auth-status',e instanceof AccessError?e.message:'Não foi possível consultar o serviço existente. Verifique a conexão e tente novamente.');}
  finally{loading=false;$('retry').disabled=false;$('refresh').disabled=false;if(rev!==revision&&location.hash==='#painel')load();}
 }
-function showView(view){for(const b of document.querySelectorAll('[data-view]')){const active=b.dataset.view===view;b.setAttribute('aria-pressed',String(active));$('view-'+b.dataset.view).hidden=!active;}if(view!=='institutions')clearProfile();if(view==='registry')refreshRegistry();else resetRegistry();if(view==='links')refreshLinks();else resetLinks();if(view==='corporate')refreshCorporate();else resetCorporate();if(view==='ownership')refreshOwnership();else resetOwnership();if(view==='contacts')refreshContacts();else resetContacts();}
+function showView(view){for(const b of document.querySelectorAll('[data-view]')){const active=b.dataset.view===view;b.setAttribute('aria-pressed',String(active));$('view-'+b.dataset.view).hidden=!active;}if(view!=='institutions')clearProfile();if(view==='registry')refreshRegistry();else resetRegistry();if(view==='links')refreshLinks();else resetLinks();if(view==='corporate')refreshCorporate();else resetCorporate();if(view==='ownership')refreshOwnership();else resetOwnership();if(view==='contacts')refreshContacts();else resetContacts();if(view==='brands')refreshBrands();else resetBrands();}
 for(const b of document.querySelectorAll('[data-view]'))b.addEventListener('click',()=>showView(b.dataset.view));
 for(const id of ['search','kind','status-filter'])$(id).addEventListener(id==='search'?'input':'change',()=>{clearProfile();renderInstitutions();});
 $('close-profile').addEventListener('click',clearProfile);$('retry').addEventListener('click',load);$('refresh').addEventListener('click',load);
@@ -340,6 +340,51 @@ contactsForm.addEventListener('submit',async event=>{
  const data=Object.fromEntries(new FormData(contactsForm));data.request_id=crypto.randomUUID();
  try{const result=await registryRequest('/v1/company-contacts','POST',data);if(rev!==contactsRevision||!authorized)return;if(!result?.item?.contact_id)throw Error('Confirmação não recebida. Consulte antes de repetir.');await refreshContacts();if(authorized&&!$('contacts-content').hidden){$('contacts-company-filter').value=data.company_id;renderContacts();txt('contacts-status','Contato registrado com sucesso.');}}
  catch(e){if(rev===contactsRevision)txt('contacts-status',e.message+' Consulte antes de reenviar.');}finally{contactsSaving=false;button.disabled=false;}
+});
+
+
+let brandsRevision=0,brandsBusy=false,brandsSaving=false,brandRecords=[],networkRecords=[],franchiseRecords=[],brandParties=[];
+const brandForm=$('brand-form'),networkForm=$('network-form'),franchiseForm=$('franchise-form');
+const brandField=(form,n)=>form.elements.namedItem(n);
+function resetBrands(){brandsRevision++;brandRecords=[];networkRecords=[];franchiseRecords=[];brandParties=[];$('brands-content').hidden=true;for(const form of [brandForm,networkForm,franchiseForm]){form.hidden=true;form.reset();}for(const id of ['brands-list','networks-list','brands-metrics','franchise-rows','franchise-network-filter'])$(id).replaceChildren();$('franchise-count').textContent='';$('franchise-validity-filter').value='';txt('brands-status','Aguardando consulta.');}
+function brandNetworkOptions(){const brand=brandField(networkForm,'brand_id').value;const used=new Set(networkRecords.filter(n=>n.brand_id===brand).map(n=>n.franchisor_id));options(brandField(networkForm,'franchisor_id'),brandParties.filter(p=>p.kind==='PJ'&&!used.has(p.id)).map(p=>({id:p.id,label:p.legal_name})),'Selecione a franqueadora');}
+function franchiseOptions(){const network=networkRecords.find(n=>n.id===brandField(franchiseForm,'network_id').value);options(brandField(franchiseForm,'franchisee_id'),brandParties.filter(p=>p.kind==='PJ'&&p.id!==network?.franchisor_id).map(p=>({id:p.id,label:p.legal_name})),'Selecione o franqueado');}
+function renderFranchises(){const network=$('franchise-network-filter').value,validity=$('franchise-validity-filter').value;const rows=franchiseRecords.filter(r=>(!network||r.network_id===network)&&(!validity||r.validity===validity)),body=$('franchise-rows');body.replaceChildren();txt('franchise-count',rows.length+' de '+franchiseRecords.length+' vínculo(s).');
+ for(const r of rows){const tr=node('tr');for(const v of [[r.brand_name,r.franchisor_name].filter(Boolean).join(' · '),r.franchisee_name,r.agreement_ref,r.territory,[validityLabels[r.validity]||r.validity,String(r.valid_from||'').slice(0,10),r.valid_until?'até '+String(r.valid_until).slice(0,10):'sem término informado'].join(' · ')])tr.append(node('td',v||'—'));body.append(tr);}
+ if(!rows.length){const tr=node('tr'),td=node('td','Nenhum vínculo encontrado.');td.colSpan=5;tr.append(td);body.append(tr);}
+}
+function renderBrands(){
+ const metrics=$('brands-metrics');metrics.replaceChildren();
+ for(const [label,value] of [['Marcas',brandRecords.length],['Redes franqueadoras',networkRecords.length],['Vínculos vigentes',franchiseRecords.filter(r=>r.validity==='active').length],['Franqueados vigentes',new Set(franchiseRecords.filter(r=>r.validity==='active').map(r=>r.franchisee_id)).size]]){const card=node('article',undefined,'business-card');card.append(node('span',label),node('strong',value));metrics.append(card);}
+ const brands=$('brands-list');brands.replaceChildren();if(!brandRecords.length)brands.append(node('p','Nenhuma marca cadastrada.','muted small'));
+ for(const b of brandRecords){const card=node('div',undefined,'corp-item');card.append(node('strong',b.name),node('p','Titular: '+b.holder_name,'muted small'));if(b.registration_ref)card.append(node('p','Referência: '+b.registration_ref,'small'));brands.append(card);}
+ const nets=$('networks-list');nets.replaceChildren();if(!networkRecords.length)nets.append(node('p','Nenhuma rede cadastrada.','muted small'));
+ for(const n of networkRecords){const card=node('div',undefined,'corp-item');card.append(node('strong',n.brand_name+' · '+n.franchisor_name),node('p','Referência: '+n.authority_ref,'muted small'));nets.append(card);}
+ const networkOpts=networkRecords.map(n=>({id:n.id,label:n.brand_name+' · '+n.franchisor_name}));
+ options(brandField(brandForm,'holder_id'),brandParties.map(p=>({id:p.id,label:p.legal_name+' · '+p.kind})),'Selecione o titular');
+ options(brandField(networkForm,'brand_id'),brandRecords.map(b=>({id:b.id,label:b.name+' · '+b.holder_name})),'Selecione a marca');brandNetworkOptions();
+ options(brandField(franchiseForm,'network_id'),networkOpts,'Selecione a rede');franchiseOptions();
+ options($('franchise-network-filter'),networkOpts,'Todas as redes');brandField(franchiseForm,'valid_from').value=localDate();renderFranchises();
+}
+async function refreshBrands(){
+ if(!authorized||brandsBusy)return;brandsBusy=true;resetBrands();const rev=brandsRevision;$('brands-refresh').disabled=true;txt('brands-status','Consultando marcas e franquias...');
+ try{const context=await registryRequest('/v1/context');if(rev!==brandsRevision||!authorized)return;if(context?.brands_franchises!==true)throw Error('Serviço de marcas e franquias ainda não ativado.');
+ const [brands,nets,relations,parties]=await Promise.all(['/v1/brands','/v1/franchise-networks','/v1/franchise-relationships','/v1/parties'].map(path=>registryRequest(path)));if(rev!==brandsRevision||!authorized)return;
+ if(![brands,nets,relations,parties].every(d=>Array.isArray(d?.items)))throw Error('Resposta cadastral inválida.');
+ brandRecords=brands.items;networkRecords=nets.items;franchiseRecords=relations.items;brandParties=parties.items.filter(p=>p.status==='active');renderBrands();
+ const owner=context.role==='owner';brandForm.hidden=!owner;networkForm.hidden=!owner||!brandRecords.length;franchiseForm.hidden=!owner||!networkRecords.length;$('brands-content').hidden=false;txt('brands-status',brandRecords.length+' marca(s) · '+networkRecords.length+' rede(s) · '+franchiseRecords.length+' vínculo(s). '+(owner?'Cadastro autorizado.':'Somente consulta.'));
+ }catch(e){if(rev===brandsRevision)txt('brands-status',e.message+' Nenhum dado foi alterado.');}finally{brandsBusy=false;$('brands-refresh').disabled=false;}
+}
+brandField(networkForm,'brand_id').addEventListener('change',brandNetworkOptions);
+brandField(franchiseForm,'network_id').addEventListener('change',franchiseOptions);
+for(const id of ['franchise-network-filter','franchise-validity-filter'])$(id).addEventListener('change',renderFranchises);
+$('brands-refresh').addEventListener('click',refreshBrands);
+for(const form of [brandForm,networkForm,franchiseForm])form.addEventListener('submit',async event=>{
+ event.preventDefault();if(!authorized||form.hidden||brandsBusy||brandsSaving)return;brandsSaving=true;const rev=brandsRevision,buttons=[brandForm,networkForm,franchiseForm].map(f=>f.querySelector('[type=submit]'));buttons.forEach(b=>b.disabled=true);
+ const data=Object.fromEntries(new FormData(form));data.request_id=crypto.randomUUID();
+ const path=form===brandForm?'/v1/brands':form===networkForm?'/v1/franchise-networks':'/v1/franchise-relationships';
+ try{const result=await registryRequest(path,'POST',data);if(rev!==brandsRevision||!authorized)return;if(!result?.item?.[form===brandForm?'brand_id':form===networkForm?'network_id':'relationship_id'])throw Error('Confirmação não recebida. Consulte antes de repetir.');await refreshBrands();if(authorized&&!$('brands-content').hidden)txt('brands-status','Registro efetuado com sucesso.');}
+ catch(e){if(rev===brandsRevision)txt('brands-status',e.message+' Consulte antes de reenviar.');}finally{brandsSaving=false;buttons.forEach(b=>b.disabled=false);}
 });
 
 window.addEventListener('hashchange',route);route();

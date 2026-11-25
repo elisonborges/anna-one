@@ -15,7 +15,7 @@ function applyTheme(dark){document.documentElement.dataset.theme=dark?'dark':'li
 let theme='light';try{theme=localStorage.getItem('anna-business-theme')||'light';}catch{}applyTheme(theme==='dark');
 themeButton.addEventListener('click',()=>{const dark=document.documentElement.dataset.theme!=='dark';applyTheme(dark);try{localStorage.setItem('anna-business-theme',dark?'dark':'light');}catch{}});
 function clearProfile(){profileRevision++;$('profile').hidden=true;$('profile-fields').replaceChildren();txt('profile-status','');}
-function resetWorkspace(){resetCrm();maintenanceOrgTarget=null;resetMaintenance();resetOrganogram();resetBrands();resetContacts();resetOwnership();resetCorporate();resetLinks();resetRegistry();authorized=false;institutions=[];groups=[];groupsAvailable=false;clearProfile();$('workspace').hidden=true;$('access').hidden=false;$('institution-rows').replaceChildren();$('group-list').replaceChildren();for(const id of ['metric-total','metric-active','metric-matrix','metric-groups'])txt(id,'—');txt('result-count','');txt('groups-status','');txt('data-status','Aguardando consulta…');}
+function resetWorkspace(){resetCatalog();resetCrm();maintenanceOrgTarget=null;resetMaintenance();resetOrganogram();resetBrands();resetContacts();resetOwnership();resetCorporate();resetLinks();resetRegistry();authorized=false;institutions=[];groups=[];groupsAvailable=false;clearProfile();$('workspace').hidden=true;$('access').hidden=false;$('institution-rows').replaceChildren();$('group-list').replaceChildren();for(const id of ['metric-total','metric-active','metric-matrix','metric-groups'])txt(id,'—');txt('result-count','');txt('groups-status','');txt('data-status','Aguardando consulta…');}
 class AccessError extends Error{}
 async function getJwt(){
  if(!authClient){const sdk=await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');authClient=sdk.createAuthClient(AUTH_URL);}
@@ -76,7 +76,7 @@ async function load(){
  }catch(e){if(rev!==revision)return;resetWorkspace();txt('auth-status',e instanceof AccessError?e.message:'Não foi possível consultar o serviço existente. Verifique a conexão e tente novamente.');}
  finally{loading=false;$('retry').disabled=false;$('refresh').disabled=false;if(rev!==revision&&location.hash==='#painel')load();}
 }
-function showView(view){for(const b of document.querySelectorAll('[data-view]')){const active=b.dataset.view===view;b.setAttribute('aria-pressed',String(active));$('view-'+b.dataset.view).hidden=!active;}if(view!=='institutions')clearProfile();if(view==='registry')refreshRegistry();else resetRegistry();if(view==='links')refreshLinks();else resetLinks();if(view==='corporate')refreshCorporate();else resetCorporate();if(view==='ownership')refreshOwnership();else resetOwnership();if(view==='contacts')refreshContacts();else resetContacts();if(view==='brands')refreshBrands();else resetBrands();if(view==='organogram')refreshOrganogram();else resetOrganogram();if(view==='maintenance')refreshMaintenance();else resetMaintenance();if(view==='crm')refreshCrm();else resetCrm();}
+function showView(view){for(const b of document.querySelectorAll('[data-view]')){const active=b.dataset.view===view;b.setAttribute('aria-pressed',String(active));$('view-'+b.dataset.view).hidden=!active;}if(view!=='institutions')clearProfile();if(view==='registry')refreshRegistry();else resetRegistry();if(view==='links')refreshLinks();else resetLinks();if(view==='corporate')refreshCorporate();else resetCorporate();if(view==='ownership')refreshOwnership();else resetOwnership();if(view==='contacts')refreshContacts();else resetContacts();if(view==='brands')refreshBrands();else resetBrands();if(view==='organogram')refreshOrganogram();else resetOrganogram();if(view==='maintenance')refreshMaintenance();else resetMaintenance();if(view==='crm')refreshCrm();else resetCrm();if(view==='catalog')refreshCatalog();else resetCatalog();}
 for(const b of document.querySelectorAll('[data-view]'))b.addEventListener('click',()=>showView(b.dataset.view));
 for(const id of ['search','kind','status-filter'])$(id).addEventListener(id==='search'?'input':'change',()=>{clearProfile();renderInstitutions();});
 $('close-profile').addEventListener('click',clearProfile);$('retry').addEventListener('click',load);$('refresh').addEventListener('click',load);
@@ -442,7 +442,7 @@ const maintenanceEdit=$('maintenance-edit'),maintenanceClose=$('maintenance-clos
 const maintenanceField=(form,n)=>form.elements.namedItem(n);
 const maintenanceLinkLabels={institution_link:'Institucional',company_contact:'Contato / representação',franchise_relationship:'Franquia'};
 const maintenanceActions={create:'Criação',update:'Alteração',link:'Vínculo',unlink:'Encerramento',activate:'Ativação',deactivate:'Desativação'};
-const maintenanceAuditTypes={opportunity:'Oportunidade comercial',crm_interaction:'Interação comercial',party:'Pessoa física/jurídica',establishment:'Estabelecimento',corporate_group:'Grupo empresarial',corporate_group_member:'Integrante de grupo',ownership_interest:'Participação societária',company_contact:'Contato / representação',brand:'Marca',franchise_network:'Rede franqueadora',franchise_relationship:'Franquia',institution_link:'Vínculo institucional',institution_admin_relation:'Supervisão administrativa'};
+const maintenanceAuditTypes={catalog_category:'Categoria comercial',catalog_item:'Item do catálogo',opportunity:'Oportunidade comercial',crm_interaction:'Interação comercial',party:'Pessoa física/jurídica',establishment:'Estabelecimento',corporate_group:'Grupo empresarial',corporate_group_member:'Integrante de grupo',ownership_interest:'Participação societária',company_contact:'Contato / representação',brand:'Marca',franchise_network:'Rede franqueadora',franchise_relationship:'Franquia',institution_link:'Vínculo institucional',institution_admin_relation:'Supervisão administrativa'};
 function cancelMaintenanceEdit(){maintenanceSelected=null;maintenanceEdit.reset();maintenanceEdit.hidden=true;}
 function cancelMaintenanceClose(){maintenanceClosing=null;maintenanceClose.reset();maintenanceClose.hidden=true;}
 function resetMaintenance(){maintenanceRevision++;maintenanceNodes=new Map();maintenanceEntities=new Map();maintenanceLinks=[];maintenanceAudit=[];maintenanceCanEdit=false;maintenanceCanClose=false;cancelMaintenanceEdit();cancelMaintenanceClose();$('maintenance-content').hidden=true;$('maintenance-audit').hidden=true;for(const id of ['maintenance-search','maintenance-link-kind','maintenance-link-validity','maintenance-audit-search','maintenance-audit-action'])$(id).value='';$('maintenance-kind').replaceChildren();for(const id of ['maintenance-rows','maintenance-link-rows','maintenance-audit-rows'])$(id).replaceChildren();txt('maintenance-count','');txt('maintenance-audit-status','');txt('maintenance-status','Aguardando consulta.');}
@@ -538,6 +538,50 @@ for(const form of [crmCreate,crmEdit,crmInteraction])form.addEventListener('subm
  const path=creating?'/v1/crm/opportunities':'/v1/crm/opportunities/'+selected.id+(editing?'/update':'/interactions');
  try{const result=await registryRequest(path,'POST',data);if(rev!==crmRevision||!authorized||(!creating&&detailRev!==crmDetailRevision))return;const id=creating?result?.item?.opportunity_id:selected.id;if(!result?.item?.[creating||editing?'opportunity_id':'interaction_id'])throw Error('Confirmação não recebida. Consulte antes de repetir.');crmSaving=false;await refreshCrm(id);if(authorized&&!$('crm-content').hidden)txt('crm-status','Registro efetuado com sucesso.');}
  catch(e){if(rev===crmRevision)txt('crm-status',e.message+' Consulte antes de reenviar.');}finally{crmSaving=false;buttons.forEach(b=>b.disabled=false);}
+});
+
+
+let catalogRevision=0,catalogBusy=false,catalogSaving=false,catalogRows=[],catalogCategories=[],catalogSelected=null;
+const catalogCategoryForm=$('catalog-category-form'),catalogItemForm=$('catalog-item-form');
+const catalogField=(form,key)=>form.elements.namedItem(key);
+const catalogKinds={product:'Produto',service:'Serviço',license:'Licença'};
+const catalogUnits={unit:'Unidade',kit:'Kit',kg:'Quilograma',meter:'Metro',liter:'Litro',hour:'Hora',day:'Dia',project:'Projeto',month:'Mês',year:'Ano',seat:'Usuário',device:'Dispositivo',institution:'Instituição'};
+const catalogAllowed={product:['unit','kit','kg','meter','liter'],service:['unit','hour','day','project','month','year'],license:['unit','seat','device','institution','month','year']};
+const catalogCode=code=>'CAT-'+String(code).padStart(8,'0');
+function catalogUnitOptions(selected=null){const kind=catalogField(catalogItemForm,'kind').value,units=catalogAllowed[kind]||[];options(catalogField(catalogItemForm,'unit'),units.map(id=>({id,label:catalogUnits[id]})),'Selecione a unidade');if(selected&&units.includes(selected))catalogField(catalogItemForm,'unit').value=selected;}
+function clearCatalogEdit(){catalogSelected=null;catalogItemForm.reset();catalogField(catalogItemForm,'kind').disabled=false;$('catalog-status-label').hidden=true;catalogField(catalogItemForm,'status').disabled=true;$('catalog-cancel').hidden=true;txt('catalog-form-title','Novo item');txt('catalog-save','Cadastrar item');catalogUnitOptions();}
+function resetCatalog(){catalogRevision++;catalogRows=[];catalogCategories=[];catalogCategoryForm.reset();clearCatalogEdit();$('catalog-content').hidden=true;$('catalog-search').value='';$('catalog-status-filter').value='';for(const id of ['catalog-kind-filter','catalog-category-filter','catalog-categories-list','catalog-rows','catalog-metrics'])$(id).replaceChildren();txt('catalog-count','');txt('catalog-status','Aguardando consulta.');}
+function renderCatalog(){
+ const metrics=$('catalog-metrics');metrics.replaceChildren();const active=catalogRows.filter(r=>r.status==='active');
+ for(const [label,value] of [['Itens ativos',active.length],['Produtos',active.filter(r=>r.kind==='product').length],['Serviços',active.filter(r=>r.kind==='service').length],['Licenças',active.filter(r=>r.kind==='license').length]]){const card=node('article',undefined,'business-card');card.append(node('span',label),node('strong',value));metrics.append(card);}
+ const cats=$('catalog-categories-list');cats.replaceChildren();for(const cat of catalogCategories){const p=node('p',cat.name+' · '+catalogRows.filter(r=>r.category_id===cat.id).length+' item(ns)','muted small');cats.append(p);}if(!catalogCategories.length)cats.append(node('p','Crie uma categoria antes de cadastrar itens.','muted small'));
+ const query=norm($('catalog-search').value.trim()),kind=$('catalog-kind-filter').value,category=$('catalog-category-filter').value,status=$('catalog-status-filter').value;
+ const rows=catalogRows.filter(r=>(!kind||r.kind===kind)&&(!category||r.category_id===category)&&(!status||r.status===status)&&(!query||norm([r.name,r.description,r.code,catalogCode(r.code),r.category_name].join(' ')).includes(query)));
+ const tbody=$('catalog-rows');tbody.replaceChildren();txt('catalog-count',rows.length+' de '+catalogRows.length+' item(ns).');
+ for(const r of rows){const tr=node('tr');tr.append(node('td',catalogCode(r.code)));const cell=node('td');cell.append(node('strong',r.name));if(r.description)cell.append(node('p',r.description,'catalog-row-description muted small'));tr.append(cell);for(const v of [catalogKinds[r.kind]||r.kind,r.category_name,catalogUnits[r.unit]||r.unit,r.status==='active'?'Ativo':'Inativo'])tr.append(node('td',v||'—'));const actions=node('td'),b=node('button','Editar','btn light');b.type='button';b.addEventListener('click',()=>openCatalogEdit(r));actions.append(b);tr.append(actions);tbody.append(tr);}
+ if(!rows.length){const tr=node('tr'),td=node('td','Nenhum item encontrado.');td.colSpan=7;tr.append(td);tbody.append(tr);}
+}
+function openCatalogEdit(row){if(!authorized||catalogBusy||catalogSaving)return;catalogSelected=row;for(const key of ['kind','category_id','name','description','status'])catalogField(catalogItemForm,key).value=row[key]??'';catalogField(catalogItemForm,'kind').disabled=true;catalogUnitOptions(row.unit);$('catalog-status-label').hidden=false;catalogField(catalogItemForm,'status').disabled=false;$('catalog-cancel').hidden=false;txt('catalog-form-title','Editar · '+catalogCode(row.code));txt('catalog-save','Salvar alteração');catalogField(catalogItemForm,'name').focus();}
+async function refreshCatalog(){
+ if(!authorized||catalogBusy)return;catalogBusy=true;resetCatalog();const rev=catalogRevision;$('catalog-refresh').disabled=true;txt('catalog-status','Consultando catálogo...');
+ try{const context=await registryRequest('/v1/context');if(rev!==catalogRevision||!authorized)return;if(context?.catalog!==true)throw Error('Catálogo indisponível ou acesso restrito.');
+ const data=await registryRequest('/v1/catalog');if(rev!==catalogRevision||!authorized)return;if(!Array.isArray(data?.categories)||!Array.isArray(data?.items))throw Error('Resposta cadastral inválida.');
+ catalogRows=data.items;catalogCategories=data.categories;const cats=catalogCategories.map(c=>({id:c.id,label:c.name}));options(catalogField(catalogItemForm,'category_id'),cats,'Selecione a categoria');options($('catalog-category-filter'),cats,'Todas as categorias');options($('catalog-kind-filter'),Object.entries(catalogKinds).map(([id,label])=>({id,label})),'Todos os tipos');clearCatalogEdit();renderCatalog();$('catalog-content').hidden=false;$('catalog-save').disabled=!cats.length;txt('catalog-status','Catálogo conectado. '+catalogRows.length+' item(ns) cadastrado(s).');
+ }catch(e){if(rev===catalogRevision)txt('catalog-status',e.message+' Nenhum dado foi alterado.');}finally{catalogBusy=false;$('catalog-refresh').disabled=false;}
+}
+$('catalog-refresh').addEventListener('click',refreshCatalog);
+$('catalog-search').addEventListener('input',renderCatalog);
+for(const id of ['catalog-kind-filter','catalog-category-filter','catalog-status-filter'])$(id).addEventListener('change',renderCatalog);
+catalogField(catalogItemForm,'kind').addEventListener('change',()=>catalogUnitOptions());
+$('catalog-cancel').addEventListener('click',clearCatalogEdit);
+for(const form of [catalogCategoryForm,catalogItemForm])form.addEventListener('submit',async event=>{
+ event.preventDefault();if(!authorized||catalogBusy||catalogSaving||$('catalog-content').hidden)return;const category=form===catalogCategoryForm,selected=catalogSelected;
+ catalogSaving=true;const rev=catalogRevision,buttons=[catalogCategoryForm,catalogItemForm].map(f=>f.querySelector('[type=submit]'));buttons.forEach(b=>b.disabled=true);
+ const data=Object.fromEntries(new FormData(form));data.request_id=crypto.randomUUID();
+ const path=category?'/v1/catalog/categories':selected?'/v1/catalog/items/'+selected.id+'/update':'/v1/catalog/items';if(!category&&selected)data.revision=selected.revision;
+ try{const result=await registryRequest(path,'POST',data);if(rev!==catalogRevision||!authorized)return;if(!result?.item?.[category?'category_id':'item_id'])throw Error('Confirmação não recebida. Consulte antes de repetir.');await refreshCatalog();if(authorized&&!$('catalog-content').hidden)txt('catalog-status','Registro efetuado com sucesso.');}
+ catch(e){if(rev===catalogRevision)txt('catalog-status',e.message+' Consulte antes de reenviar.');}
+ finally{catalogSaving=false;buttons[0].disabled=false;buttons[1].disabled=!catalogCategories.length;}
 });
 
 window.addEventListener('hashchange',route);route();

@@ -41,7 +41,7 @@ const membershipSQL="SELECT m.role FROM business.tenant_memberships m JOIN busin
 async function execute(sql,tenant,user,statement,params=[]){
  const roleCheck=await sql.query("SELECT current_user AS role, rolbypassrls, rolsuper FROM pg_roles WHERE rolname=current_user");
  if(roleCheck[0]?.role!=='anna_business_runtime'||roleCheck[0]?.rolbypassrls!==false||roleCheck[0]?.rolsuper!==false)fail(503,'Credencial de serviço não autorizada.');
- const lockScope=sql.query("SELECT set_config('anna.tenant_id',CASE WHEN EXISTS ("+membershipSQL+") THEN $1 ELSE '00000000-0000-0000-0000-000000000000' END,true)",[tenant,user]);
+ const lockScope=sql.query("SELECT set_config('anna.tenant_id',CASE WHEN EXISTS ("+membershipSQL+") THEN ($1::uuid)::text ELSE '00000000-0000-0000-0000-000000000000' END,true)",[tenant,user]);
  const results=await sql.transaction([queryContext(sql,tenant,user),sql.query(membershipSQL,[tenant,user]),lockScope,sql.query(statement,params)]);
  if(!results[1]?.length)fail(403,'Acesso Business ainda não concedido.');
  return {role:results[1][0].role,rows:results[3]};

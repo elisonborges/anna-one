@@ -1,4 +1,5 @@
 -- 015: preparação contratual a partir de pedidos comerciais, sem ativação de direitos.
+ALTER TABLE business.commercial_orders ADD CONSTRAINT commercial_orders_tenant_id_id_key UNIQUE(tenant_id,id);
 CREATE TABLE business.contracts (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
  tenant_id uuid NOT NULL REFERENCES business.tenants(id) ON DELETE RESTRICT,

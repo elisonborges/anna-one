@@ -1,0 +1,8 @@
+# Departamento pessoal — 1.1.0-dev.72
+Incrementos 70–72. Migração 051 aditiva: três tabelas com RLS forçada, escopo por concessão RH da empresa.
+- 70: revisões da jornada informada, regime e escala; não valida jornada legal ou calcula horas.
+- 71: benefícios e equipamentos, referência única enquanto em aberto, devolução/encerramento com data e responsável. Não realiza baixas patrimoniais automáticas.
+- 72: férias e afastamentos administrativos, período, resolução e cancelamento, sem diagnóstico ou anexos médicos. Não calcula saldo aquisitivo, remuneração, direitos ou obrigações oficiais.
+Histórico permanece disponível após encerramento do vínculo; novos registros são bloqueados. Regularização de entregas/períodos existentes permanece possível. Períodos sobrepostos (inclusive concluídos, exceto cancelados) são rejeitados; o encerramento retroativo do vínculo exige conferência administrativa de registros já existentes. Campos livres devem conter apenas referências não sensíveis.
+Testes SQL na branch isolada: duas revisões, bloqueio de revisão retroativa, benefício/equipamento, duplicidade, devolução e repetição, férias, sobreposição, conclusão, ausência futura, bloqueio de conclusão prematura, cancelamento/reprogramação; proprietário sem concessão e terceiro não veem registros. Consulta de API validada com e sem concessão. Testes Node e build Wrangler são gates da publicação.
+Limites: homologação autenticada em navegador e concorrência pendentes; sem dados fictícios em produção. Próximos incrementos 73–75: competências, importação de folha processada e integração financeira/contábil, com autorização específica de folha separada de RH e revisão trabalhista/contábil antes de automação.

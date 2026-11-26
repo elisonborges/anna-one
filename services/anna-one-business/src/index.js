@@ -75,7 +75,7 @@ export default {async fetch(request,env){
   const sql=neon(env.DATABASE_URL);
   if(path==='/v1/context'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT id,name FROM business.tenants WHERE id=$1::uuid AND kind='internal' AND status='active'",[tenant]);
-   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,finance:r.role==='owner',financial_settlements:r.role==='owner',treasury:r.role==='owner',finance_recurring:r.role==='owner',cashflow:r.role==='owner',finance_dashboard:r.role==='owner',purchase_dashboard:['owner','registry_editor'].includes(r.role),purchase_requests:['owner','registry_editor'].includes(r.role),contract_dashboard:['owner','registry_editor'].includes(r.role),license_allocations:['owner','registry_editor'].includes(r.role),license_rights:['owner','registry_editor'].includes(r.role),contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
+   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,finance:r.role==='owner',financial_settlements:r.role==='owner',treasury:r.role==='owner',finance_recurring:r.role==='owner',cashflow:r.role==='owner',finance_dashboard:r.role==='owner',ged:r.role==='owner',purchase_dashboard:['owner','registry_editor'].includes(r.role),purchase_requests:['owner','registry_editor'].includes(r.role),contract_dashboard:['owner','registry_editor'].includes(r.role),license_allocations:['owner','registry_editor'].includes(r.role),license_rights:['owner','registry_editor'].includes(r.role),contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
   }
   if(path==='/v1/parties'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT p.id,p.code::text AS code,p.kind,p.legal_name,p.display_name,p.cnpj_root,p.status,EXISTS(SELECT 1 FROM business.companies c WHERE c.tenant_id=p.tenant_id AND c.party_id=p.id) AS own_company,ARRAY(SELECT pr.role FROM business.party_roles pr WHERE pr.tenant_id=p.tenant_id AND pr.party_id=p.id AND pr.active ORDER BY pr.role) AS roles FROM core.parties p WHERE p.tenant_id=$1::uuid ORDER BY p.legal_name,p.id LIMIT 500",[tenant]);
@@ -141,6 +141,23 @@ SELECT jsonb_build_object(
     if(!r.rows.length)fail(409,'Transição não autorizada, proposta vencida, revisão desatualizada ou oportunidade já encerrada.');
     return send({item:r.rows[0]});
    }
+  }
+  if(path==='/v1/documents'&&request.method==='GET'){
+   const r=await execute(sql,tenant,user,`WITH companies AS (SELECT p.id,p.legal_name AS name FROM business.companies c JOIN core.parties p ON p.tenant_id=c.tenant_id AND p.id=c.party_id WHERE c.tenant_id=$1::uuid AND p.status='active'),
+   parties AS (SELECT id,legal_name AS name FROM core.parties WHERE tenant_id=$1::uuid AND status='active'),
+   docs AS (SELECT id,code::text AS code,company_id,company_name,party_id,party_name,category,title,reference,issued_on::text AS issued_on,expires_on::text AS expires_on,notes,created_at,CASE WHEN expires_on<(now() AT TIME ZONE 'America/Fortaleza')::date THEN 'expired' WHEN expires_on<=(now() AT TIME ZONE 'America/Fortaleza')::date+30 THEN 'due' ELSE 'current' END AS validity FROM business.documents WHERE tenant_id=$1::uuid)
+   SELECT jsonb_build_object('companies',COALESCE((SELECT jsonb_agg(to_jsonb(c) ORDER BY c.name,c.id) FROM companies c),'[]'::jsonb),'parties',COALESCE((SELECT jsonb_agg(to_jsonb(p) ORDER BY p.name,p.id) FROM parties p),'[]'::jsonb),'items',COALESCE((SELECT jsonb_agg(to_jsonb(d) ORDER BY d.code::bigint DESC) FROM docs d),'[]'::jsonb)) AS data`,[tenant]);
+   if(r.role!=='owner')fail(403,'GED restrito ao proprietário.');
+   return send(r.rows[0]?.data||{});
+  }
+  if(path==='/v1/documents'&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),issued=crmDate(b.issued_on),expires=crmDate(b.expires_on);
+   const title=typeof b.title==='string'?b.title.trim():'',ref=typeof b.reference==='string'?b.reference.trim():'',notes=typeof b.notes==='string'?b.notes.trim():'';
+   if(!UUID.test(b.company_id||'')||(b.party_id&&!UUID.test(b.party_id))||!['corporate','commercial','contract','financial','fiscal','operational','other'].includes(b.category)||!title||title.length>200||!ref||ref.length>200||notes.length>1000)fail(400,'Informe empresa, categoria, título e referência válidos.');
+   const r=await execute(sql,tenant,user,"SELECT document_id,document_code::text AS document_code FROM business.create_document($1::uuid,$2::uuid,$3,$4,$5,$6::date,$7::date,$8,$9::uuid)",[b.company_id,b.party_id||null,b.category,title,ref,issued,expires,notes||null,op],true);
+   if(r.role!=='owner')fail(403,'GED restrito ao proprietário.');
+   if(!r.rows.length)fail(409,'Cadastro duplicado, empresa ou parceiro inválido, ou datas inconsistentes.');
+   return send({item:r.rows[0]},201);
   }
   if(path==='/v1/purchase-dashboard'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,`WITH clock AS (SELECT (now() AT TIME ZONE 'America/Fortaleza')::date AS today),

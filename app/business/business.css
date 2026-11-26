@@ -279,3 +279,8 @@ body:has(#painel:not([hidden])) .business-footer{padding:9px 12px;font-size:11px
 #painel #cashflow-reconcile,#painel #cashflow-void{margin:12px 0;padding:12px;border:1px solid var(--ab-line);border-radius:8px;background:var(--ab-bg)}
 #painel #cashflow-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;font-size:13px}
 #painel #cashflow-reviews td,#painel #cashflow-movements td{vertical-align:top}
+
+/* v0.4 — Consolidação financeira */
+#painel #fd-status{padding:9px 12px;background:var(--ab-soft);border:1px solid var(--ab-line);border-left:3px solid var(--ab-primary);border-radius:6px;font-size:13px}
+#painel #fd-content>label{display:block;max-width:440px;margin:12px 0}
+#painel #fd-debtors td{vertical-align:top}

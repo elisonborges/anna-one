@@ -75,7 +75,7 @@ export default {async fetch(request,env){
   const sql=neon(env.DATABASE_URL);
   if(path==='/v1/context'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT id,name FROM business.tenants WHERE id=$1::uuid AND kind='internal' AND status='active'",[tenant]);
-   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,finance:r.role==='owner',financial_settlements:r.role==='owner',treasury:r.role==='owner',finance_recurring:r.role==='owner',cashflow:r.role==='owner',contract_dashboard:['owner','registry_editor'].includes(r.role),license_allocations:['owner','registry_editor'].includes(r.role),license_rights:['owner','registry_editor'].includes(r.role),contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
+   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,finance:r.role==='owner',financial_settlements:r.role==='owner',treasury:r.role==='owner',finance_recurring:r.role==='owner',cashflow:r.role==='owner',finance_dashboard:r.role==='owner',contract_dashboard:['owner','registry_editor'].includes(r.role),license_allocations:['owner','registry_editor'].includes(r.role),license_rights:['owner','registry_editor'].includes(r.role),contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
   }
   if(path==='/v1/parties'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT p.id,p.code::text AS code,p.kind,p.legal_name,p.display_name,p.cnpj_root,p.status,EXISTS(SELECT 1 FROM business.companies c WHERE c.tenant_id=p.tenant_id AND c.party_id=p.id) AS own_company,ARRAY(SELECT pr.role FROM business.party_roles pr WHERE pr.tenant_id=p.tenant_id AND pr.party_id=p.id AND pr.active ORDER BY pr.role) AS roles FROM core.parties p WHERE p.tenant_id=$1::uuid ORDER BY p.legal_name,p.id LIMIT 500",[tenant]);
@@ -141,6 +141,52 @@ SELECT jsonb_build_object(
     if(!r.rows.length)fail(409,'Transição não autorizada, proposta vencida, revisão desatualizada ou oportunidade já encerrada.');
     return send({item:r.rows[0]});
    }
+  }
+  if(path==='/v1/finance-dashboard'&&request.method==='GET'){
+   const r=await execute(sql,tenant,user,`WITH clock AS (SELECT (now() AT TIME ZONE 'America/Fortaleza')::date AS today),
+ companies AS (SELECT p.id,p.legal_name AS name FROM business.companies b JOIN core.parties p ON p.tenant_id=b.tenant_id AND p.id=b.party_id WHERE b.tenant_id=$1::uuid),
+ obligations AS (SELECT o.id,o.company_id,o.direction,o.counterparty_id,o.counterparty_name,o.code::text AS code,o.title,o.amount,o.contract_id,o.contract_revision,c.revision AS current_revision FROM business.financial_obligations o LEFT JOIN business.contracts c ON c.tenant_id=o.tenant_id AND c.id=o.contract_id WHERE o.tenant_id=$1::uuid),
+ installments AS (SELECT i.id,o.company_id,o.direction,o.counterparty_id,o.counterparty_name,o.code,o.title,i.due_on,i.remaining,i.status,clock.today-i.due_on AS days_late FROM business.financial_installments i JOIN obligations o ON o.id=i.obligation_id CROSS JOIN clock WHERE i.tenant_id=$1::uuid),
+ settlements AS (SELECT s.id,o.company_id,o.direction,s.principal,s.discount,s.interest,s.fine,s.cash_amount,s.settled_on,v.reversed_on,l.account_id FROM business.financial_settlements s JOIN business.financial_installments i ON i.tenant_id=s.tenant_id AND i.id=s.installment_id JOIN obligations o ON o.id=i.obligation_id LEFT JOIN business.financial_reversals v ON v.tenant_id=s.tenant_id AND v.settlement_id=s.id LEFT JOIN business.treasury_settlement_links l ON l.tenant_id=s.tenant_id AND l.settlement_id=s.id WHERE s.tenant_id=$1::uuid),
+ movements AS (SELECT m.*,a.company_id FROM business.treasury_movements m JOIN business.treasury_accounts a ON a.tenant_id=m.tenant_id AND a.id=m.account_id WHERE m.tenant_id=$1::uuid),
+ balances AS (SELECT a.id,a.company_id,a.opening_balance+COALESCE((SELECT sum(m.amount) FROM movements m WHERE m.account_id=a.id),0) AS balance FROM business.treasury_accounts a WHERE a.tenant_id=$1::uuid),
+ reviews AS (SELECT r.account_id,r.source_id,r.kind,r.result FROM business.treasury_reconciliations r WHERE r.tenant_id=$1::uuid AND NOT EXISTS (SELECT 1 FROM business.treasury_reconciliation_voids v WHERE v.tenant_id=r.tenant_id AND v.reconciliation_id=r.id)),
+ review_states AS (SELECT m.company_id,COALESCE(r.result,'pending') AS result FROM movements m LEFT JOIN reviews r ON r.account_id=m.account_id AND r.source_id=m.source_id AND r.kind=m.kind),
+ recurring AS (SELECT r.company_id,r.status,r.periods-(SELECT count(*) FROM business.financial_recurring_occurrences x WHERE x.tenant_id=r.tenant_id AND x.rule_id=r.id) AS remaining FROM business.financial_recurring_rules r WHERE r.tenant_id=$1::uuid),
+ renegotiations AS (SELECT o.company_id,n.principal FROM business.financial_renegotiations n JOIN obligations o ON o.id=n.original_id WHERE n.tenant_id=$1::uuid),
+ aging AS (SELECT company_id,CASE WHEN days_late BETWEEN 1 AND 30 THEN '1_30' WHEN days_late BETWEEN 31 AND 60 THEN '31_60' WHEN days_late BETWEEN 61 AND 90 THEN '61_90' ELSE 'over_90' END AS bucket,count(*) AS count,sum(remaining)::text AS amount FROM installments WHERE direction='receivable' AND remaining>0 AND days_late>0 GROUP BY company_id,bucket),
+ debtors AS (SELECT company_id,counterparty_id,max(counterparty_name) AS name,count(*) AS count,sum(remaining)::text AS amount,max(days_late) AS oldest_days FROM installments WHERE direction='receivable' AND remaining>0 AND days_late>0 GROUP BY company_id,counterparty_id),
+ summaries AS (
+ SELECT c.id,c.name,
+ COALESCE((SELECT sum(remaining) FROM installments i WHERE i.company_id=c.id AND direction='receivable'),0)::text AS receivable,
+ COALESCE((SELECT sum(remaining) FROM installments i WHERE i.company_id=c.id AND direction='payable'),0)::text AS payable,
+ COALESCE((SELECT sum(remaining) FROM installments i WHERE i.company_id=c.id AND direction='receivable' AND days_late>0),0)::text AS overdue_in,
+ COALESCE((SELECT sum(remaining) FROM installments i WHERE i.company_id=c.id AND direction='payable' AND days_late>0),0)::text AS overdue_out,
+ COALESCE((SELECT sum(remaining) FROM installments i WHERE i.company_id=c.id AND direction='receivable' AND days_late BETWEEN -29 AND 0),0)::text AS due_in,
+ COALESCE((SELECT sum(remaining) FROM installments i WHERE i.company_id=c.id AND direction='payable' AND days_late BETWEEN -29 AND 0),0)::text AS due_out,
+ (SELECT count(*) FROM debtors d WHERE d.company_id=c.id) AS delinquent_parties,
+ (SELECT count(*) FROM installments i WHERE i.company_id=c.id AND remaining>0) AS open_installments,
+ (SELECT count(*) FROM installments i WHERE i.company_id=c.id AND status='settled') AS settled_installments,
+ (SELECT count(*) FROM installments i WHERE i.company_id=c.id AND status='renegotiated') AS replaced_installments,
+ COALESCE((SELECT sum(balance) FROM balances b WHERE b.company_id=c.id),0)::text AS balance,
+ (SELECT count(*) FROM balances b WHERE b.company_id=c.id AND balance<0) AS negative_accounts,
+ (SELECT count(*) FROM balances b WHERE b.company_id=c.id) AS accounts,
+ COALESCE((SELECT sum(amount) FROM movements m CROSS JOIN clock WHERE m.company_id=c.id AND kind<>'transfer' AND amount>0 AND occurred_on BETWEEN today-29 AND today),0)::text AS actual_in,
+ COALESCE((SELECT -sum(amount) FROM movements m CROSS JOIN clock WHERE m.company_id=c.id AND kind<>'transfer' AND amount<0 AND occurred_on BETWEEN today-29 AND today),0)::text AS actual_out,
+ (SELECT count(*) FROM settlements s WHERE s.company_id=c.id AND cash_amount>0 AND account_id IS NULL) AS unlinked,
+ (SELECT count(*) FROM review_states r WHERE r.company_id=c.id AND result='matched') AS matched,
+ (SELECT count(*) FROM review_states r WHERE r.company_id=c.id AND result='difference') AS differences,
+ (SELECT count(*) FROM review_states r WHERE r.company_id=c.id AND result='pending') AS pending,
+ (SELECT count(*) FROM recurring r WHERE r.company_id=c.id AND status='active' AND remaining>0) AS active_rules,
+ COALESCE((SELECT sum(remaining) FROM recurring r WHERE r.company_id=c.id AND status='active' AND remaining>0),0) AS ungenerated_periods,
+ (SELECT count(*) FROM renegotiations n WHERE n.company_id=c.id) AS renegotiations,
+ COALESCE((SELECT sum(principal) FROM renegotiations n WHERE n.company_id=c.id),0)::text AS renegotiated_history,
+ (SELECT count(*) FROM obligations o WHERE o.company_id=c.id AND contract_id IS NOT NULL AND contract_revision IS DISTINCT FROM current_revision) AS contract_review
+ FROM companies c
+ )
+ SELECT jsonb_build_object('as_of',(SELECT today::text FROM clock),'companies',COALESCE((SELECT jsonb_agg(to_jsonb(s) ORDER BY s.name,s.id) FROM summaries s),'[]'::jsonb),'aging',COALESCE((SELECT jsonb_agg(to_jsonb(a) ORDER BY a.company_id,a.bucket) FROM aging a),'[]'::jsonb),'debtors',COALESCE((SELECT jsonb_agg(to_jsonb(d) ORDER BY d.company_id,d.amount::numeric DESC,d.counterparty_id) FROM (SELECT *,row_number() OVER(PARTITION BY company_id ORDER BY amount::numeric DESC,counterparty_id) AS position FROM debtors) d WHERE d.position<=20),'[]'::jsonb)) AS dashboard`,[tenant]);
+   if(r.role!=='owner')fail(403,'Painel financeiro restrito ao proprietário.');
+   return send(r.rows[0]?.dashboard||{});
   }
   if(path==='/v1/cashflow'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,`WITH clock AS (SELECT (now() AT TIME ZONE 'America/Fortaleza')::date AS today),

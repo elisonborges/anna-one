@@ -290,17 +290,17 @@ SELECT jsonb_build_object(
    SELECT jsonb_build_object('as_of',(SELECT today::text FROM clock),'items',COALESCE((SELECT jsonb_agg(to_jsonb(i) ORDER BY i.company_name,i.tag) FROM items i),'[]'::jsonb),'documents',COALESCE((SELECT jsonb_agg(to_jsonb(d) ORDER BY d.code::bigint DESC) FROM docs d),'[]'::jsonb)) AS data`,[tenant]);
    if(r.role!=='owner')fail(403,'Patrimônio restrito ao proprietário.');return send(r.rows[0]?.data||{});
   }
-  const lifecycleMatch=path.match(/^\/v1\/asset-lifecycle\/([^/]+)$/);
-  if(lifecycleMatch&&UUID.test(lifecycleMatch[1])){
+  const assetLifecycleMatch=path.match(/^\/v1\/asset-lifecycle\/([^/]+)$/);
+  if(assetLifecycleMatch&&UUID.test(assetLifecycleMatch[1])){
    if(request.method==='GET'){
-    const r=await execute(sql,tenant,user,"SELECT e.revision,e.kind,e.event_on::text AS event_on,e.description,e.provider,e.warranty_from::text AS warranty_from,e.warranty_until::text AS warranty_until,e.reference,e.maintenance_cost::text AS maintenance_cost,e.document_id,d.code::text AS document_code,e.created_at FROM business.asset_lifecycle_events e LEFT JOIN business.documents d ON d.tenant_id=e.tenant_id AND d.id=e.document_id WHERE e.tenant_id=$1::uuid AND e.asset_id=$2::uuid ORDER BY e.revision DESC",[tenant,lifecycleMatch[1]]);if(r.role!=='owner')fail(403,'Patrimônio restrito ao proprietário.');return send({items:r.rows});
+    const r=await execute(sql,tenant,user,"SELECT e.revision,e.kind,e.event_on::text AS event_on,e.description,e.provider,e.warranty_from::text AS warranty_from,e.warranty_until::text AS warranty_until,e.reference,e.maintenance_cost::text AS maintenance_cost,e.document_id,d.code::text AS document_code,e.created_at FROM business.asset_lifecycle_events e LEFT JOIN business.documents d ON d.tenant_id=e.tenant_id AND d.id=e.document_id WHERE e.tenant_id=$1::uuid AND e.asset_id=$2::uuid ORDER BY e.revision DESC",[tenant,assetLifecycleMatch[1]]);if(r.role!=='owner')fail(403,'Patrimônio restrito ao proprietário.');return send({items:r.rows});
    }
    if(request.method==='POST'){
     const b=await body(request),op=requestId(b),date=crmDate(b.event_on),from=crmDate(b.warranty_from),until=crmDate(b.warranty_until);
     const clean=(key,max,required=false)=>{const v=b[key];if(v!=null&&typeof v!=='string')fail(400,'Campo inválido.');const x=(v||'').trim();if(x.length>max||(required&&!x))fail(400,'Campo obrigatório ou excede o limite.');return x||null;};
     const desc=clean('description',500,true),provider=clean('provider',200),ref=clean('reference',200),cost=b.maintenance_cost===''||b.maintenance_cost==null?null:b.maintenance_cost;
     if(!Number.isInteger(b.revision)||b.revision<0||b.revision>2147483646||!date||!['warranty','maintenance_start','maintenance_finish','retired','returned'].includes(b.kind)||(b.document_id&&!UUID.test(b.document_id))||(b.kind==='warranty'?(!from||!until||until<from||!provider||!ref):!!(from||until))||(cost!==null&&(b.kind!=='maintenance_finish'||typeof cost!=='string'||!/^(?:0|[1-9][0-9]{0,15})(?:\.[0-9]{1,2})?$/.test(cost))))fail(400,'Confira tipo, data, garantia, valor e revisão.');
-    const r=await execute(sql,tenant,user,"SELECT * FROM business.record_asset_event($1::uuid,$2::integer,$3,$4::date,$5,$6,$7::date,$8::date,$9,$10::numeric,$11::uuid,$12::uuid)",[lifecycleMatch[1],b.revision,b.kind,date,desc,provider,from,until,ref,cost,b.document_id||null,op],true);if(r.role!=='owner')fail(403,'Patrimônio restrito ao proprietário.');if(!r.rows.length)fail(409,'Evento incompatível, bem encerrado, data inválida ou revisão desatualizada.');return send({item:r.rows[0]},201);
+    const r=await execute(sql,tenant,user,"SELECT * FROM business.record_asset_event($1::uuid,$2::integer,$3,$4::date,$5,$6,$7::date,$8::date,$9,$10::numeric,$11::uuid,$12::uuid)",[assetLifecycleMatch[1],b.revision,b.kind,date,desc,provider,from,until,ref,cost,b.document_id||null,op],true);if(r.role!=='owner')fail(403,'Patrimônio restrito ao proprietário.');if(!r.rows.length)fail(409,'Evento incompatível, bem encerrado, data inválida ou revisão desatualizada.');return send({item:r.rows[0]},201);
    }
   }
   if(path==='/v1/assets'&&request.method==='GET'){

@@ -1,0 +1,5 @@
+# Incremento 32 — Cotações e comparação de fornecedores
+
+Cotações integrais de requisições aprovadas, fornecedor ativo classificado, referência, validade, prazo de entrega em dias, condições de pagamento e preços unitários BRL. Quantidades e nomes herdados, arredondamento por linha no banco, snapshots imutáveis, duplicidade por operação e fornecedor/referência, auditoria e RLS. Comparação ordenada por total com validade e condições; não adjudica automaticamente nem gera pedido, obrigação financeira, estoque ou envio a fornecedores. Frete e descontos separados, cotações parciais e escolha formal ficam fora deste incremento.
+
+Migração 026 preparada na branch br-aged-art-b6zt0u3o, migration_id 878c90ba-40a1-4615-9f05-853867996988. DDL executado, tabela e função presentes, RLS forçada, runtime sem UPDATE, tabela vazia e cálculo decimal de exemplo conferido (15,49). Não executados: fluxo autenticado de criação com fornecedores fictícios, testes de rejeição, concorrência e navegador. Não declarar homologação funcional completa. Próximo incremento: 33 pedidos de compra.

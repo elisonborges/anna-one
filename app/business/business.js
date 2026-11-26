@@ -1002,7 +1002,7 @@ async function showPurchaseReceipts(o,host,current){
 
 // Incremento 36 — painel consolidado de compras (somente leitura).
 let pdRevision=0,pdData=null;
-function resetPurchaseDashboard(){pdRevision++;pdData=null;$('pd-content').hidden=true;$('pd-finance').hidden=true;for(const id of ['pd-company','pd-requests','pd-orders','pd-receipts','pd-finance-metrics','pd-suppliers'])$(id).replaceChildren();txt('pd-status','Aguardando consulta.');}
+function resetPurchaseDashboard(){pdRevision++;pdData=null;$('pd-refresh').disabled=false;$('pd-content').hidden=true;$('pd-finance').hidden=true;for(const id of ['pd-company','pd-requests','pd-orders','pd-receipts','pd-finance-metrics','pd-suppliers'])$(id).replaceChildren();txt('pd-status','Aguardando consulta.');}
 function renderPurchaseDashboard(){
  if(!pdData)return;
  const c=pdData.companies.find(x=>x.id===$('pd-company').value);

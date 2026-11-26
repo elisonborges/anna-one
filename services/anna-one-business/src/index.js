@@ -142,6 +142,31 @@ SELECT jsonb_build_object(
     return send({item:r.rows[0]});
    }
   }
+  const orderMatch=path.match(/^\/v1\/purchase-requests\/([^/]+)\/orders$/);
+  if(orderMatch&&UUID.test(orderMatch[1])){
+   const rid=orderMatch[1];
+   if(request.method==='GET'){
+    const r=await execute(sql,tenant,user,"SELECT id,code::text AS code,quote_id,supplier_name,company_name,quote_reference,valid_until::text,delivery_days,payment_terms,lines,total::text,justification,status,revision,decision_reason,created_at,decided_at FROM business.purchase_orders WHERE tenant_id=$1::uuid AND request_id=$2::uuid ORDER BY code DESC",[tenant,rid]);
+    if(!['owner','registry_editor'].includes(r.role))fail(403,'Pedidos restritos à equipe de compras.');
+    return send({items:r.rows,can_approve:r.role==='owner'});
+   }
+   if(request.method==='POST'){
+    const b=await body(request),op=requestId(b),why=typeof b.justification==='string'?b.justification.trim():'';
+    if(!UUID.test(b.quote_id||'')||!why||why.length>1000)fail(400,'Informe cotação e justificativa.');
+    const r=await execute(sql,tenant,user,"SELECT order_id FROM business.create_purchase_order($1::uuid,$2::uuid,$3,$4::uuid)",[rid,b.quote_id,why,op],true);
+    if(!r.rows.length)fail(409,'Cotação inválida ou vencida, requisição não aprovada ou pedido já existente.');
+    return send({item:r.rows[0]},201);
+   }
+  }
+  const orderDecision=path.match(/^\/v1\/purchase-orders\/([^/]+)\/decide$/);
+  if(orderDecision&&UUID.test(orderDecision[1])&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),reason=typeof b.reason==='string'?b.reason.trim():'';
+   if(!['approved','rejected'].includes(b.status)||b.revision!==1||!reason||reason.length>1000)fail(400,'Informe decisão, revisão e justificativa.');
+   const r=await execute(sql,tenant,user,"SELECT order_id FROM business.decide_purchase_order($1::uuid,$2::integer,$3,$4,$5::uuid)",[orderDecision[1],b.revision,b.status,reason,op],true);
+   if(r.role!=='owner')fail(403,'Aprovação restrita ao proprietário.');
+   if(!r.rows.length)fail(409,'Decisão não autorizada, revisão desatualizada ou cotação vencida.');
+   return send({item:r.rows[0]});
+  }
   const quoteMatch=path.match(/^\/v1\/purchase-requests\/([^/]+)\/quotes$/);
   if(quoteMatch&&UUID.test(quoteMatch[1])){
    const rid=quoteMatch[1];

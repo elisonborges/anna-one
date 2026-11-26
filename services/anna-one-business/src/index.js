@@ -43,10 +43,10 @@ async function masterLicenseModules(request,env){
  if(!Array.isArray(data?.items))fail(503,'Lista de módulos não confirmada.');
  return data.items.filter(m=>typeof m?.id==='string'&&UUID.test(m.id)&&typeof m.code==='string'&&m.code.length>0&&m.code.length<=100&&typeof m.name==='string'&&m.status==='available').map(m=>({id:m.id,code:m.code,name:m.name}));
 }
-async function body(request){
+async function body(request,limit=8192){
  if(!/^application\/json(?:;|$)/i.test(request.headers.get('Content-Type')||''))fail(415,'Envie JSON.');
  const reader=request.body?.getReader();if(!reader)fail(400,'Corpo obrigatório.');
- let size=0;const chunks=[];while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>8192){await reader.cancel();fail(413,'Dados excedem o limite.');}chunks.push(value);}
+ let size=0;const chunks=[];while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>limit){await reader.cancel();fail(413,'Dados excedem o limite.');}chunks.push(value);}
  const bytes=new Uint8Array(size);let offset=0;for(const c of chunks){bytes.set(c,offset);offset+=c.length;}
  try{const value=JSON.parse(new TextDecoder().decode(bytes));if(!value||typeof value!=='object'||Array.isArray(value))fail(400,'Dados inválidos.');return value;}catch{fail(400,'JSON inválido.');}
 }
@@ -141,6 +141,31 @@ SELECT jsonb_build_object(
     if(!r.rows.length)fail(409,'Transição não autorizada, proposta vencida, revisão desatualizada ou oportunidade já encerrada.');
     return send({item:r.rows[0]});
    }
+  }
+  const docVersions=path.match(/^\/v1\/documents\/([^/]+)\/versions$/);
+  if(docVersions&&UUID.test(docVersions[1])){
+   const doc=docVersions[1];
+   if(request.method==='GET'){
+    const r=await execute(sql,tenant,user,"SELECT id,version_no,filename,size_bytes,sha256_hex,note,created_at FROM business.document_versions WHERE tenant_id=$1::uuid AND document_id=$2::uuid ORDER BY version_no DESC",[tenant,doc]);
+    if(r.role!=='owner')fail(403,'GED restrito ao proprietário.');return send({items:r.rows});
+   }
+   if(request.method==='POST'){
+    const auth=await execute(sql,tenant,user,"SELECT id FROM business.documents WHERE tenant_id=$1::uuid AND id=$2::uuid",[tenant,doc]);
+    if(auth.role!=='owner')fail(403,'GED restrito ao proprietário.');if(!auth.rows.length)fail(404,'Documento não encontrado.');
+    const b=await body(request,1405000),op=requestId(b),filename=typeof b.filename==='string'?b.filename.trim():'',note=typeof b.note==='string'?b.note.trim():'';
+    if(filename.length<5||filename.length>180||!filename.toLowerCase().endsWith('.pdf')||/[\\/\x00-\x1f\x7f]/.test(filename)||!note||note.length>500||typeof b.content!=='string'||b.content.length>1398104||! /^[A-Za-z0-9+/]+={0,2}$/.test(b.content)||b.content.length%4!==0||!b.content.startsWith('JVBERi0'))fail(400,'Informe PDF de até 1 MiB, nome e descrição da versão.');
+    const r=await execute(sql,tenant,user,"SELECT * FROM business.create_document_version($1::uuid,$2,$3,$4,$5::uuid)",[doc,filename,b.content,note,op],true);
+    if(!r.rows.length)fail(409,'Arquivo repetido, limite atingido ou documento inválido.');
+    return send({item:r.rows[0]},201);
+   }
+  }
+  const versionDownload=path.match(/^\/v1\/document-versions\/([^/]+)\/download$/);
+  if(versionDownload&&UUID.test(versionDownload[1])&&request.method==='GET'){
+   const r=await execute(sql,tenant,user,"SELECT filename,replace(encode(content,'base64'),chr(10),'') AS content,sha256_hex,size_bytes FROM business.document_versions WHERE tenant_id=$1::uuid AND id=$2::uuid",[tenant,versionDownload[1]]);
+   if(r.role!=='owner')fail(403,'GED restrito ao proprietário.');if(!r.rows.length)fail(404,'Versão não encontrada.');
+   const x=r.rows[0],bytes=Uint8Array.from(atob(x.content),c=>c.charCodeAt(0)),hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),b=>b.toString(16).padStart(2,'0')).join('');
+   if(hash!==x.sha256_hex||bytes.length!==x.size_bytes)fail(500,'Integridade do arquivo não confirmada.');
+   return send({item:x});
   }
   if(path==='/v1/documents'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,`WITH companies AS (SELECT p.id,p.legal_name AS name FROM business.companies c JOIN core.parties p ON p.tenant_id=c.tenant_id AND p.id=c.party_id WHERE c.tenant_id=$1::uuid AND p.status='active'),

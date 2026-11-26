@@ -63,4 +63,30 @@ CREATE FUNCTION business.transition_connect_event(p_id uuid,p_action text,p_note
 $$;
 REVOKE ALL ON FUNCTION business.enqueue_connect_event(text,text,text,uuid,text,uuid),business.transition_connect_event(uuid,text,text,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION business.enqueue_connect_event(text,text,text,uuid,text,uuid),business.transition_connect_event(uuid,text,text,uuid) TO anna_business_runtime;
+
+-- Outbox de eventos de documentos e pendências: somente identificadores opacos.
+CREATE FUNCTION business.capture_connect_portal_event() RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER AS $fn$
+DECLARE v_type text;
+BEGIN
+ IF TG_TABLE_NAME='portal_publications' THEN
+  IF TG_OP='INSERT' THEN v_type:='portal.document.published';
+  ELSIF OLD.revoked_at IS NULL AND NEW.revoked_at IS NOT NULL THEN v_type:='portal.document.revoked';
+  ELSE RETURN NEW;
+  END IF;
+ ELSIF TG_TABLE_NAME='accounting_pendencies' THEN
+  IF TG_OP='INSERT' THEN v_type:='accounting.pendency.created';
+  ELSIF OLD.closed_at IS NULL AND NEW.closed_at IS NOT NULL THEN v_type:='accounting.pendency.closed';
+  ELSE RETURN NEW;
+  END IF;
+ ELSE RETURN NEW;
+ END IF;
+ PERFORM business.enqueue_connect_event('business',v_type,v_type||':'||NEW.id::text,NEW.id,TG_TABLE_NAME||':'||NEW.id::text,gen_random_uuid());
+ RETURN NEW;
+END;
+$fn$;
+REVOKE ALL ON FUNCTION business.capture_connect_portal_event() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION business.capture_connect_portal_event() TO anna_business_runtime;
+CREATE TRIGGER connect_portal_publication AFTER INSERT OR UPDATE OF revoked_at ON business.portal_publications FOR EACH ROW EXECUTE FUNCTION business.capture_connect_portal_event();
+CREATE TRIGGER connect_accounting_pendency AFTER INSERT OR UPDATE OF closed_at ON business.accounting_pendencies FOR EACH ROW EXECUTE FUNCTION business.capture_connect_portal_event();
+
 COMMIT;

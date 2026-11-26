@@ -1,18 +1,14 @@
-# AnnA Business — v0.9.0-rc.1 · incremento 60
+# AnnA Business — 1.0.0-dev.66
 
-Candidato à homologação da fase Portais e Integrações, não publicado.
+Ciclo inicial de desenvolvimento 01–66. Referência: Plano Diretor AB-PD-001 rev. 1.0.
 
-## Estado do ciclo v0.9
+A v0.9 e o incremento 61 foram publicados pelo PR #173, commit b0fb298; migrações 046–049 aplicadas em produção. O ciclo 62–66 acrescenta indicadores gerenciais, preferências locais, administração, integridade, auditoria e rastreabilidade, sem migração nova.
 
-- 55–56: fundação dos portais e publicações GED, integrados à main (PRs #167 e #168).
-- 57: Central Contábil, competência, pendências, pacotes ZIP e autorização (PR #169; migração 046).
-- 58: AnnA Connect, fila persistente, histórico, idempotência e reprocessamento manual (PR #170; migração 047).
-- 59: portal de serviços, abertura de solicitações, referência contratual validada e histórico de status (PR #171; migração 048).
-- 60: captura de atualizações de serviços no Connect (migração 049), descarte de dados ao ocultar/restaurar o portal e consolidação técnica.
+- [Consolidação v1.0](V10-RELEASE.md)
+- [Painel executivo](V10-EXECUTIVE.md)
+- [Consolidação v0.9 — registro histórico](V09-RELEASE.md)
 
-Os PRs 169–171 e o incremento 60 são empilhados. A ordem de integração é 169, 170, 171 e consolidação, após autorização e revisão. Aplicar migrações 046–049 em ordem somente após autorização; não copiar fixtures da branch de teste. Confirmar backup, configuração do Worker, homologação com sessões reais, PDFs completos e concorrência antes de liberar.
-
-Detalhes: [Consolidação v0.9](V09-RELEASE.md). Abaixo permanece o registro histórico da fundação.
+Versão de desenvolvimento, sujeita à homologação operacional. Publicação depende de testes Node, build e verificação do Worker e GitHub Pages. O registro histórico abaixo não descreve o estado atual.
 
 ---
 

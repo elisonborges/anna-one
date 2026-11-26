@@ -19,11 +19,11 @@ CREATE FUNCTION business.management_period_closed(p_tenant uuid,p_company uuid,p
  SELECT COALESCE((SELECT e.status='closed' FROM business.management_period_events e WHERE e.tenant_id=p_tenant AND e.company_id=p_company AND e.period_on=date_trunc('month',p_date::timestamp)::date ORDER BY e.revision DESC LIMIT 1),false)
 $$;
 CREATE FUNCTION business.guard_management_allocation_period() RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER AS $$
- DECLARE company uuid; previous date; BEGIN
- SELECT o.company_id INTO company FROM business.financial_obligations o WHERE o.tenant_id=NEW.tenant_id AND o.id=NEW.obligation_id;
+ DECLARE company uuid; previous date; issued date; BEGIN
+ SELECT o.company_id,o.issued_on INTO company,issued FROM business.financial_obligations o WHERE o.tenant_id=NEW.tenant_id AND o.id=NEW.obligation_id;
  PERFORM pg_advisory_xact_lock(hashtextextended(NEW.tenant_id::text||':'||company::text,47));
  SELECT a.competence_on INTO previous FROM business.management_allocations a WHERE a.tenant_id=NEW.tenant_id AND a.obligation_id=NEW.obligation_id ORDER BY a.revision DESC LIMIT 1;
- IF business.management_period_closed(NEW.tenant_id,company,NEW.competence_on) OR (previous IS NOT NULL AND business.management_period_closed(NEW.tenant_id,company,previous)) THEN RAISE EXCEPTION 'Período gerencial encerrado.' USING ERRCODE='23514'; END IF;
+ IF business.management_period_closed(NEW.tenant_id,company,NEW.competence_on) OR business.management_period_closed(NEW.tenant_id,company,COALESCE(previous,issued)) THEN RAISE EXCEPTION 'Período gerencial encerrado.' USING ERRCODE='23514'; END IF;
  RETURN NEW; END
 $$;
 CREATE TRIGGER guard_management_allocation_period BEFORE INSERT ON business.management_allocations FOR EACH ROW EXECUTE FUNCTION business.guard_management_allocation_period();

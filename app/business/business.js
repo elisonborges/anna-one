@@ -15,7 +15,7 @@ function applyTheme(dark){document.documentElement.dataset.theme=dark?'dark':'li
 let theme='light';try{theme=localStorage.getItem('anna-business-theme')||'light';}catch{}applyTheme(theme==='dark');
 themeButton.addEventListener('click',()=>{const dark=document.documentElement.dataset.theme!=='dark';applyTheme(dark);try{localStorage.setItem('anna-business-theme',dark?'dark':'light');}catch{}});
 function clearProfile(){profileRevision++;$('profile').hidden=true;$('profile-fields').replaceChildren();txt('profile-status','');}
-function resetWorkspace(){resetPurchases();resetFinanceDashboard();resetCashflow();resetRecurring();resetTreasury();resetFinance();resetContractDashboard();resetAllocations();resetLicenses();resetContracts();resetCommercial();resetProposals();resetPrices();resetCatalog();resetCrm();maintenanceOrgTarget=null;resetMaintenance();resetOrganogram();resetBrands();resetContacts();resetOwnership();resetCorporate();resetLinks();resetRegistry();authorized=false;institutions=[];groups=[];groupsAvailable=false;clearProfile();$('workspace').hidden=true;$('access').hidden=false;$('institution-rows').replaceChildren();$('group-list').replaceChildren();for(const id of ['metric-total','metric-active','metric-matrix','metric-groups'])txt(id,'—');txt('result-count','');txt('groups-status','');txt('data-status','Aguardando consulta…');}
+function resetWorkspace(){resetPurchaseDashboard();resetPurchases();resetFinanceDashboard();resetCashflow();resetRecurring();resetTreasury();resetFinance();resetContractDashboard();resetAllocations();resetLicenses();resetContracts();resetCommercial();resetProposals();resetPrices();resetCatalog();resetCrm();maintenanceOrgTarget=null;resetMaintenance();resetOrganogram();resetBrands();resetContacts();resetOwnership();resetCorporate();resetLinks();resetRegistry();authorized=false;institutions=[];groups=[];groupsAvailable=false;clearProfile();$('workspace').hidden=true;$('access').hidden=false;$('institution-rows').replaceChildren();$('group-list').replaceChildren();for(const id of ['metric-total','metric-active','metric-matrix','metric-groups'])txt(id,'—');txt('result-count','');txt('groups-status','');txt('data-status','Aguardando consulta…');}
 class AccessError extends Error{}
 async function getJwt(){
  if(!authClient){const sdk=await import('https://esm.sh/@neondatabase/auth@0.5.0-beta?bundle');authClient=sdk.createAuthClient(AUTH_URL);}
@@ -76,7 +76,7 @@ async function load(){
  }catch(e){if(rev!==revision)return;resetWorkspace();txt('auth-status',e instanceof AccessError?e.message:'Não foi possível consultar o serviço existente. Verifique a conexão e tente novamente.');}
  finally{loading=false;$('retry').disabled=false;$('refresh').disabled=false;if(rev!==revision&&location.hash==='#painel')load();}
 }
-function showView(view){for(const b of document.querySelectorAll('[data-view]')){const active=b.dataset.view===view;b.setAttribute('aria-pressed',String(active));$('view-'+b.dataset.view).hidden=!active;}if(view!=='institutions')clearProfile();if(view==='registry')refreshRegistry();else resetRegistry();if(view==='links')refreshLinks();else resetLinks();if(view==='corporate')refreshCorporate();else resetCorporate();if(view==='ownership')refreshOwnership();else resetOwnership();if(view==='contacts')refreshContacts();else resetContacts();if(view==='brands')refreshBrands();else resetBrands();if(view==='organogram')refreshOrganogram();else resetOrganogram();if(view==='maintenance')refreshMaintenance();else resetMaintenance();if(view==='crm')refreshCrm();else resetCrm();if(view==='catalog')refreshCatalog();else resetCatalog();if(view==='prices')refreshPrices();else resetPrices();if(view==='proposals')refreshProposals();else resetProposals();if(view==='commercial')refreshCommercial();else resetCommercial();if(view==='contracts')refreshContracts();else resetContracts();if(view==='licenses')refreshLicenses();else resetLicenses();if(view==='allocations')refreshAllocations();else resetAllocations();if(view==='contract-dashboard')refreshContractDashboard();else resetContractDashboard();if(view==='finance')refreshFinance();else resetFinance();if(view==='treasury')refreshTreasury();else resetTreasury();if(view==='finance-recurring')refreshRecurring();else resetRecurring();if(view==='cashflow')refreshCashflow();else resetCashflow();if(view==='finance-dashboard')refreshFinanceDashboard();else resetFinanceDashboard();if(view==='purchases')refreshPurchases();else resetPurchases();}
+function showView(view){for(const b of document.querySelectorAll('[data-view]')){const active=b.dataset.view===view;b.setAttribute('aria-pressed',String(active));$('view-'+b.dataset.view).hidden=!active;}if(view!=='institutions')clearProfile();if(view==='registry')refreshRegistry();else resetRegistry();if(view==='links')refreshLinks();else resetLinks();if(view==='corporate')refreshCorporate();else resetCorporate();if(view==='ownership')refreshOwnership();else resetOwnership();if(view==='contacts')refreshContacts();else resetContacts();if(view==='brands')refreshBrands();else resetBrands();if(view==='organogram')refreshOrganogram();else resetOrganogram();if(view==='maintenance')refreshMaintenance();else resetMaintenance();if(view==='crm')refreshCrm();else resetCrm();if(view==='catalog')refreshCatalog();else resetCatalog();if(view==='prices')refreshPrices();else resetPrices();if(view==='proposals')refreshProposals();else resetProposals();if(view==='commercial')refreshCommercial();else resetCommercial();if(view==='contracts')refreshContracts();else resetContracts();if(view==='licenses')refreshLicenses();else resetLicenses();if(view==='allocations')refreshAllocations();else resetAllocations();if(view==='contract-dashboard')refreshContractDashboard();else resetContractDashboard();if(view==='finance')refreshFinance();else resetFinance();if(view==='treasury')refreshTreasury();else resetTreasury();if(view==='finance-recurring')refreshRecurring();else resetRecurring();if(view==='cashflow')refreshCashflow();else resetCashflow();if(view==='finance-dashboard')refreshFinanceDashboard();else resetFinanceDashboard();if(view==='purchases')refreshPurchases();else resetPurchases();if(view==='purchase-dashboard')refreshPurchaseDashboard();else resetPurchaseDashboard();}
 for(const b of document.querySelectorAll('[data-view]'))b.addEventListener('click',()=>showView(b.dataset.view));
 for(const id of ['search','kind','status-filter'])$(id).addEventListener(id==='search'?'input':'change',()=>{clearProfile();renderInstitutions();});
 $('close-profile').addEventListener('click',clearProfile);$('retry').addEventListener('click',load);$('refresh').addEventListener('click',load);
@@ -998,5 +998,36 @@ async function showPurchaseReceipts(o,host,current){
  };
  try{await load();}catch(e){if(active())status.textContent=e.message;}
 }
+
+
+// Incremento 36 — painel consolidado de compras (somente leitura).
+let pdRevision=0,pdData=null;
+function resetPurchaseDashboard(){pdRevision++;pdData=null;$('pd-content').hidden=true;$('pd-finance').hidden=true;for(const id of ['pd-company','pd-requests','pd-orders','pd-receipts','pd-finance-metrics','pd-suppliers'])$(id).replaceChildren();txt('pd-status','Aguardando consulta.');}
+function renderPurchaseDashboard(){
+ if(!pdData)return;
+ const c=pdData.companies.find(x=>x.id===$('pd-company').value);
+ for(const id of ['pd-requests','pd-orders','pd-receipts','pd-finance-metrics','pd-suppliers'])$(id).replaceChildren();
+ $('pd-finance').hidden=true;
+ if(!c){treasuryEmpty($('pd-suppliers'),3,'Selecione uma empresa.');return;}
+ const metric=(host,label,value)=>proposalMetric($(host),label,String(value));
+ for(const [label,key] of [['Requisições','requests'],['Aguardando aprovação','awaiting_request'],['Urgentes em aberto','urgent'],['Necessidade vencida','late_requests'],['Sem cotação vigente','awaiting_quote'],['Cotações registradas','quotes'],['Cotações vencidas','expired_quotes']])metric('pd-requests',label,c[key]);
+ for(const [label,key] of [['Aguardando aprovação','awaiting_order'],['Pedidos aprovados','approved_orders'],['Entrega pendente','awaiting_delivery'],['Entrega completa','delivered_orders']])metric('pd-orders',label,c[key]);
+ metric('pd-orders','Valor dos pedidos aprovados',commercialMoney(c.ordered_value));
+ metric('pd-receipts','Conferidos',c.matched);metric('pd-receipts','Com divergência',c.divergent);metric('pd-receipts','Valor conferido',commercialMoney(c.matched_value));
+ if(c.finance){$('pd-finance').hidden=false;metric('pd-finance-metrics','Recebimentos integrados',c.finance.integrated);metric('pd-finance-metrics','Aguardando integração',c.finance.pending);metric('pd-finance-metrics','Valor originalmente integrado',commercialMoney(c.finance.value));}
+ const rows=pdData.suppliers.filter(x=>x.company_id===c.id);for(const x of rows)recRow($('pd-suppliers'),[x.name,x.orders,commercialMoney(x.total)]);
+ if(!rows.length)treasuryEmpty($('pd-suppliers'),3,'Nenhum pedido aprovado.');
+}
+async function refreshPurchaseDashboard(preferred=null){
+ if(!authorized)return;resetPurchaseDashboard();const rev=pdRevision;$('pd-refresh').disabled=true;txt('pd-status','Consultando indicadores...');
+ try{const ctx=await registryRequest('/v1/context');if(rev!==pdRevision||!authorized)return;if(ctx?.purchase_dashboard!==true)throw Error('Painel de compras restrito à equipe autorizada.');
+ const d=await registryRequest('/v1/purchase-dashboard');if(rev!==pdRevision||!authorized)return;if(!Array.isArray(d?.companies)||!Array.isArray(d?.suppliers)||typeof d.as_of!=='string')throw Error('Resposta inválida.');
+ pdData=d;options($('pd-company'),d.companies.map(c=>({id:c.id,label:c.name})),'Selecione empresa');if(d.companies.some(c=>c.id===preferred))$('pd-company').value=preferred;else if(d.companies.length)$('pd-company').value=d.companies[0].id;
+ renderPurchaseDashboard();$('pd-content').hidden=false;txt('pd-status','Posição em '+d.as_of.split('-').reverse().join('/')+'. Indicadores acumulados, sem movimentação financeira.');
+ }catch(e){if(rev===pdRevision)txt('pd-status',e.message);}finally{if(rev===pdRevision)$('pd-refresh').disabled=false;}
+}
+$('pd-company').addEventListener('change',renderPurchaseDashboard);
+$('pd-refresh').addEventListener('click',()=>refreshPurchaseDashboard($('pd-company').value));
+$('pd-go-purchases').addEventListener('click',()=>showView('purchases'));
 
 window.addEventListener('hashchange',route);route();

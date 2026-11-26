@@ -75,7 +75,7 @@ export default {async fetch(request,env){
   const sql=neon(env.DATABASE_URL);
   if(path==='/v1/context'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT id,name FROM business.tenants WHERE id=$1::uuid AND kind='internal' AND status='active'",[tenant]);
-   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,finance:r.role==='owner',financial_settlements:r.role==='owner',treasury:r.role==='owner',finance_recurring:r.role==='owner',cashflow:r.role==='owner',finance_dashboard:r.role==='owner',ged:r.role==='owner',fiscal_registry:r.role==='owner',fiscal_documents:r.role==='owner',fiscal_agenda:r.role==='owner',fiscal_dashboard:r.role==='owner',management_dimensions:r.role==='owner',management_allocations:r.role==='owner',management_budgets:r.role==='owner',management_results:r.role==='owner',purchase_dashboard:['owner','registry_editor'].includes(r.role),purchase_requests:['owner','registry_editor'].includes(r.role),contract_dashboard:['owner','registry_editor'].includes(r.role),license_allocations:['owner','registry_editor'].includes(r.role),license_rights:['owner','registry_editor'].includes(r.role),contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
+   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,finance:r.role==='owner',financial_settlements:r.role==='owner',treasury:r.role==='owner',finance_recurring:r.role==='owner',cashflow:r.role==='owner',finance_dashboard:r.role==='owner',ged:r.role==='owner',fiscal_registry:r.role==='owner',fiscal_documents:r.role==='owner',fiscal_agenda:r.role==='owner',fiscal_dashboard:r.role==='owner',management_dimensions:r.role==='owner',management_allocations:r.role==='owner',management_budgets:r.role==='owner',management_results:r.role==='owner',management_periods:r.role==='owner',purchase_dashboard:['owner','registry_editor'].includes(r.role),purchase_requests:['owner','registry_editor'].includes(r.role),contract_dashboard:['owner','registry_editor'].includes(r.role),license_allocations:['owner','registry_editor'].includes(r.role),license_rights:['owner','registry_editor'].includes(r.role),contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
   }
   if(path==='/v1/parties'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT p.id,p.code::text AS code,p.kind,p.legal_name,p.display_name,p.cnpj_root,p.status,EXISTS(SELECT 1 FROM business.companies c WHERE c.tenant_id=p.tenant_id AND c.party_id=p.id) AS own_company,ARRAY(SELECT pr.role FROM business.party_roles pr WHERE pr.tenant_id=p.tenant_id AND pr.party_id=p.id AND pr.active ORDER BY pr.role) AS roles FROM core.parties p WHERE p.tenant_id=$1::uuid ORDER BY p.legal_name,p.id LIMIT 500",[tenant]);
@@ -141,6 +141,20 @@ SELECT jsonb_build_object(
     if(!r.rows.length)fail(409,'Transição não autorizada, proposta vencida, revisão desatualizada ou oportunidade já encerrada.');
     return send({item:r.rows[0]});
    }
+  }
+  if(path==='/v1/management-periods'&&request.method==='GET'){
+   const year=Number(new URL(request.url).searchParams.get('year'));if(!Number.isInteger(year)||year<2000||year>2100)fail(400,'Ano inválido.');
+   const r=await execute(sql,tenant,user,`WITH companies AS (SELECT c.party_id AS id,p.legal_name AS name FROM business.companies c JOIN core.parties p ON p.tenant_id=c.tenant_id AND p.id=c.party_id WHERE c.tenant_id=$1::uuid),
+   history AS (SELECT e.id,e.company_id,e.period_on::text AS period_on,e.revision,e.status,e.checklist,e.snapshot,e.reason,e.created_at FROM business.management_period_events e WHERE e.tenant_id=$1::uuid AND extract(year FROM e.period_on)=$2::integer)
+   SELECT jsonb_build_object('year',$2::integer,'as_of',(now() AT TIME ZONE 'America/Fortaleza')::date::text,'companies',COALESCE((SELECT jsonb_agg(to_jsonb(c) ORDER BY c.name,c.id) FROM companies c),'[]'::jsonb),'history',COALESCE((SELECT jsonb_agg(to_jsonb(h) ORDER BY h.period_on,h.revision DESC) FROM history h),'[]'::jsonb)) AS data`,[tenant,year]);
+   if(r.role!=='owner')fail(403,'Fechamento gerencial restrito ao proprietário.');return send(r.rows[0]?.data||{});
+  }
+  if(path==='/v1/management-periods'&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),period=crmDate(b.period_on),reason=typeof b.reason==='string'?b.reason.trim():'';
+   if(!UUID.test(b.company_id||'')||!period||!period.endsWith('-01')||!Number.isInteger(b.revision)||b.revision<0||b.revision>2147483646||!['closed','open'].includes(b.status)||!reason||reason.length>500)fail(400,'Confira empresa, período, revisão e justificativa.');
+   if(b.status==='closed'&&(!b.checklist||!['documents','reconciliation','allocations','budget','exceptions'].every(k=>b.checklist[k]===true)||Object.keys(b.checklist).length!==5))fail(400,'Confirme todos os itens do checklist.');
+   const r=await execute(sql,tenant,user,"SELECT * FROM business.change_management_period($1::uuid,$2::date,$3::integer,$4,$5::jsonb,$6,$7::uuid)",[b.company_id,period,b.revision,b.status,b.status==='closed'?JSON.stringify(b.checklist):null,reason,op],true);
+   if(r.role!=='owner')fail(403,'Fechamento gerencial restrito ao proprietário.');if(!r.rows.length)fail(409,'Período inválido, não encerrado, estado inalterado ou revisão desatualizada.');return send({item:r.rows[0]},201);
   }
   if(path==='/v1/management-results'&&request.method==='GET'){
    const year=Number(new URL(request.url).searchParams.get('year'));
@@ -1154,6 +1168,7 @@ SELECT COALESCE((SELECT jsonb_agg(to_jsonb(n) ORDER BY n.kind,n.label,n.id) FROM
   return send({error:'Rota não encontrada.'},404);
  }catch(e){
   if(e instanceof ApiError)return send({error:e.message},e.status);
+  if(e?.code==='42501'&&(/management_(allocation|budget)_period_guard/.test(e.message||'')))return send({error:'Período gerencial encerrado. Consulte o fechamento e reabra com justificativa, se necessário.'},409);
   if(e?.code==='42501')return send({error:'Operação não autorizada.'},403);
   if(e?.code==='40001')return send({error:'Alteração concorrente. Atualize a estrutura antes de tentar novamente.'},409);
   if(e?.code==='23505')return send({error:'Cadastro existente ou conflito de unicidade. Consulte antes de repetir.'},409);

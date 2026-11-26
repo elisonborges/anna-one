@@ -75,7 +75,7 @@ export default {async fetch(request,env){
   const sql=neon(env.DATABASE_URL);
   if(path==='/v1/context'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT id,name FROM business.tenants WHERE id=$1::uuid AND kind='internal' AND status='active'",[tenant]);
-   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,finance:r.role==='owner',financial_settlements:r.role==='owner',treasury:r.role==='owner',finance_recurring:r.role==='owner',cashflow:r.role==='owner',finance_dashboard:r.role==='owner',ged:r.role==='owner',fiscal_registry:r.role==='owner',fiscal_documents:r.role==='owner',fiscal_agenda:r.role==='owner',purchase_dashboard:['owner','registry_editor'].includes(r.role),purchase_requests:['owner','registry_editor'].includes(r.role),contract_dashboard:['owner','registry_editor'].includes(r.role),license_allocations:['owner','registry_editor'].includes(r.role),license_rights:['owner','registry_editor'].includes(r.role),contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
+   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,finance:r.role==='owner',financial_settlements:r.role==='owner',treasury:r.role==='owner',finance_recurring:r.role==='owner',cashflow:r.role==='owner',finance_dashboard:r.role==='owner',ged:r.role==='owner',fiscal_registry:r.role==='owner',fiscal_documents:r.role==='owner',fiscal_agenda:r.role==='owner',fiscal_dashboard:r.role==='owner',purchase_dashboard:['owner','registry_editor'].includes(r.role),purchase_requests:['owner','registry_editor'].includes(r.role),contract_dashboard:['owner','registry_editor'].includes(r.role),license_allocations:['owner','registry_editor'].includes(r.role),license_rights:['owner','registry_editor'].includes(r.role),contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
   }
   if(path==='/v1/parties'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT p.id,p.code::text AS code,p.kind,p.legal_name,p.display_name,p.cnpj_root,p.status,EXISTS(SELECT 1 FROM business.companies c WHERE c.tenant_id=p.tenant_id AND c.party_id=p.id) AS own_company,ARRAY(SELECT pr.role FROM business.party_roles pr WHERE pr.tenant_id=p.tenant_id AND pr.party_id=p.id AND pr.active ORDER BY pr.role) AS roles FROM core.parties p WHERE p.tenant_id=$1::uuid ORDER BY p.legal_name,p.id LIMIT 500",[tenant]);
@@ -141,6 +141,43 @@ SELECT jsonb_build_object(
     if(!r.rows.length)fail(409,'Transição não autorizada, proposta vencida, revisão desatualizada ou oportunidade já encerrada.');
     return send({item:r.rows[0]});
    }
+  }
+  if(path==='/v1/fiscal-dashboard'&&request.method==='GET'){
+   const r=await execute(sql,tenant,user,`WITH clock AS (SELECT (now() AT TIME ZONE 'America/Fortaleza')::date AS today),
+ companies AS (SELECT c.party_id AS id,p.legal_name AS name FROM business.companies c JOIN core.parties p ON p.tenant_id=c.tenant_id AND p.id=c.party_id WHERE c.tenant_id=$1::uuid),
+ establishments AS (SELECT e.id,e.party_id AS company_id FROM core.establishments e JOIN companies c ON c.id=e.party_id WHERE e.tenant_id=$1::uuid AND e.status='active'),
+ profiles AS (SELECT f.id,f.establishment_id,f.company_id,f.effective_on FROM business.fiscal_profiles f WHERE f.tenant_id=$1::uuid),
+ docs AS (SELECT d.id,d.company_id,d.category,d.expires_on,d.code,d.title FROM business.documents d WHERE d.tenant_id=$1::uuid),
+ versions AS (SELECT v.document_id,v.size_bytes FROM business.document_versions v WHERE v.tenant_id=$1::uuid),
+ fiscal AS (SELECT f.company_id,f.document_id,f.direction,f.declared_status,f.total FROM business.fiscal_documents f WHERE f.tenant_id=$1::uuid),
+ obligations AS (SELECT o.id,o.company_id,o.establishment_id,o.title,o.period,o.due_on,o.status,o.evidence_id FROM business.fiscal_obligations o WHERE o.tenant_id=$1::uuid),
+ summaries AS (
+ SELECT c.id,c.name,
+ (SELECT count(*) FROM docs d WHERE d.company_id=c.id) AS documents,
+ (SELECT count(*) FROM docs d WHERE d.company_id=c.id AND NOT EXISTS(SELECT 1 FROM versions v WHERE v.document_id=d.id)) AS no_attachment,
+ (SELECT count(*) FROM docs d WHERE d.company_id=c.id AND d.expires_on<(SELECT today FROM clock)) AS expired,
+ (SELECT count(*) FROM docs d WHERE d.company_id=c.id AND d.expires_on BETWEEN (SELECT today FROM clock) AND (SELECT today+30 FROM clock)) AS expiring,
+ (SELECT count(*) FROM versions v JOIN docs d ON d.id=v.document_id WHERE d.company_id=c.id) AS versions,
+ COALESCE((SELECT sum(v.size_bytes) FROM versions v JOIN docs d ON d.id=v.document_id WHERE d.company_id=c.id),0)::text AS bytes,
+ (SELECT count(*) FROM establishments e WHERE e.company_id=c.id) AS establishments,
+ (SELECT count(*) FROM establishments e WHERE e.company_id=c.id AND NOT EXISTS(SELECT 1 FROM profiles p WHERE p.establishment_id=e.id AND p.effective_on<=(SELECT today FROM clock))) AS missing_profile,
+ (SELECT count(*) FROM docs d WHERE d.company_id=c.id AND d.category='fiscal' AND NOT EXISTS(SELECT 1 FROM fiscal f WHERE f.document_id=d.id)) AS unlinked_fiscal,
+ (SELECT count(*) FROM fiscal f WHERE f.company_id=c.id AND f.direction='incoming') AS incoming,
+ (SELECT count(*) FROM fiscal f WHERE f.company_id=c.id AND f.direction='outgoing') AS outgoing,
+ (SELECT count(*) FROM fiscal f WHERE f.company_id=c.id AND f.declared_status='cancelled') AS cancelled_docs,
+ COALESCE((SELECT sum(f.total) FROM fiscal f WHERE f.company_id=c.id AND f.direction='incoming' AND f.declared_status='issued'),0)::text AS incoming_value,
+ COALESCE((SELECT sum(f.total) FROM fiscal f WHERE f.company_id=c.id AND f.direction='outgoing' AND f.declared_status='issued'),0)::text AS outgoing_value,
+ (SELECT count(*) FROM obligations o WHERE o.company_id=c.id AND o.status='pending' AND o.due_on<(SELECT today FROM clock)) AS overdue,
+ (SELECT count(*) FROM obligations o WHERE o.company_id=c.id AND o.status='pending' AND o.due_on BETWEEN (SELECT today FROM clock) AND (SELECT today+30 FROM clock)) AS due,
+ (SELECT count(*) FROM obligations o WHERE o.company_id=c.id AND o.status='pending' AND o.due_on>(SELECT today+30 FROM clock)) AS future,
+ (SELECT count(*) FROM obligations o WHERE o.company_id=c.id AND o.status='fulfilled') AS fulfilled,
+ (SELECT count(*) FROM obligations o WHERE o.company_id=c.id AND o.status='fulfilled' AND o.evidence_id IS NULL) AS fulfilled_without_evidence,
+ (SELECT count(*) FROM obligations o WHERE o.company_id=c.id AND o.status='cancelled') AS cancelled_obligations
+ FROM companies c),
+ deadlines AS (SELECT o.company_id,o.title,o.period,o.due_on::text AS due_on,CASE WHEN o.due_on<clock.today THEN 'overdue' ELSE 'due' END AS validity,row_number() OVER(PARTITION BY o.company_id ORDER BY o.due_on,o.id) AS position FROM obligations o CROSS JOIN clock WHERE o.status='pending' AND o.due_on<=clock.today+30),
+ expiry AS (SELECT d.company_id,d.code::text AS code,d.title,d.expires_on::text AS expires_on,CASE WHEN d.expires_on<clock.today THEN 'expired' ELSE 'expiring' END AS validity,row_number() OVER(PARTITION BY d.company_id ORDER BY d.expires_on,d.id) AS position FROM docs d CROSS JOIN clock WHERE d.expires_on<=clock.today+30)
+ SELECT jsonb_build_object('as_of',(SELECT today::text FROM clock),'companies',COALESCE((SELECT jsonb_agg(to_jsonb(s) ORDER BY s.name,s.id) FROM summaries s),'[]'::jsonb),'storage_bytes',COALESCE((SELECT sum(size_bytes) FROM versions),0)::text,'storage_limit',33554432,'deadlines',COALESCE((SELECT jsonb_agg(to_jsonb(d) ORDER BY d.company_id,d.position) FROM deadlines d WHERE d.position<=20),'[]'::jsonb),'expiry',COALESCE((SELECT jsonb_agg(to_jsonb(e) ORDER BY e.company_id,e.position) FROM expiry e WHERE e.position<=20),'[]'::jsonb)) AS dashboard`,[tenant]);
+   if(r.role!=='owner')fail(403,'Painel GED e Fiscal restrito ao proprietário.');return send(r.rows[0]?.dashboard||{});
   }
   if(path==='/v1/fiscal-obligations'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,`WITH clock AS (SELECT (now() AT TIME ZONE 'America/Fortaleza')::date AS today),

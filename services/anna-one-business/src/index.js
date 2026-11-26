@@ -1168,10 +1168,10 @@ SELECT COALESCE((SELECT jsonb_agg(to_jsonb(n) ORDER BY n.kind,n.label,n.id) FROM
   return send({error:'Rota não encontrada.'},404);
  }catch(e){
   if(e instanceof ApiError)return send({error:e.message},e.status);
+  if(e?.code==='42501'&&(/management_(allocation|budget)_period_guard/.test(e.message||'')))return send({error:'Período gerencial encerrado. Consulte o fechamento e reabra com justificativa, se necessário.'},409);
   if(e?.code==='42501')return send({error:'Operação não autorizada.'},403);
   if(e?.code==='40001')return send({error:'Alteração concorrente. Atualize a estrutura antes de tentar novamente.'},409);
   if(e?.code==='23505')return send({error:'Cadastro existente ou conflito de unicidade. Consulte antes de repetir.'},409);
-  if(e?.code==='23514'&&['Período gerencial encerrado.','Orçamento do período encerrado não pode ser alterado.'].includes(e.message))return send({error:'Período gerencial encerrado. Consulte o fechamento e reabra com justificativa, se necessário.'},409);
   if(['23514','23503','23502','22P02'].includes(e?.code))return send({error:'Dados incompatíveis com as regras cadastrais.'},422);
   return send({error:'Serviço cadastral indisponível. Não reenvie sem consultar o cadastro.'},503);
  }

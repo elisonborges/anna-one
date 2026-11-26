@@ -1,0 +1,5 @@
+# Incremento 33 — Pedidos de compra
+
+Escolha justificada de cotação vigente, snapshot de fornecedor, empresa, linhas, valores, pagamento e entrega. Pedido interno pendente, aprovado ou reprovado; revisão otimista e decisão motivada pelo proprietário. Um único pedido pendente/aprovado por requisição; reprovação permite nova escolha. Sem emissão externa, obrigação financeira ou estoque. O proprietário pode aprovar seu próprio pedido com justificativa (controle compensatório de auditoria); segregação configurável fica para evolução.
+
+Migração 027 homologada em br-still-night-b67if7rg, migration_id e907ed43-92bd-4494-9dc7-b21173cd39a1. Dados fictícios e runtime restrito: cotação de 15,49 convertida em pedido, duplicidade bloqueada, revisão incorreta bloqueada, aprovação confirmada na revisão 2, tentativa de decisão posterior bloqueada, preço original preservado. Testes de reprovação inicial, editor/leitor, concorrência simultânea, autenticação no navegador e deploy operacional ainda pendentes. Nenhum envio ou pagamento. Próxima prioridade: 34 recebimentos e conferência.

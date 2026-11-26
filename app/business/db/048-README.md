@@ -1,0 +1,5 @@
+# Incremento 59 — Serviços dos clientes
+
+Migração 048: solicitações e acompanhamento por concessão individual de cliente; abertura pelo cliente ou proprietário; histórico append-only de status publicado pelo proprietário. Vínculo contratual opcional na publicação interna exige vendedor e cliente iguais ao escopo da concessão; somente código de referência é exibido, nunca acesso ao contrato interno. Nenhum vínculo de autorização com Service Desk, licenças ou ERP do cliente. Não permite anexos, mensagens de resposta do cliente ou SLA automático.
+
+Validação SQL em br-sweet-boat-b69532hl com anna_business_runtime e fixtures fictícias: concessão 1; abertura cliente 1; duplicada 0; leitura própria 1; atualização externa 0; contador 0; contrato inexistente 0; publicação interna 1; transição inválida 0; aceite, execução, espera, retomada, conclusão 1 cada; transição após conclusão 0; histórico próprio 5; histórico contador 0; revogação 1; leitura após revogação 0. Sintaxe JavaScript e IDs HTML conferidos. Pendente testar vínculo positivo com contrato fictício completo, JWT real, navegador e concorrência. Não houve migração, deploy ou compartilhamento em produção.

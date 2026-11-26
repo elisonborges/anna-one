@@ -1,0 +1,12 @@
+const labels={requested:'Solicitada',accepted:'Aceita',in_progress:'Em andamento',waiting_customer:'Aguardando cliente',completed:'Concluída',cancelled:'Cancelada'};
+export function renderCustomerServices(host,grants,cases,submit){
+ host.replaceChildren();const scope=grants.filter(g=>g.portal_role==='customer'),allowed=new Set(scope.map(g=>g.id));host.hidden=!scope.length;if(!scope.length)return;
+ const n=(tag,value)=>{const e=document.createElement(tag);if(value!==undefined)e.textContent=value;return e;};
+ const form=n('form'),fields=n('div');fields.className='filters';const grant=n('select'),title=n('input'),description=n('textarea');grant.required=title.required=description.required=true;title.maxLength=200;description.maxLength=1500;
+ for(const g of scope){const o=n('option','Concessão '+g.id+' · empresa '+g.company_id);o.value=g.id;grant.append(o);}
+ for(const [label,input] of [['Concessão',grant],['Título',title],['Descrição da solicitação',description]]){const l=n('label',label);l.append(input);fields.append(l);}
+ const button=n('button','Enviar solicitação');button.type='submit';button.className='btn';const status=n('p');status.setAttribute('role','status');form.append(fields,n('p','Não inclua senhas ou dados sensíveis. Esta solicitação não é um chamado automático do Service Desk.'),button,status);
+ let operation=null,key=null;form.addEventListener('submit',async e=>{e.preventDefault();if(button.disabled)return;const p={grant_id:grant.value,title:title.value.trim(),description:description.value.trim()},k=JSON.stringify(p);if(k!==key){operation=crypto.randomUUID();key=k;}button.disabled=true;try{await submit({...p,request_id:operation});status.textContent='Solicitação registrada.';}catch(err){status.textContent=err.message;}finally{button.disabled=false;}});
+ const list=n('div');list.className='business-grid';for(const c of cases.filter(c=>allowed.has(c.grant_id))){const card=n('article');card.className='business-card';const updates=Array.isArray(c.updates)?c.updates:[];card.append(n('h3',c.title),n('p',labels[updates.at(-1)?.status||'requested']),n('p',c.contract_reference||'Sem vínculo contratual publicado'),n('p',c.description));const history=n('ol');for(const u of updates)history.append(n('li',labels[u.status]+' · '+u.message+' · '+u.created_at));card.append(history);list.append(card);}if(!list.children.length)list.append(n('p','Nenhuma solicitação neste escopo.'));
+ host.append(n('h2','Serviços e solicitações'),form,n('h3','Acompanhamento'),list);
+}

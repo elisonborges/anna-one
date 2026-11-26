@@ -75,7 +75,7 @@ export default {async fetch(request,env){
   const sql=neon(env.DATABASE_URL);
   if(path==='/v1/context'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT id,name FROM business.tenants WHERE id=$1::uuid AND kind='internal' AND status='active'",[tenant]);
-   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,finance:r.role==='owner',financial_settlements:r.role==='owner',treasury:r.role==='owner',finance_recurring:r.role==='owner',cashflow:r.role==='owner',finance_dashboard:r.role==='owner',purchase_requests:['owner','registry_editor'].includes(r.role),contract_dashboard:['owner','registry_editor'].includes(r.role),license_allocations:['owner','registry_editor'].includes(r.role),license_rights:['owner','registry_editor'].includes(r.role),contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
+   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,finance:r.role==='owner',financial_settlements:r.role==='owner',treasury:r.role==='owner',finance_recurring:r.role==='owner',cashflow:r.role==='owner',finance_dashboard:r.role==='owner',purchase_dashboard:['owner','registry_editor'].includes(r.role),purchase_requests:['owner','registry_editor'].includes(r.role),contract_dashboard:['owner','registry_editor'].includes(r.role),license_allocations:['owner','registry_editor'].includes(r.role),license_rights:['owner','registry_editor'].includes(r.role),contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
   }
   if(path==='/v1/parties'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT p.id,p.code::text AS code,p.kind,p.legal_name,p.display_name,p.cnpj_root,p.status,EXISTS(SELECT 1 FROM business.companies c WHERE c.tenant_id=p.tenant_id AND c.party_id=p.id) AS own_company,ARRAY(SELECT pr.role FROM business.party_roles pr WHERE pr.tenant_id=p.tenant_id AND pr.party_id=p.id AND pr.active ORDER BY pr.role) AS roles FROM core.parties p WHERE p.tenant_id=$1::uuid ORDER BY p.legal_name,p.id LIMIT 500",[tenant]);
@@ -141,6 +141,40 @@ SELECT jsonb_build_object(
     if(!r.rows.length)fail(409,'Transição não autorizada, proposta vencida, revisão desatualizada ou oportunidade já encerrada.');
     return send({item:r.rows[0]});
    }
+  }
+  if(path==='/v1/purchase-dashboard'&&request.method==='GET'){
+   const r=await execute(sql,tenant,user,`WITH clock AS (SELECT (now() AT TIME ZONE 'America/Fortaleza')::date AS today),
+ companies AS (SELECT p.id,p.legal_name AS name FROM business.companies c JOIN core.parties p ON p.tenant_id=c.tenant_id AND p.id=c.party_id WHERE c.tenant_id=$1::uuid),
+ requests AS (SELECT r.*,COALESCE((SELECT sum(l.estimated_total) FROM business.purchase_request_lines l WHERE l.tenant_id=r.tenant_id AND l.request_id=r.id),0) AS estimate FROM business.purchase_requests r WHERE r.tenant_id=$1::uuid),
+ quotes AS (SELECT q.*,r.company_id FROM business.purchase_quotes q JOIN requests r ON r.id=q.request_id WHERE q.tenant_id=$1::uuid),
+ orders AS (SELECT o.* FROM business.purchase_orders o WHERE o.tenant_id=$1::uuid),
+ receipts AS (SELECT r.*,o.company_id FROM business.purchase_receipts r JOIN orders o ON o.id=r.order_id WHERE r.tenant_id=$1::uuid),
+ balances AS (SELECT o.id,o.company_id,COALESCE(bool_and(COALESCE(x.received,0)>=(l->>'quantity')::numeric),false) AS complete FROM orders o CROSS JOIN LATERAL jsonb_array_elements(o.lines) l LEFT JOIN LATERAL (SELECT sum((rl->>'quantity')::numeric) AS received FROM receipts r CROSS JOIN LATERAL jsonb_array_elements(r.lines) rl WHERE r.order_id=o.id AND rl->>'line_id'=l->>'line_id') x ON true WHERE o.status='approved' GROUP BY o.id,o.company_id),
+ suppliers AS (SELECT o.company_id,o.supplier_id,max(o.supplier_name) AS name,count(*) AS orders,sum(o.total)::text AS total FROM orders o WHERE o.status='approved' GROUP BY o.company_id,o.supplier_id),
+ summaries AS (SELECT c.id,c.name,
+ (SELECT count(*) FROM requests r WHERE r.company_id=c.id) AS requests,
+ (SELECT count(*) FROM requests r WHERE r.company_id=c.id AND r.status='submitted') AS awaiting_request,
+ (SELECT count(*) FROM requests r WHERE r.company_id=c.id AND r.status IN ('draft','submitted') AND r.priority='urgent') AS urgent,
+ (SELECT count(*) FROM requests r WHERE r.company_id=c.id AND r.status IN ('draft','submitted','approved') AND r.needed_on<(SELECT today FROM clock) AND NOT EXISTS(SELECT 1 FROM orders o JOIN balances b ON b.id=o.id WHERE o.request_id=r.id AND b.complete)) AS late_requests,
+ (SELECT count(*) FROM requests r WHERE r.company_id=c.id AND r.status='approved' AND NOT EXISTS(SELECT 1 FROM quotes q WHERE q.request_id=r.id AND q.valid_until>=(SELECT today FROM clock)) AND NOT EXISTS(SELECT 1 FROM orders o WHERE o.request_id=r.id AND o.status IN ('pending','approved'))) AS awaiting_quote,
+ (SELECT count(*) FROM quotes q WHERE q.company_id=c.id) AS quotes,
+ (SELECT count(*) FROM quotes q WHERE q.company_id=c.id AND q.valid_until<(SELECT today FROM clock)) AS expired_quotes,
+ (SELECT count(*) FROM orders o WHERE o.company_id=c.id AND o.status='pending') AS awaiting_order,
+ (SELECT count(*) FROM orders o WHERE o.company_id=c.id AND o.status='approved') AS approved_orders,
+ COALESCE((SELECT sum(o.total) FROM orders o WHERE o.company_id=c.id AND o.status='approved'),0)::text AS ordered_value,
+ (SELECT count(*) FROM balances b WHERE b.company_id=c.id AND NOT b.complete) AS awaiting_delivery,
+ (SELECT count(*) FROM balances b WHERE b.company_id=c.id AND b.complete) AS delivered_orders,
+ (SELECT count(*) FROM receipts r WHERE r.company_id=c.id AND r.status='matched') AS matched,
+ (SELECT count(*) FROM receipts r WHERE r.company_id=c.id AND r.status='divergent') AS divergent,
+ COALESCE((SELECT sum(r.expected_total) FROM receipts r WHERE r.company_id=c.id AND r.status='matched'),0)::text AS matched_value,
+ CASE WHEN EXISTS(SELECT 1 FROM business.tenant_memberships m WHERE m.tenant_id=$1::uuid AND m.user_id::text=current_setting('anna.actor_id',true) AND m.active AND m.role='owner') THEN jsonb_build_object(
+ 'integrated',(SELECT count(*) FROM receipts r JOIN business.financial_obligations f ON f.tenant_id=r.tenant_id AND f.purchase_receipt_id=r.id WHERE r.company_id=c.id),
+ 'pending',(SELECT count(*) FROM receipts r WHERE r.company_id=c.id AND r.status='matched' AND r.document_total>0 AND NOT EXISTS(SELECT 1 FROM business.financial_obligations f WHERE f.tenant_id=r.tenant_id AND f.purchase_receipt_id=r.id)),
+ 'value',COALESCE((SELECT sum(f.amount) FROM receipts r JOIN business.financial_obligations f ON f.tenant_id=r.tenant_id AND f.purchase_receipt_id=r.id WHERE r.company_id=c.id),0)::text) ELSE NULL END AS finance
+ FROM companies c)
+ SELECT jsonb_build_object('as_of',(SELECT today::text FROM clock),'companies',COALESCE((SELECT jsonb_agg(to_jsonb(s) ORDER BY s.name,s.id) FROM summaries s),'[]'::jsonb),'suppliers',COALESCE((SELECT jsonb_agg(to_jsonb(s) ORDER BY s.company_id,s.total::numeric DESC,s.supplier_id) FROM suppliers s),'[]'::jsonb)) AS dashboard`,[tenant]);
+   if(!['owner','registry_editor'].includes(r.role))fail(403,'Painel restrito à equipe de compras.');
+   return send(r.rows[0]?.dashboard||{});
   }
   const orderMatch=path.match(/^\/v1\/purchase-requests\/([^/]+)\/orders$/);
   if(orderMatch&&UUID.test(orderMatch[1])){

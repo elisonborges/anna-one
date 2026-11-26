@@ -69,7 +69,7 @@ export default {async fetch(request,env){
  if(origin&&origin!==ORIGIN)return send({error:'Origem não permitida.'},403);
  if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{...headers,'Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Authorization, Content-Type','Access-Control-Max-Age':'600'}});
  const path=new URL(request.url).pathname;
- if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.1.0-dev.72',status:'online'});
+ if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.1.0-dev.75',status:'online'});
  try{
   if(!env.DATABASE_URL||!UUID.test(env.INTERNAL_TENANT_ID||''))fail(503,'Serviço cadastral ainda não configurado.');
   const portalDownload=path.match(/^\/v1\/portal\/publications\/([^/]+)\/download$/);
@@ -173,6 +173,44 @@ SELECT jsonb_build_object(
     if(!r.rows.length)fail(409,'Transição não autorizada, proposta vencida, revisão desatualizada ou oportunidade já encerrada.');
     return send({item:r.rows[0]});
    }
+  }
+  if(path==='/v1/payroll'&&request.method==='GET'){
+   const r=await execute(sql,tenant,user,`SELECT jsonb_build_object('admin',business.hr_admin($1::uuid),'actor_id',$2::uuid,'companies',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',c.party_id,'name',p.legal_name,'allowed',business.payroll_allowed(c.tenant_id,c.party_id)) ORDER BY p.legal_name) FROM business.companies c JOIN core.parties p ON p.tenant_id=c.tenant_id AND p.id=c.party_id WHERE c.tenant_id=$1::uuid AND business.hr_admin(c.tenant_id)),'[]'::jsonb),'grants',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',g.id,'company_id',g.company_id,'user_id',g.user_id,'reason',g.reason,'revoked_at',g.revoked_at) ORDER BY g.created_at DESC) FROM (SELECT * FROM business.payroll_grants WHERE tenant_id=$1::uuid ORDER BY created_at DESC LIMIT 500)g),'[]'::jsonb)) AS data`,[tenant,user]);if(r.role!=='owner')fail(403,'Folha restrita ao proprietário com concessão específica.');return send(r.rows[0].data);
+  }
+  if(path==='/v1/payroll/grants'&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),company=b.company_id,recipient=b.user_id,reason=typeof b.reason==='string'?b.reason.trim():'';
+   if(!UUID.test(company||'')||!UUID.test(recipient||'')||!reason||reason.length>300)fail(400,'Confira concessão.');
+   const r=await execute(sql,tenant,user,"INSERT INTO business.payroll_grants(tenant_id,company_id,user_id,reason,operation_id,created_by) SELECT $1::uuid,$2::uuid,$3::uuid,$4,$5::uuid,$6::uuid WHERE business.hr_admin($1::uuid) ON CONFLICT DO NOTHING RETURNING id",[tenant,company,recipient,reason,op,user],true);if(r.role!=='owner')fail(403,'Concessões restritas ao proprietário.');if(!r.rows.length)fail(409,'Concessão indisponível.');return send({item:r.rows[0]},201);
+  }
+  const payrollRevoke=path.match(/^\/v1\/payroll\/grants\/([^/]+)\/revoke$/);
+  if(payrollRevoke&&UUID.test(payrollRevoke[1])&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),reason=typeof b.reason==='string'?b.reason.trim():'';
+   if(!reason||reason.length>300)fail(400,'Informe justificativa.');
+   const r=await execute(sql,tenant,user,"UPDATE business.payroll_grants SET revoked_at=now(),revoked_by=$3::uuid,revoke_reason=$4,revoke_op=$5::uuid WHERE tenant_id=$1::uuid AND id=$2::uuid AND revoked_at IS NULL AND business.hr_admin(tenant_id) RETURNING id",[tenant,payrollRevoke[1],user,reason,op],true);if(r.role!=='owner')fail(403,'Concessões restritas ao proprietário.');if(!r.rows.length)fail(409,'Concessão indisponível.');return send({item:r.rows[0]});
+  }
+  if(path==='/v1/payroll/records'&&request.method==='GET'){
+   const company=new URL(request.url).searchParams.get('company');if(!UUID.test(company||''))fail(400,'Selecione empresa.');
+   const r=await execute(sql,tenant,user,`SELECT jsonb_build_object('allowed',business.payroll_allowed($1::uuid,$2::uuid),'periods',COALESCE((SELECT jsonb_agg(to_jsonb(x) ORDER BY x.competence DESC) FROM (SELECT id,competence::text AS competence FROM business.payroll_periods WHERE tenant_id=$1::uuid AND company_id=$2::uuid ORDER BY competence DESC LIMIT 120)x),'[]'::jsonb),'batches',COALESCE((SELECT jsonb_agg(to_jsonb(x) ORDER BY x.created_at DESC) FROM (SELECT b.id,b.period_id,b.source_reference,b.source_hash,b.lines,b.total::text AS total,b.status,b.decision_reason,b.created_at,COALESCE((SELECT jsonb_agg(jsonb_build_object('line_no',l.line_no,'obligation_id',l.obligation_id,'code',o.code::text) ORDER BY l.line_no) FROM business.payroll_finance_links l JOIN business.financial_obligations o ON o.tenant_id=l.tenant_id AND o.id=l.obligation_id WHERE l.tenant_id=b.tenant_id AND l.batch_id=b.id),'[]'::jsonb) AS obligations,COALESCE((SELECT jsonb_agg(jsonb_build_object('grant_id',l.grant_id,'pendency_id',l.pendency_id)) FROM business.payroll_accounting_links l WHERE l.tenant_id=b.tenant_id AND l.batch_id=b.id),'[]'::jsonb) AS handoffs FROM business.payroll_batches b WHERE b.tenant_id=$1::uuid AND b.company_id=$2::uuid ORDER BY b.created_at DESC LIMIT 100)x),'[]'::jsonb),'payees',COALESCE((SELECT jsonb_agg(to_jsonb(x) ORDER BY x.name) FROM (SELECT id,legal_name AS name FROM core.parties WHERE tenant_id=$1::uuid AND id<>$2::uuid AND kind='PJ' AND status='active' AND business.payroll_allowed($1::uuid,$2::uuid) ORDER BY legal_name LIMIT 500)x),'[]'::jsonb),'accountants',COALESCE((SELECT jsonb_agg(to_jsonb(x) ORDER BY x.name) FROM (SELECT g.id,p.legal_name AS name,g.user_id FROM business.portal_grants g JOIN core.parties p ON p.tenant_id=g.tenant_id AND p.id=g.party_id WHERE g.tenant_id=$1::uuid AND g.company_id=$2::uuid AND g.portal_role='accountant' AND g.revoked_at IS NULL AND (now() AT TIME ZONE 'America/Fortaleza')::date BETWEEN g.valid_from AND g.valid_until AND business.payroll_allowed($1::uuid,$2::uuid))x),'[]'::jsonb)) AS data`,[tenant,company]);if(r.rows[0]?.data?.allowed!==true)fail(403,'Concessão específica de folha necessária.');return send(r.rows[0].data);
+  }
+  if(path==='/v1/payroll/periods'&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),company=b.company_id,month=b.competence;
+   if(!UUID.test(company||'')||typeof month!=='string'||!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)||!validReportRange(month+'-01',month+'-01'))fail(400,'Confira empresa e competência.');
+   const r=await execute(sql,tenant,user,"INSERT INTO business.payroll_periods(tenant_id,company_id,competence,operation_id,created_by) SELECT $1::uuid,$2::uuid,$3::date,$4::uuid,$5::uuid WHERE business.payroll_allowed($1::uuid,$2::uuid) ON CONFLICT DO NOTHING RETURNING id",[tenant,company,month+'-01',op,user],true);if(!r.rows.length)fail(409,'Competência duplicada ou acesso indisponível.');return send({item:r.rows[0]},201);
+  }
+  if(path==='/v1/payroll/batches'&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),period=b.period_id,ref=typeof b.source_reference==='string'?b.source_reference.trim():'',lines=b.lines;
+   if(!UUID.test(period||'')||!ref||ref.length>120||!Array.isArray(lines)||lines.length<1||lines.length>100||!lines.every(x=>x&&typeof x==='object'&&!Array.isArray(x)&&Object.keys(x).length===5&&['net_pay','tax','social_charge','benefit','other'].includes(x.kind)&&typeof x.payee_id==='string'&&UUID.test(x.payee_id)&&typeof x.amount==='string'&&/^(0|[1-9][0-9]{0,11})([.][0-9]{1,2})?$/.test(x.amount)&&Number(x.amount)>0&&validReportRange(x.issued_on,x.issued_on)&&validReportRange(x.due_on,x.due_on)&&x.issued_on<=x.due_on))fail(400,'Importe de 1 a 100 linhas agregadas válidas, sem dados individuais.');
+   const normalized=lines.map(x=>({kind:x.kind,payee_id:x.payee_id.toLowerCase(),amount:x.amount,issued_on:x.issued_on,due_on:x.due_on}));
+   const encoded=JSON.stringify(normalized),hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(encoded))),b=>b.toString(16).padStart(2,'0')).join('');
+   const r=await execute(sql,tenant,user,"SELECT * FROM business.import_payroll_batch($1::uuid,$2,$3,$4::jsonb,$5::uuid)",[period,ref,hash,encoded,op],true);if(!r.rows.length)fail(409,'Lote inválido, duplicado, beneficiário incompatível ou autorização indisponível.');return send({item:r.rows[0]},201);
+  }
+  const payrollAction=path.match(/^\/v1\/payroll\/batches\/([^/]+)\/(decision|integrate|handoff)$/);
+  if(payrollAction&&UUID.test(payrollAction[1])&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),id=payrollAction[1],action=payrollAction[2];let r;
+   if(action==='decision'){const reason=typeof b.reason==='string'?b.reason.trim():'';if(!['approved','cancelled'].includes(b.status)||!reason||reason.length>300||b.confirmed!==true)fail(400,'Confirme decisão e justificativa.');r=await execute(sql,tenant,user,"SELECT * FROM business.decide_payroll_batch($1::uuid,$2,$3,$4::uuid)",[id,b.status,reason,op],true);}
+   else if(action==='integrate'){if(b.confirmed!==true)fail(400,'Confirme os beneficiários, valores e lançamento financeiro.');r=await execute(sql,tenant,user,"SELECT * FROM business.integrate_payroll_batch($1::uuid,$2::uuid)",[id,op],true);}
+   else{if(!UUID.test(b.grant_id||'')||b.confirmed!==true)fail(400,'Confirme a concessão de contador.');r=await execute(sql,tenant,user,"SELECT * FROM business.handoff_payroll_batch($1::uuid,$2::uuid,$3::uuid)",[id,b.grant_id,op],true);}
+   if(!r.rows.length)fail(409,'Estado, autorização ou operação indisponível.');return send({item:r.rows[0]});
   }
   if(path==='/v1/dp'&&request.method==='GET'){
    const company=new URL(request.url).searchParams.get('company');if(!UUID.test(company||''))fail(400,'Selecione empresa.');

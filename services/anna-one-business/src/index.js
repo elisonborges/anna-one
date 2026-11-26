@@ -199,8 +199,8 @@ SELECT jsonb_build_object(
   }
   if(path==='/v1/payroll/batches'&&request.method==='POST'){
    const b=await body(request),op=requestId(b),period=b.period_id,ref=typeof b.source_reference==='string'?b.source_reference.trim():'',lines=b.lines;
-   if(!UUID.test(period||'')||!ref||ref.length>120||!Array.isArray(lines)||lines.length<1||lines.length>100||!lines.every(x=>x&&typeof x==='object'&&!Array.isArray(x)&&Object.keys(x).length===4&&['net_pay','tax','social_charge','benefit','other'].includes(x.kind)&&typeof x.payee_id==='string'&&UUID.test(x.payee_id)&&typeof x.amount==='string'&&/^(0|[1-9][0-9]{0,11})([.][0-9]{1,2})?$/.test(x.amount)&&Number(x.amount)>0&&validReportRange(x.due_on,x.due_on)))fail(400,'Importe de 1 a 100 linhas agregadas válidas, sem dados individuais.');
-   const normalized=lines.map(x=>({kind:x.kind,payee_id:x.payee_id.toLowerCase(),amount:x.amount,due_on:x.due_on}));
+   if(!UUID.test(period||'')||!ref||ref.length>120||!Array.isArray(lines)||lines.length<1||lines.length>100||!lines.every(x=>x&&typeof x==='object'&&!Array.isArray(x)&&Object.keys(x).length===5&&['net_pay','tax','social_charge','benefit','other'].includes(x.kind)&&typeof x.payee_id==='string'&&UUID.test(x.payee_id)&&typeof x.amount==='string'&&/^(0|[1-9][0-9]{0,11})([.][0-9]{1,2})?$/.test(x.amount)&&Number(x.amount)>0&&validReportRange(x.issued_on,x.issued_on)&&validReportRange(x.due_on,x.due_on)&&x.issued_on<=x.due_on))fail(400,'Importe de 1 a 100 linhas agregadas válidas, sem dados individuais.');
+   const normalized=lines.map(x=>({kind:x.kind,payee_id:x.payee_id.toLowerCase(),amount:x.amount,issued_on:x.issued_on,due_on:x.due_on}));
    const encoded=JSON.stringify(normalized),hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(encoded))),b=>b.toString(16).padStart(2,'0')).join('');
    const r=await execute(sql,tenant,user,"SELECT * FROM business.import_payroll_batch($1::uuid,$2,$3,$4::jsonb,$5::uuid)",[period,ref,hash,encoded,op],true);if(!r.rows.length)fail(409,'Lote inválido, duplicado, beneficiário incompatível ou autorização indisponível.');return send({item:r.rows[0]},201);
   }

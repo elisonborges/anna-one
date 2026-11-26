@@ -1,3 +1,4 @@
+import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import worker, {validReportRange} from '../src/index.js';
@@ -12,3 +13,5 @@ test('filtros contábeis não misturam cliente ou concessão alheia',()=>{const 
 test('ZIP UTF-8 e CRC32, rejeição de caminho inseguro',async()=>{const enc=new TextEncoder();assert.equal(crc32(enc.encode('123456789')),0xcbf43926);assert.throws(()=>createAccountingZip([{name:'../test.pdf',bytes:enc.encode('test')}]));const blob=createAccountingZip([{name:'manifesto.json',bytes:enc.encode('{}')},{name:'documento.pdf',bytes:enc.encode('%PDF-')}]);const bytes=await blob.arrayBuffer(),view=new DataView(bytes),end=bytes.byteLength-22;assert.equal(view.getUint32(0,true),0x04034b50);assert.equal(view.getUint32(end,true),0x06054b50);assert.equal(view.getUint16(end+10,true),2);assert.equal(view.getUint32(view.getUint32(end+16,true),true),0x02014b50);});
 
 test('intervalo gerencial aceita datas reais e no máximo 366 dias inclusivos',()=>{assert.equal(validReportRange('2024-01-01','2024-12-31'),true);assert.equal(validReportRange('2026-11-01','2026-11-26'),true);assert.equal(validReportRange('2026-02-30','2026-03-01'),false);assert.equal(validReportRange('2026-11-26','2026-11-01'),false);assert.equal(validReportRange('2024-01-01','2025-01-01'),false);assert.equal(validReportRange(null,'2026-11-01'),false);});
+
+test('interface consolidada: sintaxe e navegação dos quatro painéis novos',()=>{const html=readFileSync(new URL('../../../app/business/index.html',import.meta.url),'utf8'),js=readFileSync(new URL('../../../app/business/business.js',import.meta.url),'utf8');assert.doesNotThrow(()=>new Function(js));for(const [view,id] of [['managerial','mg'],['business-settings','bs'],['business-integrity','bi'],['business-flows','bf']]){assert.ok(html.includes('data-view="'+view+'"'));assert.ok(html.includes('id="view-'+view+'"'));for(const k of ['status','refresh','content'])assert.ok(html.includes('id="'+id+'-'+k+'"'));}});

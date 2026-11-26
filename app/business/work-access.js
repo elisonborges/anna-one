@@ -7,7 +7,7 @@ export function createWorkPanel({module,host,status,refresh,request,authorized})
  const field=(label,e)=>{const l=n('label',label);l.append(e);return l;};
  const confirm=()=>input('confirmed','checkbox');
  const dt=v=>new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short',timeZone:'America/Fortaleza'}).format(new Date(v));
- const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Fortaleza',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+ const today=()=>{const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Fortaleza',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const get=k=>parts.find(p=>p.type===k).value;return get('year')+'-'+get('month')+'-'+get('day');};
  const timestamp=v=>v+':00-03:00';
  const alive=r=>r===rev&&authorized();
  function clear(){rev++;host.replaceChildren();host.hidden=true;refresh.disabled=false;status.textContent='Aguardando consulta.';}

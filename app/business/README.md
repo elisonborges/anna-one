@@ -1,9 +1,10 @@
-# AnnA Business — 1.1.0-dev.69
+# AnnA Business — 1.1.0-dev.72
 
-Ciclo inicial 01–66 publicado; início da Geração 2 (67–69). Referência: Plano Diretor AB-PD-001 rev. 1.0.
+Ciclo inicial 01–66 publicado; Geração 2 (67–72). Referência: Plano Diretor AB-PD-001 rev. 1.0.
 
 A v0.9 e o incremento 61 foram publicados pelo PR #173, commit b0fb298; migrações 046–049 aplicadas em produção. O ciclo 62–66 acrescenta indicadores gerenciais, preferências locais, administração, integridade, auditoria e rastreabilidade, sem migração nova.
 
+- [Departamento pessoal](V11-DP.md)
 - [Fundação RH e vínculos](V11-HR-FOUNDATION.md)
 - [Consolidação v1.0](V10-RELEASE.md)
 - [Painel executivo](V10-EXECUTIVE.md)

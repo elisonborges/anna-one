@@ -158,13 +158,22 @@ SELECT jsonb_build_object(
     return send({item:r.rows[0]},201);
    }
   }
+  const purchasePayableMatch=path.match(/^\/v1\/purchase-receipts\/([^/]+)\/payable$/);
+  if(purchasePayableMatch&&UUID.test(purchasePayableMatch[1])&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),due=crmDate(b.first_due);
+   if(!due||!Number.isInteger(b.installment_count)||b.installment_count<1||b.installment_count>24)fail(400,'Informe vencimento e quantidade de parcelas entre 1 e 24.');
+   const r=await execute(sql,tenant,user,"SELECT obligation_id,obligation_code::text AS obligation_code FROM business.create_purchase_payable($1::uuid,$2::date,$3::integer,$4::uuid)",[purchasePayableMatch[1],due,b.installment_count,op],true);
+   if(r.role!=='owner')fail(403,'Integração financeira restrita ao proprietário.');
+   if(!r.rows.length)fail(409,'Recebimento divergente, já integrado, sem valor positivo ou condições inválidas.');
+   return send({item:r.rows[0]},201);
+  }
   const receiptMatch=path.match(/^\/v1\/purchase-orders\/([^/]+)\/receipts$/);
   if(receiptMatch&&UUID.test(receiptMatch[1])){
    const oid=receiptMatch[1];
    if(request.method==='GET'){
-    const r=await execute(sql,tenant,user,"SELECT id,code::text AS code,reference,received_on::text AS received_on,notes,lines,document_total::text AS document_total,expected_total::text AS expected_total,status,created_at FROM business.purchase_receipts WHERE tenant_id=$1::uuid AND order_id=$2::uuid ORDER BY code",[tenant,oid]);
+    const r=await execute(sql,tenant,user,"SELECT r.id,r.code::text AS code,r.reference,r.received_on::text AS received_on,r.notes,r.lines,r.document_total::text AS document_total,r.expected_total::text AS expected_total,r.status,r.created_at,(SELECT o.code::text FROM business.financial_obligations o WHERE o.tenant_id=r.tenant_id AND o.purchase_receipt_id=r.id) AS payable_code FROM business.purchase_receipts r WHERE r.tenant_id=$1::uuid AND r.order_id=$2::uuid ORDER BY r.code",[tenant,oid]);
     if(!['owner','registry_editor'].includes(r.role))fail(403,'Recebimentos restritos à equipe de compras.');
-    return send({items:r.rows});
+    return send({items:r.rows,can_integrate:r.role==='owner'});
    }
    if(request.method==='POST'){
     const b=await body(request),op=requestId(b),ref=typeof b.reference==='string'?b.reference.trim():'',notes=typeof b.notes==='string'?b.notes.trim():'',date=crmDate(b.received_on);
@@ -366,7 +375,7 @@ SELECT jsonb_build_object(
   }
   if(path==='/v1/financial-obligations'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,`WITH clock AS (SELECT (now() AT TIME ZONE 'America/Fortaleza')::date AS today),
- obligations AS (SELECT o.id,o.code::text AS code,o.direction,o.company_id,o.company_name,o.counterparty_id,o.counterparty_name,o.contract_id,c.code::text AS contract_code,o.contract_revision,c.revision AS current_contract_revision,o.title,o.reference,o.amount::text AS amount,o.issued_on::text AS issued_on,o.first_due::text AS first_due,o.installment_count,EXISTS(SELECT 1 FROM business.financial_renegotiations n WHERE n.tenant_id=o.tenant_id AND n.original_id=o.id) AS renegotiated, (SELECT x.original_id FROM business.financial_renegotiations x WHERE x.tenant_id=o.tenant_id AND x.replacement_id=o.id) AS renegotiated_from,(SELECT x.rule_id FROM business.financial_recurring_occurrences x WHERE x.tenant_id=o.tenant_id AND x.obligation_id=o.id) AS recurring_rule_id FROM business.financial_obligations o LEFT JOIN business.contracts c ON c.tenant_id=o.tenant_id AND c.id=o.contract_id WHERE o.tenant_id=$1::uuid),
+ obligations AS (SELECT o.id,o.code::text AS code,o.direction,o.company_id,o.company_name,o.counterparty_id,o.counterparty_name,o.contract_id,o.purchase_receipt_id,c.code::text AS contract_code,o.contract_revision,c.revision AS current_contract_revision,o.title,o.reference,o.amount::text AS amount,o.issued_on::text AS issued_on,o.first_due::text AS first_due,o.installment_count,EXISTS(SELECT 1 FROM business.financial_renegotiations n WHERE n.tenant_id=o.tenant_id AND n.original_id=o.id) AS renegotiated, (SELECT x.original_id FROM business.financial_renegotiations x WHERE x.tenant_id=o.tenant_id AND x.replacement_id=o.id) AS renegotiated_from,(SELECT x.rule_id FROM business.financial_recurring_occurrences x WHERE x.tenant_id=o.tenant_id AND x.obligation_id=o.id) AS recurring_rule_id FROM business.financial_obligations o LEFT JOIN business.contracts c ON c.tenant_id=o.tenant_id AND c.id=o.contract_id WHERE o.tenant_id=$1::uuid),
  installments AS (SELECT i.id,i.obligation_id,i.installment_no,i.due_on::text AS due_on,i.amount::text AS amount,i.remaining::text AS remaining,i.revision,i.status,CASE WHEN i.status='renegotiated' THEN 'renegotiated' WHEN i.status='settled' THEN 'settled' WHEN i.due_on<clock.today THEN 'overdue' WHEN i.due_on=clock.today THEN 'today' ELSE 'scheduled' END AS validity FROM business.financial_installments i CROSS JOIN clock WHERE i.tenant_id=$1::uuid),
  companies AS (SELECT p.id,p.legal_name AS name FROM business.companies b JOIN core.parties p ON p.tenant_id=b.tenant_id AND p.id=b.party_id WHERE b.tenant_id=$1::uuid AND p.status='active'),
  parties AS (SELECT id,legal_name AS name,kind FROM core.parties WHERE tenant_id=$1::uuid AND status='active'),

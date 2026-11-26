@@ -1,9 +1,10 @@
-# AnnA Business — 1.2.0-dev.86
+# AnnA Business — 1.2.0-dev.89
 
 Ciclo inicial 01–66 publicado; Geração 2 (67–78). Referência: Plano Diretor AB-PD-001 rev. 1.0.
 
 A v0.9 e o incremento 61 foram publicados pelo PR #173, commit b0fb298; migrações 046–049 aplicadas em produção. O ciclo 62–66 acrescenta indicadores gerenciais, preferências locais, administração, integridade, auditoria e rastreabilidade, sem migração nova.
 
+- [Projetos empresariais](V12-PROJECTS.md)
 - [Consolidação operacional](V12-OPS-CONSOLIDATION.md)
 - [Recursos, custos e produtividade](V12-OPS-RESOURCES.md)
 - [Gestão operacional](V12-OPERATIONS.md)
@@ -65,3 +66,6 @@ Não criar schema/tabelas diretamente em produção antes de revisar o SQL, os a
 ## Publicação
 
 Fluxo: branch de desenvolvimento -> commits -> pull request -> revisão e testes -> autorização explícita -> merge/deploy. Esta entrega não altera main. Não habilitar deploy automático. A integração do card oficial no portal e retorno direto do login serão propostas posteriormente, preservando a autenticação e os privilégios existentes.
+
+### Alinhamento do roadmap
+A expansão 87–96 integra a Geração 3 conforme seção 22 do Plano Diretor AB-PD-001 rev.1.0. Geração 4: marketing, canais, e-commerce, CPQ e Customer Success avançados. Tax Engine e contabilidade avançada (Geração 2) permanecem pendentes.

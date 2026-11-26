@@ -1,4 +1,4 @@
--- 026: cotações integrais por requisição aprovada; sem adjudicação ou compromisso.
+-- 026: cotações integrais por requisição aprovada, sem adjudicação ou compromisso.
 CREATE TABLE business.purchase_quotes (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), tenant_id uuid NOT NULL, request_id uuid NOT NULL, supplier_id uuid NOT NULL,
  supplier_name text NOT NULL, reference text NOT NULL CHECK(length(btrim(reference)) BETWEEN 1 AND 200),

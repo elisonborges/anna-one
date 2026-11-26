@@ -50,15 +50,15 @@ CREATE POLICY accounting_pendencies_close ON business.accounting_pendencies FOR 
 REVOKE ALL ON business.accounting_pendencies FROM PUBLIC;
 GRANT SELECT,INSERT ON business.accounting_pendencies TO anna_business_runtime;
 GRANT UPDATE(closed_at,closed_by,closure_reason,closure_operation_id) ON business.accounting_pendencies TO anna_business_runtime;
-CREATE FUNCTION business.create_accounting_pendency(p_grant uuid,p_competence date,p_title text,p_description text,p_due date,p_op uuid) RETURNS TABLE(pendency_id uuid) LANGUAGE sql SECURITY INVOKER AS $
+CREATE FUNCTION business.create_accounting_pendency(p_grant uuid,p_competence date,p_title text,p_description text,p_due date,p_op uuid) RETURNS TABLE(pendency_id uuid) LANGUAGE sql SECURITY INVOKER AS $$
  WITH inserted AS (INSERT INTO business.accounting_pendencies(tenant_id,grant_id,competence,title,description,due_on,operation_id,created_by)
  SELECT g.tenant_id,g.id,p_competence,btrim(p_title),btrim(p_description),p_due,p_op,current_setting('anna.actor_id',true)::uuid FROM business.portal_grants g WHERE g.tenant_id=current_setting('anna.tenant_id',true)::uuid AND g.id=p_grant AND g.portal_role='accountant' AND g.revoked_at IS NULL AND (now() AT TIME ZONE 'America/Fortaleza')::date BETWEEN g.valid_from AND g.valid_until ON CONFLICT DO NOTHING RETURNING id,tenant_id,created_by),
  logged AS (INSERT INTO business.audit_events(tenant_id,actor_id,entity_type,entity_id,action,request_id,details) SELECT tenant_id,created_by,'accounting_pendency',id,'create',p_op,jsonb_build_object('grant_id',p_grant,'competence',p_competence) FROM inserted) SELECT id FROM inserted
-$;
-CREATE FUNCTION business.close_accounting_pendency(p_id uuid,p_reason text,p_op uuid) RETURNS TABLE(pendency_id uuid) LANGUAGE sql SECURITY INVOKER AS $
+$$;
+CREATE FUNCTION business.close_accounting_pendency(p_id uuid,p_reason text,p_op uuid) RETURNS TABLE(pendency_id uuid) LANGUAGE sql SECURITY INVOKER AS $$
  WITH changed AS (UPDATE business.accounting_pendencies p SET closed_at=now(),closed_by=current_setting('anna.actor_id',true)::uuid,closure_reason=btrim(p_reason),closure_operation_id=p_op WHERE p.tenant_id=current_setting('anna.tenant_id',true)::uuid AND p.id=p_id AND p.closed_at IS NULL RETURNING id,tenant_id,closed_by),
  logged AS (INSERT INTO business.audit_events(tenant_id,actor_id,entity_type,entity_id,action,request_id,details) SELECT tenant_id,closed_by,'accounting_pendency',id,'update',p_op,jsonb_build_object('status','closed') FROM changed) SELECT id FROM changed
-$;
+$$;
 REVOKE ALL ON FUNCTION business.create_accounting_pendency(uuid,date,text,text,date,uuid),business.close_accounting_pendency(uuid,text,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION business.create_accounting_pendency(uuid,date,text,text,date,uuid),business.close_accounting_pendency(uuid,text,uuid) TO anna_business_runtime;
 

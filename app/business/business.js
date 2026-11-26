@@ -442,7 +442,7 @@ const maintenanceEdit=$('maintenance-edit'),maintenanceClose=$('maintenance-clos
 const maintenanceField=(form,n)=>form.elements.namedItem(n);
 const maintenanceLinkLabels={institution_link:'Institucional',company_contact:'Contato / representação',franchise_relationship:'Franquia'};
 const maintenanceActions={create:'Criação',update:'Alteração',link:'Vínculo',unlink:'Encerramento',activate:'Ativação',deactivate:'Desativação'};
-const maintenanceAuditTypes={purchase_order:'Pedido de compra',purchase_quote:'Cotação de compra',purchase_request:'Requisição de compra',treasury_reconciliation:'Conferência de extrato',treasury_reconciliation_void:'Anulação de conferência',financial_renegotiation:'Renegociação financeira',financial_recurring_rule:'Regra recorrente',financial_recurring_occurrence:'Obrigação recorrente',treasury_account:'Conta de tesouraria',treasury_transfer:'Transferência interna',treasury_link:'Vínculo de baixa',financial_settlement:'Baixa financeira',financial_reversal:'Estorno financeiro',financial_obligation:'Obrigação financeira',license_allocation:'Distribuição de licença',license_right:'Direito de utilização',contract_amendment:'Aditivo contratual',contract:'Contrato',commercial_order:'Pedido comercial',proposal:'Proposta comercial',price_list:'Tabela de preços',price_entry:'Preço comercial',catalog_category:'Categoria comercial',catalog_item:'Item do catálogo',opportunity:'Oportunidade comercial',crm_interaction:'Interação comercial',party:'Pessoa física/jurídica',establishment:'Estabelecimento',corporate_group:'Grupo empresarial',corporate_group_member:'Integrante de grupo',ownership_interest:'Participação societária',company_contact:'Contato / representação',brand:'Marca',franchise_network:'Rede franqueadora',franchise_relationship:'Franquia',institution_link:'Vínculo institucional',institution_admin_relation:'Supervisão administrativa'};
+const maintenanceAuditTypes={purchase_receipt:'Recebimento de compra',purchase_order:'Pedido de compra',purchase_quote:'Cotação de compra',purchase_request:'Requisição de compra',treasury_reconciliation:'Conferência de extrato',treasury_reconciliation_void:'Anulação de conferência',financial_renegotiation:'Renegociação financeira',financial_recurring_rule:'Regra recorrente',financial_recurring_occurrence:'Obrigação recorrente',treasury_account:'Conta de tesouraria',treasury_transfer:'Transferência interna',treasury_link:'Vínculo de baixa',financial_settlement:'Baixa financeira',financial_reversal:'Estorno financeiro',financial_obligation:'Obrigação financeira',license_allocation:'Distribuição de licença',license_right:'Direito de utilização',contract_amendment:'Aditivo contratual',contract:'Contrato',commercial_order:'Pedido comercial',proposal:'Proposta comercial',price_list:'Tabela de preços',price_entry:'Preço comercial',catalog_category:'Categoria comercial',catalog_item:'Item do catálogo',opportunity:'Oportunidade comercial',crm_interaction:'Interação comercial',party:'Pessoa física/jurídica',establishment:'Estabelecimento',corporate_group:'Grupo empresarial',corporate_group_member:'Integrante de grupo',ownership_interest:'Participação societária',company_contact:'Contato / representação',brand:'Marca',franchise_network:'Rede franqueadora',franchise_relationship:'Franquia',institution_link:'Vínculo institucional',institution_admin_relation:'Supervisão administrativa'};
 function cancelMaintenanceEdit(){maintenanceSelected=null;maintenanceEdit.reset();maintenanceEdit.hidden=true;}
 function cancelMaintenanceClose(){maintenanceClosing=null;maintenanceClose.reset();maintenanceClose.hidden=true;}
 function resetMaintenance(){maintenanceRevision++;maintenanceNodes=new Map();maintenanceEntities=new Map();maintenanceLinks=[];maintenanceAudit=[];maintenanceCanEdit=false;maintenanceCanClose=false;cancelMaintenanceEdit();cancelMaintenanceClose();$('maintenance-content').hidden=true;$('maintenance-audit').hidden=true;for(const id of ['maintenance-search','maintenance-link-kind','maintenance-link-validity','maintenance-audit-search','maintenance-audit-action'])$(id).value='';$('maintenance-kind').replaceChildren();for(const id of ['maintenance-rows','maintenance-link-rows','maintenance-audit-rows'])$(id).replaceChildren();txt('maintenance-count','');txt('maintenance-audit-status','');txt('maintenance-status','Aguardando consulta.');}
@@ -930,7 +930,7 @@ async function showPurchaseOrders(r){
     const form=node('form'),fields=node('div',undefined,'filters finance-fields'),decision=node('select'),reason=node('textarea'),save=node('button','Registrar decisão','btn');decision.required=true;options(decision,[{id:'approved',label:'Aprovar'},{id:'rejected',label:'Reprovar'}],'Selecione decisão');reason.required=true;reason.maxLength=1000;save.type='submit';
     const a=node('label','Decisão'),b=node('label','Justificativa obrigatória');a.append(decision);b.append(reason);fields.append(a,b);form.append(fields,save);article.append(form);
     const operation=crypto.randomUUID();form.addEventListener('submit',async e=>{e.preventDefault();if(!current()||save.disabled)return;save.disabled=true;try{const result=await registryRequest('/v1/purchase-orders/'+o.id+'/decide','POST',{status:decision.value,reason:reason.value,revision:o.revision,request_id:operation});if(!result?.item?.order_id)throw Error('Confirmação não recebida.');if(current())await load();}catch(err){if(current())status.textContent=err.message+' Consulte antes de repetir.';}finally{save.disabled=false;}});
-   }content.append(article);
+   }content.append(article);if(o.status==='approved')showPurchaseReceipts(o,article,current);
   }
   if(!orders.items.length)content.append(node('p','Nenhum pedido registrado.','muted small'));
   if(!orders.items.some(o=>['pending','approved'].includes(o.status))){
@@ -942,6 +942,52 @@ async function showPurchaseOrders(r){
   status.textContent='Consulta concluída. Nenhuma obrigação financeira criada.';
  };
  try{await load();}catch(e){if(current())status.textContent=e.message;}
+}
+
+
+// Incremento 34: recebimento parcial e conferência pedido/documento/entrega.
+async function showPurchaseReceipts(o,host,current){
+ const panel=node('section',undefined,'registry-establishments');host.append(panel);
+ const active=()=>current()&&panel.isConnected;
+ panel.append(node('h4','Recebimentos e conferência'),node('p','Registre quantidades efetivamente recebidas e dados do documento. Divergências não geram contas a pagar.','muted small'));
+ const status=node('p','Consultando recebimentos…');status.setAttribute('role','status');panel.append(status);
+ const content=node('div');panel.append(content);
+ const load=async()=>{
+  const result=await registryRequest('/v1/purchase-orders/'+o.id+'/receipts');if(!active())return;
+  content.replaceChildren();
+  const received=new Map();
+  for(const r of result.items){
+   const article=node('article',undefined,'registry-establishments');
+   article.append(node('h4','REC-'+String(r.code).padStart(8,'0')+' · '+r.reference),node('p',(r.status==='matched'?'Conferido':'Com divergência')+' · '+r.received_on+' · Documento '+commercialMoney(r.document_total)+' · Esperado '+commercialMoney(r.expected_total)),node('p',r.notes));
+   for(const l of r.lines){received.set(l.line_id,(received.get(l.line_id)||0n)+proposalScale(l.quantity,3));article.append(node('p',l.item_name+' · Recebido '+l.quantity+' · Documento '+l.document_quantity+' × '+commercialMoney(l.document_unit_price)+' · Pedido '+commercialMoney(l.ordered_price),'muted small'));}
+   content.append(article);
+  }
+  if(!result.items.length)content.append(node('p','Nenhum recebimento registrado.','muted small'));
+  const form=node('form'),fields=node('div',undefined,'filters finance-fields');
+  const field=(label,el)=>{const l=node('label',label);l.append(el);fields.append(l);return el;};
+  const ref=field('Referência do documento',node('input'));ref.required=true;ref.maxLength=200;
+  const date=field('Data do recebimento',node('input'));date.type='date';date.required=true;date.max=purchaseData.as_of;date.value=purchaseData.as_of;
+  const notes=field('Observações da conferência',node('textarea'));notes.required=true;notes.maxLength=1000;
+  const total=field('Total do documento (R$)',node('input'));total.required=true;total.inputMode='decimal';total.maxLength=25;
+  const lines=o.lines.map(l=>{
+   const remaining=proposalScale(l.quantity,3)-(received.get(l.line_id)||0n);
+   const label=l.item_name+' · saldo '+(remaining/1000n).toString()+'.'+(remaining%1000n).toString().padStart(3,'0');
+   const q=field(label+' — recebido',node('input')),dq=field(l.item_name+' — quantidade no documento',node('input')),p=field(l.item_name+' — preço unitário no documento (R$)',node('input'));
+   for(const e of [q,dq,p]){e.inputMode='decimal';e.required=true;e.value='0';e.maxLength=15;}p.value=l.unit_price;
+   return {id:l.line_id,q,dq,p};
+  });
+  const save=node('button','Registrar recebimento','btn');save.type='submit';form.append(fields,save);content.append(form);
+  const operation=crypto.randomUUID();
+  form.addEventListener('submit',async e=>{e.preventDefault();if(!active()||save.disabled)return;const normalize=x=>x.value.trim().replace(',','.');const qty=v=>/^(?:0|[1-9][0-9]{0,5})(?:\.[0-9]{1,3})?$/.test(v);const price=v=>/^(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,2})?$/.test(v);
+   const all=lines.map(l=>({line_id:l.id,quantity:normalize(l.q),document_quantity:normalize(l.dq),document_unit_price:normalize(l.p)}));
+   if(all.some(l=>!qty(l.quantity)||!qty(l.document_quantity)||!price(l.document_unit_price))){status.textContent='Quantidades ou preços inválidos.';return;}
+   const selected=all.filter(l=>proposalScale(l.quantity,3)>0n||proposalScale(l.document_quantity,3)>0n);
+   if(!selected.length){status.textContent='Informe pelo menos uma quantidade recebida ou documentada.';return;}
+   save.disabled=true;try{const data=await registryRequest('/v1/purchase-orders/'+o.id+'/receipts','POST',{reference:ref.value,received_on:date.value,notes:notes.value,document_total:normalize(total),lines:selected,request_id:operation});if(!data?.item?.receipt_id)throw Error('Confirmação não recebida.');if(active())await load();}catch(err){if(active())status.textContent=err.message+' Consulte antes de repetir.';}finally{save.disabled=false;}
+  });
+  status.textContent='Conferência registrada sem movimentação financeira ou de estoque.';
+ };
+ try{await load();}catch(e){if(active())status.textContent=e.message;}
 }
 
 window.addEventListener('hashchange',route);route();

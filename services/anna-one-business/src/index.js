@@ -69,7 +69,7 @@ export default {async fetch(request,env){
  if(origin&&origin!==ORIGIN)return send({error:'Origem não permitida.'},403);
  if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{...headers,'Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Authorization, Content-Type','Access-Control-Max-Age':'600'}});
  const path=new URL(request.url).pathname;
- if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.1.0-dev.69',status:'online'});
+ if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.1.0-dev.72',status:'online'});
  try{
   if(!env.DATABASE_URL||!UUID.test(env.INTERNAL_TENANT_ID||''))fail(503,'Serviço cadastral ainda não configurado.');
   const portalDownload=path.match(/^\/v1\/portal\/publications\/([^/]+)\/download$/);
@@ -173,6 +173,40 @@ SELECT jsonb_build_object(
     if(!r.rows.length)fail(409,'Transição não autorizada, proposta vencida, revisão desatualizada ou oportunidade já encerrada.');
     return send({item:r.rows[0]});
    }
+  }
+  if(path==='/v1/dp'&&request.method==='GET'){
+   const company=new URL(request.url).searchParams.get('company');if(!UUID.test(company||''))fail(400,'Selecione empresa.');
+   const r=await execute(sql,tenant,user,`SELECT jsonb_build_object('allowed',business.hr_allowed($1::uuid,$2::uuid),
+ 'relationships',COALESCE((SELECT jsonb_agg(to_jsonb(x) ORDER BY x.reference) FROM (SELECT r.id,r.reference,p.legal_name AS party_name,r.kind,r.start_on::text AS start_on,NOT EXISTS(SELECT 1 FROM business.hr_movements m WHERE m.tenant_id=r.tenant_id AND m.relationship_id=r.id AND m.kind='end') AS active FROM business.hr_relationships r JOIN core.parties p ON p.tenant_id=r.tenant_id AND p.id=r.party_id WHERE r.tenant_id=$1::uuid AND r.company_id=$2::uuid ORDER BY r.reference LIMIT 500)x),'[]'::jsonb),
+ 'profiles',COALESCE((SELECT jsonb_agg(to_jsonb(x) ORDER BY x.revision DESC) FROM (SELECT id,relationship_id,revision,effective_on::text AS effective_on,work_model,weekly_minutes,schedule_label,reference FROM business.dp_profiles WHERE tenant_id=$1::uuid AND company_id=$2::uuid ORDER BY created_at DESC,id LIMIT 500)x),'[]'::jsonb),
+ 'assignments',COALESCE((SELECT jsonb_agg(to_jsonb(x) ORDER BY x.start_on DESC) FROM (SELECT id,relationship_id,kind,label,reference,start_on::text AS start_on,closed_on::text AS closed_on,close_reason FROM business.dp_assignments WHERE tenant_id=$1::uuid AND company_id=$2::uuid ORDER BY created_at DESC,id LIMIT 500)x),'[]'::jsonb),
+ 'absences',COALESCE((SELECT jsonb_agg(to_jsonb(x) ORDER BY x.start_on DESC) FROM (SELECT id,relationship_id,kind,start_on::text AS start_on,end_on::text AS end_on,reference,resolved_on::text AS resolved_on,resolution FROM business.dp_absences WHERE tenant_id=$1::uuid AND company_id=$2::uuid ORDER BY created_at DESC,id LIMIT 500)x),'[]'::jsonb)) AS data`,[tenant,company]);if(r.rows[0]?.data?.allowed!==true)fail(403,'Concessão específica de RH necessária.');return send(r.rows[0].data);
+  }
+  if(path==='/v1/dp/profiles'&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),rel=b.relationship_id,date=b.effective_on,model=b.work_model,minutes=b.weekly_minutes===null||b.weekly_minutes===''?null:b.weekly_minutes,schedule=typeof b.schedule_label==='string'?b.schedule_label.trim():'',ref=typeof b.reference==='string'?b.reference.trim():'';
+   if(!UUID.test(rel||'')||!validReportRange(date,date)||!['onsite','hybrid','remote','other'].includes(model)||(minutes!==null&&(!Number.isInteger(minutes)||minutes<0||minutes>10080))||!schedule||schedule.length>120||!ref||ref.length>120)fail(400,'Confira vínculo, data, jornada informada e referência.');
+   const r=await execute(sql,tenant,user,"SELECT * FROM business.dp_add_profile($1::uuid,$2::date,$3,$4::integer,$5,$6,$7::uuid)",[rel,date,model,minutes,schedule,ref,op],true);if(!r.rows.length)fail(409,'Vínculo, autorização ou revisão indisponível.');return send({item:r.rows[0]},201);
+  }
+  if(path==='/v1/dp/assignments'&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),rel=b.relationship_id,kind=b.kind,date=b.start_on,label=typeof b.label==='string'?b.label.trim():'',ref=typeof b.reference==='string'?b.reference.trim():'';
+   if(!UUID.test(rel||'')||!['benefit','equipment'].includes(kind)||!validReportRange(date,date)||!label||label.length>120||!ref||ref.length>120)fail(400,'Confira vínculo, tipo, descrição, referência e data.');
+   const r=await execute(sql,tenant,user,"SELECT * FROM business.dp_add_assignment($1::uuid,$2,$3,$4,$5::date,$6::uuid)",[rel,kind,label,ref,date,op],true);if(!r.rows.length)fail(409,'Vínculo, autorização ou registro duplicado.');return send({item:r.rows[0]},201);
+  }
+  const dpClose=path.match(/^\/v1\/dp\/assignments\/([^/]+)\/close$/);
+  if(dpClose&&UUID.test(dpClose[1])&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),date=b.closed_on,reason=typeof b.reason==='string'?b.reason.trim():'';
+   if(!validReportRange(date,date)||!reason||reason.length>200)fail(400,'Confira data e justificativa administrativa.');
+   const r=await execute(sql,tenant,user,"SELECT * FROM business.dp_close_assignment($1::uuid,$2::date,$3,$4::uuid)",[dpClose[1],date,reason,op],true);if(!r.rows.length)fail(409,'Registro indisponível, encerrado ou data inválida.');return send({item:r.rows[0]});
+  }
+  if(path==='/v1/dp/absences'&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),rel=b.relationship_id,kind=b.kind,start=b.start_on,end=b.end_on,ref=typeof b.reference==='string'?b.reference.trim():'';
+   if(!UUID.test(rel||'')||!['vacation','administrative_leave'].includes(kind)||!validReportRange(start,end)||!ref||ref.length>120)fail(400,'Confira vínculo, período e referência administrativa.');
+   const r=await execute(sql,tenant,user,"SELECT * FROM business.dp_add_absence($1::uuid,$2,$3::date,$4::date,$5,$6::uuid)",[rel,kind,start,end,ref,op],true);if(!r.rows.length)fail(409,'Período sobreposto, vínculo, autorização ou operação indisponível.');return send({item:r.rows[0]},201);
+  }
+  const dpResolve=path.match(/^\/v1\/dp\/absences\/([^/]+)\/resolve$/);
+  if(dpResolve&&UUID.test(dpResolve[1])&&request.method==='POST'){
+   const b=await body(request),op=requestId(b);if(!['completed','cancelled'].includes(b.resolution))fail(400,'Informe a resolução.');
+   const r=await execute(sql,tenant,user,"SELECT * FROM business.dp_resolve_absence($1::uuid,$2,$3::uuid)",[dpResolve[1],b.resolution,op],true);if(!r.rows.length)fail(409,'Registro encerrado, indisponível ou período ainda não concluído.');return send({item:r.rows[0]});
   }
   if(path==='/v1/hr'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,`SELECT jsonb_build_object('admin',business.hr_admin($1::uuid),'companies',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',c.party_id,'name',p.legal_name,'allowed',business.hr_allowed(c.tenant_id,c.party_id)) ORDER BY p.legal_name) FROM business.companies c JOIN core.parties p ON p.tenant_id=c.tenant_id AND p.id=c.party_id WHERE c.tenant_id=$1::uuid AND (business.hr_admin(c.tenant_id) OR business.hr_allowed(c.tenant_id,c.party_id))),'[]'::jsonb),'grants',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',g.id,'company_id',g.company_id,'user_id',g.user_id,'reason',g.reason,'created_at',g.created_at,'revoked_at',g.revoked_at) ORDER BY g.created_at DESC) FROM (SELECT * FROM business.hr_access_grants WHERE tenant_id=$1::uuid AND business.hr_admin(tenant_id) ORDER BY created_at DESC LIMIT 500) g),'[]'::jsonb),'actor_id',$2::uuid) AS data`,[tenant,user]);return send(r.rows[0]?.data||{});

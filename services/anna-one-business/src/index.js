@@ -69,7 +69,7 @@ export default {async fetch(request,env){
  if(origin&&origin!==ORIGIN)return send({error:'Origem não permitida.'},403);
  if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{...headers,'Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Authorization, Content-Type','Access-Control-Max-Age':'600'}});
  const path=new URL(request.url).pathname;
- if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.0.0-dev.66',status:'online'});
+ if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.1.0-dev.69',status:'online'});
  try{
   if(!env.DATABASE_URL||!UUID.test(env.INTERNAL_TENANT_ID||''))fail(503,'Serviço cadastral ainda não configurado.');
   const portalDownload=path.match(/^\/v1\/portal\/publications\/([^/]+)\/download$/);
@@ -173,6 +173,46 @@ SELECT jsonb_build_object(
     if(!r.rows.length)fail(409,'Transição não autorizada, proposta vencida, revisão desatualizada ou oportunidade já encerrada.');
     return send({item:r.rows[0]});
    }
+  }
+  if(path==='/v1/hr'&&request.method==='GET'){
+   const r=await execute(sql,tenant,user,`SELECT jsonb_build_object('admin',business.hr_admin($1::uuid),'companies',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',c.party_id,'name',p.legal_name,'allowed',business.hr_allowed(c.tenant_id,c.party_id)) ORDER BY p.legal_name) FROM business.companies c JOIN core.parties p ON p.tenant_id=c.tenant_id AND p.id=c.party_id WHERE c.tenant_id=$1::uuid AND (business.hr_admin(c.tenant_id) OR business.hr_allowed(c.tenant_id,c.party_id))),'[]'::jsonb),'grants',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',g.id,'company_id',g.company_id,'user_id',g.user_id,'reason',g.reason,'created_at',g.created_at,'revoked_at',g.revoked_at) ORDER BY g.created_at DESC) FROM (SELECT * FROM business.hr_access_grants WHERE tenant_id=$1::uuid AND business.hr_admin(tenant_id) ORDER BY created_at DESC LIMIT 500) g),'[]'::jsonb),'actor_id',$2::uuid) AS data`,[tenant,user]);return send(r.rows[0]?.data||{});
+  }
+  if(path==='/v1/hr/grants'&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),company=b.company_id,recipient=b.user_id,reason=typeof b.reason==='string'?b.reason.trim():'';
+   if(!UUID.test(company||'')||!UUID.test(recipient||'')||!reason||reason.length>300)fail(400,'Informe empresa, usuário Business e justificativa.');
+   const r=await execute(sql,tenant,user,"INSERT INTO business.hr_access_grants(tenant_id,company_id,user_id,reason,operation_id,created_by) SELECT $1::uuid,$2::uuid,$3::uuid,$4,$5::uuid,$6::uuid WHERE business.hr_admin($1::uuid) ON CONFLICT DO NOTHING RETURNING id",[tenant,company,recipient,reason,op,user],true);
+   if(r.role!=='owner')fail(403,'Concessões restritas ao proprietário.');if(!r.rows.length)fail(409,'Concessão já registrada ou indisponível.');return send({item:r.rows[0]},201);
+  }
+  const hrRevoke=path.match(/^\/v1\/hr\/grants\/([^/]+)\/revoke$/);
+  if(hrRevoke&&UUID.test(hrRevoke[1])&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),reason=typeof b.reason==='string'?b.reason.trim():'';
+   if(!reason||reason.length>300)fail(400,'Informe a justificativa.');
+   const r=await execute(sql,tenant,user,"UPDATE business.hr_access_grants SET revoked_at=now(),revoked_by=$3::uuid,revocation_reason=$4,revocation_operation_id=$5::uuid WHERE tenant_id=$1::uuid AND id=$2::uuid AND revoked_at IS NULL AND business.hr_admin(tenant_id) RETURNING id",[tenant,hrRevoke[1],user,reason,op],true);
+   if(r.role!=='owner')fail(403,'Concessões restritas ao proprietário.');if(!r.rows.length)fail(409,'Concessão indisponível ou revogada.');return send({item:r.rows[0]});
+  }
+  if(path==='/v1/hr/records'&&request.method==='GET'){
+   const u=new URL(request.url),company=u.searchParams.get('company');if(!UUID.test(company||''))fail(400,'Selecione uma empresa.');
+   const r=await execute(sql,tenant,user,`SELECT jsonb_build_object('allowed',business.hr_allowed($1::uuid,$2::uuid),'positions',COALESCE((SELECT jsonb_agg(to_jsonb(x) ORDER BY x.code) FROM (SELECT id,code,title,department FROM business.hr_positions WHERE tenant_id=$1::uuid AND company_id=$2::uuid ORDER BY code LIMIT 500) x),'[]'::jsonb),'relationships',COALESCE((SELECT jsonb_agg(to_jsonb(x) ORDER BY x.reference) FROM (SELECT r.id,r.reference,r.kind,r.start_on::text AS start_on,p.legal_name AS party_name,r.position_id,COALESCE((SELECT jsonb_agg(jsonb_build_object('kind',m.kind,'position_id',m.position_id,'effective_on',m.effective_on,'reason',m.reason) ORDER BY m.seq) FROM business.hr_movements m WHERE m.tenant_id=r.tenant_id AND m.relationship_id=r.id),'[]'::jsonb) AS movements FROM business.hr_relationships r JOIN core.parties p ON p.tenant_id=r.tenant_id AND p.id=r.party_id WHERE r.tenant_id=$1::uuid AND r.company_id=$2::uuid ORDER BY r.reference LIMIT 500) x),'[]'::jsonb)) AS data`,[tenant,company]);if(r.rows[0]?.data?.allowed!==true)fail(403,'Concessão específica de RH necessária.');return send(r.rows[0].data);
+  }
+  if(path==='/v1/hr/parties'&&request.method==='GET'){
+   const u=new URL(request.url),company=u.searchParams.get('company'),q=(u.searchParams.get('q')||'').trim();if(!UUID.test(company||'')||q.length<2||q.length>80)fail(400,'Informe empresa e ao menos dois caracteres.');
+   const r=await execute(sql,tenant,user,`SELECT jsonb_build_object('allowed',business.hr_allowed($1::uuid,$2::uuid),'items',COALESCE((SELECT jsonb_agg(to_jsonb(x) ORDER BY x.legal_name) FROM (SELECT id,legal_name,kind FROM core.parties WHERE tenant_id=$1::uuid AND status='active' AND business.hr_allowed($1::uuid,$2::uuid) AND strpos(lower(legal_name),lower($3))>0 ORDER BY legal_name LIMIT 50) x),'[]'::jsonb)) AS data`,[tenant,company,q]);if(r.rows[0]?.data?.allowed!==true)fail(403,'Concessão específica de RH necessária.');return send(r.rows[0].data);
+  }
+  if(path==='/v1/hr/positions'&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),company=b.company_id,code=typeof b.code==='string'?b.code.trim().toUpperCase():'',title=typeof b.title==='string'?b.title.trim():'',department=typeof b.department==='string'?b.department.trim():'';
+   if(!UUID.test(company||'')||!/^[A-Z0-9_-]{1,30}$/.test(code)||!title||title.length>120||!department||department.length>120)fail(400,'Confira empresa, código, cargo e setor.');
+   const r=await execute(sql,tenant,user,"INSERT INTO business.hr_positions(tenant_id,company_id,code,title,department,operation_id,created_by) SELECT $1::uuid,$2::uuid,$3,$4,$5,$6::uuid,$7::uuid WHERE business.hr_allowed($1::uuid,$2::uuid) ON CONFLICT DO NOTHING RETURNING id",[tenant,company,code,title,department,op,user],true);if(!r.rows.length)fail(409,'Acesso, código ou operação indisponível.');return send({item:r.rows[0]},201);
+  }
+  if(path==='/v1/hr/relationships'&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),company=b.company_id,party=b.party_id,position=b.position_id,reference=typeof b.reference==='string'?b.reference.trim():'',kind=b.kind,date=b.start_on;
+   if(![company,party,position].every(x=>typeof x==='string'&&UUID.test(x))||!reference||reference.length>60||!['clt','intern','apprentice','self_employed','pj','partner','outsourced','representative','volunteer'].includes(kind)||!validReportRange(date,date))fail(400,'Confira empresa, pessoa, cargo, referência, vínculo e data.');
+   const r=await execute(sql,tenant,user,"INSERT INTO business.hr_relationships(tenant_id,company_id,party_id,position_id,reference,kind,start_on,operation_id,created_by) SELECT $1::uuid,$2::uuid,p.id,h.id,$5,$6,$7::date,$8::uuid,$9::uuid FROM core.parties p JOIN business.hr_positions h ON h.tenant_id=p.tenant_id AND h.id=$4::uuid AND h.company_id=$2::uuid WHERE p.tenant_id=$1::uuid AND p.id=$3::uuid AND p.status='active' AND business.hr_allowed($1::uuid,$2::uuid) AND $7::date<=(now() AT TIME ZONE 'America/Fortaleza')::date AND (($6='pj' AND p.kind='PJ') OR ($6 IN ('clt','intern','apprentice','self_employed','volunteer') AND p.kind='PF') OR $6 IN ('partner','outsourced','representative')) ON CONFLICT DO NOTHING RETURNING id",[tenant,company,party,position,reference,kind,date,op,user],true);if(!r.rows.length)fail(409,'Vínculo, cargo, pessoa ou autorização indisponível.');return send({item:r.rows[0]},201);
+  }
+  const hrMove=path.match(/^\/v1\/hr\/relationships\/([^/]+)\/movements$/);
+  if(hrMove&&UUID.test(hrMove[1])&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),kind=b.kind,position=b.position_id||null,date=b.effective_on,reason=typeof b.reason==='string'?b.reason.trim():'';
+   if(!['position','end'].includes(kind)||(kind==='position'?!UUID.test(position||''):position!==null)||!validReportRange(date,date)||!reason||reason.length>300)fail(400,'Confira movimentação, data e justificativa.');
+   const r=await execute(sql,tenant,user,"SELECT * FROM business.add_hr_movement($1::uuid,$2,$3::uuid,$4::date,$5,$6::uuid)",[hrMove[1],kind,position,date,reason,op],true);if(!r.rows.length)fail(409,'Movimentação inválida, duplicada ou sem autorização.');return send({item:r.rows[0]},201);
   }
   if(path==='/v1/management-indicators'&&request.method==='GET'){
    const u=new URL(request.url),company=u.searchParams.get('company')||null,start=u.searchParams.get('start'),end=u.searchParams.get('end');

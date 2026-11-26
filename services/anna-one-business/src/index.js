@@ -75,7 +75,7 @@ export default {async fetch(request,env){
   const sql=neon(env.DATABASE_URL);
   if(path==='/v1/context'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT id,name FROM business.tenants WHERE id=$1::uuid AND kind='internal' AND status='active'",[tenant]);
-   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,finance:r.role==='owner',financial_settlements:r.role==='owner',treasury:r.role==='owner',finance_recurring:r.role==='owner',cashflow:r.role==='owner',finance_dashboard:r.role==='owner',ged:r.role==='owner',fiscal_registry:r.role==='owner',fiscal_documents:r.role==='owner',fiscal_agenda:r.role==='owner',fiscal_dashboard:r.role==='owner',purchase_dashboard:['owner','registry_editor'].includes(r.role),purchase_requests:['owner','registry_editor'].includes(r.role),contract_dashboard:['owner','registry_editor'].includes(r.role),license_allocations:['owner','registry_editor'].includes(r.role),license_rights:['owner','registry_editor'].includes(r.role),contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
+   return send({tenant:r.rows[0],role:r.role,can_write:['owner','registry_editor'].includes(r.role),classifications:true,institution_links:true,corporate_structure:true,ownership:true,brands_franchises:true,organogram:true,maintenance:true,proposal_workflow:true,contract_lifecycle:true,contract_amendments:true,finance:r.role==='owner',financial_settlements:r.role==='owner',treasury:r.role==='owner',finance_recurring:r.role==='owner',cashflow:r.role==='owner',finance_dashboard:r.role==='owner',ged:r.role==='owner',fiscal_registry:r.role==='owner',fiscal_documents:r.role==='owner',fiscal_agenda:r.role==='owner',fiscal_dashboard:r.role==='owner',management_dimensions:r.role==='owner',purchase_dashboard:['owner','registry_editor'].includes(r.role),purchase_requests:['owner','registry_editor'].includes(r.role),contract_dashboard:['owner','registry_editor'].includes(r.role),license_allocations:['owner','registry_editor'].includes(r.role),license_rights:['owner','registry_editor'].includes(r.role),contracts:['owner','registry_editor'].includes(r.role),commercial_dashboard:['owner','registry_editor'].includes(r.role),proposals:['owner','registry_editor'].includes(r.role),price_lists:['owner','registry_editor'].includes(r.role),catalog:['owner','registry_editor'].includes(r.role),crm:['owner','registry_editor'].includes(r.role),audit:r.role==='owner',company_contacts:['owner','registry_editor'].includes(r.role)});
   }
   if(path==='/v1/parties'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,"SELECT p.id,p.code::text AS code,p.kind,p.legal_name,p.display_name,p.cnpj_root,p.status,EXISTS(SELECT 1 FROM business.companies c WHERE c.tenant_id=p.tenant_id AND c.party_id=p.id) AS own_company,ARRAY(SELECT pr.role FROM business.party_roles pr WHERE pr.tenant_id=p.tenant_id AND pr.party_id=p.id AND pr.active ORDER BY pr.role) AS roles FROM core.parties p WHERE p.tenant_id=$1::uuid ORDER BY p.legal_name,p.id LIMIT 500",[tenant]);
@@ -141,6 +141,27 @@ SELECT jsonb_build_object(
     if(!r.rows.length)fail(409,'Transição não autorizada, proposta vencida, revisão desatualizada ou oportunidade já encerrada.');
     return send({item:r.rows[0]});
    }
+  }
+  if(path==='/v1/management-dimensions'&&request.method==='GET'){
+   const r=await execute(sql,tenant,user,`WITH companies AS (SELECT c.party_id AS id,p.legal_name AS name FROM business.companies c JOIN core.parties p ON p.tenant_id=c.tenant_id AND p.id=c.party_id WHERE c.tenant_id=$1::uuid AND p.status='active'),
+   items AS (SELECT d.id,d.company_id,p.legal_name AS company_name,d.kind,d.code,d.name,d.direction,d.accounting_reference,d.notes,d.status,d.created_at,d.deactivated_at,d.deactivation_reason FROM business.management_dimensions d JOIN core.parties p ON p.tenant_id=d.tenant_id AND p.id=d.company_id WHERE d.tenant_id=$1::uuid)
+   SELECT jsonb_build_object('companies',COALESCE((SELECT jsonb_agg(to_jsonb(c) ORDER BY c.name,c.id) FROM companies c),'[]'::jsonb),'items',COALESCE((SELECT jsonb_agg(to_jsonb(i) ORDER BY i.company_name,i.kind,i.code) FROM items i),'[]'::jsonb)) AS data`,[tenant]);
+   if(r.role!=='owner')fail(403,'Controladoria restrita ao proprietário.');return send(r.rows[0]?.data||{});
+  }
+  if(path==='/v1/management-dimensions'&&request.method==='POST'){
+   const b=await body(request),op=requestId(b);
+   const clean=(key,max,required=false)=>{const v=b[key];if(v!=null&&typeof v!=='string')fail(400,'Campo gerencial inválido.');const x=(v||'').trim();if(x.length>max||(required&&!x))fail(400,'Campo obrigatório ou excede o limite.');return x||null;};
+   const code=clean('code',40,true).toUpperCase(),name=clean('name',200,true),direction=clean('direction',20),account=clean('accounting_reference',100),notes=clean('notes',500);
+   if(!UUID.test(b.company_id||'')||!['financial_category','cost_center','profit_center'].includes(b.kind)||!/^[A-Z0-9][A-Z0-9._-]{0,39}$/.test(code)||(b.kind==='financial_category'?!['receivable','payable'].includes(direction):!!(direction||account)))fail(400,'Confira empresa, tipo, código e classificação.');
+   const r=await execute(sql,tenant,user,"SELECT dimension_id FROM business.create_management_dimension($1::uuid,$2,$3,$4,$5,$6,$7,$8::uuid)",[b.company_id,b.kind,code,name,direction,account,notes,op],true);
+   if(r.role!=='owner')fail(403,'Controladoria restrita ao proprietário.');if(!r.rows.length)fail(409,'Código ou solicitação duplicada, ou empresa inválida.');return send({item:r.rows[0]},201);
+  }
+  const mdDeactivate=path.match(/^\/v1\/management-dimensions\/([^/]+)\/deactivate$/);
+  if(mdDeactivate&&UUID.test(mdDeactivate[1])&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),reason=typeof b.reason==='string'?b.reason.trim():'';
+   if(!reason||reason.length>500)fail(400,'Informe a justificativa.');
+   const r=await execute(sql,tenant,user,"SELECT dimension_id FROM business.deactivate_management_dimension($1::uuid,$2,$3::uuid)",[mdDeactivate[1],reason,op],true);
+   if(r.role!=='owner')fail(403,'Controladoria restrita ao proprietário.');if(!r.rows.length)fail(409,'Dimensão inexistente ou já inativada.');return send({item:r.rows[0]});
   }
   if(path==='/v1/fiscal-dashboard'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,`WITH clock AS (SELECT (now() AT TIME ZONE 'America/Fortaleza')::date AS today),

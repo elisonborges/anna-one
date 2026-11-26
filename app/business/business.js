@@ -94,9 +94,14 @@ function resetRegistry(){
  $('party-form').reset();$('establishment-form').reset();$('party-rows').replaceChildren();$('establishment-rows').replaceChildren();txt('registry-context','');txt('registry-status','Serviço cadastral não consultado.');
 }
 async function registryRequest(path,method='GET',payload){
- const jwt=await getJwt();
+ const rev=revision;let jwt;
+ const expired=()=>{if(rev===revision&&authorized){revision++;resetWorkspace();txt('auth-status','Sessão expirada. Entre novamente para consultar o Business.');}};
+ try{jwt=await getJwt();}catch(e){if(e instanceof AccessError)expired();throw e;}
+ if(rev!==revision||!authorized)throw new AccessError('Consulta cancelada.');
  const response=await fetch(REGISTRY_URL+path,{method,headers:{Authorization:'Bearer '+jwt,...(payload?{'Content-Type':'application/json'}:{})},...(payload?{body:JSON.stringify(payload)}:{}),cache:'no-store'});
  const data=await response.json().catch(()=>null);
+ if(response.status===401){expired();throw new AccessError('Sessão expirada.');}
+ if(rev!==revision||!authorized)throw new AccessError('Consulta cancelada.');
  if(!response.ok)throw new Error(data?.error||'Serviço cadastral indisponível (HTTP '+response.status+').');
  return data;
 }

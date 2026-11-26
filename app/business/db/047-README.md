@@ -1,0 +1,7 @@
+# Incremento 58 — AnnA Connect (v0.9)
+
+Base de integração interna: fila durável por tenant, chave idempotente por origem, transições explícitas e histórico append-only. Proprietário registra eventos de integrações e evidências de falha, conciliação manual e reprocessamento. O estado reconciliado não é confirmação automática de entrega. Outbox transacional captura futuras publicações/revogações documentais e criação/encerramento de pendências; inclui identificadores opacos, não arquivos ou conteúdo dos documentos. Não há backfill.
+
+Migração 047 depende de 046. Aplicada somente na branch isolada br-sweet-boat-b69532hl. Teste com anna_business_runtime: registro 1, duplicado 0, retry sem falha 0, falha 1, conciliação direta após falha 0, reprocessamento 1, conciliação 1, alteração de evento terminal 0; estado final reconciled, tentativa 2, 4 ações. Captura automática dos quatro eventos documentais/contábeis confirmou uma ocorrência por ação. Contador externo viu 0 eventos e 0 ações. Dados fictícios, sem envio externo e sem mutações na produção. Sintaxe do Worker e Business aprovada; IDs do painel conferidos.
+
+Próximos requisitos: adaptadores efetivos, credenciais em secrets, webhooks assinados, processamento automático, limitação de tentativas com backoff, monitoramento e reconciliação com provedores reais. Não configurar ou publicar sem autorização. Testes JWT, browser, concorrência e homologação integrada pendentes.

@@ -1,0 +1,54 @@
+// Planejamento de recursos e custos gerenciais, sem lançamentos financeiros automáticos.
+const kinds={team:'Equipe',person:'Profissional',equipment:'Equipamento',other:'Outro recurso'},categories={labor:'Mão de obra',materials:'Materiais',equipment:'Equipamentos',travel:'Deslocamento',third_party:'Terceiros',other:'Outros'};
+export function createOpsResourcesPanel({host,status,refresh,request,authorized}){
+ let rev=0,company='',order='',start='',end='',busy=false;
+ const n=(tag,value,cls)=>{const e=document.createElement(tag);if(value!==undefined)e.textContent=String(value);if(cls)e.className=cls;return e;};
+ const input=(name,type='text',max=120)=>{const e=n('input');e.name=name;e.type=type;e.required=true;if(type==='text')e.maxLength=max;return e;};
+ const select=(name,items)=>{const e=n('select');e.name=name;e.required=true;const p=n('option','Selecione');p.value='';e.append(p);for(const [id,label] of items){const o=n('option',label);o.value=id;e.append(o);}return e;};
+ const field=(label,e)=>{const l=n('label',label);l.append(e);return l;};
+ const check=()=>input('confirmed','checkbox'),money=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v)),alive=r=>r===rev&&authorized();
+ const today=()=>{const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Fortaleza',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const get=k=>parts.find(p=>p.type===k).value;return get('year')+'-'+get('month')+'-'+get('day');};
+ function clear(){rev++;host.replaceChildren();host.hidden=true;refresh.disabled=false;status.textContent='Aguardando consulta.';}
+ function reset(){company='';order='';start='';end='';clear();}
+ function form(parent,title,fields,path,transform=x=>x){
+  const f=n('form',undefined,'corporate-box'),box=n('div',undefined,'filters'),button=n('button','Registrar','btn'),msg=n('p');msg.setAttribute('role','status');button.type='submit';
+  for(const [label,el] of fields)box.append(field(label,el));f.append(n('h4',title),box,button,msg);parent.append(f);let op=null,key=null;const r=rev;
+  f.addEventListener('submit',async e=>{e.preventDefault();if(busy||!alive(r))return;busy=true;button.disabled=true;try{const p=transform(Object.fromEntries(new FormData(f))),k=JSON.stringify(p);if(k!==key){key=k;op=crypto.randomUUID();}const d=await request(path,'POST',{...p,request_id:op});if(!d?.item)throw Error('Confirmação não recebida.');if(alive(r))await load();}catch(err){if(alive(r))msg.textContent=err.message;}finally{busy=false;button.disabled=false;}});
+ }
+ function voidForm(parent,kind,id){form(parent,'Anular registro',[['Justificativa',input('reason','text',200)],['Confirmo anulação',check()]],'/v1/operations/'+kind+'/'+id+'/void',p=>({...p,confirmed:true}));}
+ function number(name){const e=input(name,'number');e.min=1;e.max=525600;e.step=1;return e;}
+ function amount(){const e=input('amount','number');e.min='0.01';e.max='999999999999.99';e.step='0.01';return e;}
+ async function load(){
+  if(!authorized())return;clear();const r=rev;refresh.disabled=true;status.textContent='Verificando concessão operacional...';
+  try{const scope=await request('/v1/operations');if(!alive(r))return;if(!Array.isArray(scope?.companies))throw Error('Resposta inválida.');
+   const allowed=scope.companies.filter(c=>c.allowed===true);if(!allowed.some(c=>c.id===company)){company=allowed[0]?.id||'';order='';}if(!company){host.append(n('p','Conceda acesso por empresa no módulo Gestão operacional.'));host.hidden=false;status.textContent='Sem concessão operacional.';return;}
+   const chooser=select('company',allowed.map(c=>[c.id,c.name]));chooser.value=company;chooser.addEventListener('change',()=>{company=chooser.value;order='';load();});host.append(field('Empresa',chooser));
+   const [catalog,res]=await Promise.all([request('/v1/operations/records?'+new URLSearchParams({company})),request('/v1/operations/resources?'+new URLSearchParams({company}))]);if(!alive(r))return;if(!Array.isArray(catalog?.orders)||!Array.isArray(res?.items))throw Error('Registros indisponíveis.');
+   if(!start||!end){end=today();start=end.slice(0,7)+'-01';}
+   const filter=n('form',undefined,'filters'),from=input('start','date'),to=input('end','date'),go=n('button','Consultar indicadores','btn light');from.value=start;to.value=end;go.type='submit';filter.append(field('Prazo das ordens de',from),field('Até',to),go);filter.addEventListener('submit',e=>{e.preventDefault();start=from.value;end=to.value;load();});host.append(n('h3','Indicadores operacionais'),filter);
+   const m=await request('/v1/operations/indicators?'+new URLSearchParams({company,start,end}));if(!alive(r))return;if(m?.allowed!==true)throw Error('Indicadores indisponíveis.');
+   const metrics=n('div',undefined,'business-grid');const vals=[['Ordens no recorte',m.orders],['Concluídas',m.completed],['Concluídas no prazo',m.on_time],['Abertas vencidas',m.overdue_open],['Atividades concluídas / total',m.tasks_completed+' / '+m.tasks],['Minutos estimados (não canceladas)',m.estimated_minutes],['Minutos informados',m.reported_minutes],['Custos previstos',money(m.planned_cost)],['Custos realizados informados',m.actual_cost_records?money(m.actual_cost):'Sem registros']];for(const [label,value] of vals){const card=n('article',undefined,'business-card');card.append(n('h4',label),n('p',value));metrics.append(card);}host.append(metrics,n('p','Recorte por prazo da ordem, posição atual; custos e esforço acumulados das ordens selecionadas. Esforço informado não é ponto nem medida automática de produtividade individual. Ausência de custo registrado não significa custo zero.','muted small'));
+   host.append(n('h3','Recursos operacionais'),n('p','Equipes e equipamentos são identificações operacionais; não alteram cadastro patrimonial nem RH. Reservas são por dia inteiro e não permitem sobreposição.'));
+   form(host,'Cadastrar equipe, equipamento ou recurso',[['Código',input('code','text',30)],['Tipo',select('kind',[['team',kinds.team],['equipment',kinds.equipment],['other',kinds.other]])],['Identificação',input('label')]],'/v1/operations/resources',p=>({...p,company_id:company}));
+   const party=input('party_id','text',36);form(host,'Cadastrar profissional do cadastro corporativo',[['Código',input('code','text',30)],['UUID da pessoa física cadastrada',party]],'/v1/operations/resources',p=>({...p,kind:'person',label:'Cadastro corporativo',company_id:company}));
+   for(const x of res.items)host.append(n('p',x.code+' · '+kinds[x.kind]+' · '+x.label));
+   if(!catalog.orders.length){host.append(n('p','Cadastre ordens e atividades na Gestão operacional.'));host.hidden=false;status.textContent='Consulta concluída.';return;}
+   if(!catalog.orders.some(o=>o.id===order))order=catalog.orders[0].id;
+   const picker=select('order',catalog.orders.map(o=>[o.id,o.reference+' · '+o.title]));picker.value=order;picker.addEventListener('change',()=>{order=picker.value;load();});host.append(field('Ordem de serviço',picker));
+   const [detail,d]=await Promise.all([request('/v1/operations/orders/'+order),request('/v1/operations/orders/'+order+'/resources')]);if(!alive(r))return;if(detail?.id!==order||d?.id!==order||![detail.tasks,d.allocations,d.costs,d.effort].every(Array.isArray))throw Error('Ordem indisponível.');
+   const tasks=detail.tasks,taskName=id=>tasks.find(t=>t.id===id)?.title||'Atividade anterior',activeTasks=tasks.filter(t=>['pending','in_progress'].includes(t.status)),workedTasks=tasks.filter(t=>['in_progress','completed'].includes(t.status));
+   host.append(n('h3','Alocações por atividade'));
+   if(['draft','planned','in_progress'].includes(d.status)&&activeTasks.length&&res.items.length)form(host,'Reservar recurso',[['Atividade',select('task_id',activeTasks.map(t=>[t.id,t.title+' ('+t.planned_on+' a '+t.due_on+')']))],['Recurso',select('resource_id',res.items.map(x=>[x.id,x.code+' · '+x.label]))],['Início',input('start_on','date')],['Fim',input('end_on','date')],['Confirmo reserva',check()]],'/v1/operations/allocations',p=>({...p,confirmed:true}));
+   for(const x of d.allocations){const card=n('article',undefined,'business-card');card.append(n('p',taskName(x.task_id)+' · '+x.resource_code+' · '+x.resource_label+' · '+x.start_on+' a '+x.end_on+(x.voided_at?' · Anulada: '+x.void_reason:'')));if(!x.voided_at)voidForm(card,'allocations',x.id);host.append(card);}
+   host.append(n('h3','Custos da ordem'),n('p','Previsões até o planejamento; realizados informados durante ou após execução. Nenhum registro gera conta a pagar automaticamente.'));
+   const costKinds=['draft','planned'].includes(d.status)?[['planned','Previsto']]:[['actual','Realizado']];
+   form(host,'Registrar custo',[['Tipo',select('kind',costKinds)],['Categoria',select('category',Object.entries(categories))],['Referência única',input('reference')],['Valor (R$)',amount()],['Data',input('incurred_on','date')],['Confirmo valor informado',check()]],'/v1/operations/costs',p=>({...p,order_id:order,confirmed:true}));
+   for(const x of d.costs){const card=n('article',undefined,'business-card');card.append(n('p',(x.kind==='planned'?'Previsto':'Realizado')+' · '+categories[x.category]+' · '+money(x.amount)+' · '+x.incurred_on+' · '+x.reference+(x.voided_at?' · Anulado: '+x.void_reason:'')));if(!x.voided_at)voidForm(card,'costs',x.id);host.append(card);}
+   host.append(n('h3','Esforço realizado informado'));
+   if(workedTasks.length)form(host,'Registrar minutos realizados',[['Atividade',select('task_id',workedTasks.map(t=>[t.id,t.title]))],['Data',input('work_on','date')],['Minutos (esforço agregado)',number('minutes')],['Referência única',input('reference')],['Confirmo esforço informado',check()]],'/v1/operations/effort',p=>({...p,minutes:Number(p.minutes),confirmed:true}));
+   for(const x of d.effort){const card=n('article',undefined,'business-card');card.append(n('p',taskName(x.task_id)+' · '+x.work_on+' · '+x.minutes+' min · '+x.reference+(x.voided_at?' · Anulado: '+x.void_reason:'')));if(!x.voided_at)voidForm(card,'effort',x.id);host.append(card);}
+   host.hidden=false;status.textContent='Consulta concluída. Até 500 registros por categoria e 100 ordens recentes; indicadores abrangem todo o recorte.';
+  }catch(err){if(alive(r)){host.replaceChildren();host.hidden=true;status.textContent=err.message;}}finally{if(alive(r))refresh.disabled=false;}
+ }
+ refresh.addEventListener('click',load);return {load,reset};
+}

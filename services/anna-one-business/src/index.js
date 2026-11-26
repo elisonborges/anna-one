@@ -158,6 +158,24 @@ SELECT jsonb_build_object(
     return send({item:r.rows[0]},201);
    }
   }
+  const receiptMatch=path.match(/^\/v1\/purchase-orders\/([^/]+)\/receipts$/);
+  if(receiptMatch&&UUID.test(receiptMatch[1])){
+   const oid=receiptMatch[1];
+   if(request.method==='GET'){
+    const r=await execute(sql,tenant,user,"SELECT id,code::text AS code,reference,received_on::text AS received_on,notes,lines,document_total::text AS document_total,expected_total::text AS expected_total,status,created_at FROM business.purchase_receipts WHERE tenant_id=$1::uuid AND order_id=$2::uuid ORDER BY code",[tenant,oid]);
+    if(!['owner','registry_editor'].includes(r.role))fail(403,'Recebimentos restritos à equipe de compras.');
+    return send({items:r.rows});
+   }
+   if(request.method==='POST'){
+    const b=await body(request),op=requestId(b),ref=typeof b.reference==='string'?b.reference.trim():'',notes=typeof b.notes==='string'?b.notes.trim():'',date=crmDate(b.received_on);
+    const qty=v=>typeof v==='string'&&/^(?:0|[1-9][0-9]{0,5})(?:\.[0-9]{1,3})?$/.test(v);
+    const price=v=>typeof v==='string'&&/^(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,2})?$/.test(v);
+    if(!ref||ref.length>200||!notes||notes.length>1000||!date||typeof b.document_total!=='string'||!/^(?:0|[1-9][0-9]{0,21})(?:\.[0-9]{1,2})?$/.test(b.document_total)||!Array.isArray(b.lines)||b.lines.length<1||b.lines.length>20||b.lines.some(l=>!l||!UUID.test(l.line_id||'')||!qty(l.quantity)||!qty(l.document_quantity)||!price(l.document_unit_price)))fail(400,'Informe documento, data, observação, quantidades e preços válidos.');
+    const r=await execute(sql,tenant,user,"SELECT receipt_id FROM business.create_purchase_receipt($1::uuid,$2,$3::date,$4,$5::jsonb,$6::numeric,$7::uuid)",[oid,ref,date,notes,JSON.stringify(b.lines),b.document_total,op],true);
+    if(!r.rows.length)fail(409,'Pedido inválido, saldo insuficiente, data inválida ou documento duplicado.');
+    return send({item:r.rows[0]},201);
+   }
+  }
   const orderDecision=path.match(/^\/v1\/purchase-orders\/([^/]+)\/decide$/);
   if(orderDecision&&UUID.test(orderDecision[1])&&request.method==='POST'){
    const b=await body(request),op=requestId(b),reason=typeof b.reason==='string'?b.reason.trim():'';

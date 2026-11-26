@@ -29,13 +29,13 @@ export function renderAccountingCenter(host, grants, publications, onDownload, o
   const category=select('Categoria',[['','Todas'],...Object.entries(categories)]);
   const list=make('div');list.className='business-grid';
   const status=make('p');status.setAttribute('role','status');
-  const exportButton=make('button','Exportar relação JSON');exportButton.type='button';exportButton.className='btn light';
+  const exportButton=make('button','Exportar pacote ZIP');exportButton.type='button';exportButton.className='btn light';
   const exportStatus=make('p');exportStatus.setAttribute('role','status');
   const selected=()=>filterAccountingDocuments(docs,{grant:grant.value,month:month.value,kind:kind.value,category:category.value});
   function show(){
     list.replaceChildren();const visible=selected();
-    status.textContent=visible.length+' documento(s) autorizado(s).';
-    exportButton.disabled=!visible.length;
+    status.textContent=visible.length+' documento(s) autorizado(s). Selecione uma única concessão para exportar o ZIP.';
+    exportButton.disabled=!visible.length||new Set(visible.map(p=>p.grant_id)).size!==1;
     for(const p of visible){
       const card=make('article');card.className='business-card';
       const button=make('button','Baixar PDF');button.type='button';button.className='btn light';

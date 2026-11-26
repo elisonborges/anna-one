@@ -70,7 +70,7 @@ export default {async fetch(request,env){
  if(origin&&origin!==ORIGIN)return send({error:'Origem não permitida.'},403);
  if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{...headers,'Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Authorization, Content-Type','Access-Control-Max-Age':'600'}});
  const path=new URL(request.url).pathname;
- if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.1.0-dev.78',status:'online'});
+ if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.2.0-dev.81',status:'online'});
  try{
   if(!env.DATABASE_URL||!UUID.test(env.INTERNAL_TENANT_ID||''))fail(503,'Serviço cadastral ainda não configurado.');
   const portalDownload=path.match(/^\/v1\/portal\/publications\/([^/]+)\/download$/);
@@ -277,6 +277,61 @@ SELECT jsonb_build_object(
   }
   if(path==='/v1/people-consolidation'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,`SELECT COALESCE(jsonb_agg(jsonb_build_object('id',c.party_id,'name',p.legal_name,'hr',business.hr_allowed(c.tenant_id,c.party_id),'payroll',business.payroll_allowed(c.tenant_id,c.party_id),'timeclock',business.work_allowed(c.tenant_id,c.party_id,'timeclock'),'access',business.work_allowed(c.tenant_id,c.party_id,'access'),'active_relationships',CASE WHEN business.hr_allowed(c.tenant_id,c.party_id) THEN (SELECT count(*) FROM business.hr_relationships x WHERE x.tenant_id=c.tenant_id AND x.company_id=c.party_id AND NOT EXISTS(SELECT 1 FROM business.hr_movements m WHERE m.tenant_id=x.tenant_id AND m.relationship_id=x.id AND m.kind='end')) END,'open_assignments',CASE WHEN business.hr_allowed(c.tenant_id,c.party_id) THEN (SELECT count(*) FROM business.dp_assignments x WHERE x.tenant_id=c.tenant_id AND x.company_id=c.party_id AND x.closed_on IS NULL) END,'open_payroll',CASE WHEN business.payroll_allowed(c.tenant_id,c.party_id) THEN (SELECT count(*) FROM business.payroll_batches x WHERE x.tenant_id=c.tenant_id AND x.company_id=c.party_id AND x.status IN ('imported','approved')) END,'time_records',CASE WHEN business.work_allowed(c.tenant_id,c.party_id,'timeclock') THEN (SELECT count(*) FROM business.timeclock_entries x WHERE x.tenant_id=c.tenant_id AND x.company_id=c.party_id AND x.voided_at IS NULL) END,'access_authorizations',CASE WHEN business.work_allowed(c.tenant_id,c.party_id,'access') THEN (SELECT count(*) FROM business.access_authorizations x WHERE x.tenant_id=c.tenant_id AND x.company_id=c.party_id AND x.revoked_at IS NULL AND now()>=x.valid_from AND now()<x.valid_until) END) ORDER BY p.legal_name),'[]'::jsonb) AS items FROM business.companies c JOIN core.parties p ON p.tenant_id=c.tenant_id AND p.id=c.party_id WHERE c.tenant_id=$1::uuid AND (business.hr_allowed(c.tenant_id,c.party_id) OR business.payroll_allowed(c.tenant_id,c.party_id) OR business.work_allowed(c.tenant_id,c.party_id,'timeclock') OR business.work_allowed(c.tenant_id,c.party_id,'access'))`,[tenant]);return send({items:r.rows[0]?.items||[]});
+  }
+  if(path==='/v1/operations'&&request.method==='GET'){
+   const r=await execute(sql,tenant,user,`SELECT jsonb_build_object('admin',business.hr_admin($1::uuid),'actor_id',$2::uuid,'companies',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',c.party_id,'name',p.legal_name,'allowed',business.ops_allowed(c.tenant_id,c.party_id)) ORDER BY p.legal_name) FROM business.companies c JOIN core.parties p ON p.tenant_id=c.tenant_id AND p.id=c.party_id WHERE c.tenant_id=$1::uuid AND (business.hr_admin(c.tenant_id) OR business.ops_allowed(c.tenant_id,c.party_id))),'[]'::jsonb),'grants',COALESCE((SELECT jsonb_agg(to_jsonb(x) ORDER BY x.created_at DESC) FROM (SELECT id,company_id,user_id,reason,created_at,revoked_at FROM business.ops_grants WHERE tenant_id=$1::uuid AND business.hr_admin(tenant_id) ORDER BY created_at DESC LIMIT 500)x),'[]'::jsonb)) AS data`,[tenant,user]);return send(r.rows[0]?.data||{});
+  }
+  if(path==='/v1/operations/grants'&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),reason=typeof b.reason==='string'?b.reason.trim():'';
+   if(![b.company_id,b.user_id].every(x=>typeof x==='string'&&UUID.test(x))||!reason||reason.length>200||b.confirmed!==true)fail(400,'Confirme destinatário, empresa e justificativa.');
+   const r=await execute(sql,tenant,user,"INSERT INTO business.ops_grants(tenant_id,company_id,user_id,reason,operation_id,created_by) SELECT $1::uuid,$2::uuid,$3::uuid,$4,$5::uuid,$6::uuid WHERE business.hr_admin($1::uuid) ON CONFLICT DO NOTHING RETURNING id",[tenant,b.company_id,b.user_id,reason,op,user],true);if(r.role!=='owner')fail(403,'Concessão restrita ao proprietário.');if(!r.rows.length)fail(409,'Concessão indisponível.');return send({item:r.rows[0]},201);
+  }
+  const opsGrantRevoke=path.match(/^\/v1\/operations\/grants\/([^/]+)\/revoke$/);
+  if(opsGrantRevoke&&UUID.test(opsGrantRevoke[1])&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),reason=typeof b.reason==='string'?b.reason.trim():'';
+   if(!reason||reason.length>200||b.confirmed!==true)fail(400,'Confirme revogação e justificativa.');
+   const r=await execute(sql,tenant,user,"UPDATE business.ops_grants SET revoked_at=now(),revoked_by=$3::uuid,revoke_reason=$4,revoke_op=$5::uuid WHERE tenant_id=$1::uuid AND id=$2::uuid AND revoked_at IS NULL AND business.hr_admin(tenant_id) RETURNING id",[tenant,opsGrantRevoke[1],user,reason,op],true);if(r.role!=='owner')fail(403,'Concessão restrita ao proprietário.');if(!r.rows.length)fail(409,'Concessão indisponível.');return send({item:r.rows[0]});
+  }
+  if(path==='/v1/operations/customers'&&request.method==='GET'){
+   const u=new URL(request.url),company=u.searchParams.get('company'),q=(u.searchParams.get('q')||'').trim();if(!UUID.test(company||'')||q.length<2||q.length>80)fail(400,'Informe empresa e ao menos dois caracteres.');
+   const r=await execute(sql,tenant,user,`SELECT jsonb_build_object('allowed',business.ops_allowed($1::uuid,$2::uuid),'items',COALESCE((SELECT jsonb_agg(to_jsonb(x) ORDER BY x.name) FROM (SELECT id,legal_name AS name FROM core.parties WHERE tenant_id=$1::uuid AND status='active' AND business.ops_allowed($1::uuid,$2::uuid) AND strpos(lower(legal_name),lower($3))>0 ORDER BY legal_name LIMIT 50)x),'[]'::jsonb)) AS data`,[tenant,company,q]);if(r.rows[0]?.data?.allowed!==true)fail(403,'Concessão operacional necessária.');return send(r.rows[0].data);
+  }
+  if(path==='/v1/operations/records'&&request.method==='GET'){
+   const u=new URL(request.url),company=u.searchParams.get('company');if(!UUID.test(company||''))fail(400,'Selecione empresa.');
+   const r=await execute(sql,tenant,user,`SELECT jsonb_build_object('allowed',business.ops_allowed($1::uuid,$2::uuid),'catalog',COALESCE((SELECT jsonb_agg(to_jsonb(x) ORDER BY x.code) FROM (SELECT id,code,title,description,estimated_minutes,retired_at,retire_reason FROM business.ops_catalog WHERE tenant_id=$1::uuid AND company_id=$2::uuid ORDER BY code LIMIT 500)x),'[]'::jsonb),'orders',COALESCE((SELECT jsonb_agg(to_jsonb(x) ORDER BY x.created_at DESC) FROM (SELECT o.id,o.service_id,o.reference,o.title,o.description,o.planned_on::text AS planned_on,o.due_on::text AS due_on,o.created_at,p.legal_name AS customer_name,business.ops_order_status(o.id) AS status,(SELECT count(*) FROM business.ops_tasks t WHERE t.tenant_id=o.tenant_id AND t.order_id=o.id) AS task_count FROM business.ops_orders o JOIN core.parties p ON p.tenant_id=o.tenant_id AND p.id=o.customer_id WHERE o.tenant_id=$1::uuid AND o.company_id=$2::uuid ORDER BY o.created_at DESC,o.id LIMIT 100)x),'[]'::jsonb)) AS data`,[tenant,company]);if(r.rows[0]?.data?.allowed!==true)fail(403,'Concessão operacional necessária.');return send(r.rows[0].data);
+  }
+  const opsDetail=path.match(/^\/v1\/operations\/orders\/([^/]+)$/);
+  if(opsDetail&&UUID.test(opsDetail[1])&&request.method==='GET'){
+   const r=await execute(sql,tenant,user,`SELECT jsonb_build_object('id',o.id,'status',business.ops_order_status(o.id),'events',COALESCE((SELECT jsonb_agg(jsonb_build_object('status',e.status,'reason',e.reason,'created_at',e.created_at) ORDER BY e.seq) FROM business.ops_order_events e WHERE e.tenant_id=o.tenant_id AND e.order_id=o.id),'[]'::jsonb),'tasks',COALESCE((SELECT jsonb_agg(to_jsonb(x) ORDER BY x.planned_on,x.id) FROM (SELECT t.id,t.title,t.planned_on::text AS planned_on,t.due_on::text AS due_on,t.estimated_minutes,business.ops_task_status(t.id) AS status,COALESCE((SELECT jsonb_agg(jsonb_build_object('status',e.status,'reason',e.reason,'created_at',e.created_at) ORDER BY e.seq) FROM business.ops_task_events e WHERE e.tenant_id=t.tenant_id AND e.task_id=t.id),'[]'::jsonb) AS events FROM business.ops_tasks t WHERE t.tenant_id=o.tenant_id AND t.order_id=o.id ORDER BY t.planned_on,t.id LIMIT 500)x),'[]'::jsonb)) AS data FROM business.ops_orders o WHERE o.tenant_id=$1::uuid AND o.id=$2::uuid`,[tenant,opsDetail[1]]);if(!r.rows.length)fail(404,'Ordem indisponível.');return send(r.rows[0].data);
+  }
+  if(path==='/v1/operations/catalog'&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),code=typeof b.code==='string'?b.code.trim().toUpperCase():'',title=typeof b.title==='string'?b.title.trim():'',description=typeof b.description==='string'?b.description.trim():'';
+   if(!UUID.test(b.company_id||'')||!/^[A-Z0-9_-]{1,30}$/.test(code)||!title||title.length>120||!description||description.length>500||!Number.isInteger(b.estimated_minutes)||b.estimated_minutes<1||b.estimated_minutes>525600)fail(400,'Confira os dados do serviço.');
+   const r=await execute(sql,tenant,user,"INSERT INTO business.ops_catalog(tenant_id,company_id,code,title,description,estimated_minutes,operation_id,created_by) SELECT $1::uuid,$2::uuid,$3,$4,$5,$6::integer,$7::uuid,$8::uuid WHERE business.ops_allowed($1::uuid,$2::uuid) ON CONFLICT DO NOTHING RETURNING id",[tenant,b.company_id,code,title,description,b.estimated_minutes,op,user],true);if(!r.rows.length)fail(409,'Código ou autorização indisponível.');return send({item:r.rows[0]},201);
+  }
+  const opsRetire=path.match(/^\/v1\/operations\/catalog\/([^/]+)\/retire$/);
+  if(opsRetire&&UUID.test(opsRetire[1])&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),reason=typeof b.reason==='string'?b.reason.trim():'';
+   if(!reason||reason.length>200||b.confirmed!==true)fail(400,'Confirme desativação e justificativa.');
+   const r=await execute(sql,tenant,user,"UPDATE business.ops_catalog SET retired_at=now(),retired_by=$3::uuid,retire_reason=$4,retire_op=$5::uuid WHERE tenant_id=$1::uuid AND id=$2::uuid AND retired_at IS NULL AND business.ops_allowed(tenant_id,company_id) RETURNING id",[tenant,opsRetire[1],user,reason,op],true);if(!r.rows.length)fail(409,'Serviço indisponível.');return send({item:r.rows[0]});
+  }
+  if(path==='/v1/operations/orders'&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),ref=typeof b.reference==='string'?b.reference.trim():'',title=typeof b.title==='string'?b.title.trim():'',description=typeof b.description==='string'?b.description.trim():'';
+   if(![b.company_id,b.service_id,b.customer_id].every(x=>typeof x==='string'&&UUID.test(x))||!ref||ref.length>60||!title||title.length>120||!description||description.length>1000||!validReportRange(b.planned_on,b.due_on)||b.confirmed!==true)fail(400,'Confirme os dados e o período da ordem.');
+   const r=await execute(sql,tenant,user,"SELECT * FROM business.ops_create_order($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7::date,$8::date,$9::uuid)",[b.company_id,b.service_id,b.customer_id,ref,title,description,b.planned_on,b.due_on,op],true);if(!r.rows.length)fail(409,'Ordem, serviço ou autorização indisponível.');return send({item:r.rows[0]},201);
+  }
+  const opsTask=path.match(/^\/v1\/operations\/orders\/([^/]+)\/tasks$/);
+  if(opsTask&&UUID.test(opsTask[1])&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),title=typeof b.title==='string'?b.title.trim():'';
+   if(!title||title.length>120||!validReportRange(b.planned_on,b.due_on)||!Number.isInteger(b.estimated_minutes)||b.estimated_minutes<1||b.estimated_minutes>525600)fail(400,'Confira atividade, estimativa e período.');
+   const r=await execute(sql,tenant,user,"SELECT * FROM business.ops_add_task($1::uuid,$2,$3::date,$4::date,$5::integer,$6::uuid)",[opsTask[1],title,b.planned_on,b.due_on,b.estimated_minutes,op],true);if(!r.rows.length)fail(409,'Atividade fora do período, ordem encerrada ou autorização indisponível.');return send({item:r.rows[0]},201);
+  }
+  const opsEvent=path.match(/^\/v1\/operations\/(orders|tasks)\/([^/]+)\/events$/);
+  if(opsEvent&&UUID.test(opsEvent[2])&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),reason=typeof b.reason==='string'?b.reason.trim():'';
+   if(!['planned','in_progress','completed','cancelled'].includes(b.status)||!reason||reason.length>300||b.confirmed!==true)fail(400,'Confirme situação e justificativa.');
+   const statement=opsEvent[1]==='orders'?"SELECT * FROM business.ops_change_order($1::uuid,$2,$3,$4::uuid)":"SELECT * FROM business.ops_change_task($1::uuid,$2,$3,$4::uuid)";
+   const r=await execute(sql,tenant,user,statement,[opsEvent[2],b.status,reason,op],true);if(!r.rows.length)fail(409,'Transição inválida, atividades pendentes ou autorização indisponível.');return send({item:r.rows[0]},201);
   }
   if(path==='/v1/dp'&&request.method==='GET'){
    const company=new URL(request.url).searchParams.get('company');if(!UUID.test(company||''))fail(400,'Selecione empresa.');

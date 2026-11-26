@@ -142,6 +142,22 @@ SELECT jsonb_build_object(
     return send({item:r.rows[0]});
    }
   }
+  const quoteMatch=path.match(/^\/v1\/purchase-requests\/([^/]+)\/quotes$/);
+  if(quoteMatch&&UUID.test(quoteMatch[1])){
+   const rid=quoteMatch[1];
+   if(request.method==='GET'){
+    const r=await execute(sql,tenant,user,"SELECT id,supplier_id,supplier_name,reference,valid_until::text,delivery_days,payment_terms,lines,total::text,created_at,(valid_until >= (now() AT TIME ZONE 'America/Fortaleza')::date) AS current FROM business.purchase_quotes WHERE tenant_id=$1::uuid AND request_id=$2::uuid ORDER BY total,created_at,id",[tenant,rid]);
+    if(!['owner','registry_editor'].includes(r.role))fail(403,'Cotações restritas à equipe de compras.');
+    return send({items:r.rows});
+   }
+   if(request.method==='POST'){
+    const b=await body(request),op=requestId(b),ref=typeof b.reference==='string'?b.reference.trim():'',terms=typeof b.payment_terms==='string'?b.payment_terms.trim():'',valid=crmDate(b.valid_until);
+    if(!UUID.test(b.supplier_id||'')||!ref||ref.length>200||!terms||terms.length>300||!valid||!Number.isInteger(b.delivery_days)||b.delivery_days<0||b.delivery_days>3650||!Array.isArray(b.lines)||b.lines.length<1||b.lines.length>20||b.lines.some(l=>!l||!UUID.test(l.line_id||'')||typeof l.unit_price!=='string'||! /^(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,2})?$/.test(l.unit_price)))fail(400,'Informe fornecedor, referência, validade, prazo, pagamento e todos os preços.');
+    const r=await execute(sql,tenant,user,"SELECT quote_id FROM business.create_purchase_quote($1::uuid,$2::uuid,$3,$4::date,$5::integer,$6,$7::jsonb,$8::uuid)",[rid,b.supplier_id,ref,valid,b.delivery_days,terms,JSON.stringify(b.lines),op],true);
+    if(!r.rows.length)fail(409,'Cotação duplicada, fornecedor inválido, validade vencida ou requisição não aprovada/completa.');
+    return send({item:r.rows[0]},201);
+   }
+  }
   if(path==='/v1/purchase-requests'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,`WITH companies AS (SELECT p.id,p.legal_name AS name FROM business.companies b JOIN core.parties p ON p.tenant_id=b.tenant_id AND p.id=b.party_id WHERE b.tenant_id=$1::uuid AND p.status='active'),
  suppliers AS (SELECT p.id,p.legal_name AS name FROM business.party_roles r JOIN core.parties p ON p.tenant_id=r.tenant_id AND p.id=r.party_id WHERE r.tenant_id=$1::uuid AND r.role='supplier' AND r.active AND p.status='active'),

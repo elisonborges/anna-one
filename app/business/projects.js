@@ -62,9 +62,28 @@ export function createProjectsPanel({host,status,refresh,request,authorized}){
    host.append(n('h3','Referência externa — AnnA Nexus'));
    try{
     const ext=await request('/v1/operations/external-links?'+new URLSearchParams({company,project:p.id}));if(!alive(r))return;if(ext?.allowed!==true||!Array.isArray(ext.items))throw Error('Referências indisponíveis.');
-    host.append(n('p','Referência conferida manualmente. Não sincroniza dados, não comprova autorização no sistema externo e não cria registros nele.'));
-    if(!ext.items.some(x=>!x.revoked_at))form(host,'Registrar referência externa',[['Organização ou instituição (identificador)',input('external_scope','text',100)],['UUID do projeto Nexus',input('external_ref','text',100)],['Justificativa',input('reason','text',200)],['Confirmo conferência manual',check()]],'/v1/operations/external-links',x=>({...x,company_id:company,project_id:p.id,provider:'nexus',confirmed:true}));
-    for(const x of ext.items){const card=n('article',undefined,'business-card');card.append(n('p',x.external_scope+' · '+x.external_ref),n('p',x.revoked_at?'Desvinculado: '+x.revoke_reason:'Referência manual ativa · '+x.reason));if(!x.revoked_at)form(card,'Desvincular referência',[['Justificativa',input('reason','text',200)],['Confirmo desvinculação',check()]],'/v1/operations/external-links/'+x.id+'/revoke',p=>({...p,confirmed:true}));host.append(card);}
+    host.append(n('p','Consulta ao Nexus sob demanda, com a sessão atual. O vínculo é registrado somente no Business após conferência no Nexus. Não cria ou altera projetos externos.'));
+    const query=new URLSearchParams({company,project:p.id});
+    const getProjects=async org=>{const d=await request('/v1/nexus/projects?'+query+'&org='+encodeURIComponent(org));if(d?.read_only!==true||!Array.isArray(d.items))throw Error('Listagem Nexus inválida.');return d.items;};
+    if(!ext.items.some(x=>!x.revoked_at)){
+     const block=n('section',undefined,'corporate-box'),loadOrg=n('button','Consultar organizações Nexus','btn'),result=n('div'),msg=n('p');loadOrg.type='button';msg.setAttribute('role','status');block.append(loadOrg,msg,result);host.append(block);
+     loadOrg.addEventListener('click',async()=>{if(!alive(r)||loadOrg.disabled)return;loadOrg.disabled=true;result.replaceChildren();msg.textContent='Consultando Nexus...';try{
+      const d=await request('/v1/nexus/organizations?'+query);if(!alive(r))return;if(d?.read_only!==true||!Array.isArray(d.items))throw Error('Listagem Nexus inválida.');
+      if(!d.items.length){msg.textContent='Nenhuma organização Nexus autorizada.';return;}
+      const org=select('external_scope',d.items.map(x=>[x.id,x.name])),project=select('external_ref',[]),panel=n('div');let selection=0;
+      result.append(field('Organização Nexus',org),panel);msg.textContent='Selecione a organização correspondente à empresa Business. Não há correspondência automática.';
+      org.addEventListener('change',async()=>{const seq=++selection,chosen=org.value;panel.replaceChildren();if(!chosen)return;msg.textContent='Consultando projetos autorizados...';try{
+       const items=await getProjects(chosen);if(!alive(r)||seq!==selection||chosen!==org.value)return;
+       if(!items.length){msg.textContent='Nenhum projeto autorizado nesta organização.';return;}
+       const pick=select('external_ref',items.map(x=>[x.id,x.name+(x.paused?' · Pausado':'')+(x.status?' · '+x.status:'')]));
+       form(panel,'Vincular projeto Nexus',[['Projeto autorizado',pick],['Justificativa',input('reason','text',200)],['Confirmo a correspondência entre empresa e organização',check()]],'/v1/operations/external-links',x=>({...x,external_scope:chosen,company_id:company,project_id:p.id,provider:'nexus',confirmed:true}));msg.textContent='Projeto será conferido novamente ao registrar.';
+      }catch(err){if(alive(r)&&seq===selection)msg.textContent=err.message;}});
+     }catch(err){if(alive(r))msg.textContent=err.message;}finally{loadOrg.disabled=false;}});
+    }
+    for(const x of ext.items){const card=n('article',undefined,'business-card');card.append(n('p',x.external_scope+' · '+x.external_ref),n('p',x.revoked_at?'Desvinculado: '+x.revoke_reason:'Referência ativa · '+x.reason));
+     if(!x.revoked_at){const verify=n('button','Consultar situação no Nexus','btn light'),info=n('p');verify.type='button';info.setAttribute('role','status');card.append(verify,info);verify.addEventListener('click',async()=>{if(!alive(r)||verify.disabled)return;verify.disabled=true;info.textContent='Consultando...';try{const items=await getProjects(x.external_scope);if(!alive(r))return;const current=items.find(z=>z.id.toLowerCase()===x.external_ref.toLowerCase());info.textContent=current?'Nexus: '+current.name+' · '+(current.paused?'Pausado':current.status||'Situação não informada'):'Projeto não localizado entre os autorizados. Confira a referência e a concessão.';}catch(err){if(alive(r))info.textContent=err.message;}finally{verify.disabled=false;}});
+      form(card,'Desvincular referência',[['Justificativa',input('reason','text',200)],['Confirmo desvinculação',check()]],'/v1/operations/external-links/'+x.id+'/revoke',p=>({...p,confirmed:true}));}host.append(card);}
+
    }catch(err){if(!alive(r))return;host.append(n('p','Referências externas indisponíveis: '+err.message));}
    host.hidden=false;status.textContent='Consulta concluída. Até 100 projetos recentes, 500 itens e 2000 dependências por projeto.';
   }catch(err){if(alive(r)){host.replaceChildren();host.hidden=true;status.textContent=err.message;}}finally{if(alive(r))refresh.disabled=false;}

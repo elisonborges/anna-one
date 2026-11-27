@@ -70,7 +70,7 @@ export default {async fetch(request,env){
  if(origin&&origin!==ORIGIN)return send({error:'Origem não permitida.'},403);
  if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{...headers,'Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Authorization, Content-Type','Access-Control-Max-Age':'600'}});
  const path=new URL(request.url).pathname;
- if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.2.0-dev.92',status:'online'});
+ if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.2.0-dev.96',status:'online'});
  try{
   if(!env.DATABASE_URL||!UUID.test(env.INTERNAL_TENANT_ID||''))fail(503,'Serviço cadastral ainda não configurado.');
   const portalDownload=path.match(/^\/v1\/portal\/publications\/([^/]+)\/download$/);
@@ -385,6 +385,35 @@ SELECT jsonb_build_object(
    const b=await body(request),op=requestId(b),reason=typeof b.reason==='string'?b.reason.trim():'';
    if(!['delivered','returned','cancelled'].includes(b.status)||!reason||reason.length>300||b.confirmed!==true)fail(400,'Confirme situação e justificativa.');
    const r=await execute(sql,tenant,user,"SELECT * FROM business.rental_change($1::uuid,$2,$3,$4::uuid)",[rentalEvent[1],b.status,reason,op],true);if(!r.rows.length)fail(409,'Transição inválida, equipamento ainda entregue ou acesso indisponível.');return send({item:r.rows[0]},201);
+  }
+  if(path==='/v1/field-operations'&&request.method==='GET'){
+   const company=new URL(request.url).searchParams.get('company');if(!UUID.test(company||''))fail(400,'Selecione empresa.');
+   const r=await execute(sql,tenant,user,`SELECT jsonb_build_object('allowed',business.ops_allowed($1::uuid,$2::uuid),
+   'vehicles',COALESCE((SELECT jsonb_agg(to_jsonb(x) ORDER BY x.vehicle_ref) FROM (SELECT v.id,v.vehicle_ref,r.label FROM business.fleet_vehicles v JOIN business.ops_resources r ON r.tenant_id=v.tenant_id AND r.id=v.resource_id WHERE v.tenant_id=$1::uuid AND v.company_id=$2::uuid ORDER BY v.vehicle_ref LIMIT 500)x),'[]'::jsonb),
+   'sites',COALESCE((SELECT jsonb_agg(to_jsonb(x) ORDER BY x.code) FROM (SELECT id,code,label,location_ref FROM business.facility_sites WHERE tenant_id=$1::uuid AND company_id=$2::uuid ORDER BY code LIMIT 500)x),'[]'::jsonb),
+   'jobs',COALESCE((SELECT jsonb_agg(to_jsonb(x) ORDER BY x.created_at DESC) FROM (SELECT j.id,j.kind,j.reference,j.title,j.details,j.start_on::text,j.end_on::text,j.created_at,r.label AS resource_label,s.label AS site_label,p.code AS project_code,o.reference AS order_reference,business.field_job_status(j.id) AS status,COALESCE((SELECT jsonb_agg(jsonb_build_object('status',e.status,'reason',e.reason,'created_at',e.created_at) ORDER BY e.seq) FROM business.field_job_events e WHERE e.tenant_id=j.tenant_id AND e.job_id=j.id),'[]'::jsonb) AS events FROM business.field_jobs j LEFT JOIN business.ops_resources r ON r.tenant_id=j.tenant_id AND r.id=j.resource_id LEFT JOIN business.facility_sites s ON s.tenant_id=j.tenant_id AND s.id=j.site_id LEFT JOIN business.projects p ON p.tenant_id=j.tenant_id AND p.id=j.project_id LEFT JOIN business.ops_orders o ON o.tenant_id=j.tenant_id AND o.id=j.order_id WHERE j.tenant_id=$1::uuid AND j.company_id=$2::uuid ORDER BY j.created_at DESC,j.id LIMIT 100)x),'[]'::jsonb),
+   'summary',jsonb_build_object('projects',(SELECT count(*) FROM business.projects WHERE tenant_id=$1::uuid AND company_id=$2::uuid),'open_projects',(SELECT count(*) FROM business.projects p WHERE tenant_id=$1::uuid AND company_id=$2::uuid AND business.project_status(p.id) IN ('draft','active')),'orders',(SELECT count(*) FROM business.ops_orders WHERE tenant_id=$1::uuid AND company_id=$2::uuid),'rentals_open',(SELECT count(*) FROM business.rentals r WHERE tenant_id=$1::uuid AND company_id=$2::uuid AND business.rental_status(r.id) IN ('reserved','delivered')),'rentals_overdue',(SELECT count(*) FROM business.rentals r WHERE tenant_id=$1::uuid AND company_id=$2::uuid AND business.rental_status(r.id)='delivered' AND end_on<(now() AT TIME ZONE 'America/Fortaleza')::date),'trips_open',(SELECT count(*) FROM business.field_jobs j WHERE tenant_id=$1::uuid AND company_id=$2::uuid AND kind='trip' AND business.field_job_status(j.id) IN ('planned','in_progress')),'maintenance_open',(SELECT count(*) FROM business.field_jobs j WHERE tenant_id=$1::uuid AND company_id=$2::uuid AND kind='maintenance' AND business.field_job_status(j.id) IN ('planned','in_progress')),'jobs_overdue',(SELECT count(*) FROM business.field_jobs j WHERE tenant_id=$1::uuid AND company_id=$2::uuid AND business.field_job_status(j.id) IN ('planned','in_progress') AND end_on<(now() AT TIME ZONE 'America/Fortaleza')::date),'linked_jobs',(SELECT count(*) FROM business.field_jobs j WHERE tenant_id=$1::uuid AND company_id=$2::uuid AND (project_id IS NOT NULL OR order_id IS NOT NULL) AND business.field_job_status(j.id)<>'cancelled'))) AS data`,[tenant,company]);if(r.rows[0]?.data?.allowed!==true)fail(403,'Concessão operacional necessária.');return send(r.rows[0].data);
+  }
+  if(path==='/v1/field-operations/vehicles'&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),ref=typeof b.vehicle_ref==='string'?b.vehicle_ref.trim():'';
+   if(![b.company_id,b.resource_id].every(x=>typeof x==='string'&&UUID.test(x))||!ref||ref.length>60||b.confirmed!==true)fail(400,'Confirme equipamento e identificação do veículo.');
+   const r=await execute(sql,tenant,user,"INSERT INTO business.fleet_vehicles(tenant_id,company_id,resource_id,vehicle_ref,operation_id,created_by) SELECT tenant_id,company_id,id,$4,$5::uuid,$6::uuid FROM business.ops_resources WHERE tenant_id=$1::uuid AND company_id=$2::uuid AND id=$3::uuid AND kind='equipment' AND business.ops_allowed(tenant_id,company_id) ON CONFLICT DO NOTHING RETURNING id",[tenant,b.company_id,b.resource_id,ref,op,user],true);if(!r.rows.length)fail(409,'Veículo duplicado, equipamento inválido ou acesso indisponível.');return send({item:r.rows[0]},201);
+  }
+  if(path==='/v1/field-operations/sites'&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),code=typeof b.code==='string'?b.code.trim().toUpperCase():'',label=typeof b.label==='string'?b.label.trim():'',ref=typeof b.location_ref==='string'?b.location_ref.trim():'';
+   if(!UUID.test(b.company_id||'')||!/^[A-Z0-9_-]{1,30}$/.test(code)||!label||label.length>120||!ref||ref.length>200)fail(400,'Confira código, nome e localização administrativa.');
+   const r=await execute(sql,tenant,user,"INSERT INTO business.facility_sites(tenant_id,company_id,code,label,location_ref,operation_id,created_by) SELECT $1::uuid,$2::uuid,$3,$4,$5,$6::uuid,$7::uuid WHERE business.ops_allowed($1::uuid,$2::uuid) ON CONFLICT DO NOTHING RETURNING id",[tenant,b.company_id,code,label,ref,op,user],true);if(!r.rows.length)fail(409,'Instalação duplicada ou acesso indisponível.');return send({item:r.rows[0]},201);
+  }
+  if(path==='/v1/field-operations/jobs'&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),ref=typeof b.reference==='string'?b.reference.trim():'',title=typeof b.title==='string'?b.title.trim():'',details=typeof b.details==='string'?b.details.trim():'',ids=['vehicle_id','site_id','resource_id','project_id','order_id'].map(k=>b[k]||null);
+   if(!UUID.test(b.company_id||'')||!['trip','maintenance'].includes(b.kind)||!ref||ref.length>60||!title||title.length>120||!details||details.length>500||ids.some(x=>x!==null&&(typeof x!=='string'||!UUID.test(x)))||!validReportRange(b.start_on,b.end_on)||b.confirmed!==true)fail(400,'Confirme atividade, referência, recursos e período.');
+   const r=await execute(sql,tenant,user,"SELECT * FROM business.field_create_job($1::uuid,$2,$3,$4,$5,$6::uuid,$7::uuid,$8::uuid,$9::uuid,$10::uuid,$11::date,$12::date,$13::uuid)",[b.company_id,b.kind,ref,title,details,...ids,b.start_on,b.end_on,op],true);if(!r.rows.length)fail(409,'Atividade incompatível, recurso indisponível ou vínculo inválido.');return send({item:r.rows[0]},201);
+  }
+  const fieldEvent=path.match(/^\/v1\/field-operations\/jobs\/([^/]+)\/events$/);
+  if(fieldEvent&&UUID.test(fieldEvent[1])&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),reason=typeof b.reason==='string'?b.reason.trim():'';
+   if(!['in_progress','completed','cancelled'].includes(b.status)||!reason||reason.length>300||b.confirmed!==true)fail(400,'Confirme situação e justificativa.');
+   const r=await execute(sql,tenant,user,"SELECT * FROM business.field_change_job($1::uuid,$2,$3,$4::uuid)",[fieldEvent[1],b.status,reason,op],true);if(!r.rows.length)fail(409,'Transição inválida, vínculo ou equipamento indisponível.');return send({item:r.rows[0]},201);
   }
   if(path==='/v1/projects'&&request.method==='GET'){
    const company=new URL(request.url).searchParams.get('company');if(!UUID.test(company||''))fail(400,'Selecione empresa.');

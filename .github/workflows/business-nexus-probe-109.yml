@@ -1,0 +1,20 @@
+name: Sondagem pública Nexus 109
+on:
+  pull_request:
+    types: [opened]
+    branches: ['feature/anna-business-nexus-109']
+permissions:
+  contents: read
+jobs:
+  probe:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'release/anna-business-nexus-probe-109'
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Verificar hosts sem credenciais
+        run: |
+          for origin in https://nexus.annaone.com.br https://anna-nexus-dev.onrender.com; do
+            echo "$origin"
+            curl -sS --max-time 60 -w '\nHTTP %{http_code}\n' "$origin/health" || true
+            curl -sS --max-time 25 -o /dev/null -w 'API me HTTP %{http_code}\n' "$origin/api/me" || true
+          done

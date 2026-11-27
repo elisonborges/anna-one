@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless';
+import { nexusOrganizations,nexusProjects,verifyNexusProject } from './nexus.js';
 
 const ORIGIN='https://annaone.com.br';
 const AUTHZ='https://anna-one-auditoria.elisonborg.workers.dev/v1/admin/authorize';
@@ -70,7 +71,7 @@ export default {async fetch(request,env){
  if(origin&&origin!==ORIGIN)return send({error:'Origem não permitida.'},403);
  if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{...headers,'Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Authorization, Content-Type','Access-Control-Max-Age':'600'}});
  const path=new URL(request.url).pathname;
- if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.2.0-dev.108',status:'online'});
+ if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.2.0-dev.109',status:'online'});
  try{
   if(!env.DATABASE_URL||!UUID.test(env.INTERNAL_TENANT_ID||''))fail(503,'Serviço cadastral ainda não configurado.');
   const portalDownload=path.match(/^\/v1\/portal\/publications\/([^/]+)\/download$/);
@@ -368,6 +369,13 @@ SELECT jsonb_build_object(
    const r=await execute(sql,tenant,user,`WITH orders AS (SELECT o.id,business.ops_order_status(o.id) AS status,o.due_on,(SELECT max(e.created_at) FROM business.ops_order_events e WHERE e.tenant_id=o.tenant_id AND e.order_id=o.id AND e.status='completed') AS completed_at FROM business.ops_orders o WHERE o.tenant_id=$1::uuid AND o.company_id=$2::uuid AND o.due_on BETWEEN $3::date AND $4::date), tasks AS (SELECT t.id,t.estimated_minutes,business.ops_task_status(t.id) AS status FROM business.ops_tasks t JOIN orders o ON o.id=t.order_id WHERE t.tenant_id=$1::uuid AND t.company_id=$2::uuid), costs AS (SELECT c.kind,c.amount FROM business.ops_costs c JOIN orders o ON o.id=c.order_id WHERE c.tenant_id=$1::uuid AND c.company_id=$2::uuid AND c.voided_at IS NULL), effort AS (SELECT e.minutes FROM business.ops_effort e JOIN tasks t ON t.id=e.task_id WHERE e.tenant_id=$1::uuid AND e.company_id=$2::uuid AND e.voided_at IS NULL)
    SELECT jsonb_build_object('allowed',business.ops_allowed($1::uuid,$2::uuid),'orders',(SELECT count(*) FROM orders),'completed',(SELECT count(*) FROM orders WHERE status='completed'),'on_time',(SELECT count(*) FROM orders WHERE status='completed' AND (completed_at AT TIME ZONE 'America/Fortaleza')::date<=due_on),'overdue_open',(SELECT count(*) FROM orders WHERE status NOT IN ('completed','cancelled') AND due_on<(now() AT TIME ZONE 'America/Fortaleza')::date),'tasks',(SELECT count(*) FROM tasks),'tasks_completed',(SELECT count(*) FROM tasks WHERE status='completed'),'estimated_minutes',(SELECT COALESCE(sum(estimated_minutes),0) FROM tasks WHERE status<>'cancelled'),'reported_minutes',(SELECT COALESCE(sum(minutes),0) FROM effort),'planned_cost',(SELECT COALESCE(sum(amount),0)::text FROM costs WHERE kind='planned'),'actual_cost',(SELECT COALESCE(sum(amount),0)::text FROM costs WHERE kind='actual'),'actual_cost_records',(SELECT count(*) FROM costs WHERE kind='actual')) AS data`,[tenant,company,start,end]);if(r.rows[0]?.data?.allowed!==true)fail(403,'Concessão operacional necessária.');return send(r.rows[0].data);
   }
+  if(['/v1/nexus/organizations','/v1/nexus/projects'].includes(path)&&request.method==='GET'){
+   const q=new URL(request.url).searchParams,company=q.get('company'),project=q.get('project'),org=q.get('org');
+   if(!UUID.test(company||'')||!UUID.test(project||'')||(path.endsWith('/projects')&&!UUID.test(org||'')))fail(400,'Selecione empresa, projeto e organização válidos.');
+   const r=await execute(sql,tenant,user,"SELECT id FROM business.projects WHERE tenant_id=$1::uuid AND company_id=$2::uuid AND id=$3::uuid AND business.hr_admin(tenant_id) AND business.ops_allowed(tenant_id,company_id)",[tenant,company,project]);
+   if(!r.rows.length)fail(403,'Concessão operacional e proprietário necessários.');
+   const token=request.headers.get('Authorization');try{const items=path.endsWith('/organizations')?await nexusOrganizations(token):await nexusProjects(token,org);return send({items,read_only:true});}catch(e){fail(e.status||503,e.message);}
+  }
   if(path==='/v1/operations/external-links'&&request.method==='GET'){
    const q=new URL(request.url).searchParams,company=q.get('company'),project=q.get('project'),order=q.get('order');
    if(!UUID.test(company||'')||Boolean(project)===Boolean(order)||!UUID.test(project||order||''))fail(400,'Selecione empresa e projeto ou ordem.');
@@ -376,6 +384,12 @@ SELECT jsonb_build_object(
   if(path==='/v1/operations/external-links'&&request.method==='POST'){
    const b=await body(request),op=requestId(b),scope=typeof b.external_scope==='string'?b.external_scope.trim():'',ref=typeof b.external_ref==='string'?b.external_ref.trim():'',reason=typeof b.reason==='string'?b.reason.trim():'',project=b.project_id||null,order=b.order_id||null;
    if(!UUID.test(b.company_id||'')||!['nexus','service_desk'].includes(b.provider)||!(/^[A-Za-z0-9._:-]{1,100}$/).test(scope)||!(/^[A-Za-z0-9._:-]{1,100}$/).test(ref)||!reason||reason.length>200||b.confirmed!==true||(b.provider==='nexus'?(!UUID.test(project||'')||order!==null||!UUID.test(ref)):(!UUID.test(order||'')||project!==null)))fail(400,'Confirme referência externa, organização/instituição e justificativa.');
+   if(b.provider==='nexus'){
+    if(!UUID.test(scope))fail(400,'Selecione uma organização Nexus válida.');
+    const access=await execute(sql,tenant,user,"SELECT id FROM business.projects WHERE tenant_id=$1::uuid AND company_id=$2::uuid AND id=$3::uuid AND business.hr_admin(tenant_id) AND business.ops_allowed(tenant_id,company_id)",[tenant,b.company_id,project]);
+    if(!access.rows.length)fail(403,'Concessão operacional e proprietário necessários.');
+    try{await verifyNexusProject(request.headers.get('Authorization'),scope,ref);}catch(e){fail(e.status||503,e.message);}
+   }
    const r=await execute(sql,tenant,user,`INSERT INTO business.external_work_links(tenant_id,company_id,project_id,order_id,provider,external_scope,external_ref,reason,operation_id,created_by) SELECT $1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6,$7,$8,$9::uuid,$10::uuid WHERE business.hr_admin($1::uuid) AND business.ops_allowed($1::uuid,$2::uuid) AND (($3::uuid IS NOT NULL AND EXISTS(SELECT 1 FROM business.projects WHERE tenant_id=$1::uuid AND company_id=$2::uuid AND id=$3::uuid)) OR ($4::uuid IS NOT NULL AND EXISTS(SELECT 1 FROM business.ops_orders WHERE tenant_id=$1::uuid AND company_id=$2::uuid AND id=$4::uuid)) ) ON CONFLICT DO NOTHING RETURNING id`,[tenant,b.company_id,project,order,b.provider,scope,ref,reason,op,user],true);if(!r.rows.length)fail(409,'Referência duplicada, registro incompatível ou acesso indisponível.');return send({item:r.rows[0]},201);
   }
   const externalLinkRevoke=path.match(/^\/v1\/operations\/external-links\/([^/]+)\/revoke$/);

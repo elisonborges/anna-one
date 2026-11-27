@@ -1,4 +1,4 @@
-# AnnA Business — 1.2.0-dev.106
+# AnnA Business — 1.2.0-dev.107
 
 Ciclo inicial 01–66 publicado; Geração 2 (67–78). Referência: Plano Diretor AB-PD-001 rev. 1.0.
 
@@ -92,3 +92,5 @@ A expansão 87–96 integra a Geração 3 conforme seção 22 do Plano Diretor A
 - [Incremento 105 — contabilidade gerencial por partidas dobradas](V12-DOUBLE-ENTRY.md).
 
 - [Incremento 106 — consolidação e diagnóstico integrado](V12-CYCLE-CONSOLIDATION.md).
+
+- [Incremento 107 — correções P0 de concorrência](V12-P0-CONCURRENCY-107.md) (desenvolvimento; publicação pendente).

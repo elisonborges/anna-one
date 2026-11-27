@@ -1,9 +1,10 @@
-# AnnA Business — 1.2.0-dev.89
+# AnnA Business — 1.2.0-dev.92
 
 Ciclo inicial 01–66 publicado; Geração 2 (67–78). Referência: Plano Diretor AB-PD-001 rev. 1.0.
 
 A v0.9 e o incremento 61 foram publicados pelo PR #173, commit b0fb298; migrações 046–049 aplicadas em produção. O ciclo 62–66 acrescenta indicadores gerenciais, preferências locais, administração, integridade, auditoria e rastreabilidade, sem migração nova.
 
+- [Recursos, orçamento de projetos e locações](V12-PROJECT-RESOURCES-RENTALS.md)
 - [Projetos empresariais](V12-PROJECTS.md)
 - [Consolidação operacional](V12-OPS-CONSOLIDATION.md)
 - [Recursos, custos e produtividade](V12-OPS-RESOURCES.md)

@@ -1,4 +1,4 @@
-# AnnA Business — 1.2.0-dev.96
+# AnnA Business — 1.2.0-dev.102
 
 Ciclo inicial 01–66 publicado; Geração 2 (67–78). Referência: Plano Diretor AB-PD-001 rev. 1.0.
 
@@ -72,3 +72,15 @@ Fluxo: branch de desenvolvimento -> commits -> pull request -> revisão e testes
 A expansão 87–96 integra a Geração 3 conforme seção 22 do Plano Diretor AB-PD-001 rev.1.0. Geração 4: marketing, canais, e-commerce, CPQ e Customer Success avançados. Tax Engine e contabilidade avançada (Geração 2) permanecem pendentes.
 
 - [Frotas, instalações e consolidação da expansão operacional](V12-FIELD-OPERATIONS.md)
+
+- [Incremento 97 — integração patrimonial](V12-ASSET-INTEGRATION.md) (candidato em branch, migração 060 não publicada).
+
+- [Incremento 98 — conciliação financeira de projetos e serviços](V12-PROJECT-FINANCE.md) (migração 061 testada em branch isolada, não publicada).
+
+- [Incremento 99 — integração contratual e financeira de locações](V12-RENTAL-BILLING.md) (migração 062 testada em branch isolada, não publicada).
+
+- [Incremento 100 — referências Nexus e Service Desk](V12-EXTERNAL-WORK.md) (fundação manual, migração 063 testada isoladamente; integração automática pendente).
+
+- [Incremento 101 — consistência transacional de recursos](V12-CONCURRENCY.md) (migração 064 testada isoladamente; não publicada).
+
+- [Incremento 102 — outbox operacional AnnA Connect](V12-CONNECT-OUTBOX.md) (migração 065 validada isoladamente; entrega externa não habilitada).

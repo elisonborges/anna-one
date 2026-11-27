@@ -60,6 +60,13 @@ export function createOpsResourcesPanel({host,status,refresh,request,authorized}
     for(const x of links.finance_links){const card=n('article',undefined,'business-card');card.append(n('p',x.reference+' · '+x.code+' · '+x.title+' · '+x.counterparty_name),n('p','Valor '+money(x.amount)+' · Saldo da obrigação '+money(x.remaining)),n('p',x.revoked_at?'Desvinculado: '+x.revoke_reason:x.cost_voided_at?'Atenção: custo anulado; conferir vínculo':'Vínculo ativo · '+x.reason));if(!x.revoked_at)form(card,'Desvincular obrigação',[['Justificativa',input('reason','text',200)],['Confirmo desvinculação',check()]],'/v1/operations/finance-links/'+x.id+'/revoke',p=>({...p,confirmed:true}));host.append(card);}
     if(!links.contract_links.length&&!links.finance_links.length)host.append(n('p','Nenhum vínculo registrado.'));
    }
+   host.append(n('h3','Referência externa — AnnA Service Desk'));
+   try{
+    const ext=await request('/v1/operations/external-links?'+new URLSearchParams({company,order:order}));if(!alive(r))return;if(ext?.allowed!==true||!Array.isArray(ext.items))throw Error('Referências indisponíveis.');
+    host.append(n('p','Referência conferida manualmente. Não sincroniza dados, não comprova autorização no sistema externo e não cria registros nele.'));
+    if(!ext.items.some(x=>!x.revoked_at))form(host,'Registrar referência externa',[['Organização ou instituição (identificador)',input('external_scope','text',100)],['Identificador do chamado externo',input('external_ref','text',100)],['Justificativa',input('reason','text',200)],['Confirmo conferência manual',check()]],'/v1/operations/external-links',x=>({...x,company_id:company,order_id:order,provider:'service_desk',confirmed:true}));
+    for(const x of ext.items){const card=n('article',undefined,'business-card');card.append(n('p',x.external_scope+' · '+x.external_ref),n('p',x.revoked_at?'Desvinculado: '+x.revoke_reason:'Referência manual ativa · '+x.reason));if(!x.revoked_at)form(card,'Desvincular referência',[['Justificativa',input('reason','text',200)],['Confirmo desvinculação',check()]],'/v1/operations/external-links/'+x.id+'/revoke',p=>({...p,confirmed:true}));host.append(card);}
+   }catch(err){if(!alive(r))return;host.append(n('p','Referências externas indisponíveis: '+err.message));}
    host.hidden=false;status.textContent='Consulta concluída. Até 500 registros por categoria e 100 ordens recentes; indicadores abrangem todo o recorte.';
   }catch(err){if(alive(r)){host.replaceChildren();host.hidden=true;status.textContent=err.message;}}finally{if(alive(r))refresh.disabled=false;}
  }

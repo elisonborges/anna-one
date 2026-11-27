@@ -1,0 +1,33 @@
+name: Homologação concorrente Business 108
+on:
+  pull_request:
+    types: [opened]
+    branches: ['feature/anna-business-homologation-108']
+permissions:
+  contents: read
+jobs:
+  concurrency:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'release/anna-business-concurrency-108-ci'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: anna_concurrency_test
+          POSTGRES_PASSWORD: disposable_ci_only
+        ports:
+          - 5432:5432
+        options: --health-cmd "pg_isready -U postgres -d anna_concurrency_test" --health-interval 2s --health-timeout 5s --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Quatro disputas independentes
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: '5432'
+          PGUSER: postgres
+          PGPASSWORD: disposable_ci_only
+          PGDATABASE: anna_concurrency_test
+        run: bash services/anna-one-business/test/concurrency-108.sh

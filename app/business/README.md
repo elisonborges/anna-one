@@ -1,4 +1,4 @@
-# AnnA Business — 1.2.0-dev.104
+# AnnA Business — 1.2.0-dev.105
 
 Ciclo inicial 01–66 publicado; Geração 2 (67–78). Referência: Plano Diretor AB-PD-001 rev. 1.0.
 
@@ -88,3 +88,5 @@ A expansão 87–96 integra a Geração 3 conforme seção 22 do Plano Diretor A
 - [Incremento 103 — fundação Tax Engine](V12-TAX-FOUNDATION.md).
 
 - [Incremento 104 — simulação tributária versionada](V12-TAX-SIMULATION.md).
+
+- [Incremento 105 — contabilidade gerencial por partidas dobradas](V12-DOUBLE-ENTRY.md).

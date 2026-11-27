@@ -70,7 +70,7 @@ export default {async fetch(request,env){
  if(origin&&origin!==ORIGIN)return send({error:'Origem não permitida.'},403);
  if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{...headers,'Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Authorization, Content-Type','Access-Control-Max-Age':'600'}});
  const path=new URL(request.url).pathname;
- if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.2.0-dev.100',status:'online'});
+ if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.2.0-dev.101',status:'online'});
  try{
   if(!env.DATABASE_URL||!UUID.test(env.INTERNAL_TENANT_ID||''))fail(503,'Serviço cadastral ainda não configurado.');
   const portalDownload=path.match(/^\/v1\/portal\/publications\/([^/]+)\/download$/);
@@ -1978,7 +1978,8 @@ SELECT COALESCE((SELECT jsonb_agg(to_jsonb(n) ORDER BY n.kind,n.label,n.id) FROM
   if(e?.code==='42501'&&(/management_(allocation|budget)_period_guard/.test(e.message||'')))return send({error:'Período gerencial encerrado. Consulte o fechamento e reabra com justificativa, se necessário.'},409);
   if(e?.code==='42501'&&/asset_movements_lifecycle_guard/.test(e.message||''))return send({error:'Bem encerrado ou data anterior ao último evento patrimonial.'},409);
   if(e?.code==='42501')return send({error:'Operação não autorizada.'},403);
-  if(e?.code==='40001')return send({error:'Alteração concorrente. Atualize a estrutura antes de tentar novamente.'},409);
+  if(['40001','40P01'].includes(e?.code))return send({error:'Alteração concorrente. Atualize a estrutura antes de tentar novamente.'},409);
+  if(e?.code==='23P01')return send({error:'Recurso indisponível no período ou em utilização. Atualize a agenda antes de repetir.'},409);
   if(e?.code==='23505')return send({error:'Cadastro existente ou conflito de unicidade. Consulte antes de repetir.'},409);
   if(['23514','23503','23502','22P02'].includes(e?.code))return send({error:'Dados incompatíveis com as regras cadastrais.'},422);
   return send({error:'Serviço cadastral indisponível. Não reenvie sem consultar o cadastro.'},503);

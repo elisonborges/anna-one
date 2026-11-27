@@ -1,4 +1,4 @@
-# AnnA Business — 1.2.0-dev.100
+# AnnA Business — 1.2.0-dev.101
 
 Ciclo inicial 01–66 publicado; Geração 2 (67–78). Referência: Plano Diretor AB-PD-001 rev. 1.0.
 
@@ -80,3 +80,5 @@ A expansão 87–96 integra a Geração 3 conforme seção 22 do Plano Diretor A
 - [Incremento 99 — integração contratual e financeira de locações](V12-RENTAL-BILLING.md) (migração 062 testada em branch isolada, não publicada).
 
 - [Incremento 100 — referências Nexus e Service Desk](V12-EXTERNAL-WORK.md) (fundação manual, migração 063 testada isoladamente; integração automática pendente).
+
+- [Incremento 101 — consistência transacional de recursos](V12-CONCURRENCY.md) (migração 064 testada isoladamente; não publicada).

@@ -63,9 +63,31 @@ export function createOpsResourcesPanel({host,status,refresh,request,authorized}
    host.append(n('h3','Referência externa — AnnA Service Desk'));
    try{
     const ext=await request('/v1/operations/external-links?'+new URLSearchParams({company,order:order}));if(!alive(r))return;if(ext?.allowed!==true||!Array.isArray(ext.items))throw Error('Referências indisponíveis.');
-    host.append(n('p','Referência conferida manualmente. Não sincroniza dados, não comprova autorização no sistema externo e não cria registros nele.'));
-    if(!ext.items.some(x=>!x.revoked_at))form(host,'Registrar referência externa',[['Organização ou instituição (identificador)',input('external_scope','text',100)],['Identificador do chamado externo',input('external_ref','text',100)],['Justificativa',input('reason','text',200)],['Confirmo conferência manual',check()]],'/v1/operations/external-links',x=>({...x,company_id:company,order_id:order,provider:'service_desk',confirmed:true}));
-    for(const x of ext.items){const card=n('article',undefined,'business-card');card.append(n('p',x.external_scope+' · '+x.external_ref),n('p',x.revoked_at?'Desvinculado: '+x.revoke_reason:'Referência manual ativa · '+x.reason));if(!x.revoked_at)form(card,'Desvincular referência',[['Justificativa',input('reason','text',200)],['Confirmo desvinculação',check()]],'/v1/operations/external-links/'+x.id+'/revoke',p=>({...p,confirmed:true}));host.append(card);}
+    const query=new URLSearchParams({company,order});
+    const availability=await request('/v1/service-desk/status?'+query);if(!alive(r))return;if(availability?.read_only!==true||typeof availability.configured!=='boolean')throw Error('Estado da integração indisponível.');
+    const configured=availability.configured;
+    host.append(n('p',configured?'Consulta autenticada ao Service Desk. Informe a instituição correspondente. O vínculo não cria ou altera chamados externos.':'API Service Desk ainda não configurada. Somente referências manuais, sem verificação externa.'));
+    const states={open:'Aberto',analysis:'Em análise',in_progress:'Em andamento',pending:'Pendente',resolved:'Resolvido',closed:'Encerrado',rejected:'Rejeitado',canceled:'Cancelado'};
+    if(!ext.items.some(x=>!x.revoked_at)){
+     if(!configured)form(host,'Registrar referência manual (não verificada)',[['Instituição (identificador)',input('external_scope','text',100)],['Identificador do chamado externo',input('external_ref','text',100)],['Justificativa',input('reason','text',200)],['Confirmo conferência manual',check()]],'/v1/operations/external-links',x=>({...x,company_id:company,order_id:order,provider:'service_desk',confirmed:true}));
+     else{
+      const block=n('section',undefined,'corporate-box'),institution=input('institution','text',36),search=n('button','Consultar chamados autorizados','btn'),result=n('div'),msg=n('p');search.type='button';msg.setAttribute('role','status');block.append(field('UUID da instituição Service Desk',institution),search,msg,result);host.append(block);let seq=0;
+      institution.addEventListener('input',()=>{seq++;result.replaceChildren();msg.textContent='';});
+      search.addEventListener('click',async()=>{if(!alive(r)||search.disabled)return;const chosen=institution.value.trim(),s=++seq;result.replaceChildren();search.disabled=true;msg.textContent='Consultando Service Desk...';try{
+       const d=await request('/v1/service-desk/tickets?'+query+'&institution='+encodeURIComponent(chosen));if(!alive(r)||s!==seq)return;if(d?.read_only!==true||!Array.isArray(d.items))throw Error('Listagem inválida.');
+       if(!d.items.length){msg.textContent='Nenhum chamado autorizado.';return;}
+       form(result,'Vincular chamado',[['Chamado',select('external_ref',d.items.map(x=>[x.id,x.number+' · '+states[x.status]+' · '+x.priority]))],['Justificativa',input('reason','text',200)],['Confirmo correspondência empresa/instituição',check()]],'/v1/operations/external-links',x=>({...x,external_scope:chosen,company_id:company,order_id:order,provider:'service_desk',verification:'api',confirmed:true}));msg.textContent='Até 100 chamados recentes. A autorização será conferida novamente ao registrar.';
+      }catch(err){if(alive(r)&&s===seq)msg.textContent=err.message;}finally{search.disabled=false;}});
+     }
+    }
+    for(const x of ext.items){const card=n('article',undefined,'business-card');card.append(n('p',x.external_scope+' · '+x.external_ref),n('p',x.revoked_at?'Desvinculado: '+x.revoke_reason:'Referência ativa · '+x.reason));
+     if(!x.revoked_at){
+      if(configured){const verify=n('button','Consultar situação no Service Desk','btn light'),info=n('p');verify.type='button';info.setAttribute('role','status');card.append(verify,info);verify.addEventListener('click',async()=>{if(!alive(r)||verify.disabled)return;verify.disabled=true;info.textContent='Consultando...';try{
+       const d=await request('/v1/service-desk/ticket?'+query+'&institution='+encodeURIComponent(x.external_scope)+'&ticket='+encodeURIComponent(x.external_ref));if(!alive(r))return;if(d?.read_only!==true||!d.item)throw Error('Resposta inválida.');info.textContent='Chamado '+d.item.number+' · '+states[d.item.status]+' · '+d.item.priority;
+      }catch(err){if(alive(r))info.textContent=err.message;}finally{verify.disabled=false;}});}
+      form(card,'Desvincular referência',[['Justificativa',input('reason','text',200)],['Confirmo desvinculação',check()]],'/v1/operations/external-links/'+x.id+'/revoke',p=>({...p,confirmed:true}));}
+     host.append(card);}
+
    }catch(err){if(!alive(r))return;host.append(n('p','Referências externas indisponíveis: '+err.message));}
    host.hidden=false;status.textContent='Consulta concluída. Até 500 registros por categoria e 100 ordens recentes; indicadores abrangem todo o recorte.';
   }catch(err){if(alive(r)){host.replaceChildren();host.hidden=true;status.textContent=err.message;}}finally{if(alive(r))refresh.disabled=false;}

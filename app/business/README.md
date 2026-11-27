@@ -1,4 +1,4 @@
-# AnnA Business — 1.2.0-dev.107
+# AnnA Business — 1.2.0-dev.108
 
 Ciclo inicial 01–66 publicado; Geração 2 (67–78). Referência: Plano Diretor AB-PD-001 rev. 1.0.
 
@@ -94,3 +94,5 @@ A expansão 87–96 integra a Geração 3 conforme seção 22 do Plano Diretor A
 - [Incremento 106 — consolidação e diagnóstico integrado](V12-CYCLE-CONSOLIDATION.md).
 
 - [Incremento 107 — correções P0 de concorrência](V12-P0-CONCURRENCY-107.md) (testes isolados e concorrência da barreira aprovados).
+
+- [Incremento 108 — homologação integrada automatizada](V12-HOMOLOGATION-108.md).

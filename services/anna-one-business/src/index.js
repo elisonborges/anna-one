@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless';
+import { serviceDeskOrigin,serviceDeskTickets,verifyServiceDeskTicket } from './service-desk.js';
 import { nexusOrganizations,nexusProjects,verifyNexusProject } from './nexus.js';
 
 const ORIGIN='https://annaone.com.br';
@@ -71,7 +72,7 @@ export default {async fetch(request,env){
  if(origin&&origin!==ORIGIN)return send({error:'Origem não permitida.'},403);
  if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{...headers,'Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Authorization, Content-Type','Access-Control-Max-Age':'600'}});
  const path=new URL(request.url).pathname;
- if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.2.0-dev.109',status:'online'});
+ if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.2.0-dev.110',status:'online'});
  try{
   if(!env.DATABASE_URL||!UUID.test(env.INTERNAL_TENANT_ID||''))fail(503,'Serviço cadastral ainda não configurado.');
   const portalDownload=path.match(/^\/v1\/portal\/publications\/([^/]+)\/download$/);
@@ -376,6 +377,17 @@ SELECT jsonb_build_object(
    if(!r.rows.length)fail(403,'Concessão operacional e proprietário necessários.');
    const token=request.headers.get('Authorization');try{const items=path.endsWith('/organizations')?await nexusOrganizations(token):await nexusProjects(token,org);return send({items,read_only:true});}catch(e){fail(e.status||503,e.message);}
   }
+  if(['/v1/service-desk/status','/v1/service-desk/tickets','/v1/service-desk/ticket'].includes(path)&&request.method==='GET'){
+   const q=new URL(request.url).searchParams,company=q.get('company'),order=q.get('order'),institution=q.get('institution'),ticket=q.get('ticket');
+   if(!UUID.test(company||'')||!UUID.test(order||'')||(path!=='/v1/service-desk/status'&&!UUID.test(institution||''))||(path.endsWith('/ticket')&&!UUID.test(ticket||'')))fail(400,'Selecione empresa, ordem, instituição e chamado válidos.');
+   const r=await execute(sql,tenant,user,"SELECT id FROM business.ops_orders WHERE tenant_id=$1::uuid AND company_id=$2::uuid AND id=$3::uuid AND business.hr_admin(tenant_id) AND business.ops_allowed(tenant_id,company_id)",[tenant,company,order]);
+   if(!r.rows.length)fail(403,'Concessão operacional e proprietário necessários.');
+   const origin=serviceDeskOrigin(env.SERVICE_DESK_ORIGIN);
+   if(path.endsWith('/status'))return send({configured:Boolean(origin),read_only:true});
+   if(!origin)fail(503,'API Service Desk ainda não configurada.');
+   const token=request.headers.get('Authorization');
+   try{if(path.endsWith('/ticket'))return send({item:await verifyServiceDeskTicket(origin,token,institution,ticket),read_only:true});return send({items:await serviceDeskTickets(origin,token,institution),read_only:true});}catch(e){fail(e.status||503,e.message);}
+  }
   if(path==='/v1/operations/external-links'&&request.method==='GET'){
    const q=new URL(request.url).searchParams,company=q.get('company'),project=q.get('project'),order=q.get('order');
    if(!UUID.test(company||'')||Boolean(project)===Boolean(order)||!UUID.test(project||order||''))fail(400,'Selecione empresa e projeto ou ordem.');
@@ -389,6 +401,16 @@ SELECT jsonb_build_object(
     const access=await execute(sql,tenant,user,"SELECT id FROM business.projects WHERE tenant_id=$1::uuid AND company_id=$2::uuid AND id=$3::uuid AND business.hr_admin(tenant_id) AND business.ops_allowed(tenant_id,company_id)",[tenant,b.company_id,project]);
     if(!access.rows.length)fail(403,'Concessão operacional e proprietário necessários.');
     try{await verifyNexusProject(request.headers.get('Authorization'),scope,ref);}catch(e){fail(e.status||503,e.message);}
+   }
+   if(b.provider==='service_desk'){
+    const origin=serviceDeskOrigin(env.SERVICE_DESK_ORIGIN);
+    if(origin||b.verification==='api'){
+     if(!origin)fail(503,'API Service Desk ainda não configurada.');
+     if(!UUID.test(scope)||!UUID.test(ref))fail(400,'Selecione instituição e chamado válidos.');
+     const access=await execute(sql,tenant,user,"SELECT id FROM business.ops_orders WHERE tenant_id=$1::uuid AND company_id=$2::uuid AND id=$3::uuid AND business.hr_admin(tenant_id) AND business.ops_allowed(tenant_id,company_id)",[tenant,b.company_id,order]);
+     if(!access.rows.length)fail(403,'Concessão operacional e proprietário necessários.');
+     try{await verifyServiceDeskTicket(origin,request.headers.get('Authorization'),scope,ref);}catch(e){fail(e.status||503,e.message);}
+    }
    }
    const r=await execute(sql,tenant,user,`INSERT INTO business.external_work_links(tenant_id,company_id,project_id,order_id,provider,external_scope,external_ref,reason,operation_id,created_by) SELECT $1::uuid,$2::uuid,$3::uuid,$4::uuid,$5,$6,$7,$8,$9::uuid,$10::uuid WHERE business.hr_admin($1::uuid) AND business.ops_allowed($1::uuid,$2::uuid) AND (($3::uuid IS NOT NULL AND EXISTS(SELECT 1 FROM business.projects WHERE tenant_id=$1::uuid AND company_id=$2::uuid AND id=$3::uuid)) OR ($4::uuid IS NOT NULL AND EXISTS(SELECT 1 FROM business.ops_orders WHERE tenant_id=$1::uuid AND company_id=$2::uuid AND id=$4::uuid)) ) ON CONFLICT DO NOTHING RETURNING id`,[tenant,b.company_id,project,order,b.provider,scope,ref,reason,op,user],true);if(!r.rows.length)fail(409,'Referência duplicada, registro incompatível ou acesso indisponível.');return send({item:r.rows[0]},201);
   }

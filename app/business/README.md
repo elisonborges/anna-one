@@ -1,4 +1,4 @@
-# AnnA Business — 1.2.0-dev.97
+# AnnA Business — 1.2.0-dev.98
 
 Ciclo inicial 01–66 publicado; Geração 2 (67–78). Referência: Plano Diretor AB-PD-001 rev. 1.0.
 
@@ -74,3 +74,5 @@ A expansão 87–96 integra a Geração 3 conforme seção 22 do Plano Diretor A
 - [Frotas, instalações e consolidação da expansão operacional](V12-FIELD-OPERATIONS.md)
 
 - [Incremento 97 — integração patrimonial](V12-ASSET-INTEGRATION.md) (candidato em branch, migração 060 não publicada).
+
+- [Incremento 98 — conciliação financeira de projetos e serviços](V12-PROJECT-FINANCE.md) (migração 061 testada em branch isolada, não publicada).

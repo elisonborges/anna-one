@@ -30,7 +30,7 @@ DECLARE v_period date;
 BEGIN
  IF NOT COALESCE(business.hr_admin(NEW.tenant_id),false) THEN RAISE EXCEPTION 'Acesso contábil necessário' USING ERRCODE='42501'; END IF;
  IF current_setting('transaction_isolation')<>'serializable' THEN RAISE EXCEPTION 'Operação crítica exige transação serializável' USING ERRCODE='40001'; END IF;
- v_period:=CASE WHEN TG_TABLE_NAME='ledger_entries' THEN date_trunc('month',NEW.posted_on::timestamp)::date ELSE NEW.period_on END;
+ IF TG_TABLE_NAME='ledger_entries' THEN v_period:=date_trunc('month',NEW.posted_on::timestamp)::date; ELSE v_period:=NEW.period_on; END IF;
  INSERT INTO business.ledger_period_fences(tenant_id,company_id,period_on) VALUES(NEW.tenant_id,NEW.company_id,v_period)
  ON CONFLICT(tenant_id,company_id,period_on) DO UPDATE SET revision=business.ledger_period_fences.revision+1;
  IF TG_TABLE_NAME='ledger_entries' AND business.management_period_closed(NEW.tenant_id,NEW.company_id,v_period) THEN RAISE EXCEPTION 'Competência gerencial encerrada' USING ERRCODE='23P01'; END IF;

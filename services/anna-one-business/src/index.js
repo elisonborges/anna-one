@@ -70,7 +70,7 @@ export default {async fetch(request,env){
  if(origin&&origin!==ORIGIN)return send({error:'Origem não permitida.'},403);
  if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{...headers,'Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Authorization, Content-Type','Access-Control-Max-Age':'600'}});
  const path=new URL(request.url).pathname;
- if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.2.0-dev.105',status:'online'});
+ if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.2.0-dev.106',status:'online'});
  try{
   if(!env.DATABASE_URL||!UUID.test(env.INTERNAL_TENANT_ID||''))fail(503,'Serviço cadastral ainda não configurado.');
   const portalDownload=path.match(/^\/v1\/portal\/publications\/([^/]+)\/download$/);
@@ -661,7 +661,20 @@ SELECT jsonb_build_object(
  'overdue_payable',(SELECT COALESCE(sum(remaining),0)::text FROM installments WHERE direction='payable' AND remaining>0 AND due_on<(SELECT today FROM clock))) AS data`,[tenant,company,start,end]);if(r.role!=='owner')fail(403,'Indicadores restritos ao proprietário.');const data=r.rows[0]?.data;if(!data?.scope_valid)fail(404,'Empresa não disponível.');return send(data);
   }
   if(path==='/v1/business-integrity'&&request.method==='GET'){
-   const r=await execute(sql,tenant,user,`SELECT jsonb_build_object('as_of',(now() AT TIME ZONE 'America/Fortaleza')::date::text,
+   const r=await execute(sql,tenant,user,`WITH active_cost AS (
+ SELECT tenant_id,company_id,id AS link_id,obligation_id,cost_id,'order' AS source FROM business.ops_finance_links WHERE tenant_id=$1::uuid AND revoked_at IS NULL
+ UNION ALL SELECT tenant_id,company_id,id,obligation_id,cost_id,'project' FROM business.project_finance_links WHERE tenant_id=$1::uuid AND revoked_at IS NULL
+ ), work_events AS (
+ SELECT tenant_id,id,'operations.asset' AS type,revoked_at FROM business.ops_asset_links WHERE tenant_id=$1::uuid
+ UNION ALL SELECT tenant_id,id,'project.finance',revoked_at FROM business.project_finance_links WHERE tenant_id=$1::uuid
+ UNION ALL SELECT tenant_id,id,'operations.finance',revoked_at FROM business.ops_finance_links WHERE tenant_id=$1::uuid
+ UNION ALL SELECT tenant_id,id,'rental.billing',revoked_at FROM business.rental_billing_links WHERE tenant_id=$1::uuid
+ UNION ALL SELECT tenant_id,id,'operations.external',revoked_at FROM business.external_work_links WHERE tenant_id=$1::uuid
+ ), ledger_check AS (
+ SELECT e.id,COALESCE(sum((l->>'amount')::numeric) FILTER(WHERE l->>'side'='debit'),0) AS debit,COALESCE(sum((l->>'amount')::numeric) FILTER(WHERE l->>'side'='credit'),0) AS credit
+ FROM business.ledger_entries e CROSS JOIN LATERAL jsonb_array_elements(e.lines) l WHERE e.tenant_id=$1::uuid GROUP BY e.id
+ )
+ SELECT jsonb_build_object('as_of',(now() AT TIME ZONE 'America/Fortaleza')::date::text,
  'orders_without_contract',(SELECT count(*) FROM business.commercial_orders o WHERE o.tenant_id=$1::uuid AND NOT EXISTS(SELECT 1 FROM business.contracts c WHERE c.tenant_id=o.tenant_id AND c.order_id=o.id)),
  'active_contracts_without_obligation',(SELECT count(*) FROM business.contracts c WHERE c.tenant_id=$1::uuid AND c.status='active' AND NOT EXISTS(SELECT 1 FROM business.financial_obligations f WHERE f.tenant_id=c.tenant_id AND f.contract_id=c.id)),
  'matched_receipts_without_obligation',(SELECT count(*) FROM business.purchase_receipts r WHERE r.tenant_id=$1::uuid AND r.status='matched' AND NOT EXISTS(SELECT 1 FROM business.financial_obligations f WHERE f.tenant_id=r.tenant_id AND f.purchase_receipt_id=r.id)),
@@ -670,6 +683,27 @@ SELECT jsonb_build_object(
  'connect_failed',(SELECT count(*) FROM business.connect_events WHERE tenant_id=$1::uuid AND status='failed'),
  'active_memberships',(SELECT count(*) FROM business.tenant_memberships WHERE tenant_id=$1::uuid AND active),
  'audit_events',(SELECT count(*) FROM business.audit_events WHERE tenant_id=$1::uuid),
+ 'cycle_97_105',jsonb_build_object(
+ 'asset_links',(SELECT count(*) FROM business.ops_asset_links WHERE tenant_id=$1::uuid AND revoked_at IS NULL),
+ 'asset_review',(SELECT count(*) FROM business.ops_asset_links l JOIN business.assets a ON a.tenant_id=l.tenant_id AND a.id=l.asset_id WHERE l.tenant_id=$1::uuid AND l.revoked_at IS NULL AND (a.ownership<>'owned' OR COALESCE((SELECT e.kind FROM business.asset_lifecycle_events e WHERE e.tenant_id=a.tenant_id AND e.asset_id=a.id AND e.kind<>'warranty' ORDER BY e.revision DESC LIMIT 1),'active') NOT IN ('active','maintenance_finish'))),
+ 'order_finance_links',(SELECT count(*) FROM active_cost WHERE source='order'),
+ 'project_finance_links',(SELECT count(*) FROM active_cost WHERE source='project'),
+ 'claim_missing',(SELECT count(*) FROM active_cost a WHERE NOT EXISTS(SELECT 1 FROM business.cost_obligation_claims c WHERE c.tenant_id=a.tenant_id AND c.company_id=a.company_id AND c.obligation_id=a.obligation_id AND c.source=a.source AND c.link_id=a.link_id)),
+ 'claim_orphan',(SELECT count(*) FROM business.cost_obligation_claims c WHERE c.tenant_id=$1::uuid AND NOT EXISTS(SELECT 1 FROM active_cost a WHERE a.tenant_id=c.tenant_id AND a.company_id=c.company_id AND a.obligation_id=c.obligation_id AND a.source=c.source AND a.link_id=c.link_id)),
+ 'voided_cost_links',(SELECT count(*) FROM active_cost a WHERE (a.source='order' AND EXISTS(SELECT 1 FROM business.ops_costs c WHERE c.tenant_id=a.tenant_id AND c.id=a.cost_id AND c.voided_at IS NOT NULL)) OR (a.source='project' AND EXISTS(SELECT 1 FROM business.project_costs c WHERE c.tenant_id=a.tenant_id AND c.id=a.cost_id AND c.voided_at IS NOT NULL))),
+ 'rental_links',(SELECT count(*) FROM business.rental_billing_links WHERE tenant_id=$1::uuid AND revoked_at IS NULL),
+ 'rental_review',(SELECT count(*) FROM business.rental_billing_links l JOIN business.contracts c ON c.tenant_id=l.tenant_id AND c.id=l.contract_id JOIN business.rentals r ON r.tenant_id=l.tenant_id AND r.id=l.rental_id WHERE l.tenant_id=$1::uuid AND l.revoked_at IS NULL AND (c.revision<>l.contract_revision OR c.status<>'active' OR c.total<>l.amount OR business.rental_status(r.id)='cancelled')),
+ 'external_links',(SELECT count(*) FROM business.external_work_links WHERE tenant_id=$1::uuid AND revoked_at IS NULL),
+ 'connect_queued',(SELECT count(*) FROM business.connect_events WHERE tenant_id=$1::uuid AND status='queued'),
+ 'links_without_event',(SELECT count(*) FROM work_events w WHERE NOT EXISTS(SELECT 1 FROM business.connect_events e WHERE e.tenant_id=w.tenant_id AND e.source='business' AND e.event_key=w.type||'.linked:'||w.id::text)),
+ 'revocations_without_event',(SELECT count(*) FROM work_events w WHERE w.revoked_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM business.connect_events e WHERE e.tenant_id=w.tenant_id AND e.source='business' AND e.event_key=w.type||'.revoked:'||w.id::text)),
+ 'tax_rules',(SELECT count(*) FROM business.tax_rule_versions WHERE tenant_id=$1::uuid),
+ 'tax_reviewed',(SELECT count(*) FROM business.tax_rule_reviews WHERE tenant_id=$1::uuid AND decision='reviewed'),
+ 'tax_overlap_pairs',(SELECT count(*) FROM business.tax_rule_versions a JOIN business.tax_rule_versions b ON b.tenant_id=a.tenant_id AND b.rule_code=a.rule_code AND a.id<b.id AND a.effective_on<=COALESCE(b.valid_until,'infinity'::date) AND b.effective_on<=COALESCE(a.valid_until,'infinity'::date) WHERE a.tenant_id=$1::uuid),
+ 'tax_simulations',(SELECT count(*) FROM business.tax_simulations WHERE tenant_id=$1::uuid),
+ 'ledger_accounts',(SELECT count(*) FROM business.ledger_accounts WHERE tenant_id=$1::uuid),
+ 'ledger_entries',(SELECT count(*) FROM ledger_check),
+ 'ledger_unbalanced',(SELECT count(*) FROM ledger_check WHERE debit<>credit OR debit<=0)),
  'recent_portal_audit',COALESCE((SELECT jsonb_agg(to_jsonb(a) ORDER BY a.created_at DESC) FROM (SELECT entity_type,action,created_at FROM business.audit_events WHERE tenant_id=$1::uuid AND entity_type IN ('portal_grant','portal_publication','accounting_pendency') ORDER BY created_at DESC,id DESC LIMIT 30) a),'[]'::jsonb)) AS data`,[tenant]);if(r.role!=='owner')fail(403,'Integridade restrita ao proprietário.');return send(r.rows[0]?.data||{});
   }
   if(path==='/v1/business-flows'&&request.method==='GET'){

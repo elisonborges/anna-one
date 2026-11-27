@@ -70,7 +70,7 @@ export default {async fetch(request,env){
  if(origin&&origin!==ORIGIN)return send({error:'Origem não permitida.'},403);
  if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{...headers,'Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Authorization, Content-Type','Access-Control-Max-Age':'600'}});
  const path=new URL(request.url).pathname;
- if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.2.0-dev.96',status:'online'});
+ if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.2.0-dev.97',status:'online'});
  try{
   if(!env.DATABASE_URL||!UUID.test(env.INTERNAL_TENANT_ID||''))fail(503,'Serviço cadastral ainda não configurado.');
   const portalDownload=path.match(/^\/v1\/portal\/publications\/([^/]+)\/download$/);
@@ -308,6 +308,23 @@ SELECT jsonb_build_object(
    'contract_links',CASE WHEN business.hr_admin($1::uuid) AND business.ops_allowed($1::uuid,$2::uuid) THEN (SELECT count(*) FROM business.ops_contract_links WHERE tenant_id=$1::uuid AND company_id=$2::uuid AND revoked_at IS NULL) END,
    'finance_links',CASE WHEN business.hr_admin($1::uuid) AND business.ops_allowed($1::uuid,$2::uuid) THEN (SELECT count(*) FROM business.ops_finance_links WHERE tenant_id=$1::uuid AND company_id=$2::uuid AND revoked_at IS NULL) END,
    'cost_voided_links',CASE WHEN business.hr_admin($1::uuid) AND business.ops_allowed($1::uuid,$2::uuid) THEN (SELECT count(*) FROM business.ops_finance_links l JOIN business.ops_costs c ON c.id=l.cost_id AND c.tenant_id=l.tenant_id WHERE l.tenant_id=$1::uuid AND l.company_id=$2::uuid AND l.revoked_at IS NULL AND c.voided_at IS NOT NULL) END) AS data`,[tenant,company]);if(r.rows[0]?.data?.allowed!==true)fail(403,'Concessão operacional necessária.');return send(r.rows[0].data);
+  }
+  if(path==='/v1/operations/asset-links'&&request.method==='GET'){
+   const company=new URL(request.url).searchParams.get('company');if(!UUID.test(company||''))fail(400,'Selecione empresa.');
+   const r=await execute(sql,tenant,user,`SELECT jsonb_build_object('allowed',business.hr_admin($1::uuid) AND business.ops_allowed($1::uuid,$2::uuid),
+   'assets',COALESCE((SELECT jsonb_agg(to_jsonb(x) ORDER BY x.tag) FROM (SELECT a.id,a.tag,a.title,a.ownership,CASE WHEN e.kind='maintenance_start' THEN 'maintenance' WHEN e.kind IN ('retired','returned') THEN e.kind ELSE 'active' END AS state FROM business.assets a LEFT JOIN LATERAL(SELECT kind FROM business.asset_lifecycle_events WHERE tenant_id=a.tenant_id AND asset_id=a.id AND kind<>'warranty' ORDER BY revision DESC LIMIT 1)e ON true WHERE a.tenant_id=$1::uuid AND a.company_id=$2::uuid AND business.hr_admin($1::uuid) AND business.ops_allowed($1::uuid,$2::uuid) ORDER BY a.tag LIMIT 500)x),'[]'::jsonb),
+   'links',COALESCE((SELECT jsonb_agg(to_jsonb(x) ORDER BY x.created_at DESC) FROM (SELECT l.id,l.resource_id,l.asset_id,r.code,r.label,a.tag,a.title,l.reason,l.created_at,l.revoked_at,l.revoke_reason,CASE WHEN e.kind='maintenance_start' THEN 'maintenance' WHEN e.kind IN ('retired','returned') THEN e.kind ELSE 'active' END AS state FROM business.ops_asset_links l JOIN business.ops_resources r ON r.tenant_id=l.tenant_id AND r.company_id=l.company_id AND r.id=l.resource_id JOIN business.assets a ON a.tenant_id=l.tenant_id AND a.company_id=l.company_id AND a.id=l.asset_id LEFT JOIN LATERAL(SELECT kind FROM business.asset_lifecycle_events WHERE tenant_id=a.tenant_id AND asset_id=a.id AND kind<>'warranty' ORDER BY revision DESC LIMIT 1)e ON true WHERE l.tenant_id=$1::uuid AND l.company_id=$2::uuid ORDER BY (l.revoked_at IS NULL) DESC,l.created_at DESC LIMIT 500)x),'[]'::jsonb)) AS data`,[tenant,company]);if(r.rows[0]?.data?.allowed!==true)fail(403,'Concessão operacional e acesso patrimonial necessários.');return send(r.rows[0].data);
+  }
+  if(path==='/v1/operations/asset-links'&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),reason=typeof b.reason==='string'?b.reason.trim():'';
+   if(![b.company_id,b.resource_id,b.asset_id].every(x=>typeof x==='string'&&UUID.test(x))||!reason||reason.length>300||b.confirmed!==true)fail(400,'Confirme equipamento, bem e justificativa.');
+   const r=await execute(sql,tenant,user,`INSERT INTO business.ops_asset_links(tenant_id,company_id,resource_id,asset_id,reason,operation_id,created_by) SELECT $1::uuid,$2::uuid,r.id,a.id,$5,$6::uuid,$7::uuid FROM business.ops_resources r JOIN business.assets a ON a.tenant_id=r.tenant_id AND a.company_id=r.company_id WHERE r.tenant_id=$1::uuid AND r.company_id=$2::uuid AND r.id=$3::uuid AND a.id=$4::uuid AND r.kind='equipment' AND a.ownership='owned' AND business.hr_admin($1::uuid) AND business.ops_allowed($1::uuid,$2::uuid) AND COALESCE((SELECT e.kind FROM business.asset_lifecycle_events e WHERE e.tenant_id=a.tenant_id AND e.asset_id=a.id AND e.kind<>'warranty' ORDER BY e.revision DESC LIMIT 1),'active') IN ('active','maintenance_finish') ON CONFLICT DO NOTHING RETURNING id`,[tenant,b.company_id,b.resource_id,b.asset_id,reason,op,user],true);if(!r.rows.length)fail(409,'Vínculo duplicado, bem indisponível ou acesso não autorizado.');return send({item:r.rows[0]},201);
+  }
+  const assetLinkRevoke=path.match(/^\/v1\/operations\/asset-links\/([^/]+)\/revoke$/);
+  if(assetLinkRevoke&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),reason=typeof b.reason==='string'?b.reason.trim():'';
+   if(!UUID.test(assetLinkRevoke[1])||!reason||reason.length>300||b.confirmed!==true)fail(400,'Confirme a desvinculação e justificativa.');
+   const r=await execute(sql,tenant,user,"UPDATE business.ops_asset_links SET revoked_at=now(),revoked_by=$3::uuid,revoke_reason=$4,revoke_operation_id=$5::uuid WHERE tenant_id=$1::uuid AND id=$2::uuid AND revoked_at IS NULL AND business.hr_admin(tenant_id) AND business.ops_allowed(tenant_id,company_id) RETURNING id",[tenant,assetLinkRevoke[1],user,reason,op],true);if(!r.rows.length)fail(409,'Vínculo indisponível ou já encerrado.');return send({item:r.rows[0]},201);
   }
   if(path==='/v1/operations/resources'&&request.method==='GET'){
    const company=new URL(request.url).searchParams.get('company');if(!UUID.test(company||''))fail(400,'Selecione empresa.');

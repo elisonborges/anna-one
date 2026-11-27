@@ -70,7 +70,7 @@ export default {async fetch(request,env){
  if(origin&&origin!==ORIGIN)return send({error:'Origem não permitida.'},403);
  if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{...headers,'Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Authorization, Content-Type','Access-Control-Max-Age':'600'}});
  const path=new URL(request.url).pathname;
- if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.2.0-dev.102',status:'online'});
+ if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.2.0-dev.103',status:'online'});
  try{
   if(!env.DATABASE_URL||!UUID.test(env.INTERNAL_TENANT_ID||''))fail(503,'Serviço cadastral ainda não configurado.');
   const portalDownload=path.match(/^\/v1\/portal\/publications\/([^/]+)\/download$/);
@@ -1123,6 +1123,22 @@ SELECT jsonb_build_object(
    if(![b.establishment_id,b.document_id,b.counterparty_id].every(x=>UUID.test(x||''))||!issued||!['incoming','outgoing'].includes(b.direction)||!['nfe','nfse','nfce','cte','other'].includes(b.kind)||!['issued','cancelled','other'].includes(b.declared_status)||typeof b.total!=='string'||!/^(?:0|[1-9][0-9]{0,15})(?:\.[0-9]{1,2})?$/.test(b.total))fail(400,'Confira identificação, direção, data, situação e valor.');
    const r=await execute(sql,tenant,user,"SELECT fiscal_document_id FROM business.create_fiscal_document($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7,$8,$9::date,$10::numeric,$11,$12,$13::uuid)",[b.establishment_id,b.document_id,b.counterparty_id,b.direction,b.kind,number,series,key,issued,b.total,b.declared_status,source,op],true);
    if(r.role!=='owner')fail(403,'Documentos fiscais restritos ao proprietário.');if(!r.rows.length)fail(409,'Duplicidade, vínculo GED incompatível ou perfil fiscal ausente na emissão.');return send({item:r.rows[0]},201);
+  }
+  if(path==='/v1/tax/rules'&&request.method==='GET'){
+   const r=await execute(sql,tenant,user,`SELECT v.id,v.rule_code,v.effective_on::text,v.valid_until::text,v.tax_name,v.jurisdiction,v.locality,v.applicability,v.source_reference,v.notes,v.created_at,COALESCE(a.decision,'draft') AS review_status,a.evidence,a.created_at AS reviewed_at FROM business.tax_rule_versions v LEFT JOIN business.tax_rule_reviews a ON a.tenant_id=v.tenant_id AND a.rule_id=v.id WHERE v.tenant_id=$1::uuid ORDER BY v.rule_code,v.effective_on DESC LIMIT 500`,[tenant]);if(r.role!=='owner')fail(403,'Tax Engine restrito ao proprietário.');return send({items:r.rows,official_calculation:false,limit:500});
+  }
+  if(path==='/v1/tax/rules'&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),from=crmDate(b.effective_on),until=b.valid_until?crmDate(b.valid_until):null;
+   const clean=(key,max)=>{const v=typeof b[key]==='string'?b[key].trim():'';if(!v||v.length>max)fail(400,'Campo de regra inválido.');return v;};
+   const code=clean('rule_code',40),name=clean('tax_name',100),locality=clean('locality',100),applicability=clean('applicability',500),source=clean('source_reference',500),notes=clean('notes',1000);
+   if(!/^[A-Z0-9_-]{2,40}$/.test(code)||!from||(b.valid_until&&!until)||(until&&until<from)||!['federal','state','municipal'].includes(b.jurisdiction)||b.confirmed!==true)fail(400,'Confirme código, jurisdição, vigência e fonte.');
+   const r=await execute(sql,tenant,user,`INSERT INTO business.tax_rule_versions(tenant_id,rule_code,effective_on,valid_until,tax_name,jurisdiction,locality,applicability,source_reference,notes,operation_id,created_by) SELECT $1::uuid,$2,$3::date,$4::date,$5,$6,$7,$8,$9,$10,$11::uuid,$12::uuid WHERE business.hr_admin($1::uuid) ON CONFLICT DO NOTHING RETURNING id`,[tenant,code,from,until,name,b.jurisdiction,locality,applicability,source,notes,op,user],true);if(r.role!=='owner')fail(403,'Tax Engine restrito ao proprietário.');if(!r.rows.length)fail(409,'Código e vigência ou operação já registrados.');return send({item:r.rows[0]},201);
+  }
+  const taxReview=path.match(/^\/v1\/tax\/rules\/([^/]+)\/review$/);
+  if(taxReview&&UUID.test(taxReview[1])&&request.method==='POST'){
+   const b=await body(request),op=requestId(b),evidence=typeof b.evidence==='string'?b.evidence.trim():'';
+   if(!['reviewed','rejected'].includes(b.decision)||!evidence||evidence.length>500||b.confirmed!==true)fail(400,'Confirme decisão e evidência documental.');
+   const r=await execute(sql,tenant,user,`INSERT INTO business.tax_rule_reviews(tenant_id,rule_id,decision,evidence,operation_id,created_by) SELECT $1::uuid,$2::uuid,$3,$4,$5::uuid,$6::uuid WHERE business.hr_admin($1::uuid) AND EXISTS(SELECT 1 FROM business.tax_rule_versions WHERE tenant_id=$1::uuid AND id=$2::uuid) ON CONFLICT DO NOTHING RETURNING id`,[tenant,taxReview[1],b.decision,evidence,op,user],true);if(r.role!=='owner')fail(403,'Tax Engine restrito ao proprietário.');if(!r.rows.length)fail(409,'Regra indisponível ou revisão já registrada.');return send({item:r.rows[0]},201);
   }
   if(path==='/v1/fiscal-profiles'&&request.method==='GET'){
    const r=await execute(sql,tenant,user,`WITH establishments AS (SELECT e.id,e.party_id AS company_id,e.name,e.cnpj,p.legal_name AS company_name FROM core.establishments e JOIN business.companies c ON c.tenant_id=e.tenant_id AND c.party_id=e.party_id JOIN core.parties p ON p.tenant_id=c.tenant_id AND p.id=c.party_id WHERE e.tenant_id=$1::uuid AND e.status='active' AND p.status='active'),

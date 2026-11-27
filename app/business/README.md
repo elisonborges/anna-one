@@ -1,4 +1,4 @@
-# AnnA Business — 1.2.0-dev.102
+# AnnA Business — 1.2.0-dev.103
 
 Ciclo inicial 01–66 publicado; Geração 2 (67–78). Referência: Plano Diretor AB-PD-001 rev. 1.0.
 
@@ -84,3 +84,5 @@ A expansão 87–96 integra a Geração 3 conforme seção 22 do Plano Diretor A
 - [Incremento 101 — consistência transacional de recursos](V12-CONCURRENCY.md) (migração 064 testada isoladamente; não publicada).
 
 - [Incremento 102 — outbox operacional AnnA Connect](V12-CONNECT-OUTBOX.md) (migração 065 validada isoladamente; entrega externa não habilitada).
+
+- [Incremento 103 — fundação Tax Engine](V12-TAX-FOUNDATION.md).

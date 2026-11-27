@@ -93,4 +93,4 @@ A expansão 87–96 integra a Geração 3 conforme seção 22 do Plano Diretor A
 
 - [Incremento 106 — consolidação e diagnóstico integrado](V12-CYCLE-CONSOLIDATION.md).
 
-- [Incremento 107 — correções P0 de concorrência](V12-P0-CONCURRENCY-107.md) (desenvolvimento; publicação pendente).
+- [Incremento 107 — correções P0 de concorrência](V12-P0-CONCURRENCY-107.md) (testes isolados e concorrência da barreira aprovados).

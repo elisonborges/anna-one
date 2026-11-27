@@ -1,4 +1,4 @@
-# AnnA Business — 1.2.0-dev.92
+# AnnA Business — 1.2.0-dev.96
 
 Ciclo inicial 01–66 publicado; Geração 2 (67–78). Referência: Plano Diretor AB-PD-001 rev. 1.0.
 
@@ -70,3 +70,5 @@ Fluxo: branch de desenvolvimento -> commits -> pull request -> revisão e testes
 
 ### Alinhamento do roadmap
 A expansão 87–96 integra a Geração 3 conforme seção 22 do Plano Diretor AB-PD-001 rev.1.0. Geração 4: marketing, canais, e-commerce, CPQ e Customer Success avançados. Tax Engine e contabilidade avançada (Geração 2) permanecem pendentes.
+
+- [Frotas, instalações e consolidação da expansão operacional](V12-FIELD-OPERATIONS.md)

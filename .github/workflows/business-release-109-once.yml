@@ -1,0 +1,52 @@
+name: Publicação única AnnA Business 1.2.0-dev.109
+on:
+  pull_request:
+    types: [opened]
+    branches: ['feature/anna-business-nexus-109']
+permissions:
+  contents: read
+concurrency:
+  group: anna-one-business-worker
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'release/anna-business-1.2.0-dev.109'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar dependências
+        working-directory: services/anna-one-business
+        run: npm install --no-package-lock
+      - name: Testes
+        working-directory: services/anna-one-business
+        run: npm test
+      - name: Sintaxe da interface
+        run: |
+          for file in app/business/*.js; do node --input-type=module --check < "$file"; done
+      - name: Build sem publicação
+        working-directory: services/anna-one-business
+        run: npx wrangler deploy --dry-run --outdir /tmp/anna-business-build
+      - name: Publicar apenas Worker Business
+        working-directory: services/anna-one-business
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          export CLOUDFLARE_API_TOKEN="$(printf '%s' "$CLOUDFLARE_API_TOKEN" | tr -d '\r\n\t ')"
+          export CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | tr -d '\r\n\t ')"
+          test -n "$CLOUDFLARE_API_TOKEN"
+          [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[a-fA-F0-9]{32}$ ]]
+          npx wrangler deploy
+      - name: Confirmar versão pública
+        run: |
+          for attempt in $(seq 1 12); do
+            if curl --fail --silent --show-error --max-time 10 "https://anna-one-business.elisonborg.workers.dev/health?check=$attempt-$(date +%s)" | node -e "let s='';process.stdin.on('data',c=>s+=c);process.stdin.on('end',()=>{try{const d=JSON.parse(s);console.log(d.service+' '+d.version);if(d.service!=='anna-one-business'||d.version!=='1.2.0-dev.109')process.exit(1);}catch(e){process.exit(1);}});"; then exit 0; fi
+            sleep 5
+          done
+          exit 1

@@ -1,0 +1,50 @@
+name: Ativação controlada Business 109
+on:
+  pull_request:
+    types: [opened]
+    branches: ['feature/anna-business-nexus-109']
+permissions:
+  contents: read
+concurrency:
+  group: anna-one-business-worker
+  cancel-in-progress: false
+jobs:
+  confirm:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'release/anna-business-109-activate'
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar dependências
+        working-directory: services/anna-one-business
+        run: npm install --no-package-lock
+      - name: Ativar versão 109 já validada
+        working-directory: services/anna-one-business
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          export CLOUDFLARE_API_TOKEN="$(printf '%s' "$CLOUDFLARE_API_TOKEN" | tr -d '\r\n\t ')"
+          export CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | tr -d '\r\n\t ')"
+          npx wrangler deployments list
+          npx wrangler versions view db873a74-4840-49a7-9741-97dae3ec41d7
+          check() {
+            curl --fail --silent --show-error --max-time 10 -H 'Cache-Control: no-cache' "https://anna-one-business.elisonborg.workers.dev/health?check=$(date +%s%N)" | node -e "let s='';process.stdin.on('data',c=>s+=c);process.stdin.on('end',()=>{try{const d=JSON.parse(s);console.log(d.service+' '+d.version);if(d.service!=='anna-one-business'||d.version!=='1.2.0-dev.109')process.exit(1);}catch(e){process.exit(1);}});"
+          }
+          if ! check; then
+            npx wrangler versions deploy db873a74-4840-49a7-9741-97dae3ec41d7@100% --yes
+          fi
+          for attempt in $(seq 1 12); do
+            if check; then
+              sleep 3
+              if check; then exit 0; fi
+            fi
+            sleep 5
+          done
+          exit 1

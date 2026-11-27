@@ -1,0 +1,20 @@
+name: Confirmação pública Business 107
+on:
+  pull_request:
+    types: [opened]
+    branches: ['feature/anna-business-p0-107']
+permissions:
+  contents: read
+jobs:
+  health:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'release/anna-business-107-health'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Confirmar versão sem redeploy
+        run: |
+          for attempt in $(seq 1 12); do
+            if curl --fail --silent --show-error --max-time 10 "https://anna-one-business.elisonborg.workers.dev/health?check=$attempt-$(date +%s)" | node -e "let s='';process.stdin.on('data',c=>s+=c);process.stdin.on('end',()=>{try{const d=JSON.parse(s);console.log(d.service+' '+d.version);if(d.service!=='anna-one-business'||d.version!=='1.2.0-dev.107')process.exit(1);}catch(e){process.exit(1);}});"; then exit 0; fi
+            sleep 5
+          done
+          exit 1

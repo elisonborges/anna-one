@@ -72,7 +72,7 @@ export default {async fetch(request,env){
  if(origin&&origin!==ORIGIN)return send({error:'Origem não permitida.'},403);
  if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{...headers,'Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Authorization, Content-Type','Access-Control-Max-Age':'600'}});
  const path=new URL(request.url).pathname;
- if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.2.0-dev.110',status:'online'});
+ if(path==='/health'&&request.method==='GET')return send({service:'anna-one-business',version:'1.2.0-dev.111',status:'online'});
  try{
   if(!env.DATABASE_URL||!UUID.test(env.INTERNAL_TENANT_ID||''))fail(503,'Serviço cadastral ainda não configurado.');
   const portalDownload=path.match(/^\/v1\/portal\/publications\/([^/]+)\/download$/);
@@ -791,8 +791,12 @@ SELECT jsonb_build_object(
    if(!['accepted','in_progress','waiting_customer','completed','cancelled'].includes(b.status)||!message||message.length>1500)fail(400,'Informe situação e mensagem compartilhável.');
    const r=await execute(sql,tenant,user,"SELECT * FROM business.add_portal_service_update($1::uuid,$2,$3,$4::uuid)",[serviceUpdateMatch[1],b.status,message,op],true);if(r.role!=='owner')fail(403,'Serviços externos restritos ao proprietário.');if(!r.rows.length)fail(409,'Transição inválida ou atualização duplicada.');return send({item:r.rows[0]},201);
   }
+  if(path==='/v1/connect/process-local'&&request.method==='POST'){
+   const b=await body(request);if(b.confirmed!==true||!Number.isInteger(b.limit)||b.limit<1||b.limit>100)fail(400,'Confirme o processamento local de até 100 eventos.');
+   const r=await execute(sql,tenant,user,"SELECT * FROM business.process_connect_local_batch($1::integer)",[b.limit],true);if(r.role!=='owner')fail(403,'AnnA Connect restrito ao proprietário.');return send({items:r.rows,processed:r.rows.length,external_delivery:false});
+  }
   if(path==='/v1/connect/events'&&request.method==='GET'){
-   const r=await execute(sql,tenant,user,"SELECT e.id,e.source,e.event_type,e.event_key,e.entity_id,e.reference,e.status,e.attempt,e.created_at,e.updated_at,e.result_reference FROM business.connect_events e WHERE e.tenant_id=$1::uuid ORDER BY e.created_at DESC,e.id LIMIT 500",[tenant]);if(r.role!=='owner')fail(403,'AnnA Connect restrito ao proprietário.');return send({items:r.rows,limit:500,automatic_delivery:false});
+   const r=await execute(sql,tenant,user,"SELECT e.id,e.source,e.event_type,e.event_key,e.entity_id,e.reference,e.status,e.attempt,e.created_at,e.updated_at,e.result_reference,r.processed_at AS local_processed_at,r.mode AS local_mode FROM business.connect_events e LEFT JOIN business.connect_local_receipts r ON r.tenant_id=e.tenant_id AND r.event_id=e.id AND r.attempt=e.attempt WHERE e.tenant_id=$1::uuid ORDER BY e.created_at DESC,e.id LIMIT 500",[tenant]);if(r.role!=='owner')fail(403,'AnnA Connect restrito ao proprietário.');return send({items:r.rows,limit:500,automatic_delivery:false,automatic_local_processing:true});
   }
   if(path==='/v1/connect/events'&&request.method==='POST'){
    const b=await body(request),op=requestId(b),source=b.source,type=b.event_type,key=typeof b.event_key==='string'?b.event_key.trim():'',reference=typeof b.reference==='string'?b.reference.trim():'',entity=b.entity_id||null;
@@ -801,7 +805,7 @@ SELECT jsonb_build_object(
   }
   const connectHistory=path.match(/^\/v1\/connect\/events\/([^/]+)\/history$/);
   if(connectHistory&&UUID.test(connectHistory[1])&&request.method==='GET'){
-   const r=await execute(sql,tenant,user,"SELECT a.id,a.action,a.attempt,a.note,a.operation_id,a.created_at FROM business.connect_event_actions a WHERE a.tenant_id=$1::uuid AND a.event_id=$2::uuid ORDER BY a.created_at,a.id",[tenant,connectHistory[1]]);if(r.role!=='owner')fail(403,'AnnA Connect restrito ao proprietário.');return send({items:r.rows});
+   const r=await execute(sql,tenant,user,"SELECT a.id,a.action,a.attempt,a.note,a.operation_id,a.created_at FROM business.connect_event_actions a WHERE a.tenant_id=$1::uuid AND a.event_id=$2::uuid ORDER BY a.created_at,a.id",[tenant,connectHistory[1]]);if(r.role!=='owner')fail(403,'AnnA Connect restrito ao proprietário.');const local=await execute(sql,tenant,user,"SELECT attempt,processed_at,mode FROM business.connect_local_receipts WHERE tenant_id=$1::uuid AND event_id=$2::uuid ORDER BY attempt",[tenant,connectHistory[1]]);return send({items:r.rows,local_receipts:local.rows});
   }
   const connectTransition=path.match(/^\/v1\/connect\/events\/([^/]+)\/transition$/);
   if(connectTransition&&UUID.test(connectTransition[1])&&request.method==='POST'){
